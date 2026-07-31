@@ -386,15 +386,15 @@ function StatsTab() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">누적 통계</p>
         </div>
         {[
-          { label: "회원 수",  value: `${stats?.totalMembers ?? 0}명`,   color: "text-blue-400" },
-          { label: "수업 수",  value: `${stats?.totalSessions ?? 0}회`,  color: "text-green-400" },
-          { label: "재등록 수", value: `${stats?.totalRereg ?? 0}회`,    color: "text-primary" },
-          { label: "노쇼 수",  value: `${stats?.totalNoShow ?? 0}회`,    color: "text-orange-400" },
-          { label: "잔여 PT",  value: `${stats?.remainingPt ?? 0}회`,    color: "text-purple-400" },
+          { label: "회원 수",  value: `${stats?.totalMembers ?? 0}명` },
+          { label: "수업 수",  value: `${stats?.totalSessions ?? 0}회` },
+          { label: "재등록 수", value: `${stats?.totalRereg ?? 0}회` },
+          { label: "노쇼 수",  value: `${stats?.totalNoShow ?? 0}회` },
+          { label: "잔여 PT",  value: `${stats?.remainingPt ?? 0}회` },
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className={`text-sm font-semibold ${item.color}`}>{item.value}</span>
+            <span className="text-sm font-semibold">{item.value}</span>
           </div>
         ))}
       </div>
@@ -438,22 +438,22 @@ function StatsTab() {
           </Select>
         </div>
         {[
-          { label: "수업 수",   value: `${monthlyStats?.sessionCount ?? 0}회`, color: "text-green-400" },
-          { label: "노쇼",     value: `${monthlyStats?.noShow ?? 0}회`,        color: "text-orange-400" },
-          { label: "신규 배정", value: `${monthlyStats?.newMembers ?? 0}명`,   color: "text-blue-400" },
-          { label: "재등록",   value: `${monthlyStats?.rereg ?? 0}회`,          color: "text-primary" },
+          { label: "수업 수",   value: `${monthlyStats?.sessionCount ?? 0}회` },
+          { label: "노쇼",     value: `${monthlyStats?.noShow ?? 0}회` },
+          { label: "신규 배정", value: `${monthlyStats?.newMembers ?? 0}명` },
+          { label: "재등록",   value: `${monthlyStats?.rereg ?? 0}회` },
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className={`text-sm font-semibold ${item.color}`}>{item.value}</span>
+            <span className="text-sm font-semibold">{item.value}</span>
           </div>
         ))}
-        <div className="flex items-center justify-between px-4 py-3 bg-yellow-500/10 border-t border-yellow-500/20">
+        <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border-t border-emerald-500/20">
           <div>
             <p className="text-sm text-muted-foreground">이달 매출</p>
             <p className="text-[12px] text-muted-foreground/60">등록 패키지 결제금액 합산</p>
           </div>
-          <span className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</span>
+          <span className="text-xl font-bold text-emerald-500">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</span>
         </div>
       </div>
     </div>
