@@ -581,7 +581,7 @@ export default function TrainerSettlement() {
           <TrendingUp className="h-4 w-4 inline mr-1.5 mb-0.5" />매출
         </button>
         <button onClick={() => setTab("expense")}
-          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "expense" ? "border-orange-400 text-orange-400" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "expense" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <Wallet className="h-4 w-4 inline mr-1.5 mb-0.5" />지출
         </button>
         <button onClick={() => setTab("stats")}
@@ -589,7 +589,7 @@ export default function TrainerSettlement() {
           <BarChart2 className="h-4 w-4 inline mr-1.5 mb-0.5" />통계
         </button>
         <button onClick={() => setTab("analysis")}
-          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "analysis" ? "border-emerald-500 text-emerald-500" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "analysis" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <LineChartIcon className="h-4 w-4 inline mr-1.5 mb-0.5" />분석
         </button>
       </div>
