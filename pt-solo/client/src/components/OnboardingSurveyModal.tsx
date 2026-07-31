@@ -137,7 +137,7 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
   if (step === "done") {
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 pt-safe backdrop-blur-sm">
-        <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden">
+        <div className="w-full max-w-md bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
           <div className="bg-gradient-to-br from-primary to-primary/70 p-8 text-white text-center space-y-3">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto">
               <TrendingUp className="h-8 w-8" />
@@ -164,7 +164,7 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
   if (step === "intro") {
     return (
       <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 pt-safe backdrop-blur-sm transition-opacity ${exiting ? "opacity-0" : "opacity-100"}`}>
-        <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden">
+        <div className="w-full max-w-md bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
           <div className="flex justify-end p-4 pb-0">
             <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
               <X className="h-5 w-5" />
