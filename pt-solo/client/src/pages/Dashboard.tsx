@@ -84,7 +84,6 @@ const WS_DASH: WsDashCat[] = [
     items: [
       { id: "templates",        icon: Dumbbell,     name: "운동 템플릿" },
       { id: "fitstep_videos",   icon: PlaySquare,   name: "운동 영상 200" },
-      { id: "fitstep_rec",      icon: Target,       name: "운동 추천" },
       { id: "fitstep_diet",     icon: Utensils,     name: "식단 관리" },
       { id: "fitstep_personal", icon: Activity,     name: "운동 기록" },
       { id: "training_video",   icon: Video,        name: "일지+영상" },
@@ -916,7 +915,6 @@ function TrainerDashboard() {
         <ToolGrid items={[
           { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
           { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
-          { label: "AI 추천", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("fitstep_rec"), locked: userPlan === "free" },
           { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
         ]} />
       </div>
@@ -932,24 +930,6 @@ function TrainerDashboard() {
       {WS_DASH.map(cat => (
         <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={openFeature} featureConfigs={wsStatus?.featureConfigs} addonUnlocks={wsStatus?.addonUnlocks} />
       ))}
-
-      {/* AI 추천 배너 */}
-      <button onClick={() => openFeature("fitstep_rec")}
-        className="w-full relative overflow-hidden rounded-2xl p-5 flex items-center gap-4 text-left active:scale-[0.98] transition-transform"
-        style={{ background: "linear-gradient(130deg, #1E40AF 0%, #4F46E5 55%, #7C3AED 100%)", boxShadow: "0 8px 28px rgba(79,70,229,.28)" }}>
-        <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/5 -translate-y-8 translate-x-8 pointer-events-none" />
-        <div className="absolute bottom-0 right-16 w-20 h-20 rounded-full bg-white/5 translate-y-8 pointer-events-none" />
-        <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
-          <Cpu className="h-6 w-6 text-white" />
-        </div>
-        <div className="flex-1 relative">
-          <p className="text-[10px] font-semibold text-white/60 tracking-wider uppercase mb-1">AI 추천</p>
-          <p className="text-sm font-semibold text-white leading-snug">AI가 회원 데이터를 분석하여<br />맞춤 운동과 식단을 추천합니다</p>
-        </div>
-        <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0 relative">
-          <ChevronRight className="h-4 w-4 text-white" />
-        </div>
-      </button>
 
       {/* 오늘 출석 모달 */}
       <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
