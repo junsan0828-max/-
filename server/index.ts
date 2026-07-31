@@ -545,13 +545,18 @@ async function initDatabase() {
       "relatedId" INTEGER,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
-    // 기본 영상 카테고리 시드 (이름 중복 시 건너뜀 — 관리자가 이름을 바꾸면 다시 생기지 않도록 이름으로 판단)
+    // 기본 영상 카테고리 시드. "기구운동"은 관리자가 이미 만들어둔 "자이언트짐 기구 운동"과
+    // 이름만 다른 중복이었으므로(정확 일치 검사라 못 잡음), 여기서 만들었고 비어 있는
+    // 경우에만 안전하게 정리한다. 스트레칭·폼롤러는 앞쪽에서 바로 보이도록 순서를 당긴다.
+    `DELETE FROM gym_plus_video_categories
+     WHERE name = '기구운동'
+       AND NOT EXISTS (SELECT 1 FROM gym_plus_videos WHERE "categoryId" = gym_plus_video_categories.id)`,
     `INSERT INTO gym_plus_video_categories (name, "sortOrder")
-     SELECT '기구운동', 10 WHERE NOT EXISTS (SELECT 1 FROM gym_plus_video_categories WHERE name = '기구운동')`,
+     SELECT '스트레칭', 1 WHERE NOT EXISTS (SELECT 1 FROM gym_plus_video_categories WHERE name = '스트레칭')`,
     `INSERT INTO gym_plus_video_categories (name, "sortOrder")
-     SELECT '스트레칭', 20 WHERE NOT EXISTS (SELECT 1 FROM gym_plus_video_categories WHERE name = '스트레칭')`,
-    `INSERT INTO gym_plus_video_categories (name, "sortOrder")
-     SELECT '폼롤러', 30 WHERE NOT EXISTS (SELECT 1 FROM gym_plus_video_categories WHERE name = '폼롤러')`,
+     SELECT '폼롤러', 2 WHERE NOT EXISTS (SELECT 1 FROM gym_plus_video_categories WHERE name = '폼롤러')`,
+    `UPDATE gym_plus_video_categories SET "sortOrder" = 1 WHERE name = '스트레칭' AND "sortOrder" > 5`,
+    `UPDATE gym_plus_video_categories SET "sortOrder" = 2 WHERE name = '폼롤러' AND "sortOrder" > 5`,
     `CREATE TABLE IF NOT EXISTS gym_plus_purchase_requests (
       id SERIAL PRIMARY KEY,
       "gymPlusMemberId" INTEGER NOT NULL,
