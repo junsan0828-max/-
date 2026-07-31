@@ -713,7 +713,11 @@ const revenueRouter = t.router({
         // 패키지의 totalSessions로 폴백한다. 이게 없으면 newSessions=0이 되어 아래 동기화 블록이
         // 통째로 스킵되고, 금액을 아무리 고쳐도 패키지 결제금액/단가가 옛값에 묶여 정산이 틀어진다.
         const newSessions = row.sessions ?? existingPkg?.totalSessions ?? 0;
-        const newAmount = row.paidAmount ?? row.amount ?? 0;
+        // 패키지 결제금액·단가는 "계약금액"(정가 − 할인) 기준이다. 실수령액(paidAmount)으로
+        // 잡으면 미수금이 있는 회원의 세션 단가가 폭락한다 — 강문영: 960,000 계약인데 실수령
+        // 100,000만 반영돼 단가가 48,000원이어야 할 게 5,000원으로 찍혔다. 아직 수업도 시작
+        // 안 한 회원이 "정산 단가 이상"으로 잡히는 원인이었다. 미수금은 unpaidAmount로 따로 관리한다.
+        const newAmount = Math.max(0, (row.amount ?? row.paidAmount ?? 0) - (row.discountAmount ?? 0));
 
         // pricePerSession 재계산
         const tAmt = (row as any).transferAmount ?? existingPkg?.transferAmount ?? null;

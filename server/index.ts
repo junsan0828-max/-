@@ -1587,17 +1587,19 @@ async function initDatabase() {
       WHERE COALESCE("pricePerSession",0) = 0
         AND COALESCE("paymentAmount",0) > 0 AND COALESCE("totalSessions",0) > 0
     `);
-    // 2) 결제금액 자체가 없는 패키지: 연결된 매출(revenueEntryId)에서 채우기
+    // 2) 결제금액 자체가 없는 패키지: 연결된 매출(revenueEntryId)에서 채우기.
+    //    금액 기준은 "계약금액"(정가 − 할인)이다. 실수령액을 쓰면 미수금 있는 회원의 단가가
+    //    폭락한다(강문영 사례) — 미수금은 unpaidAmount로 따로 관리하므로 여기서 빼면 안 된다.
     await pool.query(`
       UPDATE pt_packages p
-      SET "paymentAmount" = r."paidAmount",
+      SET "paymentAmount" = GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0)),
           "pricePerSession" = CASE WHEN COALESCE(p."totalSessions",0) > 0
-                                   THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
+                                   THEN ROUND(GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / p."totalSessions")
                                    ELSE p."pricePerSession" END
       FROM revenue_entries r
       WHERE p."revenueEntryId" = r.id
         AND COALESCE(p."paymentAmount",0) = 0
-        AND COALESCE(r."paidAmount",0) > 0
+        AND GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0)) > 0
     `);
     // 2-b) 매출(원본)과 결제금액이 어긋난 패키지 교정 (매출 수정 시 동기화가 과거에 실패했던 건).
     //   매출이 원본이므로 매출→패키지 방향으로만 맞춘다. 값이 다를 때만 갱신(멱등). 혼합결제는
@@ -1605,12 +1607,12 @@ async function initDatabase() {
     //   예: 200,000원으로 잘못 등록 후 장부만 2,000,000원으로 고쳤는데 패키지가 안 따라온 경우.
     const resynced = await pool.query(`
       UPDATE pt_packages p
-      SET "paymentAmount" = r."paidAmount",
+      SET "paymentAmount" = GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0)),
           "unpaidAmount" = COALESCE(r."unpaidAmount", p."unpaidAmount"),
           "pricePerSession" = CASE
             WHEN p."paymentMethod" IN ('이체','계좌이체')
-              THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
-            ELSE ROUND((r."paidAmount"::numeric / 1.1) / p."totalSessions")
+              THEN ROUND(GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / p."totalSessions")
+            ELSE ROUND((GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / 1.1) / p."totalSessions")
           END,
           "updatedAt" = now()::text
       FROM revenue_entries r
@@ -1618,7 +1620,7 @@ async function initDatabase() {
         AND r.type = 'PT'
         AND COALESCE(p."totalSessions",0) > 0
         AND COALESCE(p."paymentMethod",'') <> '혼합'
-        AND COALESCE(p."paymentAmount",0) <> COALESCE(r."paidAmount",0)
+        AND COALESCE(p."paymentAmount",0) <> GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))
     `);
     if ((resynced.rowCount ?? 0) > 0) console.log(`💰 매출-패키지 결제금액 재동기화: ${resynced.rowCount}건`);
 
@@ -1644,12 +1646,12 @@ async function initDatabase() {
     // 예전 금액에 묶여 있던 것 — 이제 재등록 코드 자체는 고쳤고, 이건 기존 데이터 교정용)
     const resynced2 = await pool.query(`
       UPDATE pt_packages p
-      SET "paymentAmount" = r."paidAmount",
+      SET "paymentAmount" = GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0)),
           "unpaidAmount" = COALESCE(r."unpaidAmount", p."unpaidAmount"),
           "pricePerSession" = CASE
             WHEN p."paymentMethod" IN ('이체','계좌이체')
-              THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
-            ELSE ROUND((r."paidAmount"::numeric / 1.1) / p."totalSessions")
+              THEN ROUND(GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / p."totalSessions")
+            ELSE ROUND((GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / 1.1) / p."totalSessions")
           END,
           "updatedAt" = now()::text
       FROM revenue_entries r
@@ -1660,7 +1662,7 @@ async function initDatabase() {
         AND r.sessions = p."totalSessions" - COALESCE(p."serviceSessions", 0)
         AND COALESCE(p."paymentMethod",'') <> '혼합'
         AND COALESCE(p."totalSessions",0) > 0
-        AND COALESCE(p."paymentAmount",0) <> COALESCE(r."paidAmount",0)
+        AND COALESCE(p."paymentAmount",0) <> GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))
         AND r.id = (
           SELECT r2.id FROM revenue_entries r2
           WHERE r2.type = 'PT' AND r2."memberId" = p."memberId" AND r2."startDate" = p."startDate"
