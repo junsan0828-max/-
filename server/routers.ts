@@ -4257,20 +4257,28 @@ const adminRouter = t.router({
     // 때문(예: 최지훈 204,000→224,400은 정확히 ×1.1 부가세, 궁연화 216,000→276,000은 서비스 합산).
     // 따라서 "실결제가 받았어야 할 금액보다 적게 기록된 경우"(매출 누락 위험)와 "미수금이 정가보다
     // 큰 경우"(명백한 데이터 오류)만 이상으로 잡는다. 반올림 오차(±100원)는 무시.
+    // ⚠ 미수금을 나중에 수납하면 그 금액은 수납일자로 별도 행(subType='미수금')에 남고 원본
+    // 행의 paidAmount는 최초 입금액 그대로다. 그래서 수납액을 합산하지 않으면 전액 받은 건이
+    // "적게 기록됨"으로 잘못 잡힌다(안종현·김용근 사례). 아래에서 수납분을 더해 비교한다.
     const mismatchRes = await pool.query<{
       id: number; customerName: string | null; paymentDate: string | null; type: string;
       amount: number; discount: number; unpaid: number; paid: number;
     }>(`
-      SELECT id, "customerName", "paymentDate", type,
-             COALESCE(amount,0) AS amount, COALESCE("discountAmount",0) AS discount,
-             COALESCE("unpaidAmount",0) AS unpaid, COALESCE("paidAmount",0) AS paid
-      FROM revenue_entries
-      WHERE COALESCE("subType",'') NOT IN ('환불','이전')
+      SELECT r.id, r."customerName", r."paymentDate", r.type,
+             COALESCE(r.amount,0) AS amount, COALESCE(r."discountAmount",0) AS discount,
+             COALESCE(r."unpaidAmount",0) AS unpaid, COALESCE(r."paidAmount",0) AS paid
+      FROM revenue_entries r
+      WHERE COALESCE(r."subType",'') NOT IN ('환불','이전','미수금')
         AND (
-          COALESCE("unpaidAmount",0) > COALESCE(amount,0)
-          OR COALESCE("paidAmount",0) < (COALESCE(amount,0) - COALESCE("discountAmount",0) - COALESCE("unpaidAmount",0)) - 100
+          COALESCE(r."unpaidAmount",0) > COALESCE(r.amount,0)
+          OR COALESCE(r."paidAmount",0)
+             + COALESCE((SELECT SUM(COALESCE(c."paidAmount",0)) FROM revenue_entries c
+                         WHERE c."subType" = '미수금'
+                           AND (c."relatedEntryId" = r.id
+                                OR (c."relatedEntryId" IS NULL AND c."memberId" = r."memberId"))),0)
+             < (COALESCE(r.amount,0) - COALESCE(r."discountAmount",0) - COALESCE(r."unpaidAmount",0)) - 100
         )
-      ORDER BY "paymentDate" DESC NULLS LAST
+      ORDER BY r."paymentDate" DESC NULLS LAST
       LIMIT 30
     `);
 

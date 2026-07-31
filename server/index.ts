@@ -1412,6 +1412,24 @@ async function initDatabase() {
     `);
     const n = (fixedLinked.rowCount ?? 0) + (fixedUnlinked.rowCount ?? 0);
     if (n > 0) console.log(`💵 수납 반영 누락 미수금 보정: ${n}건`);
+
+    // relatedEntryId 도입 전에 만들어진 미수금 수납 행을 원본 등록 행에 연결한다.
+    // 연결이 없으면 "회원 단위"로 대충 합산할 수밖에 없어, 같은 회원에게 등록 건이 여러 개면
+    // 장부 검증·등록관리 표시가 부정확해진다. 미납분(정가-할인-실결제)이 수납액과 정확히
+    // 일치하는 행만 연결하므로 오연결 위험이 없다.
+    const linkedBack = await pool.query(`
+      UPDATE revenue_entries c
+      SET "relatedEntryId" = r.id
+      FROM revenue_entries r
+      WHERE c."subType" = '미수금'
+        AND c."relatedEntryId" IS NULL
+        AND r.id <> c.id
+        AND r."memberId" = c."memberId"
+        AND COALESCE(r."subType",'') NOT IN ('미수금','환불','이전')
+        AND (COALESCE(r.amount,0) - COALESCE(r."discountAmount",0) - COALESCE(r."paidAmount",0))
+            = COALESCE(c."paidAmount",0)
+    `);
+    if ((linkedBack.rowCount ?? 0) > 0) console.log(`🔗 미수금 수납 ↔ 원본 등록 연결: ${linkedBack.rowCount}건`);
   } catch (e) {
     console.error("미수금 수납 반영 보정 오류:", e);
   }
