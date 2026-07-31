@@ -49,11 +49,11 @@ export default function FitStepPlusVideos({ trainerId }: { trainerId: number }) 
         <div className="rounded-2xl bg-primary/10 border border-primary/20 px-4 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-primary">오늘 체크인 기반 추천</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{recommendParts.join(" · ")} 관련 영상 {recommendedVideos.length}개</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5 truncate">{recommendParts.join(" · ")} 관련 영상 {recommendedVideos.length}개</p>
           </div>
           <button
             onClick={() => setShowRecOnly(v => !v)}
-            className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground"
+            className="shrink-0 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground"
           >
             {showRecOnly ? "전체 보기" : "추천만 보기"}
           </button>
@@ -122,15 +122,15 @@ export default function FitStepPlusVideos({ trainerId }: { trainerId: number }) 
               <div className="p-2 space-y-1">
                 <p className="text-xs font-semibold line-clamp-2 leading-snug">{v.title}</p>
                 <div className="flex items-center gap-1 flex-wrap">
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${levelColor[v.level ?? "beginner"] ?? ""}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${levelColor[v.level ?? "beginner"] ?? ""}`}>
                     {levelLabel[v.level ?? "beginner"] ?? v.level}
                   </span>
                   {v.bodyPart && (
-                    <span className="text-[9px] text-muted-foreground">{v.bodyPart}</span>
+                    <span className="text-[10px] text-muted-foreground">{v.bodyPart}</span>
                   )}
                 </div>
                 {v.duration && (
-                  <p className="text-[9px] text-muted-foreground">{v.duration}분</p>
+                  <p className="text-[10px] text-muted-foreground">{v.duration}분</p>
                 )}
               </div>
             </div>

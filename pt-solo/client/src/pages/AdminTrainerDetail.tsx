@@ -308,7 +308,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                     {a.conditionScore != null && (
                       <span className="flex items-center gap-1">
                         <span className="text-muted-foreground">컨디션</span>
-                        <span className={`font-bold ${a.conditionScore >= 4 ? "text-green-400" : a.conditionScore >= 3 ? "text-yellow-400" : "text-red-400"}`}>{a.conditionScore}/5</span>
+                        <span className={`font-semibold ${a.conditionScore >= 4 ? "text-green-400" : a.conditionScore >= 3 ? "text-yellow-400" : "text-red-400"}`}>{a.conditionScore}/5</span>
                       </span>
                     )}
                     {a.sleepHours != null && (
@@ -423,7 +423,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           <p className="text-xs text-muted-foreground">플랜마다 등록 가능한 유효회원 수 한도를 설정합니다. 변경 시 모든 STEPER에게 적용됩니다.</p>
           {["free", "pro", "elite"].map(plan => (
             <div key={plan} className="flex items-center gap-3">
-              <span className={`text-xs font-bold w-12 ${plan === "elite" ? "text-purple-500" : plan === "pro" ? "text-blue-500" : "text-gray-500"}`}>
+              <span className={`text-xs font-semibold w-12 ${plan === "elite" ? "text-purple-500" : plan === "pro" ? "text-blue-500" : "text-gray-500"}`}>
                 {plan.toUpperCase()}
               </span>
               <Input
@@ -488,7 +488,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           {/* 잔액 */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 border border-primary/20">
             <span className="text-sm text-muted-foreground">현재 잔액</span>
-            <span className="text-xl font-black text-primary">{(pointData?.balance ?? 0).toLocaleString()} P</span>
+            <span className="text-xl font-bold text-primary">{(pointData?.balance ?? 0).toLocaleString()} P</span>
           </div>
 
           {/* 지급 폼 */}
@@ -520,17 +520,17 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                       </span>
                       {log.memo && <span className="text-xs text-muted-foreground truncate">· {log.memo}</span>}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">{log.createdAt.slice(0, 10)}</p>
+                    <p className="text-[12px] text-muted-foreground">{log.createdAt.slice(0, 10)}</p>
                   </div>
-                  <span className={`text-sm font-bold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
+                  <span className={`text-sm font-semibold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
                     {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()} P
                   </span>
                   {log.status === "pending" && (
                     <div className="flex gap-1 shrink-0">
                       <button onClick={() => approveMutation.mutate({ logId: log.id, approve: true })}
-                        className="text-[11px] bg-green-500/20 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded">승인</button>
+                        className="text-[12px] bg-green-500/20 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded">승인</button>
                       <button onClick={() => approveMutation.mutate({ logId: log.id, approve: false })}
-                        className="text-[11px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">거절</button>
+                        className="text-[12px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">거절</button>
                     </div>
                   )}
                 </div>

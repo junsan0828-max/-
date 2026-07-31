@@ -106,7 +106,7 @@ function PushNotificationCard() {
             {status?.subscribed ? <Bell className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4 text-muted-foreground" />}
             푸시 알림
           </p>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${status?.subscribed ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${status?.subscribed ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
             {status?.subscribed ? "켜짐" : "꺼짐"}
           </span>
         </div>
@@ -394,7 +394,7 @@ export default function Profile() {
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     현재 플랜:
-                    <span className={`ml-1.5 font-bold ${PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.color ?? "text-gray-500"}`}>
+                    <span className={`ml-1.5 font-semibold ${PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.color ?? "text-gray-500"}`}>
                       {PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.label ?? "FREE"}
                     </span>
                   </p>
@@ -421,31 +421,31 @@ export default function Profile() {
                           : `border-border bg-card hover:${info.border}`
                       }`}>
                       {isCurrent ? (
-                        <span className="absolute top-2 right-2 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">현재</span>
+                        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">현재</span>
                       ) : hasEvent ? (
-                        <span className="absolute top-2 right-2 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">오픈이벤트</span>
+                        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full">오픈이벤트</span>
                       ) : disc > 0 ? (
-                        <span className="absolute top-2 right-2 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">-{disc}%</span>
+                        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full">-{disc}%</span>
                       ) : null}
-                      <p className={`text-sm font-black mb-1 ${info.color}`}>{info.label}</p>
+                      <p className={`text-sm font-semibold mb-1 ${info.color}`}>{info.label}</p>
                       {price > 0 ? (
                         <div className="flex items-baseline gap-1.5">
                           {(hasEvent || disc > 0) && (
-                            <span className="text-[11px] text-muted-foreground line-through">
+                            <span className="text-[12px] text-muted-foreground line-through">
                               {(hasEvent ? proOriginalPrice : price).toLocaleString()}원
                             </span>
                           )}
-                          <span className={`text-lg font-black ${hasEvent || disc > 0 ? info.color : "text-foreground"}`}>
+                          <span className={`text-lg font-bold ${hasEvent || disc > 0 ? info.color : "text-foreground"}`}>
                             {finalPrice.toLocaleString()}원
                           </span>
-                          <span className="text-[11px] font-normal text-muted-foreground">{billingUnit}</span>
+                          <span className="text-[12px] font-normal text-muted-foreground">{billingUnit}</span>
                         </div>
                       ) : (
-                        <p className="text-lg font-black text-gray-500">무료</p>
+                        <p className="text-lg font-bold text-gray-500">무료</p>
                       )}
                       <ul className="mt-2.5 space-y-1">
                         {info.features.map(f => (
-                          <li key={f} className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                          <li key={f} className="text-[12px] text-muted-foreground flex items-center gap-1.5">
                             <Zap className="h-3 w-3 text-primary shrink-0" />{f}
                           </li>
                         ))}
@@ -471,17 +471,17 @@ export default function Profile() {
                         <span className="text-muted-foreground">{selectedPlan.toUpperCase()} 구독료</span>
                         <div className="text-right">
                           {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
-                          <span className="font-bold">{isFree ? "무료" : `${finalPrice.toLocaleString()}원`}{disc > 0 && <span className="ml-1 text-red-400">({disc}%↓)</span>}</span>
+                          <span className="font-semibold">{isFree ? "무료" : `${finalPrice.toLocaleString()}원`}{disc > 0 && <span className="ml-1 text-red-400">({disc}%↓)</span>}</span>
                         </div>
                       </div>
                       {!isFree && pointsApplied > 0 && (
                         <div className="flex items-center justify-between px-3 py-2.5 text-xs">
                           <span className="flex items-center gap-1.5 text-primary"><Coins className="h-3.5 w-3.5" />포인트 적용</span>
-                          <span className="font-bold text-primary">-{pointsApplied.toLocaleString()} P</span>
+                          <span className="font-semibold text-primary">-{pointsApplied.toLocaleString()} P</span>
                         </div>
                       )}
                       {!isFree && (
-                        <div className="flex items-center justify-between px-3 py-2.5 bg-accent/20 text-xs font-bold">
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-accent/20 text-xs font-semibold">
                           <span>계좌이체 금액</span>
                           <span className={bankAmount === 0 ? "text-green-400" : ""}>{bankAmount === 0 ? "없음 (즉시 결제)" : `${bankAmount.toLocaleString()}원`}</span>
                         </div>
@@ -494,16 +494,16 @@ export default function Profile() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
-                              <span className="text-[9px] font-black text-white">K</span>
+                              <span className="text-[10px] font-semibold text-white">K</span>
                             </div>
                             <p className="text-xs font-semibold text-yellow-800">카카오뱅크</p>
                           </div>
-                          <p className="text-sm font-black text-yellow-900">{bankAmount.toLocaleString()}원 입금</p>
+                          <p className="text-sm font-semibold text-yellow-900">{bankAmount.toLocaleString()}원 입금</p>
                         </div>
                         <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
-                          <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                          <p className="text-sm font-semibold text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
                           <button onClick={() => { navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, "")); setPlanAcctCopied(true); setTimeout(() => setPlanAcctCopied(false), 2000); }}
-                            className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
+                            className="flex items-center gap-1 text-[12px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
                             {planAcctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                             {planAcctCopied ? "복사됨" : "복사"}
                           </button>
@@ -528,7 +528,7 @@ export default function Profile() {
                       </Button>
                     </div>
                     {bankAmount > 0 && (
-                      <p className="text-[11px] text-muted-foreground text-center">포인트 {pointsApplied.toLocaleString()}P 즉시 차감 + 나머지 입금 확인 후 플랜 변경</p>
+                      <p className="text-[12px] text-muted-foreground text-center">포인트 {pointsApplied.toLocaleString()}P 즉시 차감 + 나머지 입금 확인 후 플랜 변경</p>
                     )}
                   </div>
                 );
@@ -546,7 +546,7 @@ export default function Profile() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-muted-foreground mb-0.5">보유 FIT POINT</p>
-            <p className="text-2xl font-black text-primary tracking-tight">
+            <p className="text-2xl font-bold text-primary tracking-tight">
               {balance.toLocaleString()} <span className="text-sm font-semibold">P</span>
             </p>
             <button
@@ -574,7 +574,7 @@ export default function Profile() {
                   <span className="text-muted-foreground">무료포인트</span>
                 </div>
                 <div className="text-right">
-                  <span className="font-bold text-blue-400">{freeBalance.toLocaleString()} P</span>
+                  <span className="font-semibold text-blue-400">{freeBalance.toLocaleString()} P</span>
                   <span className="text-muted-foreground/60 ml-1.5">/ {dailyPoint.toLocaleString()} P</span>
                 </div>
               </div>
@@ -583,7 +583,7 @@ export default function Profile() {
                   <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                   <span className="text-muted-foreground">적립포인트</span>
                 </div>
-                <span className="font-bold text-primary">{earnedBalance.toLocaleString()} P</span>
+                <span className="font-semibold text-primary">{earnedBalance.toLocaleString()} P</span>
               </div>
               <div className="px-3 py-2 bg-blue-500/5 rounded-b-xl">
                 <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
@@ -609,12 +609,12 @@ export default function Profile() {
                         isSel ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/40"
                       }`}>
                       {pkg.bonus > 0 && (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">
+                        <span className="absolute top-1.5 right-1.5 text-[10px] font-semibold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">
                           +{(pkg.bonus / 1000).toFixed(0)}천P
                         </span>
                       )}
-                      <p className="text-[11px] text-muted-foreground">{pkg.krw.toLocaleString()}원</p>
-                      <p className={`text-sm font-black mt-0.5 ${isSel ? "text-primary" : "text-foreground"}`}>
+                      <p className="text-[12px] text-muted-foreground">{pkg.krw.toLocaleString()}원</p>
+                      <p className={`text-sm font-semibold mt-0.5 ${isSel ? "text-primary" : "text-foreground"}`}>
                         {pkg.points.toLocaleString()} P
                       </p>
                       {pkg.bonus > 0 && (
@@ -632,17 +632,17 @@ export default function Profile() {
             <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2.5">
               <div className="flex items-center gap-1.5">
                 <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
-                  <span className="text-[9px] font-black text-white">K</span>
+                  <span className="text-[10px] font-semibold text-white">K</span>
                 </div>
                 <p className="text-xs font-semibold text-yellow-800">카카오뱅크 입금 계좌</p>
               </div>
               <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
                 <div>
-                  <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
+                  <p className="text-sm font-semibold text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                  <p className="text-[12px] text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
                 </div>
                 <button onClick={handleCopyAcct}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
+                  className="flex items-center gap-1 text-[12px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
                   {acctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   {acctCopied ? "복사됨" : "복사"}
                 </button>
@@ -650,7 +650,7 @@ export default function Profile() {
               {selectedPkg && (
                 <div className="flex items-center justify-between text-xs px-0.5">
                   <span className="text-yellow-700">입금 금액</span>
-                  <span className="font-black text-yellow-900">{selectedPkg.krw.toLocaleString()}원</span>
+                  <span className="font-semibold text-yellow-900">{selectedPkg.krw.toLocaleString()}원</span>
                 </div>
               )}
             </div>
@@ -673,7 +673,7 @@ export default function Profile() {
                 {requestCharge.isPending ? "신청 중..." : "신청하기"}
               </Button>
             </div>
-            <p className="text-[11px] text-muted-foreground text-center">입금 확인 후 관리자가 포인트를 지급합니다 (보통 1시간 이내)</p>
+            <p className="text-[12px] text-muted-foreground text-center">입금 확인 후 관리자가 포인트를 지급합니다 (보통 1시간 이내)</p>
           </CardContent>
         )}
       </Card>
@@ -698,7 +698,7 @@ export default function Profile() {
                   {log.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">{log.memo}</p>}
                   <p className="text-xs text-muted-foreground mt-0.5">{log.createdAt.slice(0, 10)}</p>
                 </div>
-                <span className={`text-sm font-bold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
+                <span className={`text-sm font-semibold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
                   {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()} P
                 </span>
               </div>
@@ -747,7 +747,7 @@ export default function Profile() {
                   <Users className="h-3.5 w-3.5 text-muted-foreground" />
                   <p className="text-xs text-muted-foreground">초대한 친구</p>
                 </div>
-                <p className="text-xl font-black text-foreground">{referralInfo.totalInvited}</p>
+                <p className="text-xl font-bold text-foreground">{referralInfo.totalInvited}</p>
                 <p className="text-[10px] text-muted-foreground">명</p>
               </div>
               <div className="flex-1 rounded-xl bg-primary/10 border border-primary/20 p-3 text-center">
@@ -755,12 +755,12 @@ export default function Profile() {
                   <CheckCircle className="h-3.5 w-3.5 text-primary" />
                   <p className="text-xs text-muted-foreground">보너스 지급</p>
                 </div>
-                <p className="text-xl font-black text-primary">{Math.min(referralInfo.approvedInvited, 3)}<span className="text-sm font-medium text-muted-foreground"> / 3</span></p>
+                <p className="text-xl font-bold text-primary">{Math.min(referralInfo.approvedInvited, 3)}<span className="text-sm font-medium text-muted-foreground"> / 3</span></p>
                 <p className="text-[10px] text-muted-foreground">명</p>
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground/60 text-center">
-              내 초대 코드: <span className="font-mono font-bold">{referralInfo.referralCode}</span>
+              내 초대 코드: <span className="font-mono font-semibold">{referralInfo.referralCode}</span>
             </p>
           </CardContent>
         </Card>
@@ -957,7 +957,7 @@ export default function Profile() {
                 }`}
               >
                 <span className={`text-sm font-semibold ${journalType === value ? "text-primary" : "text-foreground"}`}>{label}</span>
-                <span className="text-[11px] text-muted-foreground">{desc}</span>
+                <span className="text-[12px] text-muted-foreground">{desc}</span>
               </button>
             ))}
           </div>

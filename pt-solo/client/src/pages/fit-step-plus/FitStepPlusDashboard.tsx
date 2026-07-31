@@ -43,7 +43,7 @@ function WorkoutTypeModal({ onClose, onSelect, logCount }: {
           className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/50 rounded-2xl px-4 py-4 text-left transition-colors active:scale-[0.98]"
         >
           <div className="w-11 h-11 rounded-xl bg-blue-500 flex items-center justify-center shrink-0">
-            <span className="text-white text-[10px] font-black">NEW</span>
+            <span className="text-white text-[10px] font-semibold">NEW</span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white font-semibold text-sm">새로운 운동</p>
@@ -88,7 +88,7 @@ function WorkoutTypeModal({ onClose, onSelect, logCount }: {
           </div>
           {prevUnlocked
             ? <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
-            : <span className="text-[11px] bg-white/10 text-white/60 px-2 py-0.5 rounded-full font-medium shrink-0">{logCount}/{PREV_LOG_UNLOCK}</span>
+            : <span className="text-[12px] bg-white/10 text-white/60 px-2 py-0.5 rounded-full font-medium shrink-0">{logCount}/{PREV_LOG_UNLOCK}</span>
           }
         </button>
       </div>
@@ -250,7 +250,7 @@ function CheckInModal({ onClose, onSubmit, isPending }: {
           <button
             onClick={() => onSubmit({ conditionScore, sleepHours, energyLevel, bodyParts: bodyParts.length ? bodyParts : undefined, workoutTheme: workoutTheme.length ? workoutTheme : undefined })}
             disabled={isPending}
-            className="flex-1 bg-primary text-primary-foreground font-bold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
+            className="flex-1 bg-primary text-primary-foreground font-semibold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
             {isPending ? "체크인 중..." : "출석 완료"}
           </button>
         </div>
@@ -349,7 +349,7 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium line-clamp-1">{e.title}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{e.createdAt?.slice(0, 10)}</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">{e.createdAt?.slice(0, 10)}</p>
                 </div>
               </button>
             ))}
@@ -375,15 +375,15 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
         >
           <div>
             <p className="text-xs text-green-300/80 mb-1">회원권 남은 기간</p>
-            <p className={`font-black text-3xl ${daysLeft <= 7 ? "text-red-300" : "text-green-300"}`}>
+            <p className={`font-bold text-3xl ${daysLeft <= 7 ? "text-red-300" : "text-green-300"}`}>
               {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
             </p>
           </div>
           {showRenewalPromo && (
             <div className="text-right">
-              <p className="text-yellow-300 text-sm font-bold">🎁 2주 서비스 혜택</p>
-              <p className="text-[11px] text-yellow-200/70 mt-0.5">만료 1개월 전 등록 시</p>
-              <p className="text-[11px] text-primary mt-0.5 font-medium">탭하여 재등록 신청 →</p>
+              <p className="text-yellow-300 text-sm font-semibold">🎁 2주 서비스 혜택</p>
+              <p className="text-[12px] text-yellow-200/70 mt-0.5">만료 1개월 전 등록 시</p>
+              <p className="text-[12px] text-primary mt-0.5 font-medium">탭하여 재등록 신청 →</p>
             </div>
           )}
         </button>

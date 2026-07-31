@@ -48,14 +48,14 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
         onClick={() => setOpen(v => !v)}
       >
         <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-          <span className="text-xs font-bold text-primary">{trainer.trainerName[0]}</span>
+          <span className="text-xs font-semibold text-primary">{trainer.trainerName[0]}</span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">{trainer.trainerName}</p>
           <p className="text-xs text-muted-foreground">@{trainer.username}</p>
         </div>
         <div className="text-right shrink-0 mr-2">
-          <p className="text-sm font-bold text-primary">{trainer.balance.toLocaleString()} P</p>
+          <p className="text-sm font-semibold text-primary">{trainer.balance.toLocaleString()} P</p>
           {trainer.pendingAmount > 0 && (
             <p className="text-xs text-yellow-400">충전대기 {trainer.pendingAmount.toLocaleString()}P</p>
           )}
@@ -349,13 +349,13 @@ export default function AdminPoints() {
         <Card className="bg-primary/10 border-primary/30">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">전체 보유 포인트</p>
-            <p className="text-xl font-black text-primary">{totalBalance.toLocaleString()} P</p>
+            <p className="text-xl font-bold text-primary">{totalBalance.toLocaleString()} P</p>
           </CardContent>
         </Card>
         <Card className="bg-yellow-500/10 border-yellow-500/30">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">충전 대기 중</p>
-            <p className="text-xl font-black text-yellow-400">{totalPending.toLocaleString()} P</p>
+            <p className="text-xl font-bold text-yellow-400">{totalPending.toLocaleString()} P</p>
           </CardContent>
         </Card>
       </div>

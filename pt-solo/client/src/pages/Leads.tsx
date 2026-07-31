@@ -573,7 +573,7 @@ export default function LeadsPage() {
             <div className="w-32 bg-muted rounded-full h-2">
               <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${conversionRate}%` }} />
             </div>
-            <span className="text-sm font-bold text-emerald-400">{conversionRate}%</span>
+            <span className="text-sm font-semibold text-emerald-400">{conversionRate}%</span>
           </div>
         </div>
       )}
@@ -749,7 +749,7 @@ export default function LeadsPage() {
             </div>
             <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={confirmRegistration} disabled={!agreedTerms || !agreedPrivacy || !signatureData}
-                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 진행
               </button>
               <button type="button" onClick={() => setShowContract(false)}
@@ -781,13 +781,13 @@ export default function LeadsPage() {
                   <button onClick={() => setQuickStep("new")}
                     className="flex flex-col items-center gap-2 p-5 rounded-xl border border-border bg-accent/20 hover:border-primary/50 hover:bg-primary/10 transition-colors">
                     <UserPlus className="h-8 w-8 text-primary" />
-                    <span className="text-sm font-bold">신규등록</span>
+                    <span className="text-sm font-semibold">신규등록</span>
                     <span className="text-xs text-muted-foreground text-center">새 회원 + 전자계약</span>
                   </button>
                   <button onClick={() => setQuickStep("rereg")}
                     className="flex flex-col items-center gap-2 p-5 rounded-xl border border-border bg-accent/20 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-colors">
                     <RefreshCw className="h-8 w-8 text-emerald-400" />
-                    <span className="text-sm font-bold">재등록</span>
+                    <span className="text-sm font-semibold">재등록</span>
                     <span className="text-xs text-muted-foreground text-center">기존 회원 패키지 추가</span>
                   </button>
                 </div>
@@ -814,7 +814,7 @@ export default function LeadsPage() {
                     if (!quickName.trim()) return toast.error("이름을 입력해주세요");
                     if (!featureInfo("new_contract").enabled) { startQuickNew(); return; }
                     setShowNewContractConfirm(true);
-                  }} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">
+                  }} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-semibold hover:bg-primary/90">
                     전자계약 진행{featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}
                   </button>
                 </div>
@@ -896,7 +896,7 @@ export default function LeadsPage() {
                         submitReregistration();
                       }
                     }}
-                    className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-700 disabled:opacity-40">
+                    className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40">
                     {addPackageMutation.isPending ? "등록 중..." : (
                       <span className="flex items-center justify-center gap-1.5">
                         재등록 완료
@@ -1070,7 +1070,7 @@ export default function LeadsPage() {
               )}
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
-                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
+                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50">
                 {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : `등록 완료 및 회원 생성${featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}`}
               </button>
               <button type="button" onClick={() => { setShowRegistration(false); setIsQuickReg(false); }}

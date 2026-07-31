@@ -170,14 +170,14 @@ export default function SequenceMaker({ versionId }: Props) {
 
       {status === "CHANGES_REQUESTED" && data.reviews?.[0] && (
         <div className="rounded-xl bg-amber-500/8 border border-amber-500/25 px-3.5 py-3 space-y-1">
-          <p className="text-xs font-bold text-amber-700">전문가 리뷰 — 수정 요청</p>
+          <p className="text-xs font-semibold text-amber-700">전문가 리뷰 — 수정 요청</p>
           <p className="text-xs text-foreground/80 whitespace-pre-wrap">{data.reviews[0].feedback || "구체적인 피드백이 없습니다."}</p>
         </div>
       )}
 
       {status === "REJECTED" && data.reviews?.[0] && (
         <div className="rounded-xl bg-red-500/8 border border-red-500/25 px-3.5 py-3 space-y-1">
-          <p className="text-xs font-bold text-red-600">전문가 리뷰 — 등록 거절</p>
+          <p className="text-xs font-semibold text-red-600">전문가 리뷰 — 등록 거절</p>
           <p className="text-xs text-foreground/80 whitespace-pre-wrap">{data.reviews[0].feedback || "구체적인 사유가 없습니다."}</p>
         </div>
       )}
@@ -194,7 +194,7 @@ export default function SequenceMaker({ versionId }: Props) {
       <fieldset disabled={!editable} className={!editable ? "opacity-70 pointer-events-none" : ""}>
         {/* 기본정보 */}
         <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
-          <p className="text-sm font-bold">기본정보</p>
+          <p className="text-sm font-semibold">기본정보</p>
           <Field label="시퀀스 제목 *">
             <Input value={form.title} onChange={e => setF("title", e.target.value)} placeholder="예: 초보자를 위한 하체 기능 개선 시퀀스" />
           </Field>
@@ -225,7 +225,7 @@ export default function SequenceMaker({ versionId }: Props) {
 
         {/* 수업 설계 */}
         <div className="rounded-2xl bg-card border border-border p-4 space-y-3 mt-4">
-          <p className="text-sm font-bold">수업 설계</p>
+          <p className="text-sm font-semibold">수업 설계</p>
           <Field label="수업 목표"><Textarea rows={2} value={form.classGoal} onChange={e => setF("classGoal", e.target.value)} /></Field>
           <Field label="주의사항 및 코칭 포인트"><Textarea rows={3} value={form.coachingNotes} onChange={e => setF("coachingNotes", e.target.value)} /></Field>
           <Field label="작성자 메모" hint="검토자에게만 보이는 내부 메모"><Textarea rows={2} value={form.authorMemo} onChange={e => setF("authorMemo", e.target.value)} /></Field>
@@ -234,7 +234,7 @@ export default function SequenceMaker({ versionId }: Props) {
         {/* 운동 항목 */}
         <div className="rounded-2xl bg-card border border-border p-4 space-y-2 mt-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold">운동 항목</p>
+            <p className="text-sm font-semibold">운동 항목</p>
             <span className="text-[10px] text-muted-foreground">운동 {exercises.length}개</span>
           </div>
 

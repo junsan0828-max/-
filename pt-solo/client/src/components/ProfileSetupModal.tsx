@@ -60,7 +60,7 @@ export default function ProfileSetupModal({ onOpenChange }: { onOpenChange?: (op
           {/* 포인트 뱃지 */}
           <div className="inline-flex items-center gap-2 bg-primary/20 border border-primary/40 rounded-full px-4 py-1.5 mb-4">
             <Coins className="h-4 w-4 text-primary" />
-            <span className="text-sm font-bold text-primary">+200 FIT POINT 증정</span>
+            <span className="text-sm font-semibold text-primary">+200 FIT POINT 증정</span>
           </div>
 
           <h2 className="text-xl font-bold mb-1">나의 프로필을 완성하세요!</h2>

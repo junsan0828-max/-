@@ -68,7 +68,7 @@ function SimpleBookingForm({ bookingBlock, primaryColor, form, setForm, isPendin
           className="w-full mt-1.5 border border-gray-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-blue-400 resize-none transition-colors" />
       </div>
       <button disabled={!form.name || !form.phone || isPending} onClick={onSubmit}
-        className="w-full py-4 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
+        className="w-full py-4 rounded-2xl text-white font-semibold text-sm disabled:opacity-40 transition-opacity"
         style={{ backgroundColor: primaryColor }}>
         {isPending ? "신청 중..." : "예약 신청"}
       </button>
@@ -102,14 +102,14 @@ function BookingCalendar({ trainerId, primaryColor, onSelect }: {
         <button onClick={prevMonth} disabled={!canGoPrev} className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30">
           <ChevronLeft className="h-5 w-5 text-gray-600" />
         </button>
-        <p className="font-bold text-gray-900">{year}년 {month}월</p>
+        <p className="font-semibold text-gray-900">{year}년 {month}월</p>
         <button onClick={nextMonth} className="p-2 rounded-full hover:bg-gray-100">
           <ChevronRight className="h-5 w-5 text-gray-600" />
         </button>
       </div>
       <div className="grid grid-cols-7 text-center">
         {["일", "월", "화", "수", "목", "금", "토"].map(d => (
-          <p key={d} className="text-[11px] font-semibold text-gray-400 py-1">{d}</p>
+          <p key={d} className="text-[12px] font-semibold text-gray-400 py-1">{d}</p>
         ))}
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -172,7 +172,7 @@ function TimeSlotPicker({ trainerId, date, primaryColor, onSelect }: {
                          !booked ? { borderColor: `${primaryColor}50` } : {}}>
                   {sel && <Check className="h-3 w-3 absolute top-1 right-1" />}
                   {slot.time}
-                  {booked && <span className="block text-[9px] text-gray-400 font-normal">마감</span>}
+                  {booked && <span className="block text-[10px] text-gray-400 font-normal">마감</span>}
                 </button>
               );
             })}
@@ -208,14 +208,14 @@ function InlineBookingCalendar({ trainerId, primaryColor, selectedDate, onSelect
         <button onClick={prevMonth} disabled={!canGoPrev} className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 transition-colors">
           <ChevronLeft className="h-5 w-5 text-gray-600" />
         </button>
-        <p className="font-bold text-gray-900 text-sm">{year}년 {month}월</p>
+        <p className="font-semibold text-gray-900 text-sm">{year}년 {month}월</p>
         <button onClick={nextMonth} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
           <ChevronRight className="h-5 w-5 text-gray-600" />
         </button>
       </div>
       <div className="grid grid-cols-7 text-center">
         {["일", "월", "화", "수", "목", "금", "토"].map(d => (
-          <p key={d} className="text-[11px] font-semibold text-gray-400 py-1">{d}</p>
+          <p key={d} className="text-[12px] font-semibold text-gray-400 py-1">{d}</p>
         ))}
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -285,7 +285,7 @@ function InlineTimeSlotPicker({ trainerId, date, primaryColor, selectedSlotId, o
                          !booked ? { borderColor: `${primaryColor}50` } : {}}>
                   {sel && <Check className="h-3 w-3 absolute top-1 right-1" />}
                   {slot.time}
-                  {booked && <span className="block text-[9px] text-gray-400 font-normal">마감</span>}
+                  {booked && <span className="block text-[10px] text-gray-400 font-normal">마감</span>}
                 </button>
               );
             })}
@@ -373,7 +373,7 @@ export default function TrainerBrandPage({ username }: Props) {
         <section key={block.id} className="bg-white rounded-3xl p-6 shadow-sm space-y-5">
           {items.length > 0 && (
             <div>
-              <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">전문 분야</h2>
+              <h2 className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-3">전문 분야</h2>
               <div className="flex flex-wrap gap-2">
                 {items.map((s, i) => (
                   <span key={i}
@@ -387,7 +387,7 @@ export default function TrainerBrandPage({ username }: Props) {
           )}
           {targetItems.length > 0 && (
             <div>
-              <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">이런 분께 추천</h2>
+              <h2 className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-3">이런 분께 추천</h2>
               <div className="flex flex-wrap gap-2">
                 {targetItems.map((s, i) => (
                   <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
@@ -411,7 +411,7 @@ export default function TrainerBrandPage({ username }: Props) {
 
       return (
         <section key={block.id} className="bg-white rounded-3xl p-6 shadow-sm">
-          <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-1.5">
+          <h2 className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-1.5">
             <Award className="h-3.5 w-3.5" /> 경력 · 자격증
           </h2>
           <div className="space-y-0">
@@ -425,7 +425,7 @@ export default function TrainerBrandPage({ username }: Props) {
                     {!isLast && <div className="w-px flex-1 bg-gray-100 mt-1.5 mb-0" />}
                   </div>
                   <div className={`${isLast ? "pb-0" : "pb-5"}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: primaryColor }}>{meta.label}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: primaryColor }}>{meta.label}</span>
                     <p className="text-sm text-gray-800 mt-0.5 leading-snug">{item.text}</p>
                   </div>
                 </div>
@@ -449,13 +449,13 @@ export default function TrainerBrandPage({ username }: Props) {
       if (items.length === 0) return null;
       return (
         <section key={block.id} className="bg-white rounded-3xl p-6 shadow-sm">
-          <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+          <h2 className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
             <Dumbbell className="h-3.5 w-3.5" /> 프로그램 소개
           </h2>
           <div className="space-y-3">
             {items.map((item, i) => (
               <div key={i} className="border border-gray-100 rounded-2xl p-4 hover:border-gray-200 transition-colors">
-                <p className="font-bold text-sm text-gray-900">{item.name}</p>
+                <p className="font-semibold text-sm text-gray-900">{item.name}</p>
                 {item.desc && <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{item.desc}</p>}
               </div>
             ))}
@@ -473,7 +473,7 @@ export default function TrainerBrandPage({ username }: Props) {
       if (links.length === 0) return null;
       return (
         <section key={block.id} className="bg-white rounded-3xl p-6 shadow-sm">
-          <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">SNS</h2>
+          <h2 className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-4">SNS</h2>
           <div className="flex gap-3">
             {links.map(({ key, icon: Icon, label, href, bg }) => (
               <a key={key} href={href} target="_blank" rel="noreferrer"
@@ -545,7 +545,7 @@ export default function TrainerBrandPage({ username }: Props) {
           )}
           {bookingBlock && (
             <button onClick={() => setShowBooking(true)}
-              className="mt-5 self-start flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all"
+              className="mt-5 self-start flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-sm shadow-lg active:scale-95 transition-all"
               style={{ backgroundColor: "white", color: primaryColor }}>
               <Calendar className="h-4 w-4" />
               상담 예약하기
@@ -568,7 +568,7 @@ export default function TrainerBrandPage({ username }: Props) {
         <div className="fixed bottom-0 left-0 right-0 z-30 px-4 pt-3 pb-safe-6"
           style={{ background: "linear-gradient(to top, #f5f5f7 70%, transparent)" }}>
           <button onClick={() => { setShowBooking(true); }}
-            className="w-full max-w-lg mx-auto flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base text-white shadow-xl active:scale-[0.98] transition-all"
+            className="w-full max-w-lg mx-auto flex items-center justify-center gap-2 py-4 rounded-2xl font-semibold text-base text-white shadow-xl active:scale-[0.98] transition-all"
             style={{ backgroundColor: primaryColor, display: "flex" }}>
             <Calendar className="h-5 w-5" />
             {bookingBlock?.data?.buttonText || "상담 예약하기"}
@@ -587,7 +587,7 @@ export default function TrainerBrandPage({ username }: Props) {
                 className="p-1.5 rounded-full hover:bg-gray-100 transition-colors">
                 <X className="h-5 w-5 text-gray-500" />
               </button>
-              <p className="font-bold text-gray-900 text-sm">{bookingBlock?.data?.buttonText || "상담 예약하기"}</p>
+              <p className="font-semibold text-gray-900 text-sm">{bookingBlock?.data?.buttonText || "상담 예약하기"}</p>
               <div className="w-8" />
             </div>
 
@@ -641,7 +641,7 @@ export default function TrainerBrandPage({ username }: Props) {
 
                   {/* 1. 달력 */}
                   <div>
-                    <p className="text-sm font-bold text-gray-800 mb-3">날짜를 선택해 주세요</p>
+                    <p className="text-sm font-semibold text-gray-800 mb-3">날짜를 선택해 주세요</p>
                     <InlineBookingCalendar
                       trainerId={trainer.trainerId}
                       primaryColor={primaryColor}
@@ -653,7 +653,7 @@ export default function TrainerBrandPage({ username }: Props) {
                   {/* 2. 시간 (날짜 선택 후) */}
                   {selectedDate && (
                     <div>
-                      <p className="text-sm font-bold text-gray-800 mb-3">
+                      <p className="text-sm font-semibold text-gray-800 mb-3">
                         시간을 선택해 주세요
                         <span className="text-xs text-gray-400 font-normal ml-2">{selectedDate}</span>
                       </p>
@@ -726,7 +726,7 @@ export default function TrainerBrandPage({ username }: Props) {
                           interestType: form.interestType || undefined,
                           message: form.message || undefined,
                         })}
-                        className="w-full py-4 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
+                        className="w-full py-4 rounded-2xl text-white font-semibold text-sm disabled:opacity-40 transition-opacity"
                         style={{ backgroundColor: primaryColor }}>
                         {submitWithSlotMutation.isPending ? "예약 중..." : "예약 신청"}
                       </button>

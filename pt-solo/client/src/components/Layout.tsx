@@ -162,7 +162,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {navGroups.map((group, gi) => (
             <div key={gi} className="space-y-1">
               {group.label && (
-                <p className="px-3 pb-1 text-[10px] font-bold text-muted-foreground/60 tracking-wider uppercase">{group.label}</p>
+                <p className="px-3 pb-1 text-[10px] font-semibold text-muted-foreground/60 tracking-wider uppercase">{group.label}</p>
               )}
               {group.items.map((item) => (
                 <button
@@ -220,7 +220,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {navGroups.map((group, gi) => (
                 <div key={gi} className="space-y-1">
                   {group.label && (
-                    <p className="px-3 pb-1 text-[10px] font-bold text-muted-foreground/60 tracking-wider uppercase">{group.label}</p>
+                    <p className="px-3 pb-1 text-[10px] font-semibold text-muted-foreground/60 tracking-wider uppercase">{group.label}</p>
                   )}
                   {group.items.map((item) => (
                     <button

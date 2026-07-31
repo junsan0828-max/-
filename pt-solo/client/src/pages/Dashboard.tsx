@@ -179,7 +179,7 @@ function ToolGrid({ items }: { items: ToolItem[] }) {
           <div className={`relative w-14 h-14 rounded-[18px] ${item.bgCls} border ${item.borderCls} flex items-center justify-center transition-all active:scale-90 ${item.locked ? "opacity-40" : ""}`}>
             <item.icon className={`h-5 w-5 ${item.colorCls}`} />
             {item.badge != null && item.badge > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-background">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1 border-2 border-background">
                 {item.badge > 99 ? "99+" : item.badge}
               </span>
             )}
@@ -242,8 +242,8 @@ function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { c
         <div className={`w-6 h-6 rounded-lg ${cat.bgCls} flex items-center justify-center`}>
           <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
         </div>
-        <span className="text-sm font-bold">{cat.label}</span>
-        <button onClick={() => onNavigate()} className={`ml-auto text-[11px] font-semibold ${cat.iconCls}`}>
+        <span className="text-sm font-semibold">{cat.label}</span>
+        <button onClick={() => onNavigate()} className={`ml-auto text-[12px] font-semibold ${cat.iconCls}`}>
           설정 →
         </button>
       </div>
@@ -261,7 +261,7 @@ function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { c
       {hiddenCount > 0 && (
         <button
           onClick={() => setExpanded(v => !v)}
-          className="mt-3 w-full text-center text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors py-1"
+          className="mt-3 w-full text-center text-[12px] font-semibold text-muted-foreground hover:text-foreground transition-colors py-1"
         >
           {expanded ? "접기 ↑" : `더보기 +${hiddenCount}개 ↓`}
         </button>
@@ -286,7 +286,7 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate, featureConfigs, ad
                 <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center`}>
                   <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
                 </div>
-                <span className="text-xs font-bold text-foreground/80">{cat.label}</span>
+                <span className="text-xs font-semibold text-foreground/80">{cat.label}</span>
               </div>
               <div className="grid grid-cols-4 gap-3">
                 {cat.items.map(item => (
@@ -304,34 +304,34 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate, featureConfigs, ad
 
           {/* 플랜 안내 */}
           <div className="rounded-xl border border-border bg-accent/30 p-3 space-y-1.5">
-            <p className="text-[11px] font-bold text-foreground/70">플랜별 기능 안내</p>
+            <p className="text-[12px] font-semibold text-foreground/70">플랜별 기능 안내</p>
             <div className="space-y-1">
               {[
                 { label: "FREE", colorCls: "bg-emerald-500", desc: "브랜드 페이지, 설문, 계약서" },
                 { label: "PRO", colorCls: "bg-blue-500", desc: "전체 기능 개방 (연 69,000원)" },
               ].map(t => (
                 <div key={t.label} className="flex items-center gap-2">
-                  <span className={`text-[9px] font-bold text-white ${t.colorCls} px-1.5 py-0.5 rounded`}>{t.label}</span>
-                  <span className="text-[11px] text-muted-foreground">{t.desc}</span>
+                  <span className={`text-[10px] font-semibold text-white ${t.colorCls} px-1.5 py-0.5 rounded`}>{t.label}</span>
+                  <span className="text-[12px] text-muted-foreground">{t.desc}</span>
                 </div>
               ))}
               <div className="flex items-center gap-2">
                 <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
                   <Lock className="h-2.5 w-2.5 text-muted-foreground" />
                 </div>
-                <span className="text-[11px] text-muted-foreground">PRO 플랜 필요</span>
+                <span className="text-[12px] text-muted-foreground">PRO 플랜 필요</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="h-[18px] px-1 bg-violet-500 rounded-[5px] flex items-center justify-center">
                   <Lock className="h-2.5 w-2.5 text-white" />
                 </div>
-                <span className="text-[11px] text-muted-foreground">핵심 기능 · 1개 1만원 개별 이용</span>
+                <span className="text-[12px] text-muted-foreground">핵심 기능 · 1개 1만원 개별 이용</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
                   <Clock className="h-2.5 w-2.5 text-muted-foreground" />
                 </div>
-                <span className="text-[11px] text-muted-foreground">출시 예정</span>
+                <span className="text-[12px] text-muted-foreground">출시 예정</span>
               </div>
             </div>
           </div>
@@ -383,7 +383,7 @@ function MemberPickModal({
             <button key={m.id} onClick={() => { onClose(); onPick(m.id); }}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors text-left">
               <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
               </div>
               <div>
                 <p className="text-sm font-semibold">{m.name}</p>
@@ -508,7 +508,7 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
         <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
           <MessageCircle className="h-3.5 w-3.5 text-teal-500" />
         </div>
-        <span className="text-sm font-bold">빠른 질문</span>
+        <span className="text-sm font-semibold">빠른 질문</span>
         <span className="text-[10px] text-muted-foreground">내 데이터로 바로 확인</span>
         <ChevronRight className={`h-4 w-4 text-muted-foreground ml-auto transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
@@ -517,7 +517,7 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
           <div className="flex flex-wrap gap-1.5">
             {QUICK_ASK_CHIPS.map(c => (
               <button key={c} onClick={() => ask(c)} disabled={busy}
-                className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-teal-500/8 text-teal-600 hover:bg-teal-500/15 transition-colors disabled:opacity-50">
+                className="text-[12px] font-semibold px-2.5 py-1.5 rounded-full bg-teal-500/8 text-teal-600 hover:bg-teal-500/15 transition-colors disabled:opacity-50">
                 {c}
               </button>
             ))}
@@ -659,7 +659,7 @@ function BannerAndNotices() {
           className={`flex items-center gap-3 px-4 py-3 rounded-xl ${banner.link ? "cursor-pointer" : "cursor-default"}`}
           style={{ backgroundColor: banner.bgColor }}>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white leading-tight">{banner.text}</p>
+            <p className="text-sm font-semibold text-white leading-tight">{banner.text}</p>
             {banner.subText && <p className="text-xs text-white/80 mt-0.5">{banner.subText}</p>}
           </div>
           {banner.link && <div className="text-white/80 text-xs shrink-0">→</div>}
@@ -668,7 +668,7 @@ function BannerAndNotices() {
       {notices && notices.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold">이벤트 &amp; 공지</p>
+            <p className="text-sm font-semibold">이벤트 &amp; 공지</p>
             {notices.length > 3 && <button className="text-xs text-primary">전체보기 →</button>}
           </div>
           <div className="space-y-2">
@@ -798,8 +798,8 @@ function TrainerDashboard() {
             <UserPlus className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-[15px] font-bold text-white">회원 등록</p>
-            <p className="text-[11px] text-white/65 mt-0.5">새 회원을 빠르게 등록</p>
+            <p className="text-[16px] font-semibold text-white">회원 등록</p>
+            <p className="text-[12px] text-white/65 mt-0.5">새 회원을 빠르게 등록</p>
           </div>
           <div className="absolute bottom-4 right-4 w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
             <ArrowRight className="h-3.5 w-3.5 text-white" />
@@ -813,8 +813,8 @@ function TrainerDashboard() {
             <Dumbbell className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-[15px] font-bold text-white">수업 시작</p>
-            <p className="text-[11px] text-white/65 mt-0.5">오늘 PT 바로 기록</p>
+            <p className="text-[16px] font-semibold text-white">수업 시작</p>
+            <p className="text-[12px] text-white/65 mt-0.5">오늘 PT 바로 기록</p>
           </div>
           <div className="absolute bottom-4 right-4 w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
             <ArrowRight className="h-3.5 w-3.5 text-white" />
@@ -828,7 +828,7 @@ function TrainerDashboard() {
       {recentMembers.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold">최근 회원</p>
+            <p className="text-sm font-semibold">최근 회원</p>
             <button onClick={() => setLocation("/members")} className="text-xs font-semibold text-primary">전체보기</button>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
@@ -854,7 +854,7 @@ function TrainerDashboard() {
           <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center">
             <Users className="h-3.5 w-3.5 text-indigo-500" />
           </div>
-          <span className="text-sm font-bold">회원 관리</span>
+          <span className="text-sm font-semibold">회원 관리</span>
         </div>
         <ToolGrid items={[
           { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
@@ -872,7 +872,7 @@ function TrainerDashboard() {
           <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
             <Dumbbell className="h-3.5 w-3.5 text-emerald-500" />
           </div>
-          <span className="text-sm font-bold">수업</span>
+          <span className="text-sm font-semibold">수업</span>
         </div>
         <ToolGrid items={[
           { label: "오늘 수업 수", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
@@ -889,10 +889,10 @@ function TrainerDashboard() {
             <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
             </div>
-            <span className="text-sm font-bold">매출·통계</span>
+            <span className="text-sm font-semibold">매출·통계</span>
           </div>
           <button onClick={() => setLocation("/settlement")}
-            className="text-[11px] font-semibold text-muted-foreground hover:text-primary transition-colors">
+            className="text-[12px] font-semibold text-muted-foreground hover:text-primary transition-colors">
             성장분석실 전체보기 →
           </button>
         </div>
@@ -910,8 +910,8 @@ function TrainerDashboard() {
           <div className="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
             <Cpu className="h-3.5 w-3.5 text-violet-500" />
           </div>
-          <span className="text-sm font-bold">AI 도구</span>
-          <span className="ml-auto text-[10px] font-bold text-violet-500 bg-violet-500/10 px-2 py-0.5 rounded-full">NEW</span>
+          <span className="text-sm font-semibold">AI 도구</span>
+          <span className="ml-auto text-[10px] font-semibold text-violet-500 bg-violet-500/10 px-2 py-0.5 rounded-full">NEW</span>
         </div>
         <ToolGrid items={[
           { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
@@ -924,7 +924,7 @@ function TrainerDashboard() {
       {/* ─── 전체 기능 보기 진입 ─── */}
       <div className="flex justify-end pt-1">
         <button onClick={() => setAllFeaturesOpen(true)}
-          className="text-xs font-bold text-primary bg-primary/8 px-3 py-1.5 rounded-xl hover:bg-primary/15 transition-colors">
+          className="text-xs font-semibold text-primary bg-primary/8 px-3 py-1.5 rounded-xl hover:bg-primary/15 transition-colors">
           전체 기능 보기
         </button>
       </div>
@@ -943,8 +943,8 @@ function TrainerDashboard() {
           <Cpu className="h-6 w-6 text-white" />
         </div>
         <div className="flex-1 relative">
-          <p className="text-[10px] font-bold text-white/60 tracking-wider uppercase mb-1">AI 추천</p>
-          <p className="text-sm font-bold text-white leading-snug">AI가 회원 데이터를 분석하여<br />맞춤 운동과 식단을 추천합니다</p>
+          <p className="text-[10px] font-semibold text-white/60 tracking-wider uppercase mb-1">AI 추천</p>
+          <p className="text-sm font-semibold text-white leading-snug">AI가 회원 데이터를 분석하여<br />맞춤 운동과 식단을 추천합니다</p>
         </div>
         <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0 relative">
           <ChevronRight className="h-4 w-4 text-white" />
@@ -998,7 +998,7 @@ function TrainerDashboard() {
             </DialogTitle>
             <p className="text-xs text-muted-foreground">
               {currentYearMonth.replace("-", "년 ")}월 · 이번달 총{" "}
-              <span className="font-bold text-purple-400">
+              <span className="font-semibold text-purple-400">
                 {(memberSessionStats ?? []).reduce((s, m) => s + Number(m.totalSessions), 0)}회
               </span>
             </p>
@@ -1016,7 +1016,7 @@ function TrainerDashboard() {
                     <span className="text-xs text-muted-foreground w-5 text-right">{idx + 1}</span>
                     <span className="text-sm font-medium">{m.memberName}</span>
                   </div>
-                  <span className="text-sm font-bold text-purple-400">{Number(m.totalSessions)}회</span>
+                  <span className="text-sm font-semibold text-purple-400">{Number(m.totalSessions)}회</span>
                 </button>
               ))
             )}
@@ -1057,14 +1057,14 @@ function TrainerDashboard() {
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                        <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                        <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
                       </div>
                       <div className="text-left">
                         <p className="text-sm font-semibold">{m.name}</p>
                         <p className="text-xs text-muted-foreground">{m.membershipEnd?.slice(0, 10)}</p>
                       </div>
                     </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${days <= 0 ? "bg-red-500/15 text-red-500" : days <= 3 ? "bg-orange-500/15 text-orange-500" : "bg-amber-500/15 text-amber-600"}`}>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${days <= 0 ? "bg-red-500/15 text-red-500" : days <= 3 ? "bg-orange-500/15 text-orange-500" : "bg-amber-500/15 text-amber-600"}`}>
                       {days <= 0 ? "오늘 만료" : `D-${days}`}
                     </span>
                   </button>
@@ -1096,14 +1096,14 @@ function TrainerDashboard() {
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                      <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                      <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-semibold">{m.name}</p>
                       {m.packageName && <p className="text-xs text-muted-foreground">{m.packageName}</p>}
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-orange-500">{(m.unpaidAmount ?? 0).toLocaleString()}원</span>
+                  <span className="text-sm font-semibold text-orange-500">{(m.unpaidAmount ?? 0).toLocaleString()}원</span>
                 </button>
               ))
             )}
@@ -1134,14 +1134,14 @@ function TrainerDashboard() {
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                        <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                        <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
                       </div>
                       <div className="text-left">
                         <p className="text-sm font-semibold">{m.name}</p>
                         {m.packageName && <p className="text-xs text-muted-foreground">{m.packageName}</p>}
                       </div>
                     </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${remaining <= 0 ? "bg-red-500/15 text-red-500" : remaining <= 2 ? "bg-orange-500/15 text-orange-500" : "bg-cyan-500/15 text-cyan-600"}`}>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${remaining <= 0 ? "bg-red-500/15 text-red-500" : remaining <= 2 ? "bg-orange-500/15 text-orange-500" : "bg-cyan-500/15 text-cyan-600"}`}>
                       {remaining <= 0 ? "소진" : `${remaining}회 남음`}
                     </span>
                   </button>
@@ -1180,13 +1180,13 @@ function TrainerDashboard() {
                         return next;
                       })} />
                     <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                      <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                      <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-semibold truncate">{m.name}</p>
                       {m.packageName && <p className="text-xs text-muted-foreground truncate">{m.packageName}</p>}
                     </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${remaining <= 0 ? "bg-red-500/15 text-red-500" : "bg-cyan-500/15 text-cyan-600"}`}>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${remaining <= 0 ? "bg-red-500/15 text-red-500" : "bg-cyan-500/15 text-cyan-600"}`}>
                       {remaining <= 0 ? "소진" : `${remaining}회 남음`}
                     </span>
                   </label>
@@ -1224,14 +1224,14 @@ function TrainerDashboard() {
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                      <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                      <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-semibold">{m.name}</p>
                       {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
                     </div>
                   </div>
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-500">미기록</span>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-500">미기록</span>
                 </button>
               ))
             )}
@@ -1256,8 +1256,8 @@ function TrainerDashboard() {
                 <UserPlus className="h-6 w-6 text-indigo-500" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-bold text-indigo-600">신규 등록</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">새 회원 추가</p>
+                <p className="text-sm font-semibold text-indigo-600">신규 등록</p>
+                <p className="text-[12px] text-muted-foreground mt-0.5">새 회원 추가</p>
               </div>
             </button>
             <button onClick={() => { setRegisterTypeOpen(false); setLocation("/members"); }}
@@ -1266,8 +1266,8 @@ function TrainerDashboard() {
                 <RefreshCw className="h-6 w-6 text-emerald-500" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-bold text-emerald-600">재등록</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">기존 회원 연장</p>
+                <p className="text-sm font-semibold text-emerald-600">재등록</p>
+                <p className="text-[12px] text-muted-foreground mt-0.5">기존 회원 연장</p>
               </div>
             </button>
           </div>
@@ -1316,7 +1316,7 @@ function TrainerDashboard() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {item.tags.map(tag => (
-                    <span key={tag} className="text-[11px] px-2 py-1 rounded-full bg-accent/50 text-foreground/70">{tag}</span>
+                    <span key={tag} className="text-[12px] px-2 py-1 rounded-full bg-accent/50 text-foreground/70">{tag}</span>
                   ))}
                 </div>
                 <div className="space-y-1.5">

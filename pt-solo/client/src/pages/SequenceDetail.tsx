@@ -39,11 +39,11 @@ export default function SequenceDetail({ sequenceId }: Props) {
 
       <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center gap-1">
+          <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center gap-1">
             <ShieldCheck className="h-3 w-3" />전문가 리뷰 완료
           </span>
-          {isMine && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-primary/15 text-primary">내 시퀀스</span>}
-          {hasImported && !isMine && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-500/15 text-blue-600">가져온 시퀀스</span>}
+          {isMine && <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-primary/15 text-primary">내 시퀀스</span>}
+          {hasImported && !isMine && <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-blue-500/15 text-blue-600">가져온 시퀀스</span>}
         </div>
 
         {version.shortDescription && <p className="text-sm text-foreground/80">{version.shortDescription}</p>}
@@ -77,7 +77,7 @@ export default function SequenceDetail({ sequenceId }: Props) {
 
       {/* 단계 구성 요약 (가져오기 전에도 표시) */}
       <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
-        <p className="text-sm font-bold">단계 구성</p>
+        <p className="text-sm font-semibold">단계 구성</p>
         {sectionSummary.map((s: any, i: number) => (
           <div key={i} className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-accent/30">
             <span className="font-medium">{i + 1}. {s.name}</span>
@@ -105,20 +105,20 @@ export default function SequenceDetail({ sequenceId }: Props) {
           )}
           {(sections ?? []).map((sec: any, i: number) => (
             <div key={i} className="rounded-2xl bg-card border border-border p-4 space-y-2">
-              <p className="text-sm font-bold">{i + 1}. {sec.name}</p>
+              <p className="text-sm font-semibold">{i + 1}. {sec.name}</p>
               {sec.exercises.map((ex: any, j: number) => (
                 <div key={j} className="rounded-xl bg-accent/20 p-3 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold">{ex.name}</p>
                     {(ex.sets || ex.reps) && (
-                      <span className="text-[11px] text-muted-foreground shrink-0">
+                      <span className="text-[12px] text-muted-foreground shrink-0">
                         {[ex.sets && `${ex.sets}세트`, ex.reps && `${ex.reps}회`].filter(Boolean).join(" x ")}
                       </span>
                     )}
                   </div>
                   {ex.videoUrl && (
                     <a href={ex.videoUrl} target="_blank" rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-600 hover:underline">
+                      className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-600 hover:underline">
                       <Youtube className="h-3.5 w-3.5" />동작 영상 보기
                     </a>
                   )}

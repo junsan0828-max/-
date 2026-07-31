@@ -66,7 +66,7 @@ export default function Register() {
           {refCode && (
             <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 mb-3">
               <Gift className="h-4 w-4 text-primary shrink-0" />
-              <p className="text-xs text-primary font-medium">친구 초대 코드 적용됨 — 가입 승인 시 <span className="font-bold">+500P</span> 지급!</p>
+              <p className="text-xs text-primary font-medium">친구 초대 코드 적용됨 — 가입 승인 시 <span className="font-semibold">+500P</span> 지급!</p>
             </div>
           )}
           {errorMsg && <p className="text-red-500 text-sm bg-red-500/10 rounded p-2 mb-3">{errorMsg}</p>}

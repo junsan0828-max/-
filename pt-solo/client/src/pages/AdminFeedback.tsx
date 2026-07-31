@@ -119,7 +119,7 @@ export default function AdminFeedback() {
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${catMeta.color}`}>{catMeta.label}</span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${catMeta.color}`}>{catMeta.label}</span>
                           <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${stMeta.color}`}>
                             <StIcon className="h-3 w-3" />{stMeta.label}
                           </span>

@@ -67,7 +67,7 @@ export default function Login() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="#3C1E1E">
                 <path d="M12 3C6.477 3 2 6.477 2 10.8c0 2.7 1.6 5.07 4.04 6.52L5.2 21l4.5-2.4c.75.1 1.53.16 2.3.16 5.523 0 10-3.477 10-7.76S17.523 3 12 3z"/>
               </svg>
-              <span className="text-sm font-bold" style={{ color: "#3C1E1E" }}>카카오로 시작하기</span>
+              <span className="text-sm font-semibold" style={{ color: "#3C1E1E" }}>카카오로 시작하기</span>
             </a>
             <p className="text-center text-xs text-muted-foreground/50">
               카카오 계정으로 간편하게 로그인하세요

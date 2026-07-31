@@ -210,7 +210,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
         </div>
         <button
           onClick={() => { navigator.clipboard.writeText(window.location.href); }}
-          className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm"
+          className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-semibold py-4 rounded-2xl text-sm"
         >
           링크 복사
         </button>
@@ -232,7 +232,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-5 text-left space-y-2">
-          <p className="text-xs font-bold text-gray-500 mb-3">계약 내용 요약</p>
+          <p className="text-xs font-semibold text-gray-500 mb-3">계약 내용 요약</p>
           {[
             ["STEPER", data?.trainerName],
             submittedInfo.memberName ? ["회원명", submittedInfo.memberName] : null,
@@ -252,14 +252,14 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
         <div className="space-y-2">
           <button
             onClick={() => openContractPrint(data, submittedInfo)}
-            className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-semibold py-4 rounded-2xl text-sm"
           >
             <FileText className="h-4 w-4" />
             계약서 저장 / 인쇄
           </button>
           <button
             onClick={() => shareKakao(window.location.href)}
-            className="w-full flex items-center justify-center gap-2 bg-yellow-400 text-gray-900 font-bold py-4 rounded-2xl text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-yellow-400 text-gray-900 font-semibold py-4 rounded-2xl text-sm"
           >
             <Share2 className="h-4 w-4" />
             카카오톡으로 공유
@@ -343,7 +343,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
 
           <button
             onClick={() => shareKakao(window.location.href)}
-            className="w-full flex items-center justify-center gap-2 bg-yellow-400 text-gray-900 font-bold py-4 rounded-2xl text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-yellow-400 text-gray-900 font-semibold py-4 rounded-2xl text-sm"
           >
             <Share2 className="h-4 w-4" />
             카카오톡으로 공유
@@ -489,7 +489,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
               )}
               {/* 환불 금액 */}
               {extra.refundAmount != null && (
-                <div className="flex justify-between font-bold text-base text-blue-600 border-t border-gray-200 pt-2 mt-1">
+                <div className="flex justify-between font-semibold text-base text-blue-600 border-t border-gray-200 pt-2 mt-1">
                   <span>= 환불 금액</span>
                   <span>{Number(extra.refundAmount).toLocaleString()}원</span>
                 </div>
@@ -696,7 +696,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
 
         {/* 제출 */}
         <button type="submit" disabled={submitMutation.isPending}
-          className="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+          className="w-full bg-gray-900 text-white font-semibold py-4 rounded-2xl text-sm disabled:opacity-50 flex items-center justify-center gap-2">
           {submitMutation.isPending
             ? <><Loader2 className="h-4 w-4 animate-spin" /> 제출 중...</>
             : isTransferStep1 ? "양도인 서명 완료"

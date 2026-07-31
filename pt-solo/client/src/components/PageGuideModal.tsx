@@ -281,7 +281,7 @@ export default function PageGuideModal({
         <ul className="px-6 py-5 space-y-3.5">
           {guide.tips.map((tip, i) => (
             <li key={i} className="flex items-start gap-3">
-              <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+              <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center">{i + 1}</span>
               <span className="text-xs text-foreground/80 leading-relaxed">{tip}</span>
             </li>
           ))}

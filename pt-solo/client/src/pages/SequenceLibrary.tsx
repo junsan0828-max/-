@@ -130,15 +130,15 @@ export default function SequenceLibrary() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-sm font-bold truncate">{seq.title}</p>
-                    {seq.isMine && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary shrink-0">내 시퀀스</span>}
-                    {seq.hasImported && !seq.isMine && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 shrink-0">가져옴</span>}
+                    <p className="text-sm font-semibold truncate">{seq.title}</p>
+                    {seq.isMine && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary shrink-0">내 시퀀스</span>}
+                    {seq.hasImported && !seq.isMine && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 shrink-0">가져옴</span>}
                   </div>
                   {seq.shortDescription && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{seq.shortDescription}</p>}
                 </div>
-                {seq.difficulty && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-accent/60 text-foreground/70 shrink-0">{seq.difficulty}</span>}
+                {seq.difficulty && <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-accent/60 text-foreground/70 shrink-0">{seq.difficulty}</span>}
               </div>
-              <div className="flex items-center gap-3 mt-2.5 text-[11px] text-muted-foreground flex-wrap">
+              <div className="flex items-center gap-3 mt-2.5 text-[12px] text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1"><Users className="h-3 w-3" />{seq.authorName}</span>
                 {seq.estimatedMinutes && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{seq.estimatedMinutes}분</span>}
                 {seq.equipment && <span className="flex items-center gap-1"><Dumbbell className="h-3 w-3" />{seq.equipment}</span>}

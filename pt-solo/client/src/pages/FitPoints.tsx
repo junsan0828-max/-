@@ -93,7 +93,7 @@ export default function FitPoints() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-muted-foreground mb-1">보유 FIT POINT</p>
-            <p className="text-3xl font-black text-primary tracking-tight">
+            <p className="text-3xl font-bold text-primary tracking-tight">
               {balance.toLocaleString()} <span className="text-base font-semibold">P</span>
             </p>
           </div>
@@ -131,12 +131,12 @@ export default function FitPoints() {
                           : "border-border bg-card hover:border-primary/40"
                       }`}>
                       {pkg.bonus > 0 && (
-                        <span className="absolute top-2 right-2 text-[9px] font-bold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">
+                        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">
                           +{(pkg.bonus / 1000).toFixed(0)}천P
                         </span>
                       )}
                       <p className="text-xs text-muted-foreground">{pkg.krw.toLocaleString()}원</p>
-                      <p className={`text-base font-black mt-0.5 ${isSelected ? "text-primary" : "text-foreground"}`}>
+                      <p className={`text-base font-semibold mt-0.5 ${isSelected ? "text-primary" : "text-foreground"}`}>
                         {pkg.points.toLocaleString()} P
                       </p>
                       {pkg.bonus > 0 && (
@@ -154,13 +154,13 @@ export default function FitPoints() {
             <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-black text-white">K</span>
+                  <span className="text-[10px] font-semibold text-white">K</span>
                 </div>
                 <p className="text-xs font-semibold text-yellow-800">카카오뱅크 입금 계좌</p>
               </div>
               <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2.5">
                 <div>
-                  <p className="text-base font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                  <p className="text-base font-semibold text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
                 </div>
                 <button onClick={handleCopy}
@@ -172,7 +172,7 @@ export default function FitPoints() {
               {selectedPkg && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-yellow-700">입금 금액</span>
-                  <span className="font-black text-yellow-900">{selectedPkg.krw.toLocaleString()}원</span>
+                  <span className="font-semibold text-yellow-900">{selectedPkg.krw.toLocaleString()}원</span>
                 </div>
               )}
             </div>
@@ -194,7 +194,7 @@ export default function FitPoints() {
               {requestCharge.isPending ? "신청 중..." : `신청하기${selectedPkg ? ` — ${selectedPkg.points.toLocaleString()}P` : ""}`}
             </Button>
 
-            <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+            <p className="text-[12px] text-muted-foreground text-center leading-relaxed">
               입금 확인 후 관리자가 포인트를 지급합니다 (보통 1시간 이내)
             </p>
           </CardContent>
@@ -222,7 +222,7 @@ export default function FitPoints() {
                   {log.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">{log.memo}</p>}
                   <p className="text-xs text-muted-foreground mt-0.5">{log.createdAt.slice(0, 10)}</p>
                 </div>
-                <span className={`text-sm font-bold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
+                <span className={`text-sm font-semibold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
                   {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()} P
                 </span>
               </div>

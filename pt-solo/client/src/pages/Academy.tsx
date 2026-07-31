@@ -134,7 +134,7 @@ function CourseTimer({ courseId, totalSeconds, onUnlock }: {
           <Timer className="h-3.5 w-3.5 text-primary" />
           교육 진행 중
         </div>
-        <span className="font-mono font-bold text-primary text-base tabular-nums">
+        <span className="font-mono font-semibold text-primary text-base tabular-nums">
           {formatCountdown(remaining)}
         </span>
       </div>
@@ -478,7 +478,7 @@ export default function Academy() {
                       </div>
 
                       <div className="space-y-1">
-                        <p className="font-bold text-base leading-tight">{course.title}</p>
+                        <p className="font-semibold text-base leading-tight">{course.title}</p>
                         {course.description && (
                           <p className="text-sm text-muted-foreground leading-relaxed">{course.description}</p>
                         )}
@@ -569,7 +569,7 @@ export default function Academy() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmDeleteId(null)} />
           <div className="relative bg-card rounded-2xl w-full max-w-xs mx-4 p-6 space-y-4 shadow-2xl">
-            <p className="font-bold text-base">강의를 삭제하시겠습니까?</p>
+            <p className="font-semibold text-base">강의를 삭제하시겠습니까?</p>
             <p className="text-sm text-muted-foreground">삭제된 강의와 완료 기록은 복구되지 않습니다.</p>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setConfirmDeleteId(null)}>취소</Button>

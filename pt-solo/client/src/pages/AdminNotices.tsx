@@ -194,7 +194,7 @@ function TabBannerManager() {
         {/* 우선순위 안내 */}
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
           <Info className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-amber-300 leading-relaxed">
+          <p className="text-[12px] text-amber-300 leading-relaxed">
             <span className="font-semibold">우선순위:</span> 특정 탭 배너 &gt; 전체(공통) 배너<br />
             특정 탭에 활성 배너가 있으면 전체 배너는 그 탭에서 표시되지 않습니다.
           </p>
@@ -240,7 +240,7 @@ function TabBannerManager() {
             })}
           </div>
           {selectedTabs.size > 1 && (
-            <p className="text-[11px] text-primary font-medium">
+            <p className="text-[12px] text-primary font-medium">
               ✓ {selectedTabs.size}개 탭 선택됨 — 저장 시 모든 탭에 동일하게 적용됩니다
             </p>
           )}
@@ -426,7 +426,7 @@ function LegacyBannerManager() {
           <div className="rounded-xl overflow-hidden border border-border/40">
             <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: bgColor }}>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{text}</p>
+                <p className="text-sm font-semibold text-white truncate">{text}</p>
                 {subText && <p className="text-xs text-white/80 mt-0.5 truncate">{subText}</p>}
               </div>
             </div>

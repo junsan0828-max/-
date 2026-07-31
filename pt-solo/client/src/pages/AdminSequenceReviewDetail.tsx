@@ -81,7 +81,7 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
 
       {/* 기본정보 */}
       <div className="rounded-2xl bg-card border border-border p-4 space-y-2 text-sm">
-        <p className="font-bold">기본정보</p>
+        <p className="font-semibold">기본정보</p>
         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           <p>분야: {version.category || "-"}</p>
           <p>대상: {version.targetAudience || "-"}</p>
@@ -95,7 +95,7 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
 
       {/* 수업 설계 */}
       <div className="rounded-2xl bg-card border border-border p-4 space-y-2 text-xs">
-        <p className="text-sm font-bold">수업 설계</p>
+        <p className="text-sm font-semibold">수업 설계</p>
         {version.classGoal && <p><span className="font-semibold text-foreground/70">목표: </span>{version.classGoal}</p>}
         {version.preCheckItems && <p><span className="font-semibold text-foreground/70">사전 확인: </span>{version.preCheckItems}</p>}
         {version.postCheckItems && <p><span className="font-semibold text-foreground/70">사후 확인: </span>{version.postCheckItems}</p>}
@@ -106,7 +106,7 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
       {/* 운동 단계 */}
       {sections.map((sec: any, i: number) => (
         <div key={i} className="rounded-2xl bg-card border border-border p-4 space-y-2">
-          <p className="text-sm font-bold">{i + 1}. {sec.name}</p>
+          <p className="text-sm font-semibold">{i + 1}. {sec.name}</p>
           {sec.exercises.length === 0 ? (
             <p className="text-xs text-muted-foreground">운동 항목이 없습니다.</p>
           ) : sec.exercises.map((ex: any, j: number) => (
@@ -131,7 +131,7 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
 
       {/* 검토 기준 체크리스트 (참고용) */}
       <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
-        <p className="text-sm font-bold">검토 기준</p>
+        <p className="text-sm font-semibold">검토 기준</p>
         {CRITERIA.map((c, i) => (
           <label key={i} className="flex items-center gap-2 text-xs cursor-pointer">
             <input type="checkbox" checked={!!checked[i]} onChange={e => setChecked(prev => ({ ...prev, [i]: e.target.checked }))} className="accent-primary" />
@@ -142,7 +142,7 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
 
       {/* 피드백 + 결정 */}
       <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
-        <p className="text-sm font-bold">작성자에게 전달할 피드백</p>
+        <p className="text-sm font-semibold">작성자에게 전달할 피드백</p>
         <Textarea rows={4} value={feedback} onChange={e => setFeedback(e.target.value)} placeholder="수정 요청·거절 시에는 구체적인 사유를 남겨주세요." />
         <div className="grid grid-cols-3 gap-2">
           <Button variant="outline" className="text-amber-600 border-amber-500/40 hover:bg-amber-500/10" onClick={() => decide("changes_requested")} disabled={submitReview.isPending}>

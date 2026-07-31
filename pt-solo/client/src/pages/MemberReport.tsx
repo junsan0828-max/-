@@ -105,10 +105,10 @@ export default function MemberReport({ token }: Props) {
   const scoresWithValues = conditionChecks.filter((c) => c.conditionScore != null);
   const avgCondition =
     scoresWithValues.length
-      ? (
+      ? Math.round(
           scoresWithValues.reduce((s, c) => s + (c.conditionScore ?? 0), 0) /
           scoresWithValues.length
-        ).toFixed(1)
+        )
       : null;
 
   // PT 잔여
@@ -161,12 +161,12 @@ export default function MemberReport({ token }: Props) {
             {trainerInfo?.profileImage ? (
               <img src={trainerInfo.profileImage} alt={trainerInfo.trainerName} className="w-7 h-7 rounded-full object-cover" />
             ) : (
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold"
                 style={{ backgroundColor: trainerInfo?.brandColor || "#1a00ff" }}>
                 {trainerInfo?.trainerName?.[0] ?? "T"}
               </div>
             )}
-            <p className="text-xs font-bold tracking-widest" style={{ color: trainerInfo?.brandColor || "#1a00ff" }}>
+            <p className="text-xs font-semibold tracking-widest" style={{ color: trainerInfo?.brandColor || "#1a00ff" }}>
               {trainerInfo?.trainerName ?? "FIT STEP"}
             </p>
           </div>

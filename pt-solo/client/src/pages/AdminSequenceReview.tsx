@@ -47,7 +47,7 @@ export default function AdminSequenceReview() {
 
       {reviewerPanelOpen && (
         <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
-          <p className="text-sm font-bold">지정된 리뷰어</p>
+          <p className="text-sm font-semibold">지정된 리뷰어</p>
           {!reviewers || reviewers.length === 0 ? (
             <p className="text-xs text-muted-foreground">관리자 외 지정된 리뷰어가 없습니다.</p>
           ) : (
@@ -89,8 +89,8 @@ export default function AdminSequenceReview() {
           {queue.map((v: any) => (
             <button key={v.id} onClick={() => setLocation(`/admin/sequence-review/${v.id}`)}
               className="w-full text-left rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors">
-              <p className="text-sm font-bold truncate">{v.title || "(제목 없음)"}</p>
-              <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
+              <p className="text-sm font-semibold truncate">{v.title || "(제목 없음)"}</p>
+              <div className="flex items-center gap-3 mt-1.5 text-[12px] text-muted-foreground">
                 <span className="flex items-center gap-1"><Users className="h-3 w-3" />{v.authorName}</span>
                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" />신청: {fmtDbDate(v.submittedAt)}</span>
               </div>

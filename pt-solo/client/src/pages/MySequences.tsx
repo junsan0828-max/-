@@ -80,7 +80,7 @@ export default function MySequences() {
 
       <div className="rounded-xl bg-card border border-border px-4 py-3 flex items-center justify-between">
         <span className="text-xs font-semibold flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" />보유 공유권</span>
-        <span className="text-lg font-black">{credits?.balance ?? 0}개</span>
+        <span className="text-lg font-bold">{credits?.balance ?? 0}개</span>
       </div>
 
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
@@ -106,7 +106,7 @@ export default function MySequences() {
                   <p className="text-xs font-semibold">{TX_TYPE_LABEL[tx.type] ?? tx.type}</p>
                   <p className="text-[10px] text-muted-foreground">{fmtDbDateTime(tx.createdAt)}</p>
                 </div>
-                <span className={`text-sm font-bold flex items-center gap-0.5 ${tx.amount > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                <span className={`text-sm font-semibold flex items-center gap-0.5 ${tx.amount > 0 ? "text-emerald-600" : "text-red-500"}`}>
                   {tx.amount > 0 ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
                   {Math.abs(tx.amount)}
                 </span>
@@ -142,8 +142,8 @@ export default function MySequences() {
               className="w-full text-left rounded-2xl border border-border bg-card p-3.5 hover:border-primary/40 transition-colors"
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold truncate">{r.title || "(제목 없음)"}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${STATUS_META[r.status]?.cls ?? ""}`}>{STATUS_META[r.status]?.label ?? r.status}</span>
+                <p className="text-sm font-semibold truncate">{r.title || "(제목 없음)"}</p>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${STATUS_META[r.status]?.cls ?? ""}`}>{STATUS_META[r.status]?.label ?? r.status}</span>
               </div>
               <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
                 <span>최근 수정 {fmtDbDate(r.updatedAt)}</span>

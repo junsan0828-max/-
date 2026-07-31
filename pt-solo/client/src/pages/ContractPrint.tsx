@@ -135,12 +135,12 @@ export default function ContractPrint() {
       <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
         {showKakao && (
           <button onClick={handleKakaoShare}
-            className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
+            className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
             💬 카카오 공유
           </button>
         )}
         <button onClick={handlePrint}
-          className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5">
+          className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5">
           🖨️ PDF 저장 / 인쇄
         </button>
       </div>
@@ -184,7 +184,7 @@ export default function ContractPrint() {
             {contractTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm">✓</div>
+            <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-semibold text-sm">✓</div>
             <span className="text-sm font-semibold">(필수) 위 이용약관을 읽고 이에 동의합니다.</span>
           </div>
         </div>
@@ -199,7 +199,7 @@ export default function ContractPrint() {
             {privacyTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm">✓</div>
+            <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-semibold text-sm">✓</div>
             <span className="text-sm font-semibold">(필수) 개인정보 수집·이용에 동의합니다.</span>
           </div>
         </div>
@@ -214,7 +214,7 @@ export default function ContractPrint() {
             {marketingTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
-            <div className={`w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm ${marketing ? "" : "opacity-30"}`}>
+            <div className={`w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-semibold text-sm ${marketing ? "" : "opacity-30"}`}>
               {marketing ? "✓" : ""}
             </div>
             <span className="text-sm">

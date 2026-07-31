@@ -39,7 +39,7 @@ export default function SurveyPage({ trainerId }: Props) {
           {trainer.profileImage ? (
             <img src={trainer.profileImage} alt={trainer.trainerName} className="w-8 h-8 rounded-full object-cover" />
           ) : (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: primaryColor }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold" style={{ backgroundColor: primaryColor }}>
               {trainer.trainerName?.[0]}
             </div>
           )}
@@ -88,7 +88,7 @@ export default function SurveyPage({ trainerId }: Props) {
             </div>
             <button disabled={!info.name}
               onClick={() => setStep(questions.length > 0 ? "questions" : "done")}
-              className="w-full py-4 rounded-xl text-white font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-xl text-white font-semibold disabled:opacity-40 flex items-center justify-center gap-2"
               style={{ backgroundColor: primaryColor }}>
               {questions.length > 0 ? "다음" : "제출하기"}
               <ChevronRight className="h-5 w-5" />
@@ -141,7 +141,7 @@ export default function SurveyPage({ trainerId }: Props) {
             <button
               disabled={submitMutation.isPending || questions.filter((q: any) => q.isRequired).some((q: any) => !answers[q.id])}
               onClick={() => submitMutation.mutate({ trainerId, respondentName: info.name, respondentPhone: info.phone, answers })}
-              className="w-full py-4 rounded-xl text-white font-bold disabled:opacity-40"
+              className="w-full py-4 rounded-xl text-white font-semibold disabled:opacity-40"
               style={{ backgroundColor: primaryColor }}>
               {submitMutation.isPending ? "제출 중..." : "제출하기"}
             </button>

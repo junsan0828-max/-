@@ -126,7 +126,7 @@ export default function AdminPlans() {
               const discounted = disc > 0 ? calcDiscounted(price, disc) : null;
               return (
                 <div key={plan} className="space-y-1">
-                  <label className={`text-xs font-bold ${PLAN_STYLES[plan].color}`}>
+                  <label className={`text-xs font-semibold ${PLAN_STYLES[plan].color}`}>
                     {PLAN_STYLES[plan].label}
                   </label>
                   <div className="flex items-center gap-1">
@@ -179,7 +179,7 @@ export default function AdminPlans() {
           <div className="grid grid-cols-3 gap-3">
             {(["free", "pro", "elite"] as PlanKey[]).map(plan => (
               <div key={plan} className="space-y-1">
-                <label className={`text-xs font-bold ${PLAN_STYLES[plan].color}`}>
+                <label className={`text-xs font-semibold ${PLAN_STYLES[plan].color}`}>
                   {PLAN_STYLES[plan].label}
                 </label>
                 <div className="flex items-center gap-1">
@@ -203,7 +203,7 @@ export default function AdminPlans() {
 
           {/* 실시간 미리보기 */}
           <div className="rounded-xl border border-border overflow-hidden">
-            <div className="grid grid-cols-4 bg-accent/30 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+            <div className="grid grid-cols-4 bg-accent/30 px-3 py-2 text-[12px] font-semibold text-muted-foreground">
               <span>플랜</span>
               <span className="text-right">정가</span>
               <span className="text-right">할인율</span>
@@ -216,7 +216,7 @@ export default function AdminPlans() {
               const saved = price - final;
               return (
                 <div key={plan} className="grid grid-cols-4 items-center px-3 py-2.5 border-t border-border/50 text-sm">
-                  <span className={`text-xs font-bold ${PLAN_STYLES[plan].color}`}>{PLAN_STYLES[plan].label}</span>
+                  <span className={`text-xs font-semibold ${PLAN_STYLES[plan].color}`}>{PLAN_STYLES[plan].label}</span>
                   <span className="text-right text-xs text-muted-foreground">
                     {price > 0 ? `${price.toLocaleString()}원` : "무료"}
                   </span>
@@ -224,7 +224,7 @@ export default function AdminPlans() {
                     {disc > 0 ? `-${disc}%` : "—"}
                   </span>
                   <div className="text-right">
-                    <p className={`text-sm font-bold ${disc > 0 ? "text-green-400" : ""}`}>
+                    <p className={`text-sm font-semibold ${disc > 0 ? "text-green-400" : ""}`}>
                       {price > 0 ? `${final.toLocaleString()}원` : "무료"}
                     </p>
                     {saved > 0 && (
@@ -264,7 +264,7 @@ export default function AdminPlans() {
           <div className="grid grid-cols-3 gap-3">
             {(["free", "pro", "elite"] as PlanKey[]).map(plan => (
               <div key={plan} className="space-y-1">
-                <label className={`text-xs font-bold ${PLAN_STYLES[plan].color}`}>
+                <label className={`text-xs font-semibold ${PLAN_STYLES[plan].color}`}>
                   {PLAN_STYLES[plan].label}
                 </label>
                 <div className="flex items-center gap-1">

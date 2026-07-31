@@ -83,7 +83,7 @@ function PushNotificationCard() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">트레이너 알림</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">재등록 안내 등 트레이너가 보내는 소식을 받아요</p>
+          <p className="text-[12px] text-muted-foreground mt-0.5">재등록 안내 등 트레이너가 보내는 소식을 받아요</p>
         </div>
         <Button
           size="sm"
@@ -184,7 +184,7 @@ export default function FitStepPlusProfile() {
             "bg-green-500/10 border border-green-500/20"
           }`}>
             <p className="text-xs text-muted-foreground">회원권 남은 기간</p>
-            <p className={`font-black text-2xl mt-0.5 ${
+            <p className={`font-bold text-2xl mt-0.5 ${
               daysLeft <= 0 ? "text-red-400" : daysLeft <= 7 ? "text-orange-400" : "text-green-400"
             }`}>
               {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}

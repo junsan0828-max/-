@@ -356,7 +356,7 @@ export default function Sessions() {
               }`}
             >
               {label}
-              <span className={`text-[10px] font-bold ${chosungFilter === label ? "text-primary-foreground/80" : "text-muted-foreground/60"}`}>
+              <span className={`text-[10px] font-semibold ${chosungFilter === label ? "text-primary-foreground/80" : "text-muted-foreground/60"}`}>
                 {count}
               </span>
             </button>
@@ -382,12 +382,12 @@ export default function Sessions() {
                       : "bg-card border-border hover:border-primary/40"
                   }`}
                 >
-                  <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${
                     isSelected ? "bg-primary text-primary-foreground" : "bg-accent/60 text-foreground"
                   }`}>
                     {m.name.charAt(0)}
                   </div>
-                  <span className={`text-[11px] font-medium truncate w-full text-center px-0.5 ${isSelected ? "text-primary" : "text-foreground"}`}>
+                  <span className={`text-[12px] font-medium truncate w-full text-center px-0.5 ${isSelected ? "text-primary" : "text-foreground"}`}>
                     {m.name}
                   </span>
                 </button>
@@ -566,7 +566,7 @@ export default function Sessions() {
                                 </div>
                                 {ex.videoUrl && (
                                   <a href={ex.videoUrl} target="_blank" rel="noreferrer"
-                                    className="ml-4 inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+                                    className="ml-4 inline-flex items-center gap-1 text-[12px] text-primary hover:underline">
                                     <Video className="h-3 w-3" />영상 보기
                                   </a>
                                 )}
@@ -805,7 +805,7 @@ export default function Sessions() {
             {liveExercises.map((ex, exIdx) => (
               <div key={exIdx} className="border border-border rounded-xl overflow-hidden">
                 <div className="bg-accent/30 px-3 py-2 flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-muted-foreground w-5 shrink-0">{exIdx + 1}</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground w-5 shrink-0">{exIdx + 1}</span>
                   <input
                     value={ex.name}
                     onChange={e => updateLiveExerciseName(exIdx, e.target.value)}

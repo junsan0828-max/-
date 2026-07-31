@@ -103,15 +103,15 @@ export default function InstallPromptModal({ deferredPrompt, onClear }: Props) {
           <div className="mx-5 mt-3 mb-1 bg-muted/50 rounded-xl p-3.5 text-xs text-foreground space-y-2">
             <p className="font-medium">iPhone / iPad 설치 방법</p>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">1</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary">1</span>
               하단 공유 버튼 <Share className="h-3.5 w-3.5 inline mx-0.5" /> 탭
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">2</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary">2</span>
               <span><b className="text-foreground">'홈 화면에 추가'</b> 선택</span>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">3</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary">3</span>
               오른쪽 상단 <b className="text-foreground">'추가'</b> 탭
             </div>
           </div>

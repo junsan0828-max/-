@@ -67,8 +67,8 @@ export default function FitStepPlusEvents({ trainerId }: { trainerId: number }) 
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    {e.isPinned ? <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">📌 고정</span> : null}
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
+                    {e.isPinned ? <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">📌 고정</span> : null}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
                       {eventTypeLabel[e.eventType ?? "notice"] ?? e.eventType}
                     </span>
                   </div>

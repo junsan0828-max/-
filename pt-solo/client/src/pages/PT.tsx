@@ -118,7 +118,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
         <div className="px-5 pt-1 pb-4 flex items-center justify-between shrink-0 border-b border-border">
           <div>
             <h2 className="text-base font-bold">회원 등록</h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted">
             <X className="h-4 w-4 text-muted-foreground" />
@@ -469,7 +469,7 @@ function MembersTab() {
             }`}
           >
             <span className="flex items-center gap-1.5">{f.icon}{f.label}</span>
-            <span className={`text-base font-bold ${specialFilter === f.key ? "" : "opacity-60"}`}>{f.count}</span>
+            <span className={`text-base font-semibold ${specialFilter === f.key ? "" : "opacity-60"}`}>{f.count}</span>
           </button>
         ))}
       </div>
@@ -548,7 +548,7 @@ function MembersTab() {
                       </div>
                     )}
                     {!selectMode && (
-                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                         {member.name.charAt(0)}
                       </div>
                     )}
@@ -623,7 +623,7 @@ function MembersTab() {
         <div className="fixed bottom-20 md:bottom-4 left-0 right-0 flex justify-center z-40 px-4">
           <div className="bg-card border border-border rounded-xl shadow-xl px-4 py-3 flex items-center gap-3 w-full max-w-md">
             <p className="text-sm font-medium flex-1">
-              <span className="text-primary font-bold">{selectedIds.size}명</span> 선택됨
+              <span className="text-primary font-semibold">{selectedIds.size}명</span> 선택됨
             </p>
             <Button size="sm" onClick={() => { setExtendDays(30); setExtendCustom(""); setExtendOpen(true); }} className="gap-1.5">
               <CalendarPlus className="h-4 w-4" />만료일 연장

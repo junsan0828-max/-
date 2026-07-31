@@ -185,7 +185,7 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
             className="absolute -translate-x-1/2 -translate-y-full pointer-events-none"
             style={{ left: `${flash.x}%`, top: `${flash.y}%` }}
           >
-            <div className="bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-lg whitespace-nowrap mb-1 animate-bounce">
+            <div className="bg-black/80 text-white text-xs font-semibold px-2 py-1 rounded-lg whitespace-nowrap mb-1 animate-bounce">
               {selected.includes(flash.part) ? `✓ ${flash.part}` : `✕ ${flash.part} 해제`}
             </div>
           </div>
@@ -196,7 +196,7 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground">선택된 부위</p>
-            <button onClick={() => onChange([])} className="text-[11px] text-muted-foreground underline">전체 삭제</button>
+            <button onClick={() => onChange([])} className="text-[12px] text-muted-foreground underline">전체 삭제</button>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {selected.map(part => (

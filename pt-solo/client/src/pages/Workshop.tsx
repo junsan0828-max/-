@@ -491,9 +491,9 @@ export function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
       <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">
-            <span className="font-black" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
-            <span className="font-black text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
-            <span className="font-black text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
+            <span className="font-semibold" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+            <span className="font-semibold text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
+            <span className="font-semibold text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
             <span className="font-normal text-muted-foreground text-xs ml-2">회원 전용 앱</span>
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">회원에게 이 링크를 공유하세요</p>
@@ -592,7 +592,7 @@ function AdminFspLimitsPanel() {
               { label: "ELITE", value: elite, set: setElite },
             ].map(({ label, value, set }) => (
               <div key={label} className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">{label}</label>
+                <label className="text-[12px] font-semibold text-muted-foreground">{label}</label>
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
@@ -633,12 +633,12 @@ function AdminFspLimitsPanel() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium">{trainer.trainerName}</p>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${planColor(plan)}`}>{plan.toUpperCase()}</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${planColor(plan)}`}>{plan.toUpperCase()}</span>
                     </div>
                     <p className="text-[10px] text-muted-foreground">@{trainer.username}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold">{count} <span className="text-xs text-muted-foreground font-normal">/ {limit}명</span></p>
+                    <p className="text-sm font-semibold">{count} <span className="text-xs text-muted-foreground font-normal">/ {limit}명</span></p>
                     <div className="w-20 h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
                       <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(100, (count/limit)*100)}%` }} />
                     </div>
@@ -768,7 +768,7 @@ function IntroBlockEditor({ d, onChange }: { d: any; onChange: (data: any) => vo
             </button>
             {d.profileImage && (
               <button type="button" onClick={() => onChange({ ...d, profileImage: undefined })}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-red-500 transition-colors">
+                className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-red-500 transition-colors">
                 <X className="h-3 w-3" />삭제
               </button>
             )}
@@ -918,7 +918,7 @@ function BlockEditor({ block, onChange }: { block: BrandBlock; onChange: (data: 
       <div className="space-y-3 pt-3 border-t border-border/60">
         {items.map((item, i) => (
           <div key={i} className="flex items-center gap-2 bg-accent/30 rounded-xl px-3 py-2">
-            <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{catLabels[item.category] ?? item.category}</span>
+            <span className="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{catLabels[item.category] ?? item.category}</span>
             <span className="text-xs flex-1">{item.text}</span>
             <button onClick={() => onChange({ ...d, items: items.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-red-500">
               <X className="h-3.5 w-3.5" />
@@ -1141,7 +1141,7 @@ function AddBlockSheet({ existingTypes, onAdd, onClose }: {
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
         <div className="px-5 py-3 flex items-center justify-between border-b border-border sticky top-5 bg-card/95 z-10">
-          <p className="font-bold text-sm">블록 추가</p>
+          <p className="font-semibold text-sm">블록 추가</p>
           <button onClick={onClose}><X className="h-4 w-4 text-muted-foreground" /></button>
         </div>
         <div className="px-5 py-4 space-y-2 pb-8">
@@ -1158,7 +1158,7 @@ function AddBlockSheet({ existingTypes, onAdd, onClose }: {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold">{meta.label}</p>
-                  <p className="text-[11px] text-muted-foreground">{meta.desc}</p>
+                  <p className="text-[12px] text-muted-foreground">{meta.desc}</p>
                 </div>
                 {already && <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">추가됨</span>}
                 {meta.comingSoon && <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">준비 중</span>}
@@ -1338,12 +1338,12 @@ function BookingFeaturePanel() {
           {brand?.username && (
             <div className="space-y-1.5 border-t border-border pt-4">
               <p className="text-xs font-semibold text-muted-foreground">기존 회원 수업 예약 링크</p>
-              <p className="text-[11px] text-muted-foreground">기존 회원에게 공유하는 수업 예약 전용 페이지입니다. 브랜드 페이지와 별도로 운영됩니다.</p>
+              <p className="text-[12px] text-muted-foreground">기존 회원에게 공유하는 수업 예약 전용 페이지입니다. 브랜드 페이지와 별도로 운영됩니다.</p>
               <div className="flex gap-2 items-center bg-accent/40 rounded-xl px-3 py-2">
                 <span className="text-xs flex-1 truncate text-foreground/70 font-mono">{window.location.origin}/c/{encodeURIComponent(brand.username)}</span>
                 <button
                   onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`); toast.success("링크 복사됨"); }}
-                  className="text-[11px] font-semibold text-primary shrink-0 hover:underline">
+                  className="text-[12px] font-semibold text-primary shrink-0 hover:underline">
                   복사
                 </button>
               </div>
@@ -1363,13 +1363,13 @@ function BookingFeaturePanel() {
               {recurringEdit.map(r => (
                 <div key={r.dayOfWeek} className="border border-border rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold">{DAYS_KO[r.dayOfWeek]}요일</p>
+                    <p className="text-xs font-semibold">{DAYS_KO[r.dayOfWeek]}요일</p>
                     {r.times.length > 0 && <span className="text-[10px] text-primary font-semibold">{r.times.length}개 선택됨</span>}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {TIME_PRESETS.map(t => (
                       <button key={t} onClick={() => toggleRecurringTime(r.dayOfWeek, t)}
-                        className={`text-[11px] px-2 py-1 rounded-lg border transition-colors font-medium ${r.times.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                        className={`text-[12px] px-2 py-1 rounded-lg border transition-colors font-medium ${r.times.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                         {t}
                       </button>
                     ))}
@@ -1404,7 +1404,7 @@ function BookingFeaturePanel() {
               <div className="flex flex-wrap gap-1.5">
                 {TIME_PRESETS.map(t => (
                   <button key={t} onClick={() => setNewSlotTimes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t].sort())}
-                    className={`text-[11px] px-2 py-1 rounded-lg border font-medium transition-colors ${newSlotTimes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                    className={`text-[12px] px-2 py-1 rounded-lg border font-medium transition-colors ${newSlotTimes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                     {t}
                   </button>
                 ))}
@@ -1442,7 +1442,7 @@ function BookingFeaturePanel() {
                     <p className="text-xs font-semibold">{date}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {ss.map((s: any) => (
-                        <div key={s.id} className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border font-medium ${s.isBooked ? "bg-muted text-muted-foreground border-border" : "bg-background border-border text-foreground"}`}>
+                        <div key={s.id} className={`flex items-center gap-1 text-[12px] px-2 py-1 rounded-lg border font-medium ${s.isBooked ? "bg-muted text-muted-foreground border-border" : "bg-background border-border text-foreground"}`}>
                           {s.time}
                           {s.isBooked ? <span className="text-[10px] text-amber-500">예약됨</span>
                             : <button onClick={() => deleteSlotMutation.mutate({ id: s.id })} className="text-muted-foreground hover:text-red-500 ml-0.5"><X className="h-2.5 w-2.5" /></button>}
@@ -1494,12 +1494,12 @@ function BookingFeaturePanel() {
           {/* 상태 필터 */}
           <div className="flex gap-1.5 flex-wrap">
             <button onClick={() => setStatusFilter("all")}
-              className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+              className={`text-[12px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
               전체
             </button>
             {Object.entries(STATUS_META).map(([k, v]) => (
               <button key={k} onClick={() => setStatusFilter(k)}
-                className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                className={`text-[12px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                 {v.label}
               </button>
             ))}
@@ -1514,7 +1514,7 @@ function BookingFeaturePanel() {
                     <p className="text-sm font-semibold">{b.name}</p>
                     <p className="text-xs text-muted-foreground">{b.phone}</p>
                   </div>
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_META[b.status]?.cls ?? "bg-muted text-muted-foreground"}`}>
+                  <span className={`text-[12px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_META[b.status]?.cls ?? "bg-muted text-muted-foreground"}`}>
                     {STATUS_META[b.status]?.label ?? b.status}
                   </span>
                 </div>
@@ -1528,7 +1528,7 @@ function BookingFeaturePanel() {
                   {(["pending","confirmed","visited","cancelled","noshow"] as const).map(s => (
                     <button key={s} disabled={b.status === s || updateStatusMutation.isPending}
                       onClick={() => updateStatusMutation.mutate({ id: b.id, status: s })}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors disabled:opacity-40 ${b.status === s ? "bg-primary/10 text-primary border-primary/30" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}>
+                      className={`text-[12px] px-2.5 py-1 rounded-lg border font-medium transition-colors disabled:opacity-40 ${b.status === s ? "bg-primary/10 text-primary border-primary/30" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}>
                       {STATUS_META[s].label}
                     </button>
                   ))}
@@ -1747,7 +1747,7 @@ export function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {})
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">브랜드 페이지 공개</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">/p/{trainerId}</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">/p/{trainerId}</p>
           </div>
           <div className="flex items-center gap-2">
             {/* 미리보기 버튼 */}
@@ -1781,7 +1781,7 @@ export function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {})
             </button>
           </>
         ) : (
-          <p className="text-[11px] text-muted-foreground">공개로 설정하면 외부에서 접속할 수 있는 링크가 생성됩니다.</p>
+          <p className="text-[12px] text-muted-foreground">공개로 설정하면 외부에서 접속할 수 있는 링크가 생성됩니다.</p>
         )}
       </div>
 
@@ -1793,7 +1793,7 @@ export function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {})
       {/* ── 블록 섹션 헤더 ── */}
       <div className="flex items-center gap-2">
         <Layers className="h-4 w-4 text-muted-foreground" />
-        <p className="text-sm font-bold">페이지 구성</p>
+        <p className="text-sm font-semibold">페이지 구성</p>
         <span className="text-[10px] text-muted-foreground ml-auto">{blocks.filter(b => b.visible).length}개 표시 중</span>
       </div>
 
@@ -2138,15 +2138,15 @@ function WorkshopItemCard({ item, onClick }: { item: WsItem; onClick: () => void
         ${item.status !== "active" ? "opacity-80" : ""}`}
     >
       {badge && (
-        <span className={`absolute top-2.5 right-2.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${badge.cls}`}>
+        <span className={`absolute top-2.5 right-2.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${badge.cls}`}>
           {badge.label}
         </span>
       )}
       <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2.5">
         <Icon className="h-[18px] w-[18px] text-primary" />
       </div>
-      <p className="font-semibold text-[13px] leading-tight pr-8">{item.name}</p>
-      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">{item.shortDesc}</p>
+      <p className="font-semibold text-[14px] leading-tight pr-8">{item.name}</p>
+      <p className="text-[12px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">{item.shortDesc}</p>
     </button>
   );
 }
@@ -2287,7 +2287,7 @@ const WS_CATS: { key: WsCategory; label: string; icon: React.ElementType }[] = [
 ];
 
 function planBadge(plan: string) {
-  const base = "text-[10px] font-bold px-1.5 py-0.5 rounded";
+  const base = "text-[10px] font-semibold px-1.5 py-0.5 rounded";
   if (plan === "elite") return <span className={`${base} bg-amber-100 text-amber-700`}>ELITE</span>;
   if (plan === "pro") return <span className={`${base} bg-blue-100 text-blue-700`}>PRO</span>;
   return <span className={`${base} bg-muted text-muted-foreground`}>FREE</span>;
@@ -2505,11 +2505,11 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">사용 현황</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="text-center bg-card rounded-xl p-3 border border-border">
-                  <p className="text-2xl font-black text-primary">{feature.usage.activeUsers}</p>
+                  <p className="text-2xl font-bold text-primary">{feature.usage.activeUsers}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">이용 중인 STEPER</p>
                 </div>
                 <div className="text-center bg-card rounded-xl p-3 border border-border">
-                  <p className="text-2xl font-black">{feature.usage.totalMetric}</p>
+                  <p className="text-2xl font-bold">{feature.usage.totalMetric}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{feature.usage.label}</p>
                 </div>
               </div>
@@ -2529,7 +2529,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                 <div key={t.id} className="flex items-center justify-between bg-background border border-border rounded-xl px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-primary">{t.trainerName?.[0]}</span>
+                      <span className="text-[10px] font-semibold text-primary">{t.trainerName?.[0]}</span>
                     </div>
                     <div>
                       <p className="text-xs font-semibold">{t.trainerName}</p>
@@ -2666,14 +2666,14 @@ function ConsultConversionPreview() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
-        <div className={statCls}><p className="text-xl font-black">{total}</p><p className="text-[10px] text-muted-foreground mt-0.5">총 상담</p></div>
-        <div className={statCls}><p className="text-xl font-black text-green-600">{registered}</p><p className="text-[10px] text-muted-foreground mt-0.5">등록 완료</p></div>
-        <div className={statCls}><p className="text-xl font-black text-primary">{rate}%</p><p className="text-[10px] text-muted-foreground mt-0.5">전환율</p></div>
+        <div className={statCls}><p className="text-xl font-bold">{total}</p><p className="text-[10px] text-muted-foreground mt-0.5">총 상담</p></div>
+        <div className={statCls}><p className="text-xl font-bold text-green-600">{registered}</p><p className="text-[10px] text-muted-foreground mt-0.5">등록 완료</p></div>
+        <div className={statCls}><p className="text-xl font-bold text-primary">{rate}%</p><p className="text-[10px] text-muted-foreground mt-0.5">전환율</p></div>
       </div>
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[11px]">
+        <div className="flex items-center justify-between text-[12px]">
           <span className="text-muted-foreground">전환율</span>
-          <span className="font-bold text-primary">{rate}%</span>
+          <span className="font-semibold text-primary">{rate}%</span>
         </div>
         <div className="w-full bg-muted rounded-full h-2.5">
           <div className="h-2.5 rounded-full bg-primary transition-all" style={{ width: `${rate}%` }} />
@@ -2689,7 +2689,7 @@ function ConsultConversionPreview() {
         return (
           <div key={status} className="flex items-center justify-between">
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}>{label}</span>
-            <span className="text-sm font-bold">{cnt}명</span>
+            <span className="text-sm font-semibold">{cnt}명</span>
           </div>
         );
       })}
@@ -2707,14 +2707,14 @@ function MemberOverviewPreview() {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
-        <div className={statCls}><p className="text-xl font-black">{total}</p><p className="text-[10px] text-muted-foreground mt-0.5">전체 회원</p></div>
-        <div className={statCls}><p className="text-xl font-black text-green-600">{active}</p><p className="text-[10px] text-muted-foreground mt-0.5">활성</p></div>
-        <div className={statCls}><p className="text-xl font-black text-muted-foreground">{paused}</p><p className="text-[10px] text-muted-foreground mt-0.5">일시정지</p></div>
+        <div className={statCls}><p className="text-xl font-bold">{total}</p><p className="text-[10px] text-muted-foreground mt-0.5">전체 회원</p></div>
+        <div className={statCls}><p className="text-xl font-bold text-green-600">{active}</p><p className="text-[10px] text-muted-foreground mt-0.5">활성</p></div>
+        <div className={statCls}><p className="text-xl font-bold text-muted-foreground">{paused}</p><p className="text-[10px] text-muted-foreground mt-0.5">일시정지</p></div>
       </div>
       {stats && (
         <div className="grid grid-cols-2 gap-2">
-          <div className={statCls}><p className="text-lg font-black">{stats.totalSessions}</p><p className="text-[10px] text-muted-foreground mt-0.5">누적 수업</p></div>
-          <div className={statCls}><p className="text-lg font-black text-orange-500">{stats.reregRate}%</p><p className="text-[10px] text-muted-foreground mt-0.5">재등록률</p></div>
+          <div className={statCls}><p className="text-lg font-bold">{stats.totalSessions}</p><p className="text-[10px] text-muted-foreground mt-0.5">누적 수업</p></div>
+          <div className={statCls}><p className="text-lg font-bold text-orange-500">{stats.reregRate}%</p><p className="text-[10px] text-muted-foreground mt-0.5">재등록률</p></div>
         </div>
       )}
     </div>
@@ -2733,7 +2733,7 @@ function ActivityStatsPreview() {
           return (
             <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
               <div className="w-full rounded-t-sm bg-primary transition-all" style={{ height: `${h}%`, minHeight: d["출석"] > 0 ? "4px" : "0" }} />
-              <span className="text-[9px] text-muted-foreground">{d.month}</span>
+              <span className="text-[10px] text-muted-foreground">{d.month}</span>
             </div>
           );
         })}
@@ -2742,11 +2742,11 @@ function ActivityStatsPreview() {
         {chartData.slice(-1).map((d: any) => (
           <div key="last" className="contents">
             <div className="bg-background border border-border rounded-xl p-3 text-center">
-              <p className="text-lg font-black text-green-600">{d["신규회원"]}</p>
+              <p className="text-lg font-bold text-green-600">{d["신규회원"]}</p>
               <p className="text-[10px] text-muted-foreground">이번 달 신규</p>
             </div>
             <div className="bg-background border border-border rounded-xl p-3 text-center">
-              <p className="text-lg font-black text-blue-600">{d["재등록"]}</p>
+              <p className="text-lg font-bold text-blue-600">{d["재등록"]}</p>
               <p className="text-[10px] text-muted-foreground">이번 달 재등록</p>
             </div>
           </div>
@@ -2765,11 +2765,11 @@ function MonthlyPnlPreview() {
       {thisMonth && (
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-background border border-border rounded-xl p-3 text-center">
-            <p className="text-base font-black">{((thisMonth["매출"] ?? 0) / 10000).toFixed(0)}만원</p>
+            <p className="text-base font-semibold">{((thisMonth["매출"] ?? 0) / 10000).toFixed(0)}만원</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">이번 달 매출</p>
           </div>
           <div className="bg-background border border-border rounded-xl p-3 text-center">
-            <p className="text-base font-black text-green-600">{((thisMonth["정산"] ?? 0) / 10000).toFixed(0)}만원</p>
+            <p className="text-base font-semibold text-green-600">{((thisMonth["정산"] ?? 0) / 10000).toFixed(0)}만원</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">이번 달 정산</p>
           </div>
         </div>
@@ -2781,7 +2781,7 @@ function MonthlyPnlPreview() {
           return (
             <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
               <div className="w-full rounded-t-sm bg-green-400 transition-all" style={{ height: `${h}%`, minHeight: d["매출"] > 0 ? "4px" : "0" }} />
-              <span className="text-[9px] text-muted-foreground">{d.month}</span>
+              <span className="text-[10px] text-muted-foreground">{d.month}</span>
             </div>
           );
         })}
@@ -2802,7 +2802,7 @@ function RenewalAnalysisPreview() {
     <div className="space-y-3">
       {stats && (
         <div className="bg-background border border-border rounded-xl p-3 text-center">
-          <p className="text-2xl font-black text-primary">{stats.reregRate}%</p>
+          <p className="text-2xl font-bold text-primary">{stats.reregRate}%</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">재등록률</p>
         </div>
       )}
@@ -2815,7 +2815,7 @@ function RenewalAnalysisPreview() {
               <div className="bg-primary rounded-full transition-all" style={{ width: `${Math.round((d["신규회원"] / maxVal) * 100)}%` }} />
               <div className="bg-blue-400 rounded-full transition-all" style={{ width: `${Math.round((d["재등록"] / maxVal) * 100)}%` }} />
             </div>
-            <div className="flex gap-3 text-[9px] text-muted-foreground">
+            <div className="flex gap-3 text-[10px] text-muted-foreground">
               <span>● 신규 {d["신규회원"]}</span><span>● 재등록 {d["재등록"]}</span>
             </div>
           </div>
@@ -2837,7 +2837,7 @@ function ChannelAnalysisPreview() {
   return (
     <div className="space-y-3">
       <div className="bg-background border border-border rounded-xl p-3 text-center">
-        <p className="text-2xl font-black">{total}</p>
+        <p className="text-2xl font-bold">{total}</p>
         <p className="text-[10px] text-muted-foreground mt-0.5">총 유입 상담</p>
       </div>
       {sorted.length === 0 ? (
@@ -2846,9 +2846,9 @@ function ChannelAnalysisPreview() {
         <div className="space-y-2">
           {sorted.map(([name, cnt]) => (
             <div key={name} className="space-y-1">
-              <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center justify-between text-[12px]">
                 <span className="font-medium">{name}</span>
-                <span className="font-bold">{cnt}명 ({total > 0 ? Math.round((cnt / total) * 100) : 0}%)</span>
+                <span className="font-semibold">{cnt}명 ({total > 0 ? Math.round((cnt / total) * 100) : 0}%)</span>
               </div>
               <div className="w-full bg-muted rounded-full h-1.5">
                 <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${total > 0 ? (cnt / total) * 100 : 0}%` }} />
@@ -2876,7 +2876,7 @@ function KpiReportPreview() {
     <div className="grid grid-cols-2 gap-2">
       {kpis.map(({ label, value, unit, cls }) => (
         <div key={label} className="bg-background border border-border rounded-xl p-3 text-center">
-          <p className={`text-xl font-black ${cls}`}>{value}{unit}</p>
+          <p className={`text-xl font-bold ${cls}`}>{value}{unit}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
         </div>
       ))}
@@ -3028,7 +3028,7 @@ export function TrainerDietManager() {
                 {[["키", `${heightCm}cm`], ["몸무게", `${weightKg}kg`], ["나이", `${ageYears}세`]].map(([label, val]) => (
                   <div key={label} className="bg-primary/5 rounded-lg py-2">
                     <p className="text-[10px] text-muted-foreground">{label}</p>
-                    <p className="font-bold text-sm">{val}</p>
+                    <p className="font-semibold text-sm">{val}</p>
                   </div>
                 ))}
               </div>
@@ -3065,7 +3065,7 @@ export function TrainerDietManager() {
             </div>
           </div>
           <button onClick={handleGenerate}
-            className="w-full py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2">
+            className="w-full py-3 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2">
             <Sparkles className="h-4 w-4" />
             맞춤 식단 생성 ({foodOptions.length}개 메뉴 DB)
           </button>
@@ -3077,15 +3077,15 @@ export function TrainerDietManager() {
         <div className="space-y-3">
           <div className="bg-card border border-border rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="font-bold text-sm">{selectedMember?.name}님 맞춤 식단</p>
+              <p className="font-semibold text-sm">{selectedMember?.name}님 맞춤 식단</p>
               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{plan.goalLabel}</span>
             </div>
-            <p className="text-xs text-muted-foreground">목표 <span className="font-bold text-foreground">{plan.tdee.toLocaleString()} kcal</span></p>
+            <p className="text-xs text-muted-foreground">목표 <span className="font-semibold text-foreground">{plan.tdee.toLocaleString()} kcal</span></p>
             <div className="grid grid-cols-4 gap-1.5 pt-1">
               {[["총 칼로리", `${totalKcal}kcal`, "text-orange-500"], ["탄수화물", `${totalCarb}g`, "text-amber-500"], ["단백질", `${totalProt}g`, "text-blue-500"], ["지방", `${totalFat}g`, "text-green-500"]].map(([label, val, cls]) => (
                 <div key={label} className="bg-muted/40 rounded-xl py-2 text-center">
-                  <p className="text-[9px] text-muted-foreground">{label}</p>
-                  <p className={`text-xs font-bold ${cls}`}>{val}</p>
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                  <p className={`text-xs font-semibold ${cls}`}>{val}</p>
                 </div>
               ))}
             </div>
@@ -3096,7 +3096,7 @@ export function TrainerDietManager() {
             return (
               <div key={meal.mealType} className="border border-border rounded-2xl overflow-hidden">
                 <div className="bg-muted/30 px-4 py-2.5 flex items-center justify-between">
-                  <p className="text-sm font-bold">{meal.mealType}</p>
+                  <p className="text-sm font-semibold">{meal.mealType}</p>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{item.kcal} kcal</span>
                     {meal.alt.length > 0 && (
@@ -3110,7 +3110,7 @@ export function TrainerDietManager() {
                 <div className="px-4 py-3">
                   <p className="text-sm font-semibold">{item.name}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{item.amount}</p>
-                  <div className="flex gap-3 mt-2 text-[11px]">
+                  <div className="flex gap-3 mt-2 text-[12px]">
                     <span className="text-amber-500">탄 {item.carb}g</span>
                     <span className="text-blue-500">단 {item.prot}g</span>
                     <span className="text-green-500">지 {item.fat}g</span>
@@ -3174,7 +3174,7 @@ function WsAdminPointLog() {
               <p className="text-[10px] text-muted-foreground">{l.createdAt?.slice(0, 16)}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className={`text-sm font-bold ${l.amount > 0 ? "text-green-600" : l.amount < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+              <p className={`text-sm font-semibold ${l.amount > 0 ? "text-green-600" : l.amount < 0 ? "text-red-500" : "text-muted-foreground"}`}>
                 {l.amount > 0 ? "+" : ""}{l.amount.toLocaleString()}P
               </p>
               <span className={`text-[10px] ${l.status === "completed" ? "text-green-600" : "text-muted-foreground"}`}>
@@ -3313,7 +3313,7 @@ function AdminWorkshopView() {
           { label: "미오픈",       value: summary.unopened, cls: "text-muted-foreground" },
         ].map(card => (
           <div key={card.label} className="bg-card border border-border rounded-xl p-3 text-center">
-            <p className={`text-lg font-black ${card.cls}`}>{card.value}</p>
+            <p className={`text-lg font-bold ${card.cls}`}>{card.value}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">{card.label}</p>
           </div>
         ))}
@@ -3379,7 +3379,7 @@ function AdminWorkshopView() {
                     <button className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/20 transition-colors"
                       onClick={() => setExpandedTrainerId(isExpanded ? null : t.id)}>
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-primary">{t.trainerName?.[0]}</span>
+                        <span className="text-xs font-semibold text-primary">{t.trainerName?.[0]}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -3480,12 +3480,12 @@ function AdminWorkshopView() {
               <div className="flex gap-1.5 ml-auto">
                 <button disabled={selectedFeatureIds.size === 0 || bulkUpdateMutation.isPending}
                   onClick={() => bulkUpdateMutation.mutate({ featureIds: Array.from(selectedFeatureIds), status: "active" })}
-                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-green-600 text-white disabled:opacity-40 transition-opacity">
+                  className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-green-600 text-white disabled:opacity-40 transition-opacity">
                   활성
                 </button>
                 <button disabled={selectedFeatureIds.size === 0 || bulkUpdateMutation.isPending}
                   onClick={() => bulkUpdateMutation.mutate({ featureIds: Array.from(selectedFeatureIds), status: "coming_soon" })}
-                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-muted text-muted-foreground border border-border disabled:opacity-40 transition-opacity">
+                  className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-muted text-muted-foreground border border-border disabled:opacity-40 transition-opacity">
                   준비 중
                 </button>
               </div>
@@ -3531,7 +3531,7 @@ function AdminWorkshopView() {
                           if (!tier) return null;
                           const cfg = { free: "bg-emerald-100 text-emerald-700", pro: "bg-blue-100 text-blue-700", elite: "bg-amber-100 text-amber-700" } as Record<string, string>;
                           const lbl = { free: "FREE", pro: "PRO", elite: "ELITE" } as Record<string, string>;
-                          return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cfg[tier]}`}>{lbl[tier]}</span>;
+                          return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${cfg[tier]}`}>{lbl[tier]}</span>;
                         })()}
                       </div>
                       <p className="text-[10px] text-muted-foreground">{f.catLabel}</p>
@@ -3579,9 +3579,9 @@ function LockedFeatureRow({ item, planLabel, planColor }: { item: WsItem; planLa
         </div>
         <div className="flex-1 min-w-0 pr-6">
           <p className="text-sm font-semibold text-foreground/70">{item.name}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">{item.shortDesc}</p>
+          <p className="text-[12px] text-muted-foreground mt-0.5">{item.shortDesc}</p>
         </div>
-        <div className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg ${planColor}`}>
+        <div className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-lg ${planColor}`}>
           {planLabel}
         </div>
       </div>
@@ -3605,17 +3605,17 @@ function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: str
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">{item.name}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">{item.shortDesc}</p>
+          <p className="text-[12px] text-muted-foreground mt-0.5">{item.shortDesc}</p>
         </div>
         {hasEditor ? (
           <button
             onClick={onClick}
-            className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="shrink-0 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             설정
           </button>
         ) : (
-          <span className="shrink-0 text-[11px] text-muted-foreground px-3 py-1.5 rounded-lg bg-muted/50">
+          <span className="shrink-0 text-[12px] text-muted-foreground px-3 py-1.5 rounded-lg bg-muted/50">
             사용 중
           </span>
         )}
@@ -3716,12 +3716,12 @@ function WorkshopContent() {
           {/* 뱃지 */}
           <div className="relative inline-flex items-center gap-1.5 bg-primary/20 border border-primary/30 rounded-full px-3 py-1 mb-4">
             <Zap className="h-3 w-3 text-primary" />
-            <span className="text-[11px] font-bold text-primary tracking-wide">FIT STEP 작업실</span>
+            <span className="text-[12px] font-semibold text-primary tracking-wide">FIT STEP 작업실</span>
           </div>
 
           {/* 헤드라인 */}
           <div className="relative space-y-2 mb-5">
-            <h1 className="text-[22px] font-black leading-tight tracking-tight">
+            <h1 className="text-[22px] font-bold leading-tight tracking-tight">
               수업만 하는 트레이너에서,<br />
               <span className="text-primary">브랜드를 만드는</span> 전문가로
             </h1>
@@ -3743,7 +3743,7 @@ function WorkshopContent() {
                   <f.icon className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[12px] font-bold leading-none">{f.label}</p>
+                  <p className="text-[12px] font-semibold leading-none">{f.label}</p>
                   <p className="text-[10px] text-white/50 mt-0.5 leading-none">{f.desc}</p>
                 </div>
               </div>
@@ -3755,10 +3755,10 @@ function WorkshopContent() {
             <button
               onClick={() => startTrialMutation.mutate()}
               disabled={startTrialMutation.isPending}
-              className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60">
+              className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60">
               {startTrialMutation.isPending ? "시작 중..." : "30일 전체 기능 무료 체험 시작 →"}
             </button>
-            <p className="text-center text-[11px] text-white/40">결제 없이 바로 시작 · 카드 정보 불필요 · 1회 한정</p>
+            <p className="text-center text-[12px] text-white/40">결제 없이 바로 시작 · 카드 정보 불필요 · 1회 한정</p>
           </div>
         </div>
 
@@ -3785,7 +3785,7 @@ function WorkshopContent() {
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 space-y-4">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-amber-600" />
-            <p className="font-bold text-amber-800">무료 체험 기간이 종료되었습니다</p>
+            <p className="font-semibold text-amber-800">무료 체험 기간이 종료되었습니다</p>
           </div>
           <p className="text-sm text-amber-700">현재 저장된 데이터는 안전하게 보관 중입니다:</p>
           <div className="grid grid-cols-2 gap-1.5">
@@ -3867,13 +3867,13 @@ function WorkshopContent() {
       {status === "trial" && daysRemaining > 7 && (
         <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 flex items-center justify-between">
           <p className="text-xs font-semibold text-primary">무료 체험 중</p>
-          <span className="text-xs font-bold text-primary">{daysRemaining}일 남음</span>
+          <span className="text-xs font-semibold text-primary">{daysRemaining}일 남음</span>
         </div>
       )}
       {status === "trial" && daysRemaining <= 7 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
           <p className="text-xs font-semibold text-yellow-700">무료 체험 중</p>
-          <span className="text-xs font-bold text-yellow-700">D-{daysRemaining}</span>
+          <span className="text-xs font-semibold text-yellow-700">D-{daysRemaining}</span>
         </div>
       )}
       {/* 헤더 */}
@@ -3931,7 +3931,7 @@ function WorkshopContent() {
               <div className="mt-6 space-y-2">
                 <div className="flex items-center gap-2 px-1 py-1.5 border-b border-blue-200/50 dark:border-blue-500/20">
                   <Lock className="h-3.5 w-3.5 text-blue-500" />
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">PRO 플랜 기능</span>
+                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">PRO 플랜 기능</span>
                   <span className="ml-auto text-[10px] text-muted-foreground">{lockedProItems.length}개</span>
                 </div>
                 {lockedProItems.map(item => (
@@ -3939,12 +3939,12 @@ function WorkshopContent() {
                 ))}
                 <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-blue-700 dark:text-blue-400">PRO로 업그레이드</p>
-                    <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
+                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">PRO로 업그레이드</p>
+                    <p className="text-[12px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
                       연 {(planInfo?.prices?.pro ?? 69000).toLocaleString()}원으로 전체 기능 개방
                     </p>
                   </div>
-                  <a href="/profile" className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shrink-0">
+                  <a href="/profile" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shrink-0">
                     업그레이드
                   </a>
                 </div>

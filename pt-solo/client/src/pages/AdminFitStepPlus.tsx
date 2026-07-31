@@ -91,9 +91,9 @@ export default function AdminFitStepPlus() {
   );
 
   const planBadge = (plan: string) => {
-    if (plan === "elite") return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">ELITE</span>;
-    if (plan === "pro") return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">PRO</span>;
-    return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">FREE</span>;
+    if (plan === "elite") return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">ELITE</span>;
+    if (plan === "pro") return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">PRO</span>;
+    return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">FREE</span>;
   };
 
   return (

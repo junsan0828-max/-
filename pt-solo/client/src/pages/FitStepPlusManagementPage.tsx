@@ -33,13 +33,13 @@ export default function FitStepPlusManagementPage() {
             <Lock className="h-6 w-6 text-blue-600" />
           </div>
           <div className="space-y-1">
-            <p className="text-sm font-bold text-blue-700 dark:text-blue-400">FIT STEP+는 PRO 전용 기능입니다</p>
+            <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">FIT STEP+는 PRO 전용 기능입니다</p>
             <p className="text-xs text-blue-600/80 dark:text-blue-400/80 leading-relaxed">
               PRO로 업그레이드하면 회원 전용 앱에서 출석·운동기록·영상·이벤트까지 관리할 수 있어요.
             </p>
           </div>
           <a href="/profile"
-            className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors">
+            className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors">
             연 {(planInfo?.prices?.pro ?? 69000).toLocaleString()}원으로 업그레이드
           </a>
         </div>

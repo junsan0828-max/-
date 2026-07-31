@@ -104,7 +104,7 @@ function RegisterSheet({
         <div className="px-5 pt-2 pb-4 flex items-center justify-between sticky top-6 bg-card/95 backdrop-blur-sm z-10">
           <div>
             <h2 className="text-base font-bold">신규 회원 등록</h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted">
             <X className="h-4 w-4 text-muted-foreground" />
@@ -189,7 +189,7 @@ function RegisterSheet({
 
           {/* 안내 */}
           <div className="bg-muted/40 rounded-2xl px-4 py-3">
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
+            <p className="text-[12px] text-muted-foreground leading-relaxed">
               💡 이 화면에서 등록한 회원은 PT 패키지·결제 정보가 없어 <span className="text-foreground font-medium">매출 통계에 포함되지 않습니다.</span><br />
               PT 등록·결제가 필요하면 <span className="text-foreground font-medium">PT 관리</span>에서 등록해주세요.
             </p>
@@ -414,7 +414,7 @@ export default function Members() {
               {f.icon}
               {f.label}
             </span>
-            <span className={`text-base font-bold ${specialFilter === f.key ? "" : "opacity-60"}`}>
+            <span className={`text-base font-semibold ${specialFilter === f.key ? "" : "opacity-60"}`}>
               {f.count}
             </span>
           </button>
@@ -538,7 +538,7 @@ export default function Members() {
                       </div>
                     )}
                     {!selectMode && (
-                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                         {member.name.charAt(0)}
                       </div>
                     )}
@@ -601,7 +601,7 @@ export default function Members() {
         <div className="fixed bottom-20 md:bottom-4 left-0 right-0 flex justify-center z-40 px-4">
           <div className="bg-card border border-border rounded-xl shadow-xl px-4 py-3 flex items-center gap-3 w-full max-w-md">
             <p className="text-sm font-medium flex-1">
-              <span className="text-primary font-bold">{selectedIds.size}명</span> 선택됨
+              <span className="text-primary font-semibold">{selectedIds.size}명</span> 선택됨
             </p>
             <Button
               size="sm"

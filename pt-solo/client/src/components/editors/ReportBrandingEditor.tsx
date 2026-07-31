@@ -27,12 +27,12 @@ export default function ReportBrandingEditor() {
         <div className="rounded-lg overflow-hidden border border-border">
           <div className="h-2" style={{ background: brandColor }} />
           <div className="flex items-center gap-3 p-3 bg-background">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0"
               style={{ backgroundColor: brandColor }}>
               {(brand as any)?.trainerName?.[0] ?? "T"}
             </div>
             <div>
-              <p className="text-sm font-bold">{(brand as any)?.trainerName ?? "STEPER 이름"}</p>
+              <p className="text-sm font-semibold">{(brand as any)?.trainerName ?? "STEPER 이름"}</p>
               <p className="text-xs text-muted-foreground">STEPER · Powered by FIT STEP</p>
             </div>
           </div>
@@ -61,7 +61,7 @@ export default function ReportBrandingEditor() {
       {/* 인사 메시지 */}
       <div className="space-y-2">
         <Label className="text-xs font-semibold">인사 메시지</Label>
-        <p className="text-[11px] text-muted-foreground">보고서 상단에 표시되는 짧은 한 마디입니다.</p>
+        <p className="text-[12px] text-muted-foreground">보고서 상단에 표시되는 짧은 한 마디입니다.</p>
         <div className="flex gap-2">
           <Input
             value={msgDraft}

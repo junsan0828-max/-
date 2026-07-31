@@ -394,7 +394,7 @@ function StatsTab() {
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className={`text-sm font-bold ${item.color}`}>{item.value}</span>
+            <span className={`text-sm font-semibold ${item.color}`}>{item.value}</span>
           </div>
         ))}
       </div>
@@ -411,13 +411,13 @@ function StatsTab() {
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className="text-sm font-bold">{item.value}</span>
+            <span className="text-sm font-semibold">{item.value}</span>
           </div>
         ))}
         <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
           <div>
             <p className="text-sm text-muted-foreground">재등록률</p>
-            <p className="text-[11px] text-muted-foreground/60">전체 회원 중 재등록 비율</p>
+            <p className="text-[12px] text-muted-foreground/60">전체 회원 중 재등록 비율</p>
           </div>
           <span className="text-xl font-bold text-primary">{stats?.reregRate ?? 0}%</span>
         </div>
@@ -445,13 +445,13 @@ function StatsTab() {
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className={`text-sm font-bold ${item.color}`}>{item.value}</span>
+            <span className={`text-sm font-semibold ${item.color}`}>{item.value}</span>
           </div>
         ))}
         <div className="flex items-center justify-between px-4 py-3 bg-yellow-500/10 border-t border-yellow-500/20">
           <div>
             <p className="text-sm text-muted-foreground">이달 매출</p>
-            <p className="text-[11px] text-muted-foreground/60">등록 패키지 결제금액 합산</p>
+            <p className="text-[12px] text-muted-foreground/60">등록 패키지 결제금액 합산</p>
           </div>
           <span className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</span>
         </div>
@@ -475,15 +475,15 @@ function MonthSummaryStrip() {
       <div className="grid grid-cols-3 divide-x divide-border">
         <div className="px-2 py-3 text-center">
           <p className="text-[10px] text-muted-foreground mb-1">이번달 매출</p>
-          <p className="text-sm font-bold text-emerald-500">{fmt(revenue.revenue)}원</p>
+          <p className="text-sm font-semibold text-emerald-500">{fmt(revenue.revenue)}원</p>
         </div>
         <div className="px-2 py-3 text-center">
           <p className="text-[10px] text-muted-foreground mb-1">이번달 지출</p>
-          <p className="text-sm font-bold text-rose-500">{fmt(expense.total)}원</p>
+          <p className="text-sm font-semibold text-rose-500">{fmt(expense.total)}원</p>
         </div>
         <div className="px-2 py-3 text-center bg-accent/20">
           <p className="text-[10px] text-muted-foreground mb-1">순수익</p>
-          <p className={`text-sm font-bold ${netProfit >= 0 ? "text-blue-500" : "text-red-500"}`}>
+          <p className={`text-sm font-semibold ${netProfit >= 0 ? "text-blue-500" : "text-red-500"}`}>
             {netProfit >= 0 ? "+" : ""}{fmt(netProfit)}원
           </p>
         </div>
@@ -542,9 +542,9 @@ function AnalysisTab() {
         <div className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold">{latest.month} 순이익</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">세후 정산액 − 지출 {fmt(latest.지출)}원 기준</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">세후 정산액 − 지출 {fmt(latest.지출)}원 기준</p>
           </div>
-          <span className={`text-lg font-black ${latest.순이익 >= 0 ? "text-blue-500" : "text-red-500"}`}>
+          <span className={`text-lg font-bold ${latest.순이익 >= 0 ? "text-blue-500" : "text-red-500"}`}>
             {latest.순이익 >= 0 ? "+" : ""}{fmt(latest.순이익)}원
           </span>
         </div>

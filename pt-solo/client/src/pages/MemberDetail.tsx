@@ -667,7 +667,7 @@ export default function MemberDetail({ memberId }: Props) {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
               {member.name.charAt(0)}
             </div>
             <div>
@@ -1214,7 +1214,7 @@ export default function MemberDetail({ memberId }: Props) {
                             )}
                           </div>
                           {(log as any).goal && (
-                            <p className="text-[11px] text-muted-foreground mt-1 truncate">{(log as any).goal}</p>
+                            <p className="text-[12px] text-muted-foreground mt-1 truncate">{(log as any).goal}</p>
                           )}
                           {exs.length > 0 && (
                             <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">
@@ -1619,7 +1619,7 @@ export default function MemberDetail({ memberId }: Props) {
                   <button key={m.id} onClick={() => pickCopyTarget(m.id)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors text-left">
                     <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-primary">{m.name.charAt(0)}</span>
+                      <span className="text-xs font-semibold text-primary">{m.name.charAt(0)}</span>
                     </div>
                     <span className="text-sm font-medium">{m.name}</span>
                   </button>
@@ -1943,7 +1943,7 @@ export default function MemberDetail({ memberId }: Props) {
                         value={ex.name}
                         onChange={e => updateViewExName(exIdx, e.target.value)}
                         placeholder="운동명"
-                        className="font-bold text-sm text-primary bg-transparent border-none outline-none flex-1 min-w-0"
+                        className="font-semibold text-sm text-primary bg-transparent border-none outline-none flex-1 min-w-0"
                       />
                       <button onClick={() => removeViewExercise(exIdx)} className="text-muted-foreground hover:text-red-400 transition-colors shrink-0">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1968,9 +1968,9 @@ export default function MemberDetail({ memberId }: Props) {
                               onClick={() => toggleSetCheck(exIdx, setIdx)}
                               className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "bg-primary border-primary" : "border-border"}`}
                             >
-                              {checked && <span className="text-primary-foreground text-[9px] font-bold">✓</span>}
+                              {checked && <span className="text-primary-foreground text-[10px] font-semibold">✓</span>}
                             </button>
-                            <span className="text-[11px] text-muted-foreground text-center">{setIdx + 1}</span>
+                            <span className="text-[12px] text-muted-foreground text-center">{setIdx + 1}</span>
                             <input
                               type="number"
                               value={s.reps}

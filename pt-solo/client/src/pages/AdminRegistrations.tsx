@@ -64,19 +64,19 @@ export default function AdminRegistrations() {
       <div className="grid grid-cols-3 gap-3">
         <Card className="bg-yellow-500/10 border-yellow-500/30">
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-black text-yellow-400">{counts.pending}</p>
+            <p className="text-2xl font-bold text-yellow-400">{counts.pending}</p>
             <p className="text-xs text-muted-foreground mt-0.5">대기 중</p>
           </CardContent>
         </Card>
         <Card className="bg-green-500/10 border-green-500/30">
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-black text-green-400">{counts.approved}</p>
+            <p className="text-2xl font-bold text-green-400">{counts.approved}</p>
             <p className="text-xs text-muted-foreground mt-0.5">승인 완료</p>
           </CardContent>
         </Card>
         <Card className="bg-red-500/10 border-red-500/30">
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-black text-red-400">{counts.rejected}</p>
+            <p className="text-2xl font-bold text-red-400">{counts.rejected}</p>
             <p className="text-xs text-muted-foreground mt-0.5">거절</p>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ export default function AdminRegistrations() {
             <t.icon className="h-3.5 w-3.5" />
             {t.label}
             {counts[t.key] > 0 && (
-              <span className={`text-xs font-bold ml-0.5 ${t.key === "pending" ? "text-yellow-400" : t.key === "approved" ? "text-green-400" : "text-red-400"}`}>
+              <span className={`text-xs font-semibold ml-0.5 ${t.key === "pending" ? "text-yellow-400" : t.key === "approved" ? "text-green-400" : "text-red-400"}`}>
                 {counts[t.key]}
               </span>
             )}
@@ -117,7 +117,7 @@ export default function AdminRegistrations() {
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                  <span className="text-sm font-bold text-primary">{r.trainerName[0]}</span>
+                  <span className="text-sm font-semibold text-primary">{r.trainerName[0]}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

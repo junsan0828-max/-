@@ -238,16 +238,16 @@ export default function EContractManager() {
                 </div>
                 <div className="flex gap-1.5">
                   <button onClick={() => copyLink(c.token)}
-                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold border border-border rounded-lg py-1.5 hover:bg-muted transition-colors">
+                    className="flex-1 flex items-center justify-center gap-1 text-[12px] font-semibold border border-border rounded-lg py-1.5 hover:bg-muted transition-colors">
                     <Copy className="h-3 w-3" /> 링크 복사
                   </button>
                   <button onClick={() => openKakao(c.token)}
-                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold bg-[#FEE500] text-[#3A1D1D] rounded-lg py-1.5 hover:opacity-90 transition-opacity">
+                    className="flex-1 flex items-center justify-center gap-1 text-[12px] font-semibold bg-[#FEE500] text-[#3A1D1D] rounded-lg py-1.5 hover:opacity-90 transition-opacity">
                     카카오톡 공유
                   </button>
                   {c.status === "signed" && (
                     <button onClick={() => setDetailId(c.id)}
-                      className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold bg-primary/10 text-primary rounded-lg py-1.5 hover:bg-primary/20 transition-colors">
+                      className="flex-1 flex items-center justify-center gap-1 text-[12px] font-semibold bg-primary/10 text-primary rounded-lg py-1.5 hover:bg-primary/20 transition-colors">
                       서명 확인
                     </button>
                   )}

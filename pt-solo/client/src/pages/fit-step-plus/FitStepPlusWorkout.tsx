@@ -266,7 +266,7 @@ function WorkoutRecordModal({ onClose, onSubmit, isPending }: {
           <button
             onClick={() => onSubmit({ exerciseNames, conditionScore, sleepHours, energyLevel, bodyParts, workoutTheme })}
             disabled={isPending}
-            className="flex-1 bg-primary text-primary-foreground font-bold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
+            className="flex-1 bg-primary text-primary-foreground font-semibold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
             {isPending ? "저장 중..." : "운동 완료"}
           </button>
         </div>
@@ -474,12 +474,12 @@ export default function FitStepPlusWorkout() {
         {/* 운동 시작 카드 */}
         <div className="bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <p className="font-bold text-base">지금 운동할까요?</p>
+            <p className="font-semibold text-base">지금 운동할까요?</p>
             <p className="text-xs text-muted-foreground mt-0.5">종목과 오늘의 컨디션을 기록해요</p>
           </div>
           <button
             onClick={() => setShowRecordModal(true)}
-            className="bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-xl active:scale-95 transition-transform"
+            className="bg-primary text-primary-foreground font-semibold text-sm px-4 py-2.5 rounded-xl active:scale-95 transition-transform"
           >
             운동 시작 ▶
           </button>
@@ -550,7 +550,7 @@ export default function FitStepPlusWorkout() {
                           </div>
                           {ex.videoUrl && (
                             <a href={ex.videoUrl} target="_blank" rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] text-primary font-medium ml-0.5">
+                              className="inline-flex items-center gap-1 text-[12px] text-primary font-medium ml-0.5">
                               <Video className="h-3 w-3" />영상 보기
                             </a>
                           )}

@@ -43,7 +43,7 @@ export default function FitStepPlusLayout({ children, trainerId, isAdmin }: { ch
             <span className="text-xl text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
           </div>
           {isAdmin && (
-            <span className="text-[10px] font-bold bg-primary/15 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full">관리자</span>
+            <span className="text-[10px] font-semibold bg-primary/15 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full">관리자</span>
           )}
         </div>
         {isAdmin ? (

@@ -71,13 +71,13 @@ export default function AttendancePage() {
                   : "bg-card border-border hover:border-primary/40"
               }`}
             >
-              <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+              <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                 {m.name.charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{m.name}</p>
                 {m.remaining !== null && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">잔여 {m.remaining}회</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">잔여 {m.remaining}회</p>
                 )}
               </div>
               {isChecked && st ? (

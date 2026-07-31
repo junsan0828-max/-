@@ -30,14 +30,14 @@ function InlineCalendar({ trainerId, primaryColor, selectedDate, onSelect }: {
         <button onClick={prevMonth} disabled={!canGoPrev} className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30">
           <ChevronLeft className="h-5 w-5 text-gray-600" />
         </button>
-        <p className="font-bold text-gray-900 text-sm">{year}년 {month}월</p>
+        <p className="font-semibold text-gray-900 text-sm">{year}년 {month}월</p>
         <button onClick={nextMonth} className="p-2 rounded-full hover:bg-gray-100">
           <ChevronRight className="h-5 w-5 text-gray-600" />
         </button>
       </div>
       <div className="grid grid-cols-7 text-center">
         {["일", "월", "화", "수", "목", "금", "토"].map(d => (
-          <p key={d} className="text-[11px] font-semibold text-gray-400 py-1">{d}</p>
+          <p key={d} className="text-[12px] font-semibold text-gray-400 py-1">{d}</p>
         ))}
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -101,7 +101,7 @@ function TimeSlots({ trainerId, date, primaryColor, selectedSlotId, onSelect }: 
                          !booked ? { borderColor: `${primaryColor}50` } : {}}>
                   {sel && <Check className="h-3 w-3 absolute top-1 right-1" />}
                   {slot.time}
-                  {booked && <span className="block text-[9px] text-gray-400 font-normal">마감</span>}
+                  {booked && <span className="block text-[10px] text-gray-400 font-normal">마감</span>}
                 </button>
               );
             })}
@@ -179,7 +179,7 @@ export default function ClassBookingPage({ username }: Props) {
             <X className="h-5 w-5 text-gray-500" />
           </a>
           <div>
-            <p className="font-bold text-gray-900 text-sm">{trainer.trainerName} STEPER</p>
+            <p className="font-semibold text-gray-900 text-sm">{trainer.trainerName} STEPER</p>
             <p className="text-xs text-gray-400">수업 예약</p>
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function ClassBookingPage({ username }: Props) {
       <div className="max-w-lg mx-auto px-4 py-5 space-y-5 pb-16">
         {/* 날짜 선택 */}
         <div className="bg-white rounded-3xl p-5 shadow-sm">
-          <p className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <p className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <Calendar className="h-4 w-4" style={{ color: primaryColor }} />
             날짜를 선택해 주세요
           </p>
@@ -203,7 +203,7 @@ export default function ClassBookingPage({ username }: Props) {
         {/* 시간 선택 */}
         {selectedDate && (
           <div className="bg-white rounded-3xl p-5 shadow-sm">
-            <p className="text-sm font-bold text-gray-800 mb-4">
+            <p className="text-sm font-semibold text-gray-800 mb-4">
               시간을 선택해 주세요
               <span className="text-xs text-gray-400 font-normal ml-2">{selectedDate}</span>
             </p>
@@ -220,7 +220,7 @@ export default function ClassBookingPage({ username }: Props) {
         {/* 예약자 정보 */}
         {selectedSlot && (
           <div className="bg-white rounded-3xl p-5 shadow-sm space-y-4">
-            <p className="text-sm font-bold text-gray-800">예약자 정보</p>
+            <p className="text-sm font-semibold text-gray-800">예약자 정보</p>
 
             {/* 선택 요약 */}
             <div className="flex gap-2 flex-wrap">
@@ -281,7 +281,7 @@ export default function ClassBookingPage({ username }: Props) {
                 interestType: form.interestType || undefined,
                 message: form.message || undefined,
               })}
-              className="w-full py-4 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
+              className="w-full py-4 rounded-2xl text-white font-semibold text-sm disabled:opacity-40 transition-opacity"
               style={{ backgroundColor: primaryColor }}>
               {submitMutation.isPending ? "예약 중..." : "수업 예약하기"}
             </button>
