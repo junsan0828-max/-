@@ -68,10 +68,10 @@ export default function GymPlusDashboard() {
         )}
       </div>
 
-      {/* 2. 회원권 D-day */}
+      {/* 2. 회원권 D-day — 재등록 유도 구간이면 재등록 신청(결제) 창으로 바로 연결 */}
       {daysLeft !== null && (
         <button
-          onClick={() => navigate("/gym-plus/profile")}
+          onClick={() => navigate(bonus ? "/gym-plus/profile?renew=1" : "/gym-plus/profile")}
           className={`w-full rounded-2xl border p-5 text-left transition-all hover:shadow-md ${membershipColor}`}
         >
           <div className="flex items-end justify-between gap-2">
