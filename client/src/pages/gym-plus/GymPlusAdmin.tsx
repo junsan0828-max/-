@@ -1294,9 +1294,9 @@ export function GymPlusProductsAdmin() {
               <Input type="number" value={form.originalPrice} onChange={e => f("originalPrice", e.target.value)} placeholder="예: 100000 (선택사항)" className="mt-1 text-sm" />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">포인트 가격 (P) — 비워두면 포인트 구매 불가</Label>
-              <Input type="number" value={form.pointPrice} onChange={e => f("pointPrice", e.target.value)} placeholder="예: 1000 (원 가격과 별도로 설정)" className="mt-1 text-sm" />
-              <p className="text-[10px] text-muted-foreground mt-1">원 가격과 무관하게 설정하세요. 회원권 연장(1,000P=1일) 등 다른 포인트 사용처와 가치가 어긋나지 않게 확인해주세요.</p>
+              <Label className="text-xs text-muted-foreground">포인트 가격 (P) — 비워두면 원 가격과 동일하게 자동 적용 (5,000원 미만 상품은 포인트 구매 불가)</Label>
+              <Input type="number" value={form.pointPrice} onChange={e => f("pointPrice", e.target.value)} placeholder="예: 1000 (직접 지정 시 원 가격과 별도 적용)" className="mt-1 text-sm" />
+              <p className="text-[10px] text-muted-foreground mt-1">비워두면 1P=1원으로 자동 적용됩니다. 특별 포인트 가격이 필요할 때만 직접 입력하세요.</p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">상품 설명</Label>

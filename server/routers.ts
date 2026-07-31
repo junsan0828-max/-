@@ -4517,11 +4517,11 @@ ${dataContext}
 
       let pointsUsed = 0;
       if (input.paymentMethod === "points") {
-        // pointPrice가 설정되지 않은 상품은 포인트 구매 자체를 막는다 — 원화 가격을 그대로
-        // 포인트로 대체하면 다른 포인트 사용처(회원권 연장 등)와 가격이 어긋날 수 있다.
-        if (product.pointPrice == null)
-          throw new TRPCError({ code: "BAD_REQUEST", message: "포인트로 구매할 수 없는 상품입니다." });
-        const cost = product.pointPrice;
+        // 관리자가 pointPrice를 직접 지정하지 않은 상품은 원화 가격을 그대로 포인트 가격(1P=1원)으로 쓴다.
+        // 단, 5,000원 미만 상품은 포인트 구매 대상에서 제외한다 — 현금 충전이 막혀 있어 차익거래 위험은 없다.
+        const cost = product.pointPrice ?? (product.price >= 5000 ? product.price : null);
+        if (cost == null)
+          throw new TRPCError({ code: "BAD_REQUEST", message: "5,000원 미만 상품은 포인트로 구매할 수 없습니다." });
         const [member] = await db.select({ points: gymPlusMembers.points })
           .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
         const balance = member?.points ?? 0;

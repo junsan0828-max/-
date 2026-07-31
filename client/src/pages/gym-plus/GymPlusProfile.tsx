@@ -614,7 +614,7 @@ export default function GymPlusProfile() {
             {filtered.map((p) => (
               <button
                 key={p.id}
-                onClick={() => { setSelectedProduct(p); setPaymentMethod(p.pointPrice != null ? "points" : "cash"); setPurchaseNote(""); }}
+                onClick={() => { setSelectedProduct(p); setPaymentMethod((p.pointPrice != null || p.price >= 5000) ? "points" : "cash"); setPurchaseNote(""); }}
                 className="w-full border border-border rounded-2xl overflow-hidden bg-card text-left hover:border-primary/40 hover:shadow-md transition-all"
               >
                 {p.imageUrl && (
@@ -650,8 +650,8 @@ export default function GymPlusProfile() {
                     </div>
                     <span className="text-xs text-primary font-semibold">구매 →</span>
                   </div>
-                  {p.pointPrice != null && (
-                    <p className="text-[10px] text-[#1D4ED8] font-medium mt-1">◈ {p.pointPrice.toLocaleString("ko-KR")}P로 구매 가능</p>
+                  {(p.pointPrice != null || p.price >= 5000) && (
+                    <p className="text-[10px] text-[#1D4ED8] font-medium mt-1">◈ {(p.pointPrice ?? p.price).toLocaleString("ko-KR")}P로 구매 가능</p>
                   )}
                 </div>
               </button>
@@ -690,13 +690,15 @@ export default function GymPlusProfile() {
                 </div>
               </div>
 
-              {/* 결제 수단 선택 — 포인트 가격이 설정된 상품만 포인트 결제를 보여준다.
-                  단, 보유 포인트가 최소 기준(5,000P) 미만이면 상품 가격과 무관하게 이용 불가 */}
+              {/* 결제 수단 선택 — 관리자가 포인트 가격을 지정했거나, 상품 가격이 5,000원 이상이면
+                  원화 가격(1P=1원)을 그대로 포인트 결제로 허용한다. 5,000원 미만 상품은 대상 제외.
+                  보유 포인트가 최소 기준(5,000P) 미만이면 상품 가격과 무관하게 이용 불가 */}
               {(() => {
                 const balance = member?.points ?? 0;
-                const canShowPoints = selectedProduct.pointPrice != null;
+                const pointCost = selectedProduct.pointPrice ?? (selectedProduct.price >= 5000 ? selectedProduct.price : null);
+                const canShowPoints = pointCost != null;
                 const meetsMinimum = balance >= MIN_POINTS_TO_USE;
-                const enoughForItem = balance >= selectedProduct.pointPrice;
+                const enoughForItem = canShowPoints && balance >= pointCost;
                 return (
                   <>
                     <div>
@@ -720,7 +722,7 @@ export default function GymPlusProfile() {
                               }`}>
                                 {!meetsMinimum
                                   ? `${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 이용 가능`
-                                  : `${selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 보유 ${balance.toLocaleString("ko-KR")}P${!enoughForItem ? " (부족)" : ""}`}
+                                  : `${(pointCost ?? 0).toLocaleString("ko-KR")}P · 보유 ${balance.toLocaleString("ko-KR")}P${!enoughForItem ? " (부족)" : ""}`}
                               </p>
                             )}
                           </button>
@@ -739,11 +741,11 @@ export default function GymPlusProfile() {
                           </p>
                         ) : enoughForItem ? (
                           <p className="text-green-600 text-xs font-medium">
-                            결제 포인트 {selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 결제 후 잔여 {(balance - selectedProduct.pointPrice).toLocaleString("ko-KR")}P
+                            결제 포인트 {(pointCost ?? 0).toLocaleString("ko-KR")}P · 결제 후 잔여 {(balance - (pointCost ?? 0)).toLocaleString("ko-KR")}P
                           </p>
                         ) : (
                           <p className="text-red-400 text-xs font-medium">
-                            포인트가 {(selectedProduct.pointPrice - balance).toLocaleString("ko-KR")}P 부족합니다
+                            포인트가 {((pointCost ?? 0) - balance).toLocaleString("ko-KR")}P 부족합니다
                           </p>
                         )}
                       </div>
@@ -782,7 +784,8 @@ export default function GymPlusProfile() {
                 <button
                   onClick={() => requestPurchase.mutate({ productId: selectedProduct.id, paymentMethod, note: purchaseNote || undefined })}
                   disabled={requestPurchase.isPending || (paymentMethod === "points" && (
-                    (member?.points ?? 0) < MIN_POINTS_TO_USE || (member?.points ?? 0) < selectedProduct.pointPrice
+                    (member?.points ?? 0) < MIN_POINTS_TO_USE ||
+                    (member?.points ?? 0) < (selectedProduct.pointPrice ?? selectedProduct.price)
                   ))}
                   className="flex-1 py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold disabled:opacity-50"
                 >
