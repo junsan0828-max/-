@@ -10,8 +10,8 @@ import { membershipTypeLabel } from "@/lib/membership";
 
 // 포인트 회원권 연장 단가 (서버의 POINTS_PER_EXTENSION_DAY와 동일해야 함)
 const POINTS_PER_EXTENSION_DAY = 1000;
-// 서버의 MIN_POINTS_FOR_EXTENSION과 동일해야 함
-const MIN_POINTS_FOR_EXTENSION = 5000;
+// 서버의 MIN_POINTS_TO_USE와 동일해야 함 (회원권 연장·상품 구매 공통 최소 사용 기준)
+const MIN_POINTS_TO_USE = 5000;
 
 const PERIOD_PRICES: Record<string, number> = {
   "1개월": 80000,
@@ -564,7 +564,7 @@ export default function GymPlusProfile() {
         {/* 현금 충전은 폐지 — 포인트는 출석·블로그·리뷰·추천으로만 적립된다 */}
         {/* 포인트로 회원권 기간 연장 — 소액으로 재등록을 계속 미루지 않도록 최소 보유 포인트 기준 이상만 가능 */}
         {(() => {
-          const eligible = (member?.points ?? 0) >= MIN_POINTS_FOR_EXTENSION;
+          const eligible = (member?.points ?? 0) >= MIN_POINTS_TO_USE;
           return (
             <button
               onClick={() => eligible && setShowExtendModal(true)}
@@ -577,7 +577,7 @@ export default function GymPlusProfile() {
               <span className="font-normal opacity-70">
                 {eligible
                   ? `${POINTS_PER_EXTENSION_DAY.toLocaleString("ko-KR")}P = 1일`
-                  : `${MIN_POINTS_FOR_EXTENSION.toLocaleString("ko-KR")}P부터 이용 가능`}
+                  : `${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 이용 가능`}
               </span>
             </button>
           );
@@ -690,55 +690,67 @@ export default function GymPlusProfile() {
                 </div>
               </div>
 
-              {/* 결제 수단 선택 — 포인트 가격이 설정된 상품만 포인트 결제를 보여준다 */}
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-3">결제 수단</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {PAYMENT_METHODS.filter(pm => pm.value !== "points" || selectedProduct.pointPrice != null).map(pm => (
-                    <button
-                      key={pm.value}
-                      onClick={() => setPaymentMethod(pm.value)}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        paymentMethod === pm.value
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card"
-                      }`}
-                    >
-                      <span className="text-base">{pm.icon}</span>
-                      <p className="text-xs font-semibold mt-1 text-foreground">{pm.label}</p>
-                      {pm.value === "points" && (
-                        <p className={`text-[10px] mt-0.5 ${
-                          (member?.points ?? 0) >= selectedProduct.pointPrice
-                            ? "text-green-500"
-                            : "text-red-400"
-                        }`}>
-                          {selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 보유 {(member?.points ?? 0).toLocaleString("ko-KR")}P
-                          {(member?.points ?? 0) < selectedProduct.pointPrice && " (부족)"}
-                        </p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* 결제 수단 선택 — 포인트 가격이 설정된 상품만 포인트 결제를 보여준다.
+                  단, 보유 포인트가 최소 기준(5,000P) 미만이면 상품 가격과 무관하게 이용 불가 */}
+              {(() => {
+                const balance = member?.points ?? 0;
+                const canShowPoints = selectedProduct.pointPrice != null;
+                const meetsMinimum = balance >= MIN_POINTS_TO_USE;
+                const enoughForItem = balance >= selectedProduct.pointPrice;
+                return (
+                  <>
+                    <div>
+                      <p className="text-xs font-semibold text-foreground mb-3">결제 수단</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {PAYMENT_METHODS.filter(pm => pm.value !== "points" || canShowPoints).map(pm => (
+                          <button
+                            key={pm.value}
+                            onClick={() => setPaymentMethod(pm.value)}
+                            className={`p-3 rounded-xl border text-left transition-all ${
+                              paymentMethod === pm.value
+                                ? "border-primary bg-primary/5"
+                                : "border-border bg-card"
+                            }`}
+                          >
+                            <span className="text-base">{pm.icon}</span>
+                            <p className="text-xs font-semibold mt-1 text-foreground">{pm.label}</p>
+                            {pm.value === "points" && (
+                              <p className={`text-[10px] mt-0.5 ${
+                                meetsMinimum && enoughForItem ? "text-green-500" : "text-red-400"
+                              }`}>
+                                {!meetsMinimum
+                                  ? `${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 이용 가능`
+                                  : `${selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 보유 ${balance.toLocaleString("ko-KR")}P${!enoughForItem ? " (부족)" : ""}`}
+                              </p>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-              {/* 포인트 결제 안내 */}
-              {paymentMethod === "points" && selectedProduct.pointPrice != null && (
-                <div className={`rounded-xl p-3 text-sm ${
-                  (member?.points ?? 0) >= selectedProduct.pointPrice
-                    ? "bg-green-500/10 border border-green-500/20"
-                    : "bg-red-500/10 border border-red-500/20"
-                }`}>
-                  {(member?.points ?? 0) >= selectedProduct.pointPrice ? (
-                    <p className="text-green-600 text-xs font-medium">
-                      결제 포인트 {selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 결제 후 잔여 {((member?.points ?? 0) - selectedProduct.pointPrice).toLocaleString("ko-KR")}P
-                    </p>
-                  ) : (
-                    <p className="text-red-400 text-xs font-medium">
-                      포인트가 {(selectedProduct.pointPrice - (member?.points ?? 0)).toLocaleString("ko-KR")}P 부족합니다
-                    </p>
-                  )}
-                </div>
-              )}
+                    {/* 포인트 결제 안내 */}
+                    {paymentMethod === "points" && canShowPoints && (
+                      <div className={`rounded-xl p-3 text-sm ${
+                        meetsMinimum && enoughForItem ? "bg-green-500/10 border border-green-500/20" : "bg-red-500/10 border border-red-500/20"
+                      }`}>
+                        {!meetsMinimum ? (
+                          <p className="text-red-500 font-medium text-xs">
+                            포인트 결제는 보유 포인트 {MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P 이상부터 이용할 수 있어요
+                          </p>
+                        ) : enoughForItem ? (
+                          <p className="text-green-600 text-xs font-medium">
+                            결제 포인트 {selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 결제 후 잔여 {(balance - selectedProduct.pointPrice).toLocaleString("ko-KR")}P
+                          </p>
+                        ) : (
+                          <p className="text-red-400 text-xs font-medium">
+                            포인트가 {(selectedProduct.pointPrice - balance).toLocaleString("ko-KR")}P 부족합니다
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* 현장결제 안내 */}
               {paymentMethod !== "points" && (
@@ -769,7 +781,9 @@ export default function GymPlusProfile() {
                 </button>
                 <button
                   onClick={() => requestPurchase.mutate({ productId: selectedProduct.id, paymentMethod, note: purchaseNote || undefined })}
-                  disabled={requestPurchase.isPending || (paymentMethod === "points" && (member?.points ?? 0) < selectedProduct.pointPrice)}
+                  disabled={requestPurchase.isPending || (paymentMethod === "points" && (
+                    (member?.points ?? 0) < MIN_POINTS_TO_USE || (member?.points ?? 0) < selectedProduct.pointPrice
+                  ))}
                   className="flex-1 py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold disabled:opacity-50"
                 >
                   {requestPurchase.isPending ? "처리 중..." : paymentMethod === "points" ? "포인트로 결제" : "구매 신청"}
@@ -812,7 +826,7 @@ export default function GymPlusProfile() {
         const balance = member?.points ?? 0;
         const cost = extendDays * POINTS_PER_EXTENSION_DAY;
         const maxDays = Math.max(1, Math.min(30, Math.floor(balance / POINTS_PER_EXTENSION_DAY)));
-        const meetsMinimum = balance >= MIN_POINTS_FOR_EXTENSION;
+        const meetsMinimum = balance >= MIN_POINTS_TO_USE;
         const enough = meetsMinimum && balance >= cost;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -870,7 +884,7 @@ export default function GymPlusProfile() {
                         <span className="text-muted-foreground"> · 잔액 {(balance - cost).toLocaleString("ko-KR")}P</span></>
                     ) : !meetsMinimum ? (
                       <span className="text-red-500 font-medium">
-                        {MIN_POINTS_FOR_EXTENSION.toLocaleString("ko-KR")}P 이상 보유 시 이용할 수 있어요
+                        {MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P 이상 보유 시 이용할 수 있어요
                       </span>
                     ) : (
                       <span className="text-red-500 font-medium">포인트가 부족합니다</span>

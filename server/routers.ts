@@ -2667,8 +2667,9 @@ const reportsRouter = t.router({
 
 // 포인트 회원권 연장 단가 (1,000P = 1일)
 const POINTS_PER_EXTENSION_DAY = 1000;
-// 이 이상 모아야 연장 사용 가능 — 소액 포인트로 재등록을 계속 미루는 것을 막기 위함
-const MIN_POINTS_FOR_EXTENSION = 5000;
+// 포인트를 실제로 "쓸" 수 있으려면(회원권 연장, 상품 구매) 이 이상 모아야 한다.
+// 소액 포인트를 조금씩 계속 쓰며 재등록·정상 구매를 미루는 것을 막기 위함.
+const MIN_POINTS_TO_USE = 5000;
 
 // 신청 알림 메일에 넣을 회원 연락처 조회 (실패해도 알림만 영향받도록 예외를 삼킨다)
 async function gymPlusMemberContact(gymPlusMemberId: number) {
@@ -4372,8 +4373,8 @@ ${dataContext}
       const balance = member.points ?? 0;
       // 소액 포인트로 만료 직전에 하루씩 연장하며 재등록을 미루는 것을 막기 위해
       // 최소 보유 포인트 기준(5,000P)을 둔다 — 이 기준 미만이면 재등록으로 유도한다.
-      if (balance < MIN_POINTS_FOR_EXTENSION)
-        throw new TRPCError({ code: "BAD_REQUEST", message: `회원권 연장은 보유 포인트 ${MIN_POINTS_FOR_EXTENSION.toLocaleString("ko-KR")}P 이상부터 이용할 수 있습니다.` });
+      if (balance < MIN_POINTS_TO_USE)
+        throw new TRPCError({ code: "BAD_REQUEST", message: `회원권 연장은 보유 포인트 ${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P 이상부터 이용할 수 있습니다.` });
       if (balance < cost)
         throw new TRPCError({ code: "BAD_REQUEST", message: "포인트가 부족합니다." });
 
@@ -4523,11 +4524,15 @@ ${dataContext}
         const cost = product.pointPrice;
         const [member] = await db.select({ points: gymPlusMembers.points })
           .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
-        if (!member || (member.points ?? 0) < cost) {
+        const balance = member?.points ?? 0;
+        // 회원권 연장과 동일한 최소 보유 기준 — 소액 포인트로 찔끔찔끔 결제하는 것을 막는다
+        if (balance < MIN_POINTS_TO_USE)
+          throw new TRPCError({ code: "BAD_REQUEST", message: `포인트 결제는 보유 포인트 ${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P 이상부터 이용할 수 있습니다.` });
+        if (balance < cost) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "포인트가 부족합니다." });
         }
         pointsUsed = cost;
-        const newBalance = (member.points ?? 0) - cost;
+        const newBalance = balance - cost;
         await db.update(gymPlusMembers).set({ points: newBalance })
           .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
         const [req] = await db.insert(gymPlusPurchaseRequests).values({
