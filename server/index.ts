@@ -1377,21 +1377,40 @@ async function initDatabase() {
   // 회원"에 한해, 매출 미수금을 패키지 미수금까지 낮춘다. 수납 증거가 있는 건만 대상이라
   // 아직 안 받은 미수금을 임의로 지울 위험이 없다.
   try {
-    const fixed = await pool.query(`
+    // (1) 패키지↔매출 연결고리가 있는 건 — 가장 확실한 대응이라 이걸 우선한다.
+    //     startDate 일치를 조건으로 걸면 안 된다: 매출 쪽 startDate가 비어 있는 경우가 많아
+    //     실제 대상(안종현: 매출 startDate=NULL vs 패키지 2026-06-02)이 통째로 걸러진다.
+    const fixedLinked = await pool.query(`
       UPDATE revenue_entries r
       SET "unpaidAmount" = p."unpaidAmount", "updatedAt" = now()::text
       FROM pt_packages p
-      WHERE r."memberId" = p."memberId"
-        AND r.type = 'PT'
+      WHERE p."revenueEntryId" = r.id
         AND COALESCE(r."subType",'') <> '미수금'
         AND COALESCE(r."unpaidAmount",0) > COALESCE(p."unpaidAmount",0)
-        AND r."startDate" IS NOT DISTINCT FROM p."startDate"
         AND EXISTS (
           SELECT 1 FROM revenue_entries c
           WHERE c."memberId" = r."memberId" AND c."subType" = '미수금'
         )
     `);
-    if ((fixed.rowCount ?? 0) > 0) console.log(`💵 수납 반영 누락 미수금 보정: ${fixed.rowCount}건`);
+    // (2) 연결고리가 없는 패키지는 시작일·세션수가 모두 맞을 때만 보정한다(오매칭 방지).
+    const fixedUnlinked = await pool.query(`
+      UPDATE revenue_entries r
+      SET "unpaidAmount" = p."unpaidAmount", "updatedAt" = now()::text
+      FROM pt_packages p
+      WHERE p."revenueEntryId" IS NULL
+        AND r."memberId" = p."memberId"
+        AND r.type = 'PT'
+        AND COALESCE(r."subType",'') <> '미수금'
+        AND COALESCE(r."unpaidAmount",0) > COALESCE(p."unpaidAmount",0)
+        AND r."startDate" = p."startDate"
+        AND r.sessions = p."totalSessions" - COALESCE(p."serviceSessions", 0)
+        AND EXISTS (
+          SELECT 1 FROM revenue_entries c
+          WHERE c."memberId" = r."memberId" AND c."subType" = '미수금'
+        )
+    `);
+    const n = (fixedLinked.rowCount ?? 0) + (fixedUnlinked.rowCount ?? 0);
+    if (n > 0) console.log(`💵 수납 반영 누락 미수금 보정: ${n}건`);
   } catch (e) {
     console.error("미수금 수납 반영 보정 오류:", e);
   }
