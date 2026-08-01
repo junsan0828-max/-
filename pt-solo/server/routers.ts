@@ -1879,29 +1879,6 @@ const noticesRouter = t.router({
     }),
 });
 
-const bannerRouter = t.router({
-  get: publicProcedure.query(async () => {
-    const result = await pool.query<{ id: number; text: string; subText: string | null; link: string | null; bgColor: string; isActive: boolean }>(
-      `SELECT id, text, "subText", link, "bgColor", "isActive" FROM banners ORDER BY id DESC LIMIT 1`
-    );
-    return result.rows[0] ?? null;
-  }),
-
-  upsert: publicProcedure
-    .input(z.object({ text: z.string().min(1), subText: z.string().optional(), link: z.string().optional(), bgColor: z.string().default("#6366f1"), isActive: z.boolean() }))
-    .mutation(async ({ input }) => {
-      const existing = await pool.query(`SELECT id FROM banners LIMIT 1`);
-      if (existing.rows[0]) {
-        await pool.query(`UPDATE banners SET text=$1, "subText"=$2, link=$3, "bgColor"=$4, "isActive"=$5, "updatedAt"=now()::text WHERE id=$6`,
-          [input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive, existing.rows[0].id]);
-      } else {
-        await pool.query(`INSERT INTO banners (text, "subText", link, "bgColor", "isActive") VALUES ($1,$2,$3,$4,$5)`,
-          [input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive]);
-      }
-      return { success: true };
-    }),
-});
-
 const TAB_KEYS = ["all", "dashboard", "pt", "attendance", "leads", "profile"] as const;
 type TabKey = typeof TAB_KEYS[number];
 
@@ -5907,7 +5884,6 @@ export const appRouter = t.router({
   schedules: schedulesRouter,
   admin: adminRouter,
   notices: noticesRouter,
-  banner: bannerRouter,
   tabBanner: tabBannerRouter,
   channels: channelsRouter,
   leads: leadsRouter,

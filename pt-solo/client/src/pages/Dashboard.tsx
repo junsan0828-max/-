@@ -626,11 +626,10 @@ function AdminDashboard() {
 
 // ─── 배너 & 공지 ──────────────────────────────────────────────────────────────
 function BannerAndNotices() {
-  const { data: banner } = trpc.banner.get.useQuery();
   const { data: notices } = trpc.notices.list.useQuery();
   const [selectedNotice, setSelectedNotice] = useState<{ id: number; title: string; content: string; createdAt: string } | null>(null);
 
-  const hasContent = (banner?.isActive) || (notices && notices.length > 0);
+  const hasContent = notices && notices.length > 0;
   if (!hasContent) return null;
 
   if (selectedNotice) {
@@ -653,17 +652,6 @@ function BannerAndNotices() {
 
   return (
     <div className="space-y-3">
-      {banner?.isActive && (
-        <a href={banner.link || undefined} target={banner.link ? "_blank" : undefined} rel="noreferrer"
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl ${banner.link ? "cursor-pointer" : "cursor-default"}`}
-          style={{ backgroundColor: banner.bgColor }}>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white leading-tight">{banner.text}</p>
-            {banner.subText && <p className="text-xs text-white/80 mt-0.5">{banner.subText}</p>}
-          </div>
-          {banner.link && <div className="text-white/80 text-xs shrink-0">→</div>}
-        </a>
-      )}
       {notices && notices.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
