@@ -28,7 +28,11 @@ function internalPath(link: string): string {
 }
 
 export default function TabBanner({ tabKey }: { tabKey: string }) {
-  const { data: banner } = trpc.tabBanner.getByTab.useQuery({ tabKey });
+  // auth.me와 동일한 이유로 refetchOnWindowFocus를 개별로 켠다 —
+  // 관리자가 배너를 껐어도, 이미 로그인해 페이지를 열어둔 트레이너 탭은
+  // 앱 전역 기본값(refetchOnWindowFocus: false) 때문에 탭에 포커스가
+  // 돌아와도 새로고침 전까진 계속 예전 배너를 보여주고 있었다.
+  const { data: banner } = trpc.tabBanner.getByTab.useQuery({ tabKey }, { refetchOnWindowFocus: true });
   const [, setLocation] = useLocation();
 
   if (!banner || !banner.isActive) return null;
