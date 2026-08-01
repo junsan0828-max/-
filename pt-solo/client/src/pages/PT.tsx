@@ -455,16 +455,18 @@ function MembersTab() {
       {/* 특수 필터 */}
       <div className="grid grid-cols-2 gap-2">
         {[
-          { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" />, activeClass: "bg-orange-500/10 text-orange-600 border-orange-500/40", inactiveClass: "text-orange-600/70 border-border hover:border-orange-500/40" },
-          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, activeClass: "bg-primary/10 text-primary border-primary/40", inactiveClass: "text-primary/70 border-border hover:border-primary/40" },
-          { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" />, activeClass: "bg-amber-500/10 text-amber-600 border-amber-500/40", inactiveClass: "text-amber-600/70 border-border hover:border-amber-500/40" },
-          { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" />, activeClass: "bg-red-500/10 text-red-600 border-red-500/40", inactiveClass: "text-red-600/70 border-border hover:border-red-500/40" },
+          { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" /> },
+          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" /> },
+          { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" /> },
+          { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" /> },
         ].map((f) => (
           <button
             key={f.key}
             onClick={() => toggleSpecial(f.key)}
             className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-              specialFilter === f.key ? f.activeClass : `bg-card ${f.inactiveClass}`
+              specialFilter === f.key
+                ? "bg-primary/10 text-primary border-primary/40"
+                : "bg-card text-muted-foreground border-border hover:border-primary/30"
             }`}
           >
             <span className="flex items-center gap-1.5">{f.icon}{f.label}</span>
@@ -564,7 +566,7 @@ function MembersTab() {
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">VIP</span>
                         )}
                         {isExpiringSoon && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">D-{daysLeft}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 border border-amber-500/30">D-{daysLeft}</span>
                         )}
                         {isExpired && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">만료</span>
