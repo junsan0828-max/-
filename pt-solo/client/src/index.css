@@ -39,6 +39,10 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     /* prevent horizontal overflow on iOS */
     overflow-x: hidden;
+    /* 한글은 띄어쓰기 단위로만 줄바꿈한다 (기본값은 글자 단위로 아무데서나
+       끊어서 "회원의"가 "회원" / "의"처럼 단어 중간이 쪼개져 보인다). */
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   /* iOS Safari는 날짜/시간 인풋에 큰 고유 너비(intrinsic width)를 부여한다.

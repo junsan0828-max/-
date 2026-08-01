@@ -1224,8 +1224,8 @@ export default function LeadsPage() {
                 // 신규 상담 추가: 상담완료 / 등록완료
                 <div className="flex gap-2">
                   <button type="button" onClick={() => handleSave("consulted")}
-                    className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
-                    상담완료{pointLabel(autoPoints("lead_complete")) ? <span className="text-xs font-normal opacity-80 ml-1">{pointLabel(autoPoints("lead_complete"))}</span> : null}
+                    className="flex-1 border border-border text-foreground rounded-lg py-2.5 text-sm font-semibold hover:bg-accent/40 transition-colors">
+                    상담완료
                   </button>
                   <button type="button" onClick={openContract}
                     className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
