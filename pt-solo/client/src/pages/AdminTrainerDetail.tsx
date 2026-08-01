@@ -308,7 +308,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                     {a.conditionScore != null && (
                       <span className="flex items-center gap-1">
                         <span className="text-muted-foreground">컨디션</span>
-                        <span className={`font-semibold ${a.conditionScore >= 4 ? "text-green-400" : a.conditionScore >= 3 ? "text-yellow-400" : "text-red-400"}`}>{a.conditionScore}/5</span>
+                        <span className={`font-semibold ${a.conditionScore >= 4 ? "text-green-400" : a.conditionScore >= 3 ? "text-amber-600" : "text-red-400"}`}>{a.conditionScore}/5</span>
                       </span>
                     )}
                     {a.sleepHours != null && (
@@ -513,7 +513,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {log.status === "completed" && <CheckCircle className="h-3 w-3 text-green-400 shrink-0" />}
-                      {log.status === "pending" && <Clock className="h-3 w-3 text-yellow-400 shrink-0" />}
+                      {log.status === "pending" && <Clock className="h-3 w-3 text-amber-600 shrink-0" />}
                       {log.status === "rejected" && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
                       <span className="text-xs font-medium">
                         {log.type === "admin_grant" ? "관리자 지급" : log.type === "charge_request" ? "충전 신청" : log.type === "daily_reset" ? "일일 초기화" : "사용"}

@@ -132,7 +132,7 @@ const GUIDES: Record<string, PageGuide> = {
   },
   "/admin/points": {
     icon: Coins,
-    color: "bg-yellow-500/15 text-yellow-500",
+    color: "bg-amber-500/15 text-amber-500",
     title: "포인트 관리",
     desc: "STEPER 포인트 지급 및 내역을 관리합니다.",
     tips: [

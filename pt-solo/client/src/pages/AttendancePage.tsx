@@ -19,13 +19,13 @@ function formatDateLabel(dateStr: string) {
 const statusIcon = {
   attended: <CheckCircle className="h-4 w-4 text-green-400" />,
   noshow: <XCircle className="h-4 w-4 text-red-400" />,
-  cancelled: <Clock className="h-4 w-4 text-yellow-400" />,
+  cancelled: <Clock className="h-4 w-4 text-amber-600" />,
 };
 const statusLabel = { attended: "출석", noshow: "노쇼", cancelled: "캔슬" };
 const statusColor = {
   attended: "text-green-400",
   noshow: "text-red-400",
-  cancelled: "text-yellow-400",
+  cancelled: "text-amber-600",
 };
 
 export default function AttendancePage() {

@@ -20,7 +20,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
   completed: <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />,
-  pending: <Clock className="h-3.5 w-3.5 text-yellow-400 shrink-0" />,
+  pending: <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />,
   rejected: <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />,
 };
 

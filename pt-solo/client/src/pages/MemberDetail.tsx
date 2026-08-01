@@ -1045,7 +1045,7 @@ export default function MemberDetail({ memberId }: Props) {
                         <div className="mt-3 flex gap-1.5 flex-wrap">
                           {(["active","paused","completed","refunded"] as const).map((s) => {
                             const labels: Record<string, string> = { active:"진행", paused:"정지", completed:"완료", refunded:"환불" };
-                            const colors: Record<string, string> = { active:"border-green-500/40 text-green-400", paused:"border-yellow-500/40 text-yellow-400", completed:"border-gray-500/40 text-gray-400", refunded:"border-red-500/40 text-red-400" };
+                            const colors: Record<string, string> = { active:"border-green-500/40 text-green-400", paused:"border-amber-500/40 text-amber-600", completed:"border-gray-500/40 text-gray-400", refunded:"border-red-500/40 text-red-400" };
                             const isCur = pkg.status === s;
                             return (
                               <button key={s} onClick={() => !isCur && updateStatusMutation.mutate({ packageId: pkg.id, status: s })}
@@ -1055,7 +1055,7 @@ export default function MemberDetail({ memberId }: Props) {
                             );
                           })}
                           <button onClick={() => { setPauseForm(p => ({ ...p, packageId: pkg.id })); setPauseOpen(true); }}
-                            className="px-2 py-0.5 rounded-full text-xs border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-1">
+                            className="px-2 py-0.5 rounded-full text-xs border border-amber-500/30 text-amber-600 hover:bg-amber-500/10 flex items-center gap-1">
                             <PauseCircle className="h-3 w-3" />정지 추가
                           </button>
                         </div>
@@ -1082,8 +1082,8 @@ export default function MemberDetail({ memberId }: Props) {
 
                         {/* 정지 내역 */}
                         {pauses?.filter(p => p.packageId === pkg.id).map(pause => (
-                          <div key={pause.id} className="mt-2 flex items-center justify-between text-xs bg-yellow-500/10 border border-yellow-500/20 rounded px-2 py-1">
-                            <span className="text-yellow-400">{pause.pauseStart} ~ {pause.pauseEnd ?? "진행중"}{pause.reason ? ` · ${pause.reason}` : ""}</span>
+                          <div key={pause.id} className="mt-2 flex items-center justify-between text-xs bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                            <span className="text-amber-600">{pause.pauseStart} ~ {pause.pauseEnd ?? "진행중"}{pause.reason ? ` · ${pause.reason}` : ""}</span>
                             <button onClick={() => removePauseMutation.mutate({ pauseId: pause.id })} className="text-muted-foreground hover:text-red-400 ml-2"><Trash2 className="h-3 w-3"/></button>
                           </div>
                         ))}
@@ -1303,7 +1303,7 @@ export default function MemberDetail({ memberId }: Props) {
                           : status === "noshow"
                           ? "bg-red-500/80 text-white"
                           : status === "absent"
-                          ? "bg-yellow-500/60 text-white"
+                          ? "bg-amber-600 text-white"
                           : isToday
                           ? "border border-primary text-primary"
                           : "text-foreground"
@@ -1319,7 +1319,7 @@ export default function MemberDetail({ memberId }: Props) {
                 {[
                   { color: "bg-green-500", label: "출석" },
                   { color: "bg-red-500/80", label: "노쇼" },
-                  { color: "bg-yellow-500/60", label: "결석" },
+                  { color: "bg-amber-500/60", label: "결석" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-1">
                     <div className={`w-3 h-3 rounded-full ${item.color}`} />
@@ -1355,7 +1355,7 @@ export default function MemberDetail({ memberId }: Props) {
                               ? "bg-green-500/20 text-green-400"
                               : check.status === "noshow"
                               ? "bg-red-500/20 text-red-400"
-                              : "bg-yellow-500/20 text-yellow-400"
+                              : "bg-amber-500/15 text-amber-600"
                           }`}>
                             {check.status === "attended" ? "출석" : check.status === "noshow" ? "노쇼" : "캔슬"}
                           </span>

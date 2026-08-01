@@ -10,7 +10,7 @@ const levelLabel: Record<string, string> = {
 
 const levelColor: Record<string, string> = {
   beginner: "bg-green-500/20 text-green-400",
-  intermediate: "bg-yellow-500/20 text-yellow-400",
+  intermediate: "bg-amber-500/20 text-amber-600",
   advanced: "bg-red-500/20 text-red-400",
 };
 

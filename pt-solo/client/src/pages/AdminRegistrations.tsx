@@ -62,9 +62,9 @@ export default function AdminRegistrations() {
 
       {/* 요약 */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="bg-yellow-500/10 border-yellow-500/30">
+        <Card className="bg-amber-500/10 border-amber-500/30">
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-yellow-400">{counts.pending}</p>
+            <p className="text-2xl font-bold text-amber-600">{counts.pending}</p>
             <p className="text-xs text-muted-foreground mt-0.5">대기 중</p>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ export default function AdminRegistrations() {
             <t.icon className="h-3.5 w-3.5" />
             {t.label}
             {counts[t.key] > 0 && (
-              <span className={`text-xs font-semibold ml-0.5 ${t.key === "pending" ? "text-yellow-400" : t.key === "approved" ? "text-green-400" : "text-red-400"}`}>
+              <span className={`text-xs font-semibold ml-0.5 ${t.key === "pending" ? "text-amber-600" : t.key === "approved" ? "text-green-400" : "text-red-400"}`}>
                 {counts[t.key]}
               </span>
             )}
@@ -123,7 +123,7 @@ export default function AdminRegistrations() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-sm">{r.trainerName}</p>
                     <span className="text-xs text-muted-foreground">@{r.username}</span>
-                    {tab === "pending" && <span className="text-xs bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded-full">대기 중</span>}
+                    {tab === "pending" && <span className="text-xs bg-amber-500/15 text-amber-600 border border-amber-500/30 px-1.5 py-0.5 rounded-full">대기 중</span>}
                     {tab === "approved" && <span className="text-xs bg-green-500/15 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded-full">승인됨</span>}
                     {tab === "rejected" && <span className="text-xs bg-red-500/15 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded-full">거절됨</span>}
                   </div>

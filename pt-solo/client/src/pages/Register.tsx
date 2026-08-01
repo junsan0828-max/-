@@ -53,8 +53,8 @@ export default function Register() {
                 <p className="font-semibold text-foreground mb-1">가입 신청 완료!</p>
                 <p className="text-sm text-muted-foreground">관리자 승인 후 로그인할 수 있습니다.</p>
               </div>
-              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2.5">
-                <Clock className="h-4 w-4 text-yellow-400 shrink-0" />
+              <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2.5">
+                <Clock className="h-4 w-4 text-amber-600 shrink-0" />
                 <p className="text-xs text-yellow-300">승인은 보통 1영업일 이내 처리됩니다.</p>
               </div>
               <a href="/login" className="block w-full">

@@ -924,7 +924,7 @@ function TrainerDashboard() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-yellow-400" />
+              <Calendar className="h-4 w-4 text-amber-600" />
               오늘 출석 현황
             </DialogTitle>
             <p className="text-xs text-muted-foreground">
@@ -938,7 +938,7 @@ function TrainerDashboard() {
               <p className="text-sm text-muted-foreground text-center py-4">오늘 출석 기록이 없습니다.</p>
             ) : (
               todayAttendanceList.filter(m => m.check).map(m => {
-                const statusColor = m.check?.status === "attended" ? "text-green-400" : m.check?.status === "noshow" ? "text-red-400" : "text-yellow-400";
+                const statusColor = m.check?.status === "attended" ? "text-green-400" : m.check?.status === "noshow" ? "text-red-400" : "text-amber-600";
                 const statusLabel = m.check?.status === "attended" ? "출석" : m.check?.status === "noshow" ? "노쇼" : "캔슬";
                 return (
                   <button key={m.id} onClick={() => { setTodayModalOpen(false); setLocation(`/members/${m.id}`); }}

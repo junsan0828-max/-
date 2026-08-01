@@ -26,7 +26,7 @@ const gradeLabels: Record<string, string> = {
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/20 text-green-400 border-green-500/30",
-  paused: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  paused: "bg-amber-500/20 text-amber-600 border-amber-500/30",
 };
 
 const EXTEND_PRESETS = [30, 60, 90, 180];
@@ -537,7 +537,7 @@ function MembersTab() {
                 className={`w-full text-left p-4 rounded-lg bg-card border transition-colors ${
                   selectMode
                     ? isSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/30"
-                    : isExpiringSoon ? "border-yellow-500/40 hover:border-primary/50"
+                    : isExpiringSoon ? "border-amber-500/40 hover:border-primary/50"
                     : isExpired ? "border-red-500/30 hover:border-primary/50"
                     : hasUnpaid ? "border-orange-500/30 hover:border-primary/50"
                     : "border-border hover:border-primary/50"

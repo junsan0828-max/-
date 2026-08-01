@@ -691,7 +691,7 @@ export default function Profile() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     {log.status === "completed" && <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />}
-                    {log.status === "pending" && <Clock className="h-3.5 w-3.5 text-yellow-400 shrink-0" />}
+                    {log.status === "pending" && <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
                     {log.status === "rejected" && <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
                     <span className="text-sm font-medium">{TYPE_LABEL[log.type] ?? log.type}</span>
                   </div>
@@ -772,7 +772,7 @@ export default function Profile() {
           <CardTitle className="text-base flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />STEPER 상세 정보
             {!(profile as any)?.profileBonusGranted && (
-              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full">
+              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-amber-600 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
                 <Gift className="h-3 w-3" />완성 시 +200P
               </span>
             )}

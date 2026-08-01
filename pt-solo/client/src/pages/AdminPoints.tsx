@@ -57,7 +57,7 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
         <div className="text-right shrink-0 mr-2">
           <p className="text-sm font-semibold text-primary">{trainer.balance.toLocaleString()} P</p>
           {trainer.pendingAmount > 0 && (
-            <p className="text-xs text-yellow-400">충전대기 {trainer.pendingAmount.toLocaleString()}P</p>
+            <p className="text-xs text-amber-600">충전대기 {trainer.pendingAmount.toLocaleString()}P</p>
           )}
         </div>
         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
@@ -106,7 +106,7 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
               <div className="space-y-1.5">
                 {pointData.logs.filter(l => l.status === "pending").map(log => (
                   <div key={log.id} className="flex items-center gap-2 bg-background rounded-lg px-3 py-2">
-                    <Clock className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
+                    <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                     <span className="text-sm flex-1">{log.amount.toLocaleString()} P</span>
                     {log.memo && <span className="text-xs text-muted-foreground truncate max-w-[100px]">{log.memo}</span>}
                     <div className="flex gap-1 shrink-0">
@@ -129,7 +129,7 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
                   return (
                     <div key={log.id} className={`flex items-center gap-2 text-xs py-1 border-b border-border/40 last:border-0 ${expired ? "opacity-50" : ""}`}>
                       {log.status === "completed" && <CheckCircle className="h-3 w-3 text-green-400 shrink-0" />}
-                      {log.status === "pending" && <Clock className="h-3 w-3 text-yellow-400 shrink-0" />}
+                      {log.status === "pending" && <Clock className="h-3 w-3 text-amber-600 shrink-0" />}
                       {log.status === "rejected" && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <span className="text-muted-foreground">{TYPE_LABEL[log.type] ?? log.type}{log.memo ? ` · ${log.memo}` : ""}</span>
@@ -352,10 +352,10 @@ export default function AdminPoints() {
             <p className="text-xl font-bold text-primary">{totalBalance.toLocaleString()} P</p>
           </CardContent>
         </Card>
-        <Card className="bg-yellow-500/10 border-yellow-500/30">
+        <Card className="bg-amber-500/10 border-amber-500/30">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">충전 대기 중</p>
-            <p className="text-xl font-bold text-yellow-400">{totalPending.toLocaleString()} P</p>
+            <p className="text-xl font-bold text-amber-600">{totalPending.toLocaleString()} P</p>
           </CardContent>
         </Card>
       </div>

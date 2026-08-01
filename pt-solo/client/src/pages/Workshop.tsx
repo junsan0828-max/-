@@ -235,7 +235,7 @@ function EventSection({ trainerId }: { trainerId: number }) {
           <div key={e.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                {e.isPinned ? <span className="text-[10px] text-yellow-400">📌</span> : null}
+                {e.isPinned ? <span className="text-[10px] text-amber-600">📌</span> : null}
                 <span className="text-xs text-muted-foreground">{EVENT_TYPE_LABELS[e.eventType ?? "notice"]}</span>
               </div>
               <p className="text-sm font-medium truncate">{e.title}</p>

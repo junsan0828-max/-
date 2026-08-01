@@ -23,7 +23,7 @@ const moodLabel: Record<string, string> = {
 const moodColor: Record<string, string> = {
   great: "bg-green-500/20 text-green-400 border-green-500/30",
   good: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  normal: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  normal: "bg-amber-500/20 text-amber-600 border-amber-500/30",
   tired: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
@@ -332,7 +332,7 @@ function ManualExerciseForm({ exercises, setExercises }: { exercises: SimpleExer
 
 function IntensityBadge({ v }: { v: string }) {
   const cls = v === "HIGH" ? "bg-red-500/20 text-red-400 border-red-500/30"
-    : v === "MEDIUM" ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+    : v === "MEDIUM" ? "bg-amber-500/20 text-amber-600 border-amber-500/30"
     : "bg-blue-500/20 text-blue-400 border-blue-500/30";
   return <span className={`text-[10px] px-2 py-0.5 rounded-full border ${cls}`}>{v}</span>;
 }

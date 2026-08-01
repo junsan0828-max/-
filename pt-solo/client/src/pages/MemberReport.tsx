@@ -60,7 +60,7 @@ function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
     attended: { label: "출석", cls: "bg-green-500/20 text-green-400", icon: <CheckCircle className="h-3 w-3" /> },
     noshow: { label: "노쇼", cls: "bg-red-500/20 text-red-400", icon: <XCircle className="h-3 w-3" /> },
-    cancelled: { label: "캔슬", cls: "bg-yellow-500/20 text-yellow-400", icon: <Clock className="h-3 w-3" /> },
+    cancelled: { label: "캔슬", cls: "bg-amber-500/20 text-amber-600", icon: <Clock className="h-3 w-3" /> },
   };
   const s = map[status] ?? { label: status, cls: "bg-gray-500/20 text-gray-400", icon: null };
   return (
@@ -198,15 +198,15 @@ export default function MemberReport({ token }: Props) {
         {/* 요약 통계 */}
         <Section title="요약">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="총 출석" value={`${totalAttended}회`} icon={<CheckCircle className="h-3.5 w-3.5 text-green-400" />} />
-            <StatCard label="총 수업" value={`${sessionLogs.length}회`} icon={<Dumbbell className="h-3.5 w-3.5 text-primary" />} />
-            <StatCard label="평균 컨디션" value={avgCondition ? `${avgCondition}/5` : "-"} icon={<Activity className="h-3.5 w-3.5 text-blue-400" />} />
-            <StatCard label="트레이닝 일지" value={`${sessionLogs.length}건`} icon={<BookOpen className="h-3.5 w-3.5 text-orange-400" />} />
+            <StatCard label="총 출석" value={`${totalAttended}회`} icon={<CheckCircle className="h-3.5 w-3.5 text-muted-foreground" />} />
+            <StatCard label="총 수업" value={`${sessionLogs.length}회`} icon={<Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />} />
+            <StatCard label="평균 컨디션" value={avgCondition ? `${avgCondition}/5` : "-"} icon={<Activity className="h-3.5 w-3.5 text-muted-foreground" />} />
+            <StatCard label="트레이닝 일지" value={`${sessionLogs.length}건`} icon={<BookOpen className="h-3.5 w-3.5 text-muted-foreground" />} />
           </div>
           {(totalNoshow > 0 || totalCancelled > 0) && (
             <div className="flex gap-4 text-xs text-muted-foreground">
               {totalNoshow > 0 && <span className="text-red-400">노쇼 {totalNoshow}회</span>}
-              {totalCancelled > 0 && <span className="text-yellow-400">캔슬 {totalCancelled}회</span>}
+              {totalCancelled > 0 && <span className="text-amber-600">캔슬 {totalCancelled}회</span>}
             </div>
           )}
         </Section>

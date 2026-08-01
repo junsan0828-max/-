@@ -19,7 +19,7 @@ function resolveDisplayStatus(status: string, consultationDate: string | null | 
 }
 
 const STATUS_OPTIONS = [
-  { value: "managed",    label: "관리상담", color: "text-yellow-400",  bg: "bg-yellow-400/10",  icon: ClipboardList },
+  { value: "managed",    label: "관리상담", color: "text-amber-600",  bg: "bg-amber-500/10",  icon: ClipboardList },
   { value: "consulted",  label: "상담완료", color: "text-blue-400",    bg: "bg-blue-400/10",    icon: MessageSquare },
   { value: "registered", label: "등록완료", color: "text-emerald-400", bg: "bg-emerald-400/10", icon: CheckCircle2 },
 ];

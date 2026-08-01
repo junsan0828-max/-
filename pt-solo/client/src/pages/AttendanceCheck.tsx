@@ -373,7 +373,7 @@ export default function AttendanceCheck({ memberId }: Props) {
             onClick={() => setStatus((s) => s === "cancelled" ? "attended" : "cancelled")}
             className={`text-xs px-2 py-1 rounded border transition-colors ${
               status === "cancelled"
-                ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/40"
+                ? "bg-amber-500/20 text-amber-600 border-amber-500/40"
                 : "text-muted-foreground border-border"
             }`}
           >
