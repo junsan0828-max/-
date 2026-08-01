@@ -1494,12 +1494,12 @@ function BookingFeaturePanel() {
           {/* 상태 필터 */}
           <div className="flex gap-1.5 flex-wrap">
             <button onClick={() => setStatusFilter("all")}
-              className={`text-[12px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+              className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
               전체
             </button>
             {Object.entries(STATUS_META).map(([k, v]) => (
               <button key={k} onClick={() => setStatusFilter(k)}
-                className={`text-[12px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
                 {v.label}
               </button>
             ))}
