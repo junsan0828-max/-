@@ -215,15 +215,6 @@ export function hasGuide(path: string): boolean {
   return canonicalKey(path) !== null;
 }
 
-export function shouldShowGuide(path: string): boolean {
-  const key = canonicalKey(path);
-  if (!key) return false;
-  if (runtimeDismissed.has(key)) return false;
-  if (safeGet(localStorage, storageKey(key))) return false;
-  if (safeGet(sessionStorage, sessionKey(key))) return false;
-  return true;
-}
-
 function matchGuide(path: string): PageGuide | null {
   const key = canonicalKey(path);
   return key ? GUIDES[key] : null;

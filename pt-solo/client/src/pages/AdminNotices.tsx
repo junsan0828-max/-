@@ -8,17 +8,19 @@ import { toast } from "sonner";
 
 type Notice = { id: number; title: string; content: string; isPinned: boolean; isActive: boolean; createdAt: string };
 
+// 실제로 <TabBanner tabKey="..." />를 렌더링하는 화면과 정확히 일치해야 한다.
+// (한쪽만 고치고 다른 쪽을 안 고치면 "분명 다 껐는데 또 있다"가 재발한다)
 const TAB_OPTIONS = [
-  { key: "all",        label: "전체 (공통)" },
-  { key: "dashboard",  label: "대시보드" },
-  { key: "pt",         label: "회원 관리" },
-  { key: "sessions",   label: "수업 관리" },
-  { key: "leads",      label: "상담실" },
-  { key: "workshop",   label: "작업실" },
-  { key: "booking",    label: "수업 예약 관리" },
-  { key: "settlement", label: "성장분석실" },
-  { key: "attendance", label: "출석 체크" },
-  { key: "profile",    label: "내 프로필" },
+  { key: "all",          label: "전체 (공통)" },
+  { key: "dashboard",    label: "대시보드" },
+  { key: "workshop",     label: "작업실" },
+  { key: "booking",      label: "수업 예약 관리" },
+  { key: "settlement",   label: "성장분석실" },
+  { key: "attendance",   label: "출석 체크" },
+  { key: "profile",      label: "내 프로필" },
+  { key: "fitpoints",    label: "FIT POINT" },
+  { key: "brand_page",   label: "브랜드 페이지" },
+  { key: "fitstep_plus", label: "FIT STEP+" },
 ];
 
 function NoticeForm({ initial, onSave, onCancel }: {
@@ -105,6 +107,27 @@ function TabBannerManager() {
         utils.tabBanner.getByTab.invalidate();
       },
     });
+  };
+
+  const deactivateAll = async () => {
+    if (activeBanners.length === 0) return;
+    await Promise.all(activeBanners.map(row =>
+      upsertMutation.mutateAsync({
+        tabKey: row.tabKey,
+        text: row.text ?? "",
+        subText: row.subText ?? undefined,
+        link: row.link ?? undefined,
+        bgColor: row.bgColor ?? "#6366f1",
+        isActive: false,
+        imageUrl: (row as any).imageUrl ?? "",
+        bannerHeight: (row as any).bannerHeight ?? "medium",
+        textSize: (row as any).textSize ?? "medium",
+        textAlign: (row as any).textAlign ?? "left",
+      })
+    ));
+    toast.success(`배너 ${activeBanners.length}개를 전부 껐습니다`);
+    utils.tabBanner.listAll.invalidate();
+    utils.tabBanner.getByTab.invalidate();
   };
 
   const [selectedTabs, setSelectedTabs] = useState<Set<string>>(new Set(["all"]));
@@ -219,8 +242,19 @@ function TabBannerManager() {
 
         {/* 지금 실제로 노출 중인 배너 요약 — "다 껐는데 왜 계속 보이지?"를 여기서 바로 확인 */}
         <div className="rounded-xl border border-border overflow-hidden">
-          <div className="px-3 py-2 bg-accent/20 text-xs font-semibold text-foreground/80">
-            지금 화면에 노출 중인 배너 ({activeBanners.length}개)
+          <div className="px-3 py-2 bg-accent/20 flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground/80">
+              지금 화면에 노출 중인 배너 ({activeBanners.length}개)
+            </span>
+            {activeBanners.length > 0 && (
+              <button
+                onClick={deactivateAll}
+                disabled={upsertMutation.isPending}
+                className="text-[11px] px-2 py-1 rounded-lg border border-red-400/40 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+              >
+                전체 끄기
+              </button>
+            )}
           </div>
           {activeBanners.length === 0 ? (
             <div className="px-3 py-3 text-xs text-muted-foreground">노출 중인 배너가 없습니다.</div>

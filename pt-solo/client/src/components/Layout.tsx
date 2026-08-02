@@ -7,11 +7,7 @@ import {
   User, ClipboardCheck, X, ShieldCheck, Bell,
   UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList, Layers, Globe,
 } from "lucide-react";
-import ProfileSetupModal from "./ProfileSetupModal";
-import OnboardingSurveyModal from "./OnboardingSurveyModal";
-import BasicInfoModal from "./BasicInfoModal";
-import InstallPromptModal from "./InstallPromptModal";
-import PageGuideModal, { shouldShowGuide, hasGuide, syncServerDismissed } from "./PageGuideModal";
+import PageGuideModal, { hasGuide, syncServerDismissed } from "./PageGuideModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -48,48 +44,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (user) localStorage.setItem("fitStep-autoLogin", "kakao");
   }, [user]);
 
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-  const [surveyDone, setSurveyDone] = useState(
-    () => !!sessionStorage.getItem("onboarding-survey-dismissed")
-  );
-  const [basicInfoDone, setBasicInfoDone] = useState(false);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
-
-  const needsBasicInfo = user?.role === "trainer"
-    && profile !== undefined
-    && !(profile as any).phone
-    && !basicInfoDone;
-
-  const showSurvey = user?.role === "trainer"
-    && profile !== undefined
-    && !(profile as any).onboardingSurveyDone
-    && !surveyDone
-    && !needsBasicInfo;
-
-  // 경로 변경 시 가이드 자동 표시 (온보딩 모달이 없을 때만)
-  // location이 실제로 바뀔 때만 트리거 — user refetch 등으로 재실행돼도 이미 dismissed면 무시
-  useEffect(() => {
-    if (!user) return;
-    if (user.role === "admin") { setGuideOpen(false); return; } // 관리자 본인 계정은 온보딩 가이드가 불필요
-    if (showSurvey || needsBasicInfo || profileModalOpen) { setGuideOpen(false); return; }
-    if (!shouldShowGuide(location)) { setGuideOpen(false); return; }
-    const t = setTimeout(() => {
-      // 타임아웃 직전에 한 번 더 확인 (그 사이 dismiss됐을 수 있음)
-      if (shouldShowGuide(location)) setGuideOpen(true);
-    }, 800);
-    return () => clearTimeout(t);
-  }, [location, user, showSurvey, needsBasicInfo, profileModalOpen]);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
 
   const isAdmin = user?.role === "admin";
 
@@ -287,15 +243,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
-        {user && !showSurvey && !needsBasicInfo && !profileModalOpen && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
-        {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal onOpenChange={setProfileModalOpen} />}
-        {needsBasicInfo && (
-          <BasicInfoModal
-            currentName={(profile as any)?.trainerName ?? ""}
-            onClose={() => setBasicInfoDone(true)}
-          />
-        )}
-        {showSurvey && <OnboardingSurveyModal onClose={() => { sessionStorage.setItem("onboarding-survey-dismissed", "1"); setSurveyDone(true); }} />}
+        {/* 자동으로 뜨던 안내/홍보 팝업(앱 설치 안내, 프로필 완성 200P, 30초 성장 설문,
+            기본정보 입력)은 전부 제거함. 페이지 가이드는 상단 [?] 버튼으로 직접 눌렀을 때만 표시. */}
         {guideOpen && (
           <PageGuideModal
             path={location}
