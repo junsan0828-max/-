@@ -54,6 +54,18 @@
   input[type="month"] {
     min-width: 0;
   }
+
+  /* 위 규칙만으로는 부족하다: CSS Grid의 자동 최소 크기(min-width:auto)는
+     인풋 자신이 아니라 인풋을 "감싸는 grid item" 자체에 적용된다. 인풋에만
+     min-width:0을 줘도 그 부모(grid item)까지 전파되지 않아서, 실제 iOS
+     Safari에서는 여전히 칸이 밀리고 겹치는 문제가 남는다. 날짜 인풋을 직접
+     감싸는 요소를 잡아 그 부모(grid item)에도 동일하게 적용한다. */
+  *:has(> input[type="date"]),
+  *:has(> input[type="time"]),
+  *:has(> input[type="datetime-local"]),
+  *:has(> input[type="month"]) {
+    min-width: 0;
+  }
 }
 
 /* ── iOS Safari / safe-area utilities ─────────────────────────────────────── */
