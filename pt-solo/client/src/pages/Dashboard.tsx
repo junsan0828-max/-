@@ -269,77 +269,6 @@ function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { c
   );
 }
 
-// ─── 전체 기능 보기 다이얼로그 ────────────────────────────────────────────────
-function AllFeaturesDialog({ open, onClose, plan, onNavigate, featureConfigs, addonUnlocks }: { open: boolean; onClose: () => void; plan: string; onNavigate: WsNavFn; featureConfigs?: Record<string, string>; addonUnlocks?: string[]; }) {
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm max-h-[85vh] flex flex-col p-0">
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border shrink-0">
-          <DialogTitle className="text-base font-bold">전체 기능 보기</DialogTitle>
-          <p className="text-xs text-muted-foreground mt-0.5">기능을 탭하면 해당 설정으로 이동합니다</p>
-        </DialogHeader>
-        <div className="overflow-y-auto flex-1 px-5 pb-6 space-y-5 pt-4">
-          {WS_DASH.map(cat => (
-            <div key={cat.key}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center`}>
-                  <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80">{cat.label}</span>
-              </div>
-              <div className="grid grid-cols-4 gap-3">
-                {cat.items.map(item => (
-                  <WsToolItem
-                    key={item.id}
-                    item={item}
-                    cat={cat}
-                    lock={getFeatureLock(item.id, plan, featureConfigs, addonUnlocks)}
-                    onClick={(id) => onNavigate(id)}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {/* 플랜 안내 */}
-          <div className="rounded-xl border border-border bg-accent/30 p-3 space-y-1.5">
-            <p className="text-[12px] font-semibold text-foreground/70">플랜별 기능 안내</p>
-            <div className="space-y-1">
-              {[
-                { label: "FREE", colorCls: "bg-emerald-500", desc: "브랜드 페이지, 설문, 계약서" },
-                { label: "PRO", colorCls: "bg-blue-500", desc: "전체 기능 개방 (연 69,000원)" },
-              ].map(t => (
-                <div key={t.label} className="flex items-center gap-2">
-                  <span className={`text-[10px] font-semibold text-white ${t.colorCls} px-1.5 py-0.5 rounded`}>{t.label}</span>
-                  <span className="text-[12px] text-muted-foreground">{t.desc}</span>
-                </div>
-              ))}
-              <div className="flex items-center gap-2">
-                <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
-                  <Lock className="h-2.5 w-2.5 text-muted-foreground" />
-                </div>
-                <span className="text-[12px] text-muted-foreground">PRO 플랜 필요</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-[18px] px-1 bg-violet-500 rounded-[5px] flex items-center justify-center">
-                  <Lock className="h-2.5 w-2.5 text-white" />
-                </div>
-                <span className="text-[12px] text-muted-foreground">핵심 기능 · 1개 1만원 개별 이용</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
-                  <Clock className="h-2.5 w-2.5 text-muted-foreground" />
-                </div>
-                <span className="text-[12px] text-muted-foreground">출시 예정</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── 회원 선택 공통 모달 ──────────────────────────────────────────────────────
 function MemberPickModal({
   open, onClose, title, subtitle, icon: Icon, iconCls, allMembers, onPick,
@@ -694,7 +623,6 @@ function TrainerDashboard() {
 
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
-  const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
   const [editorModalId, setEditorModalId] = useState<string | null>(null);
   const [infoFeatureId, setInfoFeatureId] = useState<string | null>(null);
   const [expiringModalOpen, setExpiringModalOpen] = useState(false);
@@ -905,14 +833,6 @@ function TrainerDashboard() {
           { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
           { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
         ]} />
-      </div>
-
-      {/* ─── 전체 기능 보기 진입 ─── */}
-      <div className="flex justify-end pt-1">
-        <button onClick={() => setAllFeaturesOpen(true)}
-          className="text-xs font-semibold text-primary bg-primary/8 px-3 py-1.5 rounded-xl hover:bg-primary/15 transition-colors">
-          전체 기능 보기
-        </button>
       </div>
 
       {WS_DASH.map(cat => (
@@ -1241,16 +1161,6 @@ function TrainerDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* 전체 기능 보기 다이얼로그 */}
-      <AllFeaturesDialog
-        open={allFeaturesOpen}
-        onClose={() => setAllFeaturesOpen(false)}
-        plan={userPlan}
-        onNavigate={(id) => { setAllFeaturesOpen(false); openFeature(id); }}
-        featureConfigs={wsStatus?.featureConfigs}
-        addonUnlocks={wsStatus?.addonUnlocks}
-      />
 
       {/* 기능 편집 모달 (작업실 경유 없이 대시보드에서 바로) */}
       <Dialog open={!!editorModalId} onOpenChange={(o) => { if (!o) setEditorModalId(null); }}>
