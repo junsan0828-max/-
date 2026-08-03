@@ -74,7 +74,10 @@ const STEP_TITLES = [
 ];
 
 export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtraFields }: Props) {
-  const [step, setStep] = useState(1);
+  // 이전에 설문을 이미 한 번 마친(parqJson 존재) 회원은 안내 화면(Step 1)을 건너뛰고
+  // 신체정보(Step 2)부터 시작한다 — 예전 버전에서 생년월일 없이도 "완료" 처리된 회원이
+  // 값을 보완하러 다시 들어왔을 때, 처음부터 10단계를 전부 다시 누르게 하지 않기 위함.
+  const [step, setStep] = useState(initialData?.parqJson ? 2 : 1);
   const [done, setDone] = useState(false);
   const [data, setData] = useState<SurveyData>(() => {
     if (initialData?.parqJson) {
