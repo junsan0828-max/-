@@ -626,6 +626,154 @@ const revenueRouter = t.router({
       return row;
     }),
 
+  // ─── 환불 ──────────────────────────────────────────────────────────────────
+  // 환불 계산 근거를 서버에서 만들어 내려준다. 화면마다 제각각 계산하면 금액이 어긋나므로
+  // (정산 계산식은 한 곳에서 공유한다는 원칙) 항목별 잔여·환불가능액을 여기서 산출한다.
+  getRefundBasis: protectedProcedure
+    .input(z.object({ revenueEntryId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [entry] = await db.select().from(revenueEntries).where(eq(revenueEntries.id, input.revenueEntryId)).limit(1);
+      if (!entry) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const today = kstDate();
+      const contract = Math.max(0, (entry.amount ?? 0) - (entry.discountAmount ?? 0));
+      const items: {
+        key: string; kind: string; label: string; detail: string;
+        refundable: number; packageId?: number; lockerId?: number;
+      }[] = [];
+
+      // PT: 잔여 세션 × 단가. 이미 쓴 세션은 환불 대상이 아니다.
+      if (entry.memberId) {
+        const pkgs = await db.select().from(ptPackages)
+          .where(and(eq(ptPackages.memberId, entry.memberId), eq(ptPackages.status, "active")));
+        for (const p of pkgs) {
+          const matches = p.revenueEntryId === entry.id
+            || (entry.startDate && p.startDate === entry.startDate && entry.sessions === (p.totalSessions ?? 0) - (p.serviceSessions ?? 0));
+          if (!matches) continue;
+          const remaining = Math.max(0, (p.totalSessions ?? 0) - (p.usedSessions ?? 0));
+          const unit = p.pricePerSession ?? (p.totalSessions ? Math.round((p.paymentAmount ?? 0) / p.totalSessions) : 0);
+          items.push({
+            key: `pt-${p.id}`, kind: "PT", packageId: p.id,
+            label: `${p.packageName ?? "PT"} ${p.totalSessions ?? 0}회`,
+            detail: `${p.usedSessions ?? 0}회 사용 · 잔여 ${remaining}회 · 단가 ${unit.toLocaleString()}원`,
+            refundable: remaining * unit,
+          });
+        }
+      }
+
+      // 헬스(기간제): 잔여일수 비례. 시작 전이면 전액, 종료됐으면 0.
+      if (entry.type === "헬스" && entry.duration) {
+        const start = entry.startDate ?? entry.paymentDate;
+        const s = new Date(start);
+        const end = new Date(s); end.setMonth(end.getMonth() + entry.duration);
+        const totalDays = Math.max(1, Math.round((end.getTime() - s.getTime()) / 86400000));
+        const usedDays = Math.min(totalDays, Math.max(0, Math.round((new Date(today).getTime() - s.getTime()) / 86400000)));
+        const remainDays = Math.max(0, totalDays - usedDays);
+        items.push({
+          key: "health", kind: "헬스",
+          label: `헬스 ${entry.duration}개월`,
+          detail: `${totalDays}일 중 ${usedDays}일 사용 · 잔여 ${remainDays}일`,
+          refundable: Math.round(contract * (remainDays / totalDays)),
+        });
+      }
+
+      // 서비스 항목(락커/운동복 등): 무상 제공이라 환불액 0. 다만 환불 시 회수해야 하므로 노출한다.
+      const si = (entry.serviceItems ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      for (const raw of si) {
+        const lockerMatch = /^락커\(([^)]+)\)$/.exec(raw);
+        if (lockerMatch) {
+          const [lk] = await db.select({ id: lockers.id }).from(lockers)
+            .where(and(eq(lockers.lockerNumber, lockerMatch[1]), eq(lockers.memberId, entry.memberId ?? -1))).limit(1);
+          items.push({ key: `locker-${raw}`, kind: "락커", label: raw, detail: "서비스 제공 · 환불액 없음 (회수 처리)", refundable: 0, lockerId: lk?.id });
+        } else {
+          items.push({ key: `svc-${raw}`, kind: "서비스", label: raw, detail: "서비스 제공 · 환불액 없음 (회수 처리)", refundable: 0 });
+        }
+      }
+
+      // PT/헬스 어느 쪽도 안 잡히면(기타 등) 계약금액 전액을 기본 후보로 둔다.
+      if (items.filter(i => i.refundable > 0).length === 0 && contract > 0 && items.length === 0) {
+        items.push({ key: "base", kind: entry.type, label: entry.programDetail ?? entry.type, detail: "계약금액 전액", refundable: contract });
+      }
+
+      const refundableTotal = items.reduce((s, i) => s + i.refundable, 0);
+      return {
+        entryId: entry.id,
+        customerName: entry.customerName,
+        paymentDate: entry.paymentDate,
+        contract,
+        alreadyPaid: entry.paidAmount ?? 0,
+        unpaid: entry.unpaidAmount ?? 0,
+        items,
+        refundableTotal,
+        // 관행상 위약금은 총 계약금액의 10% (체육시설 표준약관 기준). 화면에서 수정 가능.
+        suggestedPenalty: Math.round(contract * 0.1),
+      };
+    }),
+
+  refund: protectedProcedure
+    .input(z.object({
+      revenueEntryId: z.number(),
+      itemKeys: z.array(z.string()),          // 환불 대상으로 선택한 항목
+      itemAmounts: z.record(z.string(), z.number()), // 항목별 환불액(화면에서 조정 가능)
+      penaltyAmount: z.number().min(0).default(0),
+      refundDate: z.string(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 환불할 수 있습니다." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [entry] = await db.select().from(revenueEntries).where(eq(revenueEntries.id, input.revenueEntryId)).limit(1);
+      if (!entry) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const gross = input.itemKeys.reduce((s, k) => s + (input.itemAmounts[k] ?? 0), 0);
+      const net = Math.max(0, gross - input.penaltyAmount);
+
+      // 환불 매출 기록: 실결제를 음수로 남겨 월 매출에서 차감되게 한다.
+      const [rec] = await db.insert(revenueEntries).values({
+        memberId: entry.memberId,
+        trainerId: entry.trainerId,
+        branchId: entry.branchId,
+        createdBy: ctx.user.id,
+        customerName: entry.customerName,
+        phone: entry.phone,
+        programDetail: `${entry.programDetail ?? entry.type} 환불`,
+        type: entry.type,
+        subType: "환불",
+        amount: net,
+        discountAmount: 0,
+        paidAmount: -net,
+        unpaidAmount: 0,
+        refundAmount: net,
+        paymentMethod: entry.paymentMethod,
+        paymentDate: input.refundDate,
+        relatedEntryId: entry.id,
+        memo: [input.memo, input.penaltyAmount > 0 ? `위약금 ${input.penaltyAmount.toLocaleString()}원 차감` : null]
+          .filter(Boolean).join(" / ") || null,
+      }).returning({ id: revenueEntries.id });
+
+      // 선택한 PT 패키지는 환불 처리 — 잔여 세션이 계속 유효한 것처럼 남지 않도록 한다.
+      for (const key of input.itemKeys) {
+        const pt = /^pt-(\d+)$/.exec(key);
+        if (pt) {
+          await db.update(ptPackages)
+            .set({ status: "refunded", updatedAt: new Date().toISOString() })
+            .where(eq(ptPackages.id, parseInt(pt[1])));
+        }
+      }
+      // 서비스로 준 락커는 회수(비우기). 락커 자체는 자산이라 삭제하지 않는다.
+      if (entry.memberId && input.itemKeys.some(k => k.startsWith("locker-"))) {
+        await db.update(lockers)
+          .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: new Date().toISOString() })
+          .where(eq(lockers.memberId, entry.memberId));
+      }
+
+      return { success: true, refundEntryId: rec?.id, gross, penalty: input.penaltyAmount, net };
+    }),
+
   update: protectedProcedure
     .input(z.object({
       id: z.number(),

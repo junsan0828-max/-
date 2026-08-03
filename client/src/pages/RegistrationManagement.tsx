@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Portal } from "@/components/Portal";
 import { trpc } from "@/lib/trpc";
@@ -56,6 +56,144 @@ type ServiceModal = {
   details: string;
 } | null;
 
+// 환불 모달 — 항목별 잔여 기준 환불액을 서버에서 받아 보여주고, 위약금 차감 후 총액을 확정한다.
+// 금액 계산을 화면에서 새로 하지 않고 서버 기준값을 그대로 쓰되, 실제 합의 금액이 다를 수 있어
+// 항목별 금액은 수정할 수 있게 둔다.
+function RefundModal({ entry, onClose, onDone }: { entry: any; onClose: () => void; onDone: () => void }) {
+  const { data: basis, isLoading } = trpc.gym.revenue.getRefundBasis.useQuery({ revenueEntryId: entry.id });
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [penalty, setPenalty] = useState("");
+  const [refundDate, setRefundDate] = useState(new Date().toISOString().substring(0, 10));
+  const [memo, setMemo] = useState("");
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!basis || initialized) return;
+    const sel: Record<string, boolean> = {};
+    const amt: Record<string, string> = {};
+    for (const it of basis.items) { sel[it.key] = true; amt[it.key] = String(it.refundable); }
+    setSelected(sel); setAmounts(amt);
+    setPenalty(String(basis.suggestedPenalty ?? 0));
+    setInitialized(true);
+  }, [basis, initialized]);
+
+  const refundMutation = trpc.gym.revenue.refund.useMutation({
+    onSuccess: (r) => { toast.success(`환불 등록 완료: ${r.net.toLocaleString()}원`); onDone(); onClose(); },
+    onError: (e) => toast.error(e.message || "환불 실패"),
+  });
+
+  const gross = (basis?.items ?? []).reduce((s, it) => s + (selected[it.key] ? (parseInt(amounts[it.key]) || 0) : 0), 0);
+  const penaltyNum = parseInt(penalty) || 0;
+  const net = Math.max(0, gross - penaltyNum);
+
+  return (
+    <Portal>
+      <div className="fixed inset-0 z-[300] bg-black/70 flex items-end md:items-center justify-center" onClick={onClose}>
+        <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-md flex flex-col"
+          style={{ maxHeight: "88svh" }} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+            <div>
+              <h2 className="font-semibold text-foreground">환불 처리</h2>
+              <p className="text-xs text-muted-foreground">{entry.customerName || entry.memberName} · {entry.paymentDate}</p>
+            </div>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">✕</button>
+          </div>
+
+          <div className="overflow-y-auto flex-1 p-4 space-y-4">
+            {isLoading || !basis ? (
+              <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+            ) : (
+              <>
+                <div className="bg-muted/30 rounded-lg px-3 py-2 text-xs space-y-0.5">
+                  <div className="flex justify-between"><span className="text-muted-foreground">계약금액</span><span className="font-medium">{basis.contract.toLocaleString()}원</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">기 수납</span><span className="font-medium">{basis.alreadyPaid.toLocaleString()}원</span></div>
+                  {basis.unpaid > 0 && <div className="flex justify-between"><span className="text-muted-foreground">미수금</span><span className="font-medium text-orange-400">{basis.unpaid.toLocaleString()}원</span></div>}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-foreground">환불 항목 선택</p>
+                  {basis.items.length === 0 && <p className="text-xs text-muted-foreground">환불 가능한 항목이 없습니다.</p>}
+                  {basis.items.map(it => (
+                    <div key={it.key} className={`rounded-lg border px-3 py-2 space-y-1.5 ${selected[it.key] ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" checked={!!selected[it.key]}
+                          onChange={e => setSelected(s => ({ ...s, [it.key]: e.target.checked }))}
+                          className="mt-0.5" />
+                        <span className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-foreground">{it.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">{it.detail}</span>
+                        </span>
+                      </label>
+                      {selected[it.key] && (
+                        <div className="flex items-center gap-2 pl-6">
+                          <span className="text-[11px] text-muted-foreground shrink-0">환불액</span>
+                          <input type="number" min="0" value={amounts[it.key] ?? ""}
+                            onChange={e => setAmounts(a => ({ ...a, [it.key]: e.target.value }))}
+                            className="flex-1 bg-background border border-border rounded px-2 py-1 text-xs" />
+                          <span className="text-[11px] text-muted-foreground">원</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">위약금 (차감)</label>
+                  <input type="number" min="0" value={penalty} onChange={e => setPenalty(e.target.value)}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                  <p className="text-[11px] text-muted-foreground">기본값은 계약금액의 10%입니다. 실제 합의 금액으로 수정하세요.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">환불일</label>
+                  <input type="date" value={refundDate} onChange={e => setRefundDate(e.target.value)}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">사유 / 메모</label>
+                  <input value={memo} onChange={e => setMemo(e.target.value)} placeholder="환불 사유"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+
+                <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2.5 space-y-1 text-sm">
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">환불 대상 합계</span><span>{gross.toLocaleString()}원</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">위약금</span><span className="text-red-400">-{penaltyNum.toLocaleString()}원</span></div>
+                  <div className="flex justify-between font-bold pt-1 border-t border-orange-500/20">
+                    <span className="text-foreground">총 환불액</span>
+                    <span className="text-orange-400">{net.toLocaleString()}원</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex gap-2 p-4 border-t border-border shrink-0">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground">취소</button>
+            <button
+              disabled={!basis || refundMutation.isPending || net <= 0}
+              onClick={() => {
+                const keys = (basis?.items ?? []).filter(it => selected[it.key]).map(it => it.key);
+                if (keys.length === 0) return toast.error("환불할 항목을 선택해주세요.");
+                const itemAmounts: Record<string, number> = {};
+                for (const k of keys) itemAmounts[k] = parseInt(amounts[k]) || 0;
+                refundMutation.mutate({
+                  revenueEntryId: entry.id, itemKeys: keys, itemAmounts,
+                  penaltyAmount: penaltyNum, refundDate, memo: memo || undefined,
+                });
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {refundMutation.isPending ? "처리 중..." : `${net.toLocaleString()}원 환불 등록`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
 export default function RegistrationManagement() {
   const [, setLocation] = useLocation();
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -64,6 +202,7 @@ export default function RegistrationManagement() {
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
 
+  const [refundTarget, setRefundTarget] = useState<any | null>(null);
   // 등록 내역 — 대시보드 데이터 이상 배너 등에서 ?q=회원명 으로 진입하면 자동 검색된다
   const searchParams = useSearch();
   const initialQ = new URLSearchParams(searchParams).get("q") ?? "";
@@ -676,6 +815,9 @@ export default function RegistrationManagement() {
                                       <span className="text-xs text-muted-foreground shrink-0">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</span>
                                       <div className="flex gap-2 shrink-0">
                                         <button onClick={() => openEditRev(r)} className="text-xs text-primary underline hover:text-primary/70">수정</button>
+                                        {r.subType !== "환불" && (
+                                          <button onClick={() => setRefundTarget(r)} className="text-xs text-orange-400 underline hover:text-orange-300">환불</button>
+                                        )}
                                         <button
                                           onClick={() => { if (confirm(`"${r.customerName || r.memberName}" ${r.type} 항목을 삭제하시겠습니까?`)) deleteRevMutation.mutate({ id: r.id }); }}
                                           className="text-xs text-red-400 underline hover:text-red-300">삭제</button>
@@ -695,6 +837,15 @@ export default function RegistrationManagement() {
               </div>
             );
           })()}
+
+          {/* 환불 모달 */}
+          {refundTarget && (
+            <RefundModal
+              entry={refundTarget}
+              onClose={() => setRefundTarget(null)}
+              onDone={() => revListQuery.refetch()}
+            />
+          )}
 
           {/* 수정 다이얼로그 */}
           {editRev && (
