@@ -53,6 +53,12 @@
   input[type="datetime-local"],
   input[type="month"] {
     min-width: 0;
+    /* WebKit(사파리·iOS)은 표준 CSS min-width와는 별개로 폼 인풋에
+       자체 최소너비(-webkit-min-logical-width)를 내부적으로 적용한다.
+       이건 크로뮴(Chrome/Android)엔 없는 사파리 전용 동작이라, 안드로이드는
+       멀쩡한데 아이폰에서만 계속 칸이 밀리는 현상의 실제 원인이었을
+       가능성이 높다. 표준 min-width만으로는 못 잡으므로 이것도 0으로. */
+    -webkit-min-logical-width: 0%;
   }
 
   /* 위 규칙만으로는 부족하다: CSS Grid의 자동 최소 크기(min-width:auto)는
@@ -65,6 +71,26 @@
   *:has(> input[type="datetime-local"]),
   *:has(> input[type="month"]) {
     min-width: 0;
+  }
+
+  /* ── 근본 원인: flex/grid item의 기본값 min-width:auto ─────────────────────
+     위 두 규칙, 그리고 지금까지 이 프로젝트에서 반복돼온 "칸이 밀린다",
+     "긴 URL이 안 잘리고 넘친다(truncate 무시)", "글자가 컨테이너를 뚫고
+     나온다" 류의 버그는 사실 전부 같은 원인 하나다: flex/grid의 직계
+     자식은 브라우저 기본값으로 자기 콘텐츠보다 작아지지 않으려 한다
+     (min-width/height: auto). 그래서 truncate(overflow:hidden +
+     text-overflow:ellipsis)를 걸어도 부모가 flex/grid item이면 씹히고,
+     긴 텍스트·긴 인풋이 있으면 형제 칸을 밀어낸다.
+     한 군데씩 발견할 때마다 개별로 min-width:0을 추가하는 방식으로는
+     계속 재발하므로, flex/grid 컨테이너의 모든 직계 자식에 기본값으로
+     min-width:0 / min-height:0을 걸어 이 버그 계열 자체를 없앤다.
+     (표를 꽉 채우려고 최소 너비를 일부러 유지해야 하는 요소는 극히
+     드물고, 필요하면 그 요소에만 min-w-[...]로 다시 지정하면 된다.) */
+  .flex > *,
+  .inline-flex > *,
+  .grid > * {
+    min-width: 0;
+    min-height: 0;
   }
 }
 
