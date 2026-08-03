@@ -434,6 +434,18 @@ export default function GymPlusProfile() {
     }
   }, [member]);
 
+  // 맞춤식단의 '내 정보로 이동'(→ /gym-plus/profile?health=1)로 진입 시 신체정보 입력(PAR-Q)을 자동으로 연다
+  const autoHealthTriggered = useRef(false);
+  useEffect(() => {
+    if (autoHealthTriggered.current) return;
+    if (new URLSearchParams(window.location.search).get("health") === "1") {
+      autoHealthTriggered.current = true;
+      setActiveTab("info");
+      openParq();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const submitRenewal = () => {
     if (!signatureData) { toast.error("서명을 완료해 주세요."); return; }
     const bonus = getRenewalBonus(daysLeft);

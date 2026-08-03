@@ -214,10 +214,10 @@ export default function GymPlusDiet() {
           <p className="text-xs font-semibold text-yellow-600">신체정보 입력 필요</p>
           <p className="text-xs text-muted-foreground">기초대사량 자동 계산을 위해 내정보에서 키·몸무게·출생연도·성별을 입력해 주세요.</p>
           <button
-            onClick={() => navigate("/gym-plus/profile")}
+            onClick={() => navigate("/gym-plus/profile?health=1")}
             className="text-xs text-primary underline"
           >
-            내 정보로 이동 →
+            신체정보 입력하기 →
           </button>
         </div>
       )}

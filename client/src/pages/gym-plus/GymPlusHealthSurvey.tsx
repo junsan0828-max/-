@@ -103,7 +103,10 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
     });
 
   const canNext = (): boolean => {
-    if (step === 2) return !!data.gender && !!data.height && !!data.weight;
+    // 생년월일까지 다 있어야 맞춤식단의 기초대사량(BMR) 계산이 가능하다 —
+    // gender/height/weight만 확인하면 birthYear를 안 채운 채로도 다음 단계로 넘어가
+    // 설문을 끝까지 마쳐도 "신체정보 입력 필요" 배너가 계속 남는 문제가 있었다.
+    if (step === 2) return !!data.gender && !!data.height && !!data.weight && !!data.birthYear && !!data.birthMonth && !!data.birthDay;
     if (step === 10) return Object.keys(data.safetyAnswers).length >= 8;
     return true;
   };
