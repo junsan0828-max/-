@@ -766,6 +766,22 @@ export default function GymPlusProfile() {
                 );
               })()}
 
+              {/* 계좌이체 안내 */}
+              {paymentMethod === "transfer" && (
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 space-y-2">
+                  <div>
+                    <p className="text-xs font-semibold">카카오뱅크 3333-05-2664409</p>
+                    <p className="text-xs text-muted-foreground">예금주: (자이언트짐)</p>
+                  </div>
+                  <button type="button"
+                    onClick={() => { navigator.clipboard.writeText("333305266409"); toast.success("계좌번호가 복사되었습니다"); }}
+                    className="w-full py-2 rounded-lg bg-yellow-400/20 border border-yellow-400/30 text-yellow-500 text-xs font-semibold"
+                  >
+                    계좌번호 복사하기
+                  </button>
+                </div>
+              )}
+
               {/* 현장결제 안내 */}
               {paymentMethod !== "points" && (
                 <div className="bg-muted/50 rounded-xl p-3">
