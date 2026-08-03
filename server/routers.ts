@@ -2669,7 +2669,9 @@ const reportsRouter = t.router({
 const POINTS_PER_EXTENSION_DAY = 1000;
 // 포인트를 실제로 "쓸" 수 있으려면(회원권 연장, 상품 구매) 이 이상 모아야 한다.
 // 소액 포인트를 조금씩 계속 쓰며 재등록·정상 구매를 미루는 것을 막기 위함.
-const MIN_POINTS_TO_USE = 5000;
+const MIN_POINTS_TO_USE = 3000;
+// 상품 구매 시 포인트는 이 단위로만 사용할 수 있다 (분할결제 시 나머지는 현금/이체/카드).
+const POINT_USE_STEP = 50;
 
 // 신청 알림 메일에 넣을 회원 연락처 조회 (실패해도 알림만 영향받도록 예외를 삼킨다)
 async function gymPlusMemberContact(gymPlusMemberId: number) {
@@ -4505,7 +4507,8 @@ ${dataContext}
   requestPurchase: gymPlusProtected
     .input(z.object({
       productId: z.number(),
-      paymentMethod: z.string(), // "points" | "cash" | "transfer" | "card"
+      paymentMethod: z.string(), // 포인트로 다 못 채운 나머지를 결제할 방법: "cash" | "transfer" | "card" (전액 포인트면 사용 안 함)
+      pointsToUse: z.number().int().min(0).optional(),
       note: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -4515,24 +4518,35 @@ ${dataContext}
         .where(eq(gymPlusProducts.id, input.productId)).limit(1);
       if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "상품을 찾을 수 없습니다." });
 
-      let pointsUsed = 0;
-      if (input.paymentMethod === "points") {
+      const pointsToUse = input.pointsToUse ?? 0;
+
+      if (pointsToUse > 0) {
+        if (pointsToUse < MIN_POINTS_TO_USE)
+          throw new TRPCError({ code: "BAD_REQUEST", message: `포인트는 최소 ${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 사용할 수 있습니다.` });
+        if (pointsToUse % POINT_USE_STEP !== 0)
+          throw new TRPCError({ code: "BAD_REQUEST", message: `포인트는 ${POINT_USE_STEP}P 단위로 사용할 수 있습니다.` });
         // 관리자가 pointPrice를 직접 지정하지 않은 상품은 원화 가격을 그대로 포인트 가격(1P=1원)으로 쓴다.
-        // 단, 5,000원 미만 상품은 포인트 구매 대상에서 제외한다 — 현금 충전이 막혀 있어 차익거래 위험은 없다.
-        const cost = product.pointPrice ?? (product.price >= 5000 ? product.price : null);
-        if (cost == null)
-          throw new TRPCError({ code: "BAD_REQUEST", message: "5,000원 미만 상품은 포인트로 구매할 수 없습니다." });
+        // 단, 3,000원 미만 상품은 포인트 사용 대상에서 제외한다 — 현금 충전이 막혀 있어 차익거래 위험은 없다.
+        const fullPointCost = product.pointPrice ?? (product.price >= MIN_POINTS_TO_USE ? product.price : null);
+        if (fullPointCost == null)
+          throw new TRPCError({ code: "BAD_REQUEST", message: `${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}원 미만 상품은 포인트로 구매할 수 없습니다.` });
+        if (pointsToUse > product.price)
+          throw new TRPCError({ code: "BAD_REQUEST", message: "포인트 사용액이 상품 금액을 초과할 수 없습니다." });
+
         const [member] = await db.select({ points: gymPlusMembers.points })
           .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
         const balance = member?.points ?? 0;
-        // 회원권 연장과 동일한 최소 보유 기준 — 소액 포인트로 찔끔찔끔 결제하는 것을 막는다
-        if (balance < MIN_POINTS_TO_USE)
-          throw new TRPCError({ code: "BAD_REQUEST", message: `포인트 결제는 보유 포인트 ${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P 이상부터 이용할 수 있습니다.` });
-        if (balance < cost) {
+        if (balance < pointsToUse)
           throw new TRPCError({ code: "BAD_REQUEST", message: "포인트가 부족합니다." });
-        }
-        pointsUsed = cost;
-        const newBalance = balance - cost;
+
+        // 포인트가 상품의 포인트 가격(할인가 포함)을 다 채우면 전액 포인트 결제로 처리한다.
+        const isFullyPoints = pointsToUse >= fullPointCost;
+        const pointsUsed = isFullyPoints ? fullPointCost : pointsToUse;
+        const remainder = isFullyPoints ? 0 : product.price - pointsToUse;
+        if (remainder > 0 && !["cash", "transfer", "card"].includes(input.paymentMethod))
+          throw new TRPCError({ code: "BAD_REQUEST", message: "포인트로 부족한 금액을 결제할 방법을 선택해 주세요." });
+
+        const newBalance = balance - pointsUsed;
         await db.update(gymPlusMembers).set({ points: newBalance })
           .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
         const [req] = await db.insert(gymPlusPurchaseRequests).values({
@@ -4540,20 +4554,37 @@ ${dataContext}
           productId: product.id,
           productName: product.name,
           price: product.price,
-          paymentMethod: "points",
+          paymentMethod: remainder > 0 ? input.paymentMethod : "points",
           pointsUsed,
-          status: "approved",
+          status: remainder > 0 ? "pending" : "approved",
           note: input.note,
         }).returning();
         await db.insert(gymPlusPointLogs).values({
           gymPlusMemberId: ctx.gymPlusMemberId,
           type: "spend",
-          amount: -cost,
+          amount: -pointsUsed,
           balanceAfter: newBalance,
-          reason: `${product.name} 구매`,
+          reason: `${product.name} 구매${remainder > 0 ? " (분할결제)" : ""}`,
           relatedId: req.id,
         });
-        return { success: true, status: "approved", pointsUsed };
+
+        if (remainder > 0) {
+          const splitContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
+          sendRequestNotification({
+            kind: "상품 구매 (분할결제)",
+            memberName: splitContact.name,
+            memberPhone: splitContact.phone,
+            rows: [
+              { label: "상품", value: product.name, highlight: true },
+              { label: "포인트 사용", value: `${pointsUsed.toLocaleString("ko-KR")}P` },
+              { label: "남은 결제액", value: `${remainder.toLocaleString("ko-KR")}원 (${input.paymentMethod})` },
+              ...(input.note ? [{ label: "메모", value: input.note }] : []),
+            ],
+            actionHint: "남은 금액 결제를 확인한 후 관리자 페이지에서 승인하고 상품을 전달해 주세요.",
+          }).catch(() => {});
+        }
+
+        return { success: true, status: remainder > 0 ? "pending" : "approved", pointsUsed, remainder };
       }
 
       // 현장/이체/카드 결제 → pending 신청
@@ -4582,7 +4613,7 @@ ${dataContext}
         actionHint: "결제를 확인한 후 관리자 페이지에서 승인하고 상품을 전달해 주세요.",
       }).catch(() => {});
 
-      return { success: true, status: "pending", pointsUsed: 0 };
+      return { success: true, status: "pending", pointsUsed: 0, remainder: product.price };
     }),
 
   getMyPurchases: gymPlusProtected.query(async ({ ctx }) => {
@@ -4624,6 +4655,28 @@ ${dataContext}
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [existing] = await db.select().from(gymPlusPurchaseRequests)
+        .where(eq(gymPlusPurchaseRequests.id, input.id)).limit(1);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
+
+      // 분할결제(포인트 일부 + 현금 등)로 신청한 건이 반려되면, 신청 시점에 이미 차감된
+      // 포인트를 돌려준다. 전액 포인트 결제 건은 즉시 "approved"로 처리되어 반려 대상이 아니다.
+      if (input.status === "rejected" && existing.status === "pending" && existing.pointsUsed > 0) {
+        const [member] = await db.select({ points: gymPlusMembers.points })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, existing.gymPlusMemberId)).limit(1);
+        const newBalance = (member?.points ?? 0) + existing.pointsUsed;
+        await db.update(gymPlusMembers).set({ points: newBalance })
+          .where(eq(gymPlusMembers.id, existing.gymPlusMemberId));
+        await db.insert(gymPlusPointLogs).values({
+          gymPlusMemberId: existing.gymPlusMemberId,
+          type: "charge",
+          amount: existing.pointsUsed,
+          balanceAfter: newBalance,
+          reason: `${existing.productName} 구매 반려 · 포인트 반환`,
+          relatedId: existing.id,
+        });
+      }
+
       await db.update(gymPlusPurchaseRequests).set({ status: input.status })
         .where(eq(gymPlusPurchaseRequests.id, input.id));
       return { success: true };
