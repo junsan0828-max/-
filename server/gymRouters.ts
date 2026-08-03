@@ -3335,8 +3335,18 @@ const refundContractRouter = t.router({
       refundAmount: z.number().default(0),
       reason: z.string().optional(),
       gymName: z.string().optional(),
+      // 실제 환불 반영용 — 계약서만 만들고 데이터는 그대로면 매출·PT 잔여·락커가 계속 살아있는
+      // 것처럼 보이는 사고로 이어진다. 계약서 생성과 동시에 실제로 반영한다.
+      refundType: z.enum(["pt", "health", "locker", "uniform"]),
+      lockerId: z.number().optional(),
+      uniformId: z.number().optional(),
+      originalRevenueEntryId: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 환불 계약서를 발급할 수 있습니다." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await pool.query(`
         CREATE TABLE IF NOT EXISTS refund_contracts (
           id SERIAL PRIMARY KEY,
@@ -3367,6 +3377,49 @@ const refundContractRouter = t.router({
         `INSERT INTO refund_contracts (token,"memberId","packageId","memberName","memberPhone","programName","paymentAmount","totalSessions","usedSessions","paymentMethod","taxAmount","penaltyAmount","serviceItems","refundAmount",reason,"gymName",status,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',$17)`,
         [token, input.memberId, input.packageId ?? null, input.memberName, input.memberPhone ?? null, input.programName, input.paymentAmount, input.totalSessions, input.usedSessions, input.paymentMethod ?? null, input.taxAmount, input.penaltyAmount, JSON.stringify(input.serviceItems ?? []), input.refundAmount, input.reason ?? null, input.gymName ?? "자이언트짐", now]
       );
+
+      // ── 실제 환불 반영 ──────────────────────────────────────────────────────
+      // 매출(환불 건 기록) + PT 패키지/락커/운동복 상태 정리. 계약서는 서류일 뿐이고
+      // 이게 있어야 매출·정산·잔여 세션·락커 현황이 실제로 맞아떨어진다.
+      let trainerId: number | null = null;
+      if (input.packageId) {
+        const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages)
+          .where(eq(ptPackages.id, input.packageId)).limit(1);
+        trainerId = pkg?.trainerId ?? null;
+      }
+      if (input.refundAmount > 0) {
+        await db.insert(revenueEntries).values({
+          memberId: input.memberId,
+          trainerId,
+          createdBy: ctx.user!.id,
+          customerName: input.memberName,
+          phone: input.memberPhone ?? null,
+          programDetail: `${input.programName} 환불`,
+          type: input.refundType === "pt" ? "PT" : input.refundType === "health" ? "헬스" : "기타",
+          subType: "환불",
+          amount: input.refundAmount,
+          discountAmount: 0,
+          paidAmount: -input.refundAmount,
+          unpaidAmount: 0,
+          refundAmount: input.refundAmount,
+          paymentMethod: input.paymentMethod || undefined,
+          paymentDate: kstDate(),
+          relatedEntryId: input.originalRevenueEntryId ?? null,
+          memo: input.reason || `${input.programName} 환불 계약서 발급 (${token})`,
+        });
+      }
+      if (input.packageId) {
+        await db.update(ptPackages).set({ status: "refunded", updatedAt: now }).where(eq(ptPackages.id, input.packageId));
+      }
+      if (input.lockerId) {
+        await db.update(lockers)
+          .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: now })
+          .where(eq(lockers.id, input.lockerId));
+      }
+      if (input.uniformId) {
+        await db.update(uniforms).set({ isActive: 0, updatedAt: now }).where(eq(uniforms.id, input.uniformId));
+      }
+
       return { token, contractUrl: `/refund/${token}` };
     }),
 

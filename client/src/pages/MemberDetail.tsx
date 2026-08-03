@@ -3740,6 +3740,8 @@ export default function MemberDetail({ memberId }: Props) {
                         serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
+                        refundType: "pt",
+                        originalRevenueEntryId: pkg.revenueEntryId ?? undefined,
                       });
                     } else if (refundServiceType === "health") {
                       const rev = (healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any;
@@ -3757,6 +3759,8 @@ export default function MemberDetail({ memberId }: Props) {
                         serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
+                        refundType: "health",
+                        originalRevenueEntryId: rev?.id ?? undefined,
                       });
                     } else if (refundServiceType === "locker") {
                       const locker = memberPrograms?.lockers?.find((l) => l.id === refundSelectedItemId) ?? memberPrograms?.lockers?.[0];
@@ -3774,6 +3778,8 @@ export default function MemberDetail({ memberId }: Props) {
                         serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
+                        refundType: "locker",
+                        lockerId: locker?.id,
                       });
                     } else if (refundServiceType === "uniform") {
                       const uniform = memberPrograms?.uniforms?.find((u) => u.id === refundSelectedItemId) ?? memberPrograms?.uniforms?.[0];
@@ -3791,11 +3797,13 @@ export default function MemberDetail({ memberId }: Props) {
                         serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
+                        refundType: "uniform",
+                        uniformId: uniform?.id,
                       });
                     }
                   }}
                 >
-                  {createRefundContractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "계약서 생성 및 링크 발급"}
+                  {createRefundContractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "계약서 생성 및 링크 발급 (환불 반영 포함)"}
                 </Button>
               </div>
             </div>
