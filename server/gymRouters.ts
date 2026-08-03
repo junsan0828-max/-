@@ -679,14 +679,43 @@ const revenueRouter = t.router({
         });
       }
 
-      // 서비스 항목(락커/운동복 등): 무상 제공이라 환불액 0. 다만 환불 시 회수해야 하므로 노출한다.
+      // 서비스 항목(락커/운동복): 무상 제공이지만 남은 기간만큼 시세로 환산해 환불액에 포함한다
+      // (월 단가 ÷ 30일 × 잔여일수). 설정된 월 단가가 없으면 회수만 하고 환불액은 0으로 둔다.
+      const gsRows = await db.execute(sql`SELECT "lockerMonthlyPrice", "uniformPrice" FROM gym_settings LIMIT 1`);
+      const gymSettingsRow = (gsRows as any).rows?.[0] ?? {};
+      const lockerMonthlyPrice = Number(gymSettingsRow.lockerMonthlyPrice) || 5000;
+      const uniformMonthlyPrice = Number(gymSettingsRow.uniformPrice) || 10000;
+      const remainingDaysOf = (startDate: string | null, endDate: string | null) => {
+        if (!endDate) return 0;
+        const end = new Date(endDate);
+        const t = new Date(today);
+        return Math.max(0, Math.round((end.getTime() - t.getTime()) / 86400000));
+      };
+
       const si = (entry.serviceItems ?? "").split(",").map(s => s.trim()).filter(Boolean);
       for (const raw of si) {
         const lockerMatch = /^락커\(([^)]+)\)$/.exec(raw);
         if (lockerMatch) {
-          const [lk] = await db.select({ id: lockers.id }).from(lockers)
+          const [lk] = await db.select({ id: lockers.id, startDate: lockers.startDate, endDate: lockers.endDate }).from(lockers)
             .where(and(eq(lockers.lockerNumber, lockerMatch[1]), eq(lockers.memberId, entry.memberId ?? -1))).limit(1);
-          items.push({ key: `locker-${raw}`, kind: "락커", label: raw, detail: "서비스 제공 · 환불액 없음 (회수 처리)", refundable: 0, lockerId: lk?.id });
+          const remainDays = lk ? remainingDaysOf(lk.startDate, lk.endDate) : 0;
+          const refundable = Math.round((lockerMonthlyPrice / 30) * remainDays);
+          items.push({
+            key: `locker-${raw}`, kind: "락커", label: raw,
+            detail: lk ? `잔여 ${remainDays}일 · 월 ${lockerMonthlyPrice.toLocaleString()}원 기준 (회수 처리)` : "락커 정보 없음 · 환불액 없음 (회수 처리)",
+            refundable, lockerId: lk?.id,
+          });
+        } else if (raw === "운동복") {
+          const [uf] = await db.select({ startDate: uniforms.startDate, endDate: uniforms.endDate }).from(uniforms)
+            .where(and(eq(uniforms.memberId, entry.memberId ?? -1), eq(uniforms.isActive, 1)))
+            .orderBy(desc(uniforms.id)).limit(1);
+          const remainDays = uf ? remainingDaysOf(uf.startDate, uf.endDate) : 0;
+          const refundable = Math.round((uniformMonthlyPrice / 30) * remainDays);
+          items.push({
+            key: `svc-${raw}`, kind: "운동복", label: raw,
+            detail: uf ? `잔여 ${remainDays}일 · 월 ${uniformMonthlyPrice.toLocaleString()}원 기준 (회수 처리)` : "운동복 정보 없음 · 환불액 없음 (회수 처리)",
+            refundable,
+          });
         } else {
           items.push({ key: `svc-${raw}`, kind: "서비스", label: raw, detail: "서비스 제공 · 환불액 없음 (회수 처리)", refundable: 0 });
         }
@@ -769,6 +798,12 @@ const revenueRouter = t.router({
         await db.update(lockers)
           .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: new Date().toISOString() })
           .where(eq(lockers.memberId, entry.memberId));
+      }
+      // 서비스로 준 운동복도 반납 처리
+      if (entry.memberId && input.itemKeys.includes("svc-운동복")) {
+        await db.update(uniforms)
+          .set({ isActive: 0, updatedAt: new Date().toISOString() })
+          .where(and(eq(uniforms.memberId, entry.memberId), eq(uniforms.isActive, 1)));
       }
 
       return { success: true, refundEntryId: rec?.id, gross, penalty: input.penaltyAmount, net };
