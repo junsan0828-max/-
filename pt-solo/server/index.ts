@@ -204,8 +204,20 @@ app.get("/api/test-smtp", async (_req, res) => {
 
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+  // index.html과 sw.js는 절대 캐시되면 안 된다 — 이 둘이 캐시되면 새 배포를
+  // 아무리 해도 iOS(특히 홈화면에 추가된 PWA/TWA)에서 브라우저가 계속
+  // 예전 버전을 서빙해서, 코드를 고쳐도 사용자 화면엔 영원히 반영이 안 되는
+  // 상황이 생긴다. (해시가 붙는 나머지 JS/CSS 정적 자산은 파일명 자체가
+  // 빌드마다 바뀌므로 길게 캐시해도 안전 — express.static 기본값 유지)
+  app.use(express.static(clientDistPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html") || filePath.endsWith("sw.js")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  }));
   app.get("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.join(clientDistPath, "index.html"));
   });
 } else {
