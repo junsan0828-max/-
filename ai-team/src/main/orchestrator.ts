@@ -37,10 +37,23 @@ function loadJson(name: string) {
 }
 
 export function buildDataSummary(c: GymContext): string {
-  return `[데이터 기준일 ${c.asOf} · 출처 ${c.source === "db" ? "실데이터" : "샘플"}]
-- 회원: 전체 ${c.members.total}, 활성 ${c.members.active}, 30일내 만료예정 ${c.members.expiringSoon.length}명, 최근14일 만료(이탈위험) ${c.members.recentlyExpired.length}명
+  const dbStatus = c.meta.dbConnected
+    ? `실데이터 (조회시각 ${c.meta.asOfTimestamp})`
+    : `샘플 데이터 — DB 연결 실패(${c.meta.queryError ?? "사유 미상"})`;
+  const branchLines = c.byBranch
+    .map(
+      (b) =>
+        `  · ${b.branchName}: 활성 ${b.active}, 매출 ${b.monthRevenue.toLocaleString()}원, 미수금 ${b.unpaidTotal.toLocaleString()}원, 만료예정 ${b.expiringSoonCount}명, 이탈위험 ${b.recentlyExpiredCount}명`
+    )
+    .join("\n");
+  return `[데이터 기준일 ${c.asOf} · 출처 ${dbStatus}]
+- 회원: 전체 ${c.members.total}, 활성 ${c.members.active}, 30일내 만료예정 ${c.members.expiringSoon.length}명(7일이내 ${c.members.expiringBuckets.within7}·8~14일 ${c.members.expiringBuckets.within14}·15~30일 ${c.members.expiringBuckets.within30}), 최근14일 만료(이탈위험) ${c.members.recentlyExpired.length}명
+- 지점별:
+${branchLines}
 - 생애흐름(리드): 미상담 ${c.funnel.pending}, 상담 ${c.funnel.consulted}, 등록 ${c.funnel.registered}, 이탈 ${c.funnel.dropped} / 상담전환율 ${c.funnel.consultRate}%, 상담→등록 ${c.funnel.registerRate}%
-- 매출: 이번달 ${c.money.monthRevenue.toLocaleString()}원 (신규 ${c.money.newCount}건, 재등록 ${c.money.reRegisterCount}건), 미수금 ${c.money.unpaidTotal.toLocaleString()}원(${c.money.unpaidMembers.length}명)
+- 매출(이번달): 계약액 ${c.money.contractAmount.toLocaleString()}원 / 실입금 ${c.money.monthRevenue.toLocaleString()}원 / 환불 ${c.money.refundAmount.toLocaleString()}원 / 최종실현매출 ${c.money.netRevenueThisMonth.toLocaleString()}원 (신규 ${c.money.newCount}건, 재등록 ${c.money.reRegisterCount}건)
+- 미수금: 전체누적 ${c.money.unpaidTotal.toLocaleString()}원(${c.money.unpaidMembers.length}명) / 이번달발생분 ${c.money.unpaidThisMonth.toLocaleString()}원
+- 지출·순이익(이번달, 단순 현금기준): 지출 ${c.expense.thisMonthTotal.toLocaleString()}원, 순이익(매출-지출) ${c.expense.netProfitThisMonth.toLocaleString()}원
 - 채널별 리드→등록 전환율: ${c.channels.map((ch) => `${ch.channel} ${ch.rate}%(리드${ch.leads}/등록${ch.registered})`).join(", ") || "데이터 없음"}`;
 }
 

@@ -105,9 +105,36 @@ export async function pushDailyReport(
     );
     const analysisReportSummary = truncate(result.report);
 
+    const c = result.context;
     const children = [
       heading(`🧑‍💼 제이 - ${periodLabel} 브리핑 헤드라인`),
       paragraph(result.headline),
+      heading("📡 데이터 기준"),
+      paragraph(
+        c.meta.dbConnected
+          ? `실데이터 · ZIANTGYM+ DB(Neon) · 조회시각 ${c.meta.asOfTimestamp}`
+          : `⚠️ 샘플 데이터 사용 중 — DB 연결 실패 (${c.meta.queryError ?? "사유 미상"})`
+      ),
+      heading("🏢 지점별 요약 (전체 / 1호점 / 2호점)"),
+      paragraph(
+        `전체 — 활성 ${c.members.active} · 이번달 실입금 ${c.money.monthRevenue.toLocaleString()}원 · 미수금 ${c.money.unpaidTotal.toLocaleString()}원`
+      ),
+      ...c.byBranch.map((b) =>
+        bullet(
+          `${b.branchName} — 활성 ${b.active} · 실입금 ${b.monthRevenue.toLocaleString()}원 · 미수금 ${b.unpaidTotal.toLocaleString()}원 · 만료예정 ${b.expiringSoonCount}명 · 이탈위험 ${b.recentlyExpiredCount}명`
+        )
+      ),
+      heading("💰 매출·비용 상세 (이번달)"),
+      bullet(`계약액(할인전) ${c.money.contractAmount.toLocaleString()}원`),
+      bullet(`실제 입금액 ${c.money.monthRevenue.toLocaleString()}원`),
+      bullet(`환불·취소액 ${c.money.refundAmount.toLocaleString()}원`),
+      bullet(`최종 실현 매출(입금-환불) ${c.money.netRevenueThisMonth.toLocaleString()}원`),
+      bullet(`이번달 미수금 ${c.money.unpaidThisMonth.toLocaleString()}원 (전체 누적 미수금 ${c.money.unpaidTotal.toLocaleString()}원)`),
+      bullet(`이번달 지출 ${c.expense.thisMonthTotal.toLocaleString()}원 / 순이익(단순 현금기준) ${c.expense.netProfitThisMonth.toLocaleString()}원`),
+      heading("📅 만료예정 회원 우선순위 (오늘 연락 대상은 7일 이내부터)"),
+      bullet(`7일 이내 만료: ${c.members.expiringBuckets.within7}명 (최우선 연락)`),
+      bullet(`8~14일 이내: ${c.members.expiringBuckets.within14}명 (다음 순번)`),
+      bullet(`15~30일 이내: ${c.members.expiringBuckets.within30}명 (대기)`),
       heading("오늘 처리해야 할 업무 (AI 처리 / 사장님 처리 구분)"),
       ...result.tasks.map((t) =>
         bullet(`[${t.priority}] ${t.title} — ${t.reason} (담당: ${t.assigneeRole} · ${OWNER_KO[t.mode] ?? t.mode})`)
@@ -344,7 +371,32 @@ export interface TaskRecordResult {
   error?: string;
 }
 
-/** 브리핑에서 나온 업무 중 우선순위 상위 N개(기본 5개)를 "업무관리" DB에 개별 업무로 만든다. */
+// 지부장 협의 결과(2026-07-31): "매일 새 업무를 만들기 전에 전날 업무의 결과를 먼저 확인해 달라"는
+// 요청 반영. 기존엔 업무명 완전일치로만 중복을 판단했는데, 제목에 회원 수 같은 숫자가 매일 바뀌어서
+// ("만료 예정 30명" → "만료 예정 29명") 사실상 매일 새 업무가 계속 쌓이기만 했다. 숫자를 지운 형태로
+// 비교해서, 아직 안 끝난(완료 아님) 같은 종류 업무가 있으면 새로 만들지 않고 근거데이터·마감일만 갱신한다.
+function normalizeTaskKey(title: string): string {
+  return title.replace(/\d+/g, "").trim();
+}
+
+async function findOpenTaskPageId(databaseId: string, normalizedTitle: string): Promise<string | null> {
+  const data = await notionFetch(`/databases/${databaseId}/query`, {
+    method: "POST",
+    body: JSON.stringify({
+      filter: { property: "진행상태", status: { does_not_equal: "완료" } },
+      page_size: 100,
+    }),
+  });
+  for (const page of data.results ?? []) {
+    const richTitle = page.properties?.["업무명"]?.title as { plain_text: string }[] | undefined;
+    const title = richTitle?.map((t) => t.plain_text).join("") ?? "";
+    if (normalizeTaskKey(title) === normalizedTitle) return page.id;
+  }
+  return null;
+}
+
+/** 브리핑에서 나온 업무 중 우선순위 상위 N개(기본 5개)를 "업무관리" DB에 개별 업무로 만든다.
+ * 같은 종류의 업무가 이미 미완료 상태로 있으면 새로 만들지 않고 근거데이터·마감일만 갱신한다. */
 export async function createTaskRecords(
   tasks: TeamTask[],
   context: GymContext,
@@ -362,6 +414,24 @@ export async function createTaskRecords(
   try {
     for (const t of top) {
       const { assigneeCategory, status } = taskModeToCategory(t.mode);
+      const normalized = normalizeTaskKey(t.title);
+      const existingId = await findOpenTaskPageId(databaseId, normalized);
+
+      if (existingId) {
+        await notionFetch(`/pages/${existingId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            properties: {
+              "마감일": { date: { start: today } },
+              "근거데이터": { rich_text: [{ text: { content: t.reason.slice(0, 1900) } }] },
+              "대상자목록": { rich_text: [{ text: { content: buildTargetSummary(t, context) } }] },
+            },
+          }),
+        });
+        createdUrls.push(`https://app.notion.com/p/${existingId.replace(/-/g, "")}`);
+        continue;
+      }
+
       const page = await notionFetch("/pages", {
         method: "POST",
         body: JSON.stringify({

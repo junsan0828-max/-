@@ -47,10 +47,21 @@ export interface MinaResult {
   messages: MemberMessage[];
 }
 
+// 지부장 협의 결과(2026-07-31): 만료예정 30명을 하루에 다 연락하지 않고, 만료 임박도(7일 이내 →
+// 8~14일 → 15~30일) 순으로 일주일에 걸쳐 나눠 처리한다. 가장 급한 구간이 비어야 다음 구간으로 넘어간다.
+function pickExpiringBucket(members: GymContext["members"]["expiringSoon"]) {
+  const within7 = members.filter((m) => m.daysUntilExpiry <= 7);
+  if (within7.length > 0) return within7;
+  const within14 = members.filter((m) => m.daysUntilExpiry <= 14);
+  if (within14.length > 0) return within14;
+  return members;
+}
+
 export async function generateMemberMessages(context: GymContext): Promise<MinaResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  const expiringTargets = pickExpiringBucket(context.members.expiringSoon);
   const allTargets = [
-    ...context.members.expiringSoon.map((m) => ({ name: m.name, phone: m.phone, category: "만료임박" as const })),
+    ...expiringTargets.map((m) => ({ name: m.name, phone: m.phone, category: "만료임박" as const })),
     ...context.members.recentlyExpired.map((m) => ({ name: m.name, phone: m.phone, category: "이탈위험" as const })),
     ...context.money.unpaidMembers.map((m) => ({
       name: m.name,
