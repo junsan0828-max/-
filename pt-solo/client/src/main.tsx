@@ -7,6 +7,26 @@ import App from "./App";
 import { trpc } from "./lib/trpc";
 import "./index.css";
 
+// 카카오톡 인앱 브라우저는 별도의 WebView라 서비스워커·캐시 동작이
+// 사파리/크롬과 다르게 굴 때가 있다 (배포해도 계속 예전 화면이 보이는
+// 문제의 실제 원인이었음 — "웹에서는 되는데 카톡으로 들어가면 안 된다").
+// 안드로이드는 intent 스킴으로 기본 브라우저(크롬)로 안전하게 자동 전환된다.
+if (/KAKAOTALK/i.test(navigator.userAgent) && /Android/i.test(navigator.userAgent)) {
+  const target = window.location.href.replace(/^https?:\/\//, "");
+  window.location.href = `intent://${target}#Intent;scheme=https;package=com.android.chrome;end`;
+} else if (/KAKAOTALK/i.test(navigator.userAgent)) {
+  // iOS 카카오톡 인앱 브라우저는 안드로이드처럼 자동으로 빠져나갈 방법이 없어서
+  // (intent 스킴이 없음), 배너로 안내한다. React 렌더링과 무관하게 항상 뜨도록
+  // React 트리 밖에서 순수 DOM으로 직접 삽입.
+  window.addEventListener("DOMContentLoaded", () => {
+    const bar = document.createElement("div");
+    bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#fee500;color:#191919;padding:10px 14px;font-size:13px;text-align:center;line-height:1.4;box-shadow:0 2px 6px rgba(0,0,0,.15);";
+    bar.innerHTML = `카카오톡 브라우저에서는 일부 화면이 깨질 수 있어요. 우측 상단 <b>⋯</b> 메뉴 → <b>"Safari로 열기"</b>를 눌러주세요. <span style="margin-left:8px;text-decoration:underline;cursor:pointer;" id="kakao-banner-close">닫기</span>`;
+    document.body.prepend(bar);
+    document.getElementById("kakao-banner-close")?.addEventListener("click", () => bar.remove());
+  });
+}
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").then((reg) => {
