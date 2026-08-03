@@ -52,6 +52,13 @@ export default function RefundContractPage({ token }: { token: string }) {
             <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{data.paymentAmount.toLocaleString()}원</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">부가세</span><span className="font-medium text-red-400">- {data.taxAmount.toLocaleString()}원</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">위약금</span><span className="font-medium text-red-400">- {data.penaltyAmount.toLocaleString()}원</span></div>
+            {(() => {
+              let items: { label: string; amount: number }[] = [];
+              try { items = data.serviceItems ? JSON.parse(data.serviceItems) : []; } catch { items = []; }
+              return items.map((it, i) => (
+                <div key={i} className="flex justify-between"><span className="text-muted-foreground">{it.label}</span><span className="font-medium text-red-400">- {it.amount.toLocaleString()}원</span></div>
+              ));
+            })()}
             <div className="flex justify-between pt-1.5 border-t border-border">
               <span className="font-semibold text-foreground">환불 금액</span>
               <span className="font-bold text-primary text-sm">{data.refundAmount.toLocaleString()}원</span>

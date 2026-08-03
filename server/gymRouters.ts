@@ -3330,6 +3330,8 @@ const refundContractRouter = t.router({
       paymentMethod: z.string().optional(),
       taxAmount: z.number().default(0),
       penaltyAmount: z.number().default(0),
+      // 서비스 항목 차감 내역(락커 사용분, 밸런스체크 등 임의 항목) — 계약서에 항목별로 표시된다.
+      serviceItems: z.array(z.object({ label: z.string(), amount: z.number() })).optional(),
       refundAmount: z.number().default(0),
       reason: z.string().optional(),
       gymName: z.string().optional(),
@@ -3350,6 +3352,7 @@ const refundContractRouter = t.router({
           "paymentMethod" TEXT,
           "taxAmount" INTEGER NOT NULL DEFAULT 0,
           "penaltyAmount" INTEGER NOT NULL DEFAULT 0,
+          "serviceItems" TEXT,
           "refundAmount" INTEGER NOT NULL DEFAULT 0,
           reason TEXT,
           "gymName" TEXT,
@@ -3357,11 +3360,12 @@ const refundContractRouter = t.router({
           "createdAt" TEXT NOT NULL
         )
       `);
+      await pool.query(`ALTER TABLE refund_contracts ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
       const token = randomUUID();
       const now = new Date().toISOString();
       await pool.query(
-        `INSERT INTO refund_contracts (token,"memberId","packageId","memberName","memberPhone","programName","paymentAmount","totalSessions","usedSessions","paymentMethod","taxAmount","penaltyAmount","refundAmount",reason,"gymName",status,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending',$16)`,
-        [token, input.memberId, input.packageId ?? null, input.memberName, input.memberPhone ?? null, input.programName, input.paymentAmount, input.totalSessions, input.usedSessions, input.paymentMethod ?? null, input.taxAmount, input.penaltyAmount, input.refundAmount, input.reason ?? null, input.gymName ?? "자이언트짐", now]
+        `INSERT INTO refund_contracts (token,"memberId","packageId","memberName","memberPhone","programName","paymentAmount","totalSessions","usedSessions","paymentMethod","taxAmount","penaltyAmount","serviceItems","refundAmount",reason,"gymName",status,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',$17)`,
+        [token, input.memberId, input.packageId ?? null, input.memberName, input.memberPhone ?? null, input.programName, input.paymentAmount, input.totalSessions, input.usedSessions, input.paymentMethod ?? null, input.taxAmount, input.penaltyAmount, JSON.stringify(input.serviceItems ?? []), input.refundAmount, input.reason ?? null, input.gymName ?? "자이언트짐", now]
       );
       return { token, contractUrl: `/refund/${token}` };
     }),
@@ -3376,6 +3380,7 @@ const refundContractRouter = t.router({
         memberName: string | null; memberPhone: string | null; programName: string;
         paymentAmount: number; totalSessions: number; usedSessions: number;
         paymentMethod: string | null; taxAmount: number; penaltyAmount: number;
+        serviceItems: string | null;
         refundAmount: number; reason: string | null; gymName: string | null;
         status: string; createdAt: string;
       };

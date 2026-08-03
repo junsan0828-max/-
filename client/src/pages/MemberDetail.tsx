@@ -59,6 +59,7 @@ import {
   Edit,
   CheckCircle,
   Plus,
+  X,
   Dumbbell,
   Trash2,
   BookOpen,
@@ -365,6 +366,8 @@ export default function MemberDetail({ memberId }: Props) {
     refundAmount: "0",
     reason: "",
   });
+  // 서비스 항목 차감 (락커 사용분, 밸런스체크 등 임의 항목 + 금액). "+"로 자유롭게 추가.
+  const [refundServiceDeductions, setRefundServiceDeductions] = useState<{ label: string; amount: string }[]>([]);
 
   // 양도 계약서 모달
   const [yangdoModalOpen, setYangdoModalOpen] = useState(false);
@@ -3396,7 +3399,7 @@ export default function MemberDetail({ memberId }: Props) {
       )}
 
       {/* ── 환불 계약서 모달 ── */}
-      <Dialog open={refundModalOpen} onOpenChange={(open) => { setRefundModalOpen(open); if (!open) setRefundContractUrl(""); }}>
+      <Dialog open={refundModalOpen} onOpenChange={(open) => { setRefundModalOpen(open); if (!open) { setRefundContractUrl(""); setRefundServiceDeductions([]); } }}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3405,6 +3408,18 @@ export default function MemberDetail({ memberId }: Props) {
             <DialogDescription>환불 정보를 입력하고 계약서 링크를 발급합니다.</DialogDescription>
           </DialogHeader>
 
+          {(() => {
+            // 결제 금액 기준(base). 서비스 항목 차감 합계 계산에 공용으로 쓴다.
+            const refundBaseAmount = refundServiceType === "pt"
+              ? ((ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0])?.paymentAmount ?? 0)
+              : refundServiceType === "health"
+                ? (((healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any)?.paidAmount ?? 0)
+                : 0;
+            const deductionTotal = refundServiceDeductions.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+            const recalcRefund = (tax: number, penalty: number, deductions = deductionTotal) =>
+              String(Math.max(0, refundBaseAmount - tax - penalty - deductions));
+            return (
+          <>
           {refundContractUrl ? (
             <div className="space-y-4 py-2">
               <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
@@ -3581,6 +3596,63 @@ export default function MemberDetail({ memberId }: Props) {
                 </div>
               </div>
 
+              {/* 서비스 항목 차감 (락커 사용분, 밸런스체크 등 임의 항목) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">서비스 항목 차감</Label>
+                  <button
+                    type="button"
+                    onClick={() => setRefundServiceDeductions((d) => [...d, { label: "", amount: "" }])}
+                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/70"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> 항목 추가
+                  </button>
+                </div>
+                {refundServiceDeductions.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground">예: 락커 사용분, 밸런스체크 비용 등 제외할 항목이 있으면 추가하세요.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {refundServiceDeductions.map((d, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <Input
+                          placeholder="항목명 (예: 밸런스체크)"
+                          value={d.label}
+                          onChange={(e) => setRefundServiceDeductions((arr) => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                          className="h-8 text-xs flex-[1.3]"
+                        />
+                        <Input
+                          type="number" min="0" placeholder="금액"
+                          value={d.amount}
+                          onChange={(e) => {
+                            const nextArr = refundServiceDeductions.map((x, j) => j === i ? { ...x, amount: e.target.value } : x);
+                            setRefundServiceDeductions(nextArr);
+                            const tax = Number(refundForm.taxAmount) || 0;
+                            const penalty = Number(refundForm.penaltyAmount) || 0;
+                            const nextTotal = nextArr.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+                            setRefundForm((p) => ({ ...p, refundAmount: recalcRefund(tax, penalty, nextTotal) }));
+                          }}
+                          className="h-8 text-xs flex-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextArr = refundServiceDeductions.filter((_, j) => j !== i);
+                            setRefundServiceDeductions(nextArr);
+                            const tax = Number(refundForm.taxAmount) || 0;
+                            const penalty = Number(refundForm.penaltyAmount) || 0;
+                            const nextTotal = nextArr.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+                            setRefundForm((p) => ({ ...p, refundAmount: recalcRefund(tax, penalty, nextTotal) }));
+                          }}
+                          className="text-muted-foreground hover:text-red-400 shrink-0 p-1"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* 부가세 / 위약금 */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -3592,12 +3664,7 @@ export default function MemberDetail({ memberId }: Props) {
                     onChange={(e) => {
                       const tax = Number(e.target.value) || 0;
                       const penalty = Number(refundForm.penaltyAmount) || 0;
-                      const base = refundServiceType === "pt"
-                        ? ((ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0])?.paymentAmount ?? 0)
-                        : refundServiceType === "health"
-                          ? (((healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any)?.paidAmount ?? 0)
-                          : 0;
-                      setRefundForm((p) => ({ ...p, taxAmount: e.target.value, refundAmount: String(Math.max(0, base - tax - penalty)) }));
+                      setRefundForm((p) => ({ ...p, taxAmount: e.target.value, refundAmount: recalcRefund(tax, penalty) }));
                     }}
                     className="h-9 text-sm"
                   />
@@ -3611,17 +3678,15 @@ export default function MemberDetail({ memberId }: Props) {
                     onChange={(e) => {
                       const penalty = Number(e.target.value) || 0;
                       const tax = Number(refundForm.taxAmount) || 0;
-                      const base = refundServiceType === "pt"
-                        ? ((ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0])?.paymentAmount ?? 0)
-                        : refundServiceType === "health"
-                          ? (((healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any)?.paidAmount ?? 0)
-                          : 0;
-                      setRefundForm((p) => ({ ...p, penaltyAmount: e.target.value, refundAmount: String(Math.max(0, base - tax - penalty)) }));
+                      setRefundForm((p) => ({ ...p, penaltyAmount: e.target.value, refundAmount: recalcRefund(tax, penalty) }));
                     }}
                     className="h-9 text-sm"
                   />
                 </div>
               </div>
+              {deductionTotal > 0 && (
+                <p className="text-[11px] text-muted-foreground -mt-2">서비스 항목 차감 합계: -{deductionTotal.toLocaleString()}원 (환불 금액에 반영됨)</p>
+              )}
 
               {/* 환불 금액 */}
               <div className="space-y-1.5">
@@ -3654,6 +3719,9 @@ export default function MemberDetail({ memberId }: Props) {
                   disabled={createRefundContractMutation.isPending}
                   onClick={() => {
                     if (!member) return;
+                    const serviceItemsPayload = refundServiceDeductions
+                      .filter((d) => d.label.trim() && (Number(d.amount) || 0) > 0)
+                      .map((d) => ({ label: d.label.trim(), amount: Number(d.amount) || 0 }));
                     if (refundServiceType === "pt") {
                       const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
                       if (!pkg) return;
@@ -3669,6 +3737,7 @@ export default function MemberDetail({ memberId }: Props) {
                         paymentMethod: refundForm.paymentMethod || undefined,
                         taxAmount: Number(refundForm.taxAmount) || 0,
                         penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
                       });
@@ -3685,6 +3754,7 @@ export default function MemberDetail({ memberId }: Props) {
                         paymentMethod: refundForm.paymentMethod || undefined,
                         taxAmount: Number(refundForm.taxAmount) || 0,
                         penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
                       });
@@ -3701,6 +3771,7 @@ export default function MemberDetail({ memberId }: Props) {
                         paymentMethod: refundForm.paymentMethod || undefined,
                         taxAmount: Number(refundForm.taxAmount) || 0,
                         penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
                       });
@@ -3717,6 +3788,7 @@ export default function MemberDetail({ memberId }: Props) {
                         paymentMethod: refundForm.paymentMethod || undefined,
                         taxAmount: Number(refundForm.taxAmount) || 0,
                         penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        serviceItems: serviceItemsPayload,
                         refundAmount: Number(refundForm.refundAmount) || 0,
                         reason: refundForm.reason || undefined,
                       });
@@ -3728,6 +3800,9 @@ export default function MemberDetail({ memberId }: Props) {
               </div>
             </div>
           )}
+          </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
