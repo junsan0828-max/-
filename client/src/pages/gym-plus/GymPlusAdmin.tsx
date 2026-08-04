@@ -1124,6 +1124,26 @@ export function GymPlusProductsAdmin() {
     onError: (err) => toast.error(err.message),
   });
 
+  const reorderMutation = trpc.gymPlus.admin_updateProduct.useMutation();
+
+  function moveProduct(index: number, direction: -1 | 1) {
+    if (!products) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= products.length) return;
+    const reordered = [...products];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    // 기존 상품은 모두 sortOrder가 0이라 값만 맞바꾸면 순서가 안 바뀌므로, 화면에 보이는
+    // 새 순서대로 0,1,2...를 다시 매겨 저장한다 (바뀐 것만 요청).
+    Promise.all(
+      reordered
+        .map((p, i) => ({ p, i }))
+        .filter(({ p, i }) => p.sortOrder !== i)
+        .map(({ p, i }) => reorderMutation.mutateAsync({ id: p.id, sortOrder: i }))
+    )
+      .then(() => utils.gymPlus.admin_listProducts.invalidate())
+      .catch((err) => toast.error(err.message));
+  }
+
   function resetForm() {
     setForm({ name: "", description: "", price: "", originalPrice: "", pointPrice: "", category: "membership", imageUrl: "", badgeText: "", isActive: 1, sortOrder: 0 });
   }
@@ -1205,9 +1225,29 @@ export function GymPlusProductsAdmin() {
         </div>
       ) : (
         <div className="space-y-3">
-          {products.map((p) => (
+          {products.map((p, index) => (
             <div key={p.id} className={`border border-border rounded-xl p-4 ${p.isActive ? "bg-card" : "bg-muted/30"}`}>
               <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-1 flex-shrink-0">
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => moveProduct(index, -1)}
+                    className="w-6 h-6 rounded-md border border-border text-muted-foreground disabled:opacity-30 flex items-center justify-center text-xs"
+                    aria-label="위로 이동"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === products.length - 1}
+                    onClick={() => moveProduct(index, 1)}
+                    className="w-6 h-6 rounded-md border border-border text-muted-foreground disabled:opacity-30 flex items-center justify-center text-xs"
+                    aria-label="아래로 이동"
+                  >
+                    ▼
+                  </button>
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-foreground truncate">{p.name}</span>
