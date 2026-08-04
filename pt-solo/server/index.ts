@@ -218,6 +218,14 @@ if (fs.existsSync(clientDistPath)) {
   }));
   app.get("*", (_req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    // 킬스위치(임시): 예전 서비스워커가 캐시 우선 방식으로 화면을 영원히
+    // 예전 버전에 붙잡아두는 기기가 있다(신고된 "계속 빈/파란 화면" 증상과
+    // 일치). 이 헤더는 브라우저가 이 응답을 받는 즉시 그 기기의 캐시와
+    // 서비스워커 등록을 강제로 지워서, 다음 로드부터는 지금 배포된
+    // 새 sw.js(요청 가로채기 없음)로 다시 깨끗하게 등록되게 한다.
+    // 로그인 쿠키는 "storage"에 포함 안 되므로 로그인은 유지된다.
+    // 대부분의 기기가 정상화된 뒤(배포 후 1~2주) 이 헤더는 제거해도 된다.
+    res.setHeader("Clear-Site-Data", '"cache", "storage", "executionContexts"');
     res.sendFile(path.join(clientDistPath, "index.html"));
   });
 } else {
