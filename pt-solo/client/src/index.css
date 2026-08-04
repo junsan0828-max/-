@@ -53,12 +53,6 @@
   input[type="datetime-local"],
   input[type="month"] {
     min-width: 0;
-    /* WebKit(사파리·iOS)은 표준 CSS min-width와는 별개로 폼 인풋에
-       자체 최소너비(-webkit-min-logical-width)를 내부적으로 적용한다.
-       이건 크로뮴(Chrome/Android)엔 없는 사파리 전용 동작이라, 안드로이드는
-       멀쩡한데 아이폰에서만 계속 칸이 밀리는 현상의 실제 원인이었을
-       가능성이 높다. 표준 min-width만으로는 못 잡으므로 이것도 0으로. */
-    -webkit-min-logical-width: 0%;
   }
 
   /* 위 규칙만으로는 부족하다: CSS Grid의 자동 최소 크기(min-width:auto)는
