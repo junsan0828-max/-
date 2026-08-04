@@ -43,7 +43,7 @@ export function buildDataSummary(c: GymContext): string {
   const branchLines = c.byBranch
     .map(
       (b) =>
-        `  · ${b.branchName}: 활성 ${b.active}, 매출 ${b.monthRevenue.toLocaleString()}원, 미수금 ${b.unpaidTotal.toLocaleString()}원, 만료예정 ${b.expiringSoonCount}명, 이탈위험 ${b.recentlyExpiredCount}명`
+        `  · ${b.branchName}: 활성 ${b.active}, 매출 ${b.monthRevenue.toLocaleString()}원, 미수금 ${b.unpaidTotal.toLocaleString()}원, 만료예정 ${b.expiringSoonCount}명, 이탈위험 ${b.recentlyExpiredCount}명, 신규 ${b.newCount}건, 재등록 ${b.reRegisterCount}건`
     )
     .join("\n");
   return `[데이터 기준일 ${c.asOf} · 출처 ${dbStatus}]

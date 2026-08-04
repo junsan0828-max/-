@@ -23,6 +23,8 @@ export interface BranchSummary {
   unpaidTotal: number; // 전체 미수금(전 기간)
   expiringSoonCount: number;
   recentlyExpiredCount: number;
+  newCount: number; // 이번달 신규 건수
+  reRegisterCount: number; // 이번달 재등록 건수
 }
 
 export interface GymContext {
@@ -131,8 +133,8 @@ function sampleContext(): GymContext {
       { channel: "당근", leads: 4, registered: 1, rate: 25 },
     ],
     byBranch: [
-      { branchId: 1, branchName: "1호점", active: 130, monthRevenue: 13000000, unpaidTotal: 1350000, expiringSoonCount: 2, recentlyExpiredCount: 1 },
-      { branchId: 2, branchName: "2호점", active: 38, monthRevenue: 5400000, unpaidTotal: 0, expiringSoonCount: 1, recentlyExpiredCount: 0 },
+      { branchId: 1, branchName: "1호점", active: 130, monthRevenue: 13000000, unpaidTotal: 1350000, expiringSoonCount: 2, recentlyExpiredCount: 1, newCount: 7, reRegisterCount: 4 },
+      { branchId: 2, branchName: "2호점", active: 38, monthRevenue: 5400000, unpaidTotal: 0, expiringSoonCount: 1, recentlyExpiredCount: 0, newCount: 4, reRegisterCount: 3 },
     ],
   };
 }
@@ -308,6 +310,8 @@ export async function gatherContext(): Promise<GymContext> {
       .reduce((s, r) => s + Number(r.unpaidAmount || 0), 0),
     expiringSoonCount: expiringSoon.filter((m) => m.branchId === branchId).length,
     recentlyExpiredCount: recentlyExpired.filter((m) => m.branchId === branchId).length,
+    newCount: monthRev.filter((r) => r.branchId === branchId && r.subType === "신규").length,
+    reRegisterCount: monthRev.filter((r) => r.branchId === branchId && r.subType === "재등록").length,
   }));
 
   return {
