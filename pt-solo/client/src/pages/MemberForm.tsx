@@ -39,7 +39,7 @@ export default function MemberForm({ memberId }: Props) {
     paymentAmount: "",
     unpaidAmount: "",
     visitRoute: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMethod: "" as "" | "카드" | "현금" | "계좌이체" | "지역화폐",
     paymentDate: "",
     paymentMemo: "",
   });
@@ -328,8 +328,8 @@ export default function MemberForm({ memberId }: Props) {
                       <SelectValue placeholder="결제방법 선택" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="현금영수증">현금영수증</SelectItem>
-                      <SelectItem value="이체">이체</SelectItem>
+                      <SelectItem value="현금">현금</SelectItem>
+                      <SelectItem value="계좌이체">계좌이체</SelectItem>
                       <SelectItem value="지역화폐">지역화폐</SelectItem>
                       <SelectItem value="카드">카드</SelectItem>
                     </SelectContent>

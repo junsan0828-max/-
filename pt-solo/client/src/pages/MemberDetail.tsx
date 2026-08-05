@@ -244,7 +244,7 @@ export default function MemberDetail({ memberId }: Props) {
     expiryDate: "",
     paymentAmount: "",
     unpaidAmount: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMethod: "" as "" | "카드" | "현금" | "계좌이체" | "지역화폐",
     paymentMemo: "",
   });
 
@@ -259,7 +259,7 @@ export default function MemberDetail({ memberId }: Props) {
     expiryDate: "",
     paymentAmount: "",
     unpaidAmount: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMethod: "" as "" | "카드" | "현금" | "계좌이체" | "지역화폐",
     paymentDate: "",
     paymentMemo: "",
   });
@@ -909,8 +909,8 @@ export default function MemberDetail({ memberId }: Props) {
                       <Select value={pkgForm.paymentMethod} onValueChange={(v) => setPkgForm((p) => ({ ...p, paymentMethod: v as any }))}>
                         <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="현금영수증">현금영수증</SelectItem>
-                          <SelectItem value="이체">이체</SelectItem>
+                          <SelectItem value="현금">현금</SelectItem>
+                          <SelectItem value="계좌이체">계좌이체</SelectItem>
                           <SelectItem value="지역화폐">지역화폐</SelectItem>
                           <SelectItem value="카드">카드</SelectItem>
                         </SelectContent>
@@ -1434,8 +1434,8 @@ export default function MemberDetail({ memberId }: Props) {
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">선택 안함</SelectItem>
-                  <SelectItem value="현금영수증">현금영수증</SelectItem>
-                  <SelectItem value="이체">이체</SelectItem>
+                  <SelectItem value="현금">현금</SelectItem>
+                  <SelectItem value="계좌이체">계좌이체</SelectItem>
                   <SelectItem value="지역화폐">지역화폐</SelectItem>
                   <SelectItem value="카드">카드</SelectItem>
                 </SelectContent>

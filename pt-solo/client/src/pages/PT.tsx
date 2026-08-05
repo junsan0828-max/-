@@ -58,7 +58,7 @@ const EMPTY_FORM = {
   discountAmount: "",
   paymentAmount: "",
   unpaidAmount: "",
-  paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+  paymentMethod: "" as "" | "카드" | "현금" | "계좌이체" | "지역화폐",
   paymentDate: new Date().toISOString().substring(0, 10),
   paymentMemo: "",
 };

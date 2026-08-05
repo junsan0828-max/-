@@ -201,7 +201,7 @@ export default function LeadsPage() {
   const [reregPkg, setReregPkg] = useState({
     ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
     paymentAmount: "", unpaidAmount: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMethod: "" as "" | "카드" | "현금" | "계좌이체" | "지역화폐",
     paymentMemo: "",
   });
 
@@ -875,7 +875,7 @@ export default function LeadsPage() {
                   <label className="text-xs text-muted-foreground">결제 방법</label>
                   <Select value={reregPkg.paymentMethod} onValueChange={v => setReregPkg(p => ({ ...p, paymentMethod: v as any }))}>
                     <SelectTrigger className="h-9 text-sm bg-input border-border"><SelectValue placeholder="선택" /></SelectTrigger>
-                    <SelectContent>{["현금영수증", "이체", "지역화폐", "카드"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    <SelectContent>{["카드", "현금", "계좌이체", "지역화폐"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">

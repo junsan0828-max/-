@@ -219,10 +219,10 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
-// 카드/현금영수증/지역화폐는 부가세 10% 제외, 이체는 그대로
+// 카드/현금/지역화폐는 부가세 10% 제외, 계좌이체는 그대로
 function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
-  const base = paymentMethod === "이체" ? paymentAmount : Math.round(paymentAmount / 1.1);
+  const base = paymentMethod === "계좌이체" ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
 
@@ -457,7 +457,7 @@ const membersRouter = t.router({
       ptSessions: z.string().optional(),
       paymentAmount: z.number().optional(),
       unpaidAmount: z.number().optional(),
-      paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+      paymentMethod: z.enum(["카드", "현금", "계좌이체", "지역화폐"]).optional(),
       paymentDate: z.string().optional(),
       paymentMemo: z.string().optional(),
     }))
@@ -698,7 +698,7 @@ const ptRouter = t.router({
       expiryDate: z.string().optional(),
       paymentAmount: z.number().optional(),
       unpaidAmount: z.number().optional(),
-      paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+      paymentMethod: z.enum(["카드", "현금", "계좌이체", "지역화폐"]).optional(),
       paymentDate: z.string().optional(),
       paymentMemo: z.string().optional(),
       withContract: z.boolean().optional(),
@@ -893,7 +893,7 @@ const ptRouter = t.router({
       expiryDate: z.string().optional(),
       paymentAmount: z.number().min(0).optional(),
       unpaidAmount: z.number().min(0).optional(),
-      paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+      paymentMethod: z.enum(["카드", "현금", "계좌이체", "지역화폐"]).optional(),
       paymentDate: z.string().optional(),
       paymentMemo: z.string().optional(),
     }))
