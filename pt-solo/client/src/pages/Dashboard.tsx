@@ -660,7 +660,7 @@ function TrainerDashboard() {
     setInfoFeatureId(featureId);
   };
   const trainerName = (user as any)?.trainerName ?? (user as any)?.username ?? "스테퍼";
-  const recentMembers = allMembers?.slice(0, 8) ?? [];
+  const recentMembers = allMembers?.slice(0, 5) ?? [];
 
   return (
     <div className="space-y-5">
