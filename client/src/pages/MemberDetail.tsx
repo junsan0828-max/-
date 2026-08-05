@@ -355,9 +355,10 @@ export default function MemberDetail({ memberId }: Props) {
   const [memberMemoEdit, setMemberMemoEdit] = useState(false);
   const [memberMemoText, setMemberMemoText] = useState("");
 
-  // 환불 계약서 모달
+  // 환불 계약서 모달 — 회원이 나갈 땐 보통 PT·헬스·락커·운동복을 한꺼번에 정리하므로,
+  // 종목별 버튼 중 아무거나 눌러도 "현재 활성 항목 전체"를 체크된 상태로 띄우고,
+  // 필요 없는 항목만 체크 해제하는 방식으로 만든다(기본값: 전체 환불).
   const [refundModalOpen, setRefundModalOpen] = useState(false);
-  const [refundSelectedPkgId, setRefundSelectedPkgId] = useState<number | "">("");
   const [refundContractUrl, setRefundContractUrl] = useState("");
   const [refundForm, setRefundForm] = useState({
     paymentMethod: "" as "" | "카드" | "현금" | "계좌이체",
@@ -368,6 +369,9 @@ export default function MemberDetail({ memberId }: Props) {
   });
   // 서비스 항목 차감 (락커 사용분, 밸런스체크 등 임의 항목 + 금액). "+"로 자유롭게 추가.
   const [refundServiceDeductions, setRefundServiceDeductions] = useState<{ label: string; amount: string }[]>([]);
+  // 항목 키: "pt-{packageId}" | "health-{revenueId}" | "locker-{lockerId}" | "uniform-{uniformId}"
+  const [refundChecked, setRefundChecked] = useState<Record<string, boolean>>({});
+  const [refundItemAmounts, setRefundItemAmounts] = useState<Record<string, string>>({});
 
   // 양도 계약서 모달
   const [yangdoModalOpen, setYangdoModalOpen] = useState(false);
@@ -378,9 +382,7 @@ export default function MemberDetail({ memberId }: Props) {
   });
   const [yangdoContractUrl, setYangdoContractUrl] = useState("");
 
-  // 서비스 타입별 환불/양도 모달
-  const [refundServiceType, setRefundServiceType] = useState<"pt" | "health" | "locker" | "uniform">("pt");
-  const [refundSelectedItemId, setRefundSelectedItemId] = useState<number | "">("");
+  // 서비스 타입별 양도 모달
   const [yangdoServiceType, setYangdoServiceType] = useState<"pt" | "health" | "locker" | "uniform">("pt");
   const [yangdoSelectedItemId, setYangdoSelectedItemId] = useState<number | "">("");
   const [lockerLinkNum, setLockerLinkNum] = useState("");
@@ -444,6 +446,36 @@ export default function MemberDetail({ memberId }: Props) {
     (memberPrograms?.healthRevenues ?? []).filter((r: any) => r.type === "헬스"),
     [memberPrograms]
   );
+
+  // 환불 모달 열기 — 현재 활성 상태인 PT·헬스·락커·운동복을 전부 기본 체크한 채로 연다.
+  // 필요 없는 항목은 모달 안에서 체크 해제하면 된다(대부분 나갈 때는 전체 정리이므로).
+  function openRefundModal() {
+    const checked: Record<string, boolean> = {};
+    const amounts: Record<string, string> = {};
+    for (const p of (ptPackages ?? []).filter((p: any) => p.status === "active")) {
+      checked[`pt-${p.id}`] = true;
+      amounts[`pt-${p.id}`] = String(p.paymentAmount ?? 0);
+    }
+    for (const r of healthRevsForModal as any[]) {
+      checked[`health-${r.id}`] = true;
+      amounts[`health-${r.id}`] = String(r.paidAmount ?? r.amount ?? 0);
+    }
+    for (const l of (memberPrograms?.lockers ?? [])) {
+      checked[`locker-${l.id}`] = true;
+      amounts[`locker-${l.id}`] = "0";
+    }
+    for (const u of (memberPrograms?.uniforms ?? [])) {
+      checked[`uniform-${u.id}`] = true;
+      amounts[`uniform-${u.id}`] = "0";
+    }
+    const total = Object.values(amounts).reduce((s, v) => s + (Number(v) || 0), 0);
+    setRefundChecked(checked);
+    setRefundItemAmounts(amounts);
+    setRefundServiceDeductions([]);
+    setRefundForm({ paymentMethod: "", taxAmount: "0", penaltyAmount: "0", refundAmount: String(total), reason: "" });
+    setRefundContractUrl("");
+    setRefundModalOpen(true);
+  }
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -1264,22 +1296,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <CardTitle className="text-base">PT</CardTitle>
                 <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => {
-                      setRefundServiceType("pt");
-                      setRefundModalOpen(true);
-                      setRefundContractUrl("");
-                      setRefundSelectedPkgId(ptPackages?.[0]?.id ?? "");
-                      const firstPkg = ptPackages?.[0];
-                      if (firstPkg) {
-                        setRefundForm({
-                          paymentMethod: "",
-                          taxAmount: "0",
-                          penaltyAmount: "0",
-                          refundAmount: String(firstPkg.paymentAmount ?? 0),
-                          reason: "",
-                        });
-                      }
-                    }}
+                    onClick={openRefundModal}
                     className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
                   >
                     <span>🔄</span> 환불
@@ -1606,14 +1623,7 @@ export default function MemberDetail({ memberId }: Props) {
                       <CardTitle className="text-base">헬스권</CardTitle>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => {
-                            setRefundServiceType("health");
-                            setRefundModalOpen(true);
-                            setRefundContractUrl("");
-                            const firstRev = healthRevs[0];
-                            setRefundSelectedItemId(firstRev?.id ?? "");
-                            setRefundForm({ paymentMethod: "", taxAmount: "0", penaltyAmount: "0", refundAmount: String(firstRev?.paidAmount ?? 0), reason: "" });
-                          }}
+                          onClick={openRefundModal}
                           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
                         >
                           <span>🔄</span> 환불
@@ -1780,13 +1790,7 @@ export default function MemberDetail({ memberId }: Props) {
                       <CardTitle className="text-base">락커</CardTitle>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => {
-                            setRefundServiceType("locker");
-                            setRefundModalOpen(true);
-                            setRefundContractUrl("");
-                            setRefundSelectedItemId(memberPrograms?.lockers[0]?.id ?? "");
-                            setRefundForm({ paymentMethod: "", taxAmount: "0", penaltyAmount: "0", refundAmount: "0", reason: "" });
-                          }}
+                          onClick={openRefundModal}
                           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
                         >
                           <span>🔄</span> 환불
@@ -1905,13 +1909,7 @@ export default function MemberDetail({ memberId }: Props) {
                       <CardTitle className="text-base">운동복</CardTitle>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => {
-                            setRefundServiceType("uniform");
-                            setRefundModalOpen(true);
-                            setRefundContractUrl("");
-                            setRefundSelectedItemId(memberPrograms?.uniforms[0]?.id ?? "");
-                            setRefundForm({ paymentMethod: "", taxAmount: "0", penaltyAmount: "0", refundAmount: "0", reason: "" });
-                          }}
+                          onClick={openRefundModal}
                           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
                         >
                           <span>🔄</span> 환불
@@ -3398,28 +3396,15 @@ export default function MemberDetail({ memberId }: Props) {
         />
       )}
 
-      {/* ── 환불 계약서 모달 ── */}
-      <Dialog open={refundModalOpen} onOpenChange={(open) => { setRefundModalOpen(open); if (!open) { setRefundContractUrl(""); setRefundServiceDeductions([]); } }}>
+      {/* ── 환불 계약서 모달 ── 회원의 활성 PT/헬스권/락커/운동복을 한 화면에서 골라
+           한 번에 처리한다(나갈 땐 보통 전부 정리하므로 기본값은 전체 선택). ── */}
+      <Dialog open={refundModalOpen} onOpenChange={(open) => { setRefundModalOpen(open); if (!open) { setRefundContractUrl(""); setRefundServiceDeductions([]); setRefundChecked({}); setRefundItemAmounts({}); } }}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span>🔄</span> {refundServiceType === "pt" ? "PT" : refundServiceType === "health" ? "헬스권" : refundServiceType === "locker" ? "락커" : "운동복"} 환불 계약서 생성
-            </DialogTitle>
-            <DialogDescription>환불 정보를 입력하고 계약서 링크를 발급합니다.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><span>🔄</span> 환불 계약서 생성</DialogTitle>
+            <DialogDescription>환불할 항목을 선택하고 계약서 링크를 발급합니다.</DialogDescription>
           </DialogHeader>
 
-          {(() => {
-            // 결제 금액 기준(base). 서비스 항목 차감 합계 계산에 공용으로 쓴다.
-            const refundBaseAmount = refundServiceType === "pt"
-              ? ((ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0])?.paymentAmount ?? 0)
-              : refundServiceType === "health"
-                ? (((healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any)?.paidAmount ?? 0)
-                : 0;
-            const deductionTotal = refundServiceDeductions.reduce((s, d) => s + (Number(d.amount) || 0), 0);
-            const recalcRefund = (tax: number, penalty: number, deductions = deductionTotal) =>
-              String(Math.max(0, refundBaseAmount - tax - penalty - deductions));
-            return (
-          <>
           {refundContractUrl ? (
             <div className="space-y-4 py-2">
               <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
@@ -3439,145 +3424,101 @@ export default function MemberDetail({ memberId }: Props) {
                 닫기
               </Button>
             </div>
-          ) : (
+          ) : (() => {
+            type RefundRow = {
+              key: string; type: "pt" | "health" | "locker" | "uniform"; label: string; detail?: string;
+              packageId?: number; originalRevenueEntryId?: number; lockerId?: number; uniformId?: number;
+              totalSessions?: number; usedSessions?: number;
+            };
+            const rows: RefundRow[] = [];
+            for (const p of (ptPackages ?? []).filter((p: any) => p.status === "active")) {
+              rows.push({
+                key: `pt-${p.id}`, type: "pt", label: p.packageName || "PT 프로그램",
+                detail: `${p.usedSessions}/${p.totalSessions}회 사용`,
+                packageId: p.id, originalRevenueEntryId: p.revenueEntryId ?? undefined,
+                totalSessions: p.totalSessions, usedSessions: p.usedSessions,
+              });
+            }
+            for (const r of healthRevsForModal as any[]) {
+              rows.push({
+                key: `health-${r.id}`, type: "health", label: `헬스권${r.subType ? ` (${r.subType})` : ""}`,
+                detail: r.startDate ? `${r.startDate} ~ ${r.endDate ?? "-"}` : undefined,
+                originalRevenueEntryId: r.id,
+              });
+            }
+            for (const l of (memberPrograms?.lockers ?? [])) {
+              rows.push({
+                key: `locker-${l.id}`, type: "locker", label: `락커 ${l.lockerNumber}`,
+                detail: l.startDate ? `${l.startDate} ~ ${l.endDate ?? "-"}` : undefined,
+                lockerId: l.id,
+              });
+            }
+            for (const u of (memberPrograms?.uniforms ?? [])) {
+              rows.push({
+                key: `uniform-${u.id}`, type: "uniform", label: `운동복${u.size ? ` (${u.size})` : ""}`,
+                detail: u.startDate ? `${u.startDate} ~ ${u.endDate ?? "-"}` : undefined,
+                uniformId: u.id,
+              });
+            }
+
+            if (rows.length === 0) {
+              return <p className="text-sm text-muted-foreground text-center py-6">환불할 수 있는 항목이 없습니다.</p>;
+            }
+
+            const checkedRows = rows.filter((r) => refundChecked[r.key]);
+            const grossAmount = checkedRows.reduce((s, r) => s + (Number(refundItemAmounts[r.key]) || 0), 0);
+            const deductionTotal = refundServiceDeductions.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+            const tax = Number(refundForm.taxAmount) || 0;
+            const penalty = Number(refundForm.penaltyAmount) || 0;
+            const recalcTotal = (nextGross = grossAmount, nextTax = tax, nextPenalty = penalty, nextDeduction = deductionTotal) =>
+              String(Math.max(0, nextGross - nextTax - nextPenalty - nextDeduction));
+
+            return (
             <div className="space-y-3">
-              {/* PT 패키지 선택 */}
-              {refundServiceType === "pt" && ptPackages && ptPackages.length > 1 && (
+              {/* 환불 항목 선택 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">환불 항목 선택</Label>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">PT 패키지 선택</Label>
-                  <Select
-                    value={String(refundSelectedPkgId)}
-                    onValueChange={(v) => {
-                      const id = Number(v);
-                      setRefundSelectedPkgId(id);
-                      const pkg = ptPackages.find((p) => p.id === id);
-                      if (pkg) {
-                        setRefundForm((prev) => ({
-                          ...prev,
-                          taxAmount: "0",
-                          penaltyAmount: "0",
-                          refundAmount: String(pkg.paymentAmount ?? 0),
-                        }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="패키지 선택" /></SelectTrigger>
-                    <SelectContent>
-                      {ptPackages.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.packageName || "PT 프로그램"} ({p.totalSessions - p.usedSessions}회 잔여)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {rows.map((r) => (
+                    <div key={r.key} className={`rounded-lg border px-3 py-2 space-y-1.5 ${refundChecked[r.key] ? "border-red-400/40 bg-red-400/5" : "border-border"}`}>
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!refundChecked[r.key]}
+                          onChange={(e) => {
+                            const nextChecked = { ...refundChecked, [r.key]: e.target.checked };
+                            setRefundChecked(nextChecked);
+                            const nextGross = rows.filter((x) => nextChecked[x.key]).reduce((s, x) => s + (Number(refundItemAmounts[x.key]) || 0), 0);
+                            setRefundForm((p) => ({ ...p, refundAmount: recalcTotal(nextGross) }));
+                          }}
+                          className="mt-0.5"
+                        />
+                        <span className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-foreground">{r.label}</span>
+                          {r.detail && <span className="block text-[11px] text-muted-foreground">{r.detail}</span>}
+                        </span>
+                      </label>
+                      {refundChecked[r.key] && (
+                        <div className="flex items-center gap-2 pl-6">
+                          <span className="text-[11px] text-muted-foreground shrink-0">환불액</span>
+                          <input
+                            type="number" min="0"
+                            value={refundItemAmounts[r.key] ?? ""}
+                            onChange={(e) => {
+                              const nextAmounts = { ...refundItemAmounts, [r.key]: e.target.value };
+                              setRefundItemAmounts(nextAmounts);
+                              const nextGross = rows.filter((x) => refundChecked[x.key]).reduce((s, x) => s + (Number(nextAmounts[x.key]) || 0), 0);
+                              setRefundForm((p) => ({ ...p, refundAmount: recalcTotal(nextGross) }));
+                            }}
+                            className="flex-1 bg-background border border-border rounded px-2 py-1 text-xs"
+                          />
+                          <span className="text-[11px] text-muted-foreground">원</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              {/* 헬스권 선택 */}
-              {refundServiceType === "health" && healthRevsForModal.length > 1 && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">헬스권 선택</Label>
-                  <Select
-                    value={String(refundSelectedItemId)}
-                    onValueChange={(v) => {
-                      const id = Number(v);
-                      setRefundSelectedItemId(id);
-                      const rev = healthRevsForModal.find((r: any) => r.id === id);
-                      if (rev) setRefundForm((p) => ({ ...p, taxAmount: "0", penaltyAmount: "0", refundAmount: String((rev as any).paidAmount ?? 0) }));
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="헬스권 선택" /></SelectTrigger>
-                    <SelectContent>
-                      {healthRevsForModal.map((r: any) => (
-                        <SelectItem key={r.id} value={String(r.id)}>
-                          헬스권{r.subType ? ` (${r.subType})` : ""}{r.startDate ? ` · ${r.startDate}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* 락커 선택 */}
-              {refundServiceType === "locker" && (memberPrograms?.lockers?.length ?? 0) > 1 && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">락커 선택</Label>
-                  <Select
-                    value={String(refundSelectedItemId)}
-                    onValueChange={(v) => { setRefundSelectedItemId(Number(v)); }}
-                  >
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="락커 선택" /></SelectTrigger>
-                    <SelectContent>
-                      {memberPrograms?.lockers?.map((l) => (
-                        <SelectItem key={l.id} value={String(l.id)}>
-                          락커 {l.lockerNumber}{l.startDate ? ` · ${l.startDate}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* 운동복 선택 */}
-              {refundServiceType === "uniform" && (memberPrograms?.uniforms?.length ?? 0) > 1 && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">운동복 선택</Label>
-                  <Select
-                    value={String(refundSelectedItemId)}
-                    onValueChange={(v) => { setRefundSelectedItemId(Number(v)); }}
-                  >
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동복 선택" /></SelectTrigger>
-                    <SelectContent>
-                      {memberPrograms?.uniforms?.map((u) => (
-                        <SelectItem key={u.id} value={String(u.id)}>
-                          운동복{u.size ? ` (${u.size})` : ""}{u.startDate ? ` · ${u.startDate}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* 자동 채움 필드 */}
-              {refundServiceType === "pt" && (() => {
-                const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
-                return pkg ? (
-                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
-                    <div className="flex justify-between"><span className="text-muted-foreground">프로그램명</span><span className="font-medium">{pkg.packageName || "PT 프로그램"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{(pkg.paymentAmount ?? 0).toLocaleString()}원</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">총 횟수</span><span className="font-medium">{pkg.totalSessions}회</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">수강 횟수</span><span className="font-medium">{pkg.usedSessions}회</span></div>
-                  </div>
-                ) : null;
-              })()}
-              {refundServiceType === "health" && (() => {
-                const rev = (healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any;
-                return rev ? (
-                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
-                    <div className="flex justify-between"><span className="text-muted-foreground">프로그램명</span><span className="font-medium">헬스권{rev.subType ? ` (${rev.subType})` : ""}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{(rev.amount ?? rev.paidAmount ?? 0).toLocaleString()}원</span></div>
-                    {(rev.startDate || rev.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{rev.startDate ?? "-"} ~ {rev.endDate ?? "-"}</span></div>}
-                  </div>
-                ) : null;
-              })()}
-              {refundServiceType === "locker" && (() => {
-                const locker = memberPrograms?.lockers?.find((l) => l.id === refundSelectedItemId) ?? memberPrograms?.lockers?.[0];
-                return locker ? (
-                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
-                    <div className="flex justify-between"><span className="text-muted-foreground">락커 번호</span><span className="font-medium">{locker.lockerNumber}</span></div>
-                    {(locker.startDate || locker.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</span></div>}
-                  </div>
-                ) : null;
-              })()}
-              {refundServiceType === "uniform" && (() => {
-                const uniform = memberPrograms?.uniforms?.find((u) => u.id === refundSelectedItemId) ?? memberPrograms?.uniforms?.[0];
-                return uniform ? (
-                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
-                    <div className="flex justify-between"><span className="text-muted-foreground">운동복</span><span className="font-medium">{uniform.size ? `사이즈 ${uniform.size}` : "기본"}</span></div>
-                    {(uniform.startDate || uniform.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{uniform.startDate ?? "-"} ~ {uniform.endDate ?? "-"}</span></div>}
-                  </div>
-                ) : null;
-              })()}
+              </div>
 
               {/* 결제 방법 */}
               <div className="space-y-1.5">
@@ -3596,7 +3537,7 @@ export default function MemberDetail({ memberId }: Props) {
                 </div>
               </div>
 
-              {/* 서비스 항목 차감 (락커 사용분, 밸런스체크 등 임의 항목) */}
+              {/* 서비스 항목 차감 (밸런스체크 등 임의 항목) */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">서비스 항목 차감</Label>
@@ -3609,7 +3550,7 @@ export default function MemberDetail({ memberId }: Props) {
                   </button>
                 </div>
                 {refundServiceDeductions.length === 0 ? (
-                  <p className="text-[11px] text-muted-foreground">예: 락커 사용분, 밸런스체크 비용 등 제외할 항목이 있으면 추가하세요.</p>
+                  <p className="text-[11px] text-muted-foreground">예: 밸런스체크 비용 등 제외할 항목이 있으면 추가하세요.</p>
                 ) : (
                   <div className="space-y-1.5">
                     {refundServiceDeductions.map((d, i) => (
@@ -3626,10 +3567,8 @@ export default function MemberDetail({ memberId }: Props) {
                           onChange={(e) => {
                             const nextArr = refundServiceDeductions.map((x, j) => j === i ? { ...x, amount: e.target.value } : x);
                             setRefundServiceDeductions(nextArr);
-                            const tax = Number(refundForm.taxAmount) || 0;
-                            const penalty = Number(refundForm.penaltyAmount) || 0;
-                            const nextTotal = nextArr.reduce((s, x) => s + (Number(x.amount) || 0), 0);
-                            setRefundForm((p) => ({ ...p, refundAmount: recalcRefund(tax, penalty, nextTotal) }));
+                            const nextDeduction = nextArr.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+                            setRefundForm((p) => ({ ...p, refundAmount: recalcTotal(grossAmount, tax, penalty, nextDeduction) }));
                           }}
                           className="h-8 text-xs flex-1"
                         />
@@ -3638,10 +3577,8 @@ export default function MemberDetail({ memberId }: Props) {
                           onClick={() => {
                             const nextArr = refundServiceDeductions.filter((_, j) => j !== i);
                             setRefundServiceDeductions(nextArr);
-                            const tax = Number(refundForm.taxAmount) || 0;
-                            const penalty = Number(refundForm.penaltyAmount) || 0;
-                            const nextTotal = nextArr.reduce((s, x) => s + (Number(x.amount) || 0), 0);
-                            setRefundForm((p) => ({ ...p, refundAmount: recalcRefund(tax, penalty, nextTotal) }));
+                            const nextDeduction = nextArr.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+                            setRefundForm((p) => ({ ...p, refundAmount: recalcTotal(grossAmount, tax, penalty, nextDeduction) }));
                           }}
                           className="text-muted-foreground hover:text-red-400 shrink-0 p-1"
                         >
@@ -3662,9 +3599,8 @@ export default function MemberDetail({ memberId }: Props) {
                     min="0"
                     value={refundForm.taxAmount}
                     onChange={(e) => {
-                      const tax = Number(e.target.value) || 0;
-                      const penalty = Number(refundForm.penaltyAmount) || 0;
-                      setRefundForm((p) => ({ ...p, taxAmount: e.target.value, refundAmount: recalcRefund(tax, penalty) }));
+                      const nextTax = Number(e.target.value) || 0;
+                      setRefundForm((p) => ({ ...p, taxAmount: e.target.value, refundAmount: recalcTotal(grossAmount, nextTax, penalty) }));
                     }}
                     className="h-9 text-sm"
                   />
@@ -3676,17 +3612,17 @@ export default function MemberDetail({ memberId }: Props) {
                     min="0"
                     value={refundForm.penaltyAmount}
                     onChange={(e) => {
-                      const penalty = Number(e.target.value) || 0;
-                      const tax = Number(refundForm.taxAmount) || 0;
-                      setRefundForm((p) => ({ ...p, penaltyAmount: e.target.value, refundAmount: recalcRefund(tax, penalty) }));
+                      const nextPenalty = Number(e.target.value) || 0;
+                      setRefundForm((p) => ({ ...p, penaltyAmount: e.target.value, refundAmount: recalcTotal(grossAmount, tax, nextPenalty) }));
                     }}
                     className="h-9 text-sm"
                   />
                 </div>
               </div>
-              {deductionTotal > 0 && (
-                <p className="text-[11px] text-muted-foreground -mt-2">서비스 항목 차감 합계: -{deductionTotal.toLocaleString()}원 (환불 금액에 반영됨)</p>
-              )}
+              <p className="text-[11px] text-muted-foreground -mt-2">
+                환불 대상 합계: {grossAmount.toLocaleString()}원
+                {deductionTotal > 0 && ` · 서비스 항목 차감: -${deductionTotal.toLocaleString()}원`}
+              </p>
 
               {/* 환불 금액 */}
               <div className="space-y-1.5">
@@ -3716,99 +3652,42 @@ export default function MemberDetail({ memberId }: Props) {
                 <Button variant="outline" className="flex-1" onClick={() => setRefundModalOpen(false)}>취소</Button>
                 <Button
                   className="flex-1"
-                  disabled={createRefundContractMutation.isPending}
+                  disabled={createRefundContractMutation.isPending || checkedRows.length === 0}
                   onClick={() => {
                     if (!member) return;
                     const serviceItemsPayload = refundServiceDeductions
                       .filter((d) => d.label.trim() && (Number(d.amount) || 0) > 0)
                       .map((d) => ({ label: d.label.trim(), amount: Number(d.amount) || 0 }));
-                    if (refundServiceType === "pt") {
-                      const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
-                      if (!pkg) return;
-                      createRefundContractMutation.mutate({
-                        memberId: member.id,
-                        packageId: pkg.id,
-                        memberName: member.name,
-                        memberPhone: member.phone ?? undefined,
-                        programName: pkg.packageName || "PT 프로그램",
-                        paymentAmount: pkg.paymentAmount ?? 0,
-                        totalSessions: pkg.totalSessions,
-                        usedSessions: pkg.usedSessions,
-                        paymentMethod: refundForm.paymentMethod || undefined,
-                        taxAmount: Number(refundForm.taxAmount) || 0,
-                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
-                        serviceItems: serviceItemsPayload,
-                        refundAmount: Number(refundForm.refundAmount) || 0,
-                        reason: refundForm.reason || undefined,
-                        refundType: "pt",
-                        originalRevenueEntryId: pkg.revenueEntryId ?? undefined,
-                      });
-                    } else if (refundServiceType === "health") {
-                      const rev = (healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any;
-                      createRefundContractMutation.mutate({
-                        memberId: member.id,
-                        memberName: member.name,
-                        memberPhone: member.phone ?? undefined,
-                        programName: `헬스권${rev?.subType ? ` (${rev.subType})` : ""}`,
-                        paymentAmount: rev?.paidAmount ?? 0,
-                        totalSessions: 0,
-                        usedSessions: 0,
-                        paymentMethod: refundForm.paymentMethod || undefined,
-                        taxAmount: Number(refundForm.taxAmount) || 0,
-                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
-                        serviceItems: serviceItemsPayload,
-                        refundAmount: Number(refundForm.refundAmount) || 0,
-                        reason: refundForm.reason || undefined,
-                        refundType: "health",
-                        originalRevenueEntryId: rev?.id ?? undefined,
-                      });
-                    } else if (refundServiceType === "locker") {
-                      const locker = memberPrograms?.lockers?.find((l) => l.id === refundSelectedItemId) ?? memberPrograms?.lockers?.[0];
-                      createRefundContractMutation.mutate({
-                        memberId: member.id,
-                        memberName: member.name,
-                        memberPhone: member.phone ?? undefined,
-                        programName: `락커 ${locker?.lockerNumber ?? ""}`,
-                        paymentAmount: 0,
-                        totalSessions: 0,
-                        usedSessions: 0,
-                        paymentMethod: refundForm.paymentMethod || undefined,
-                        taxAmount: Number(refundForm.taxAmount) || 0,
-                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
-                        serviceItems: serviceItemsPayload,
-                        refundAmount: Number(refundForm.refundAmount) || 0,
-                        reason: refundForm.reason || undefined,
-                        refundType: "locker",
-                        lockerId: locker?.id,
-                      });
-                    } else if (refundServiceType === "uniform") {
-                      const uniform = memberPrograms?.uniforms?.find((u) => u.id === refundSelectedItemId) ?? memberPrograms?.uniforms?.[0];
-                      createRefundContractMutation.mutate({
-                        memberId: member.id,
-                        memberName: member.name,
-                        memberPhone: member.phone ?? undefined,
-                        programName: `운동복${uniform?.size ? ` (${uniform.size})` : ""}`,
-                        paymentAmount: 0,
-                        totalSessions: 0,
-                        usedSessions: 0,
-                        paymentMethod: refundForm.paymentMethod || undefined,
-                        taxAmount: Number(refundForm.taxAmount) || 0,
-                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
-                        serviceItems: serviceItemsPayload,
-                        refundAmount: Number(refundForm.refundAmount) || 0,
-                        reason: refundForm.reason || undefined,
-                        refundType: "uniform",
-                        uniformId: uniform?.id,
-                      });
-                    }
+                    const refundItemsPayload = checkedRows.map((r) => ({
+                      type: r.type,
+                      label: r.label,
+                      amount: Number(refundItemAmounts[r.key]) || 0,
+                      packageId: r.packageId,
+                      originalRevenueEntryId: r.originalRevenueEntryId,
+                      lockerId: r.lockerId,
+                      uniformId: r.uniformId,
+                      totalSessions: r.totalSessions,
+                      usedSessions: r.usedSessions,
+                    }));
+                    if (refundItemsPayload.length === 0) { toast.error("환불할 항목을 선택해주세요."); return; }
+                    createRefundContractMutation.mutate({
+                      memberId: member.id,
+                      memberName: member.name,
+                      memberPhone: member.phone ?? undefined,
+                      paymentMethod: refundForm.paymentMethod || undefined,
+                      taxAmount: tax,
+                      penaltyAmount: penalty,
+                      serviceItems: serviceItemsPayload,
+                      refundItems: refundItemsPayload,
+                      refundAmount: Number(refundForm.refundAmount) || 0,
+                      reason: refundForm.reason || undefined,
+                    });
                   }}
                 >
                   {createRefundContractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "계약서 생성 및 링크 발급 (환불 반영 포함)"}
                 </Button>
               </div>
             </div>
-          )}
-          </>
             );
           })()}
         </DialogContent>

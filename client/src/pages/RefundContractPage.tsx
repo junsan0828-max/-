@@ -35,21 +35,33 @@ export default function RefundContractPage({ token }: { token: string }) {
 
         {/* Program Info */}
         <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-          <p className="text-sm font-semibold text-foreground">프로그램 정보</p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="col-span-2"><p className="text-muted-foreground">프로그램명</p><p className="font-medium">{data.programName}</p></div>
-            <div><p className="text-muted-foreground">총 횟수</p><p className="font-medium">{data.totalSessions}회</p></div>
-            <div><p className="text-muted-foreground">수강 횟수</p><p className="font-medium">{data.usedSessions}회</p></div>
-            <div><p className="text-muted-foreground">잔여 횟수</p><p className="font-medium">{data.totalSessions - data.usedSessions}회</p></div>
-            {data.paymentMethod && <div><p className="text-muted-foreground">결제 방법</p><p className="font-medium">{data.paymentMethod}</p></div>}
+          <p className="text-sm font-semibold text-foreground">환불 항목</p>
+          <div className="space-y-1.5 text-xs">
+            {(() => {
+              let items: { type: string; label: string; amount: number; totalSessions?: number; usedSessions?: number }[] = [];
+              try { items = data.refundItems ? JSON.parse(data.refundItems) : []; } catch { items = []; }
+              if (items.length === 0) {
+                return <div className="flex justify-between"><span className="text-muted-foreground">{data.programName}</span><span className="font-medium">{data.paymentAmount.toLocaleString()}원</span></div>;
+              }
+              return items.map((it, i) => (
+                <div key={i} className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    {it.label}
+                    {it.type === "pt" && it.totalSessions != null && <span className="text-[10px]"> ({it.usedSessions ?? 0}/{it.totalSessions}회 사용)</span>}
+                  </span>
+                  <span className="font-medium">{it.amount.toLocaleString()}원</span>
+                </div>
+              ));
+            })()}
           </div>
+          {data.paymentMethod && <p className="text-xs pt-1 border-t border-border/50"><span className="text-muted-foreground">결제 방법 </span><span className="font-medium">{data.paymentMethod}</span></p>}
         </div>
 
         {/* Refund Calculation */}
         <div className="bg-card border border-border rounded-lg p-4 space-y-2">
           <p className="text-sm font-semibold text-foreground">환불 금액 계산</p>
           <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{data.paymentAmount.toLocaleString()}원</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">환불 대상 합계</span><span className="font-medium">{data.paymentAmount.toLocaleString()}원</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">부가세</span><span className="font-medium text-red-400">- {data.taxAmount.toLocaleString()}원</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">위약금</span><span className="font-medium text-red-400">- {data.penaltyAmount.toLocaleString()}원</span></div>
             {(() => {

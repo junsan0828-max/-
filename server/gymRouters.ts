@@ -3317,30 +3317,35 @@ const gymSettingsRouter = t.router({
 
 // ─── 환불 계약서 ──────────────────────────────────────────────────────────────
 const refundContractRouter = t.router({
+  // 회원이 보통 나갈 땐 PT·헬스·락커·운동복을 한꺼번에 정리하지, 종목별로 따로 처리하지
+  // 않는다. 그래서 항목을 여러 개 담아 계약서 하나·매출 반영 한 번으로 처리한다.
+  // (예전엔 종목마다 별도 버튼→별도 계약서였다.)
   createRefundContract: protectedProcedure
     .input(z.object({
       memberId: z.number(),
-      packageId: z.number().optional(),
       memberName: z.string(),
       memberPhone: z.string().optional(),
-      programName: z.string(),
-      paymentAmount: z.number().default(0),
-      totalSessions: z.number().default(0),
-      usedSessions: z.number().default(0),
       paymentMethod: z.string().optional(),
       taxAmount: z.number().default(0),
       penaltyAmount: z.number().default(0),
       // 서비스 항목 차감 내역(락커 사용분, 밸런스체크 등 임의 항목) — 계약서에 항목별로 표시된다.
       serviceItems: z.array(z.object({ label: z.string(), amount: z.number() })).optional(),
+      // 실제로 환불되는 항목들. 항목마다 자기 매출 타입으로 별도 환불 매출을 남기고
+      // (PT매출/헬스매출 등 유형별 집계가 안 깨지도록), 각자 해당하는 실물 상태도 정리한다.
+      refundItems: z.array(z.object({
+        type: z.enum(["pt", "health", "locker", "uniform"]),
+        label: z.string(),
+        amount: z.number(),
+        packageId: z.number().optional(),
+        originalRevenueEntryId: z.number().optional(),
+        lockerId: z.number().optional(),
+        uniformId: z.number().optional(),
+        totalSessions: z.number().optional(),
+        usedSessions: z.number().optional(),
+      })).min(1),
       refundAmount: z.number().default(0),
       reason: z.string().optional(),
       gymName: z.string().optional(),
-      // 실제 환불 반영용 — 계약서만 만들고 데이터는 그대로면 매출·PT 잔여·락커가 계속 살아있는
-      // 것처럼 보이는 사고로 이어진다. 계약서 생성과 동시에 실제로 반영한다.
-      refundType: z.enum(["pt", "health", "locker", "uniform"]),
-      lockerId: z.number().optional(),
-      uniformId: z.number().optional(),
-      originalRevenueEntryId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
@@ -3371,53 +3376,65 @@ const refundContractRouter = t.router({
         )
       `);
       await pool.query(`ALTER TABLE refund_contracts ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
+      await pool.query(`ALTER TABLE refund_contracts ADD COLUMN IF NOT EXISTS "refundItems" TEXT`);
       const token = randomUUID();
       const now = new Date().toISOString();
+      const firstPt = input.refundItems.find(i => i.type === "pt");
+      const programName = input.refundItems.map(i => i.label).join(" · ");
+      const grossAmount = input.refundItems.reduce((s, i) => s + i.amount, 0);
       await pool.query(
-        `INSERT INTO refund_contracts (token,"memberId","packageId","memberName","memberPhone","programName","paymentAmount","totalSessions","usedSessions","paymentMethod","taxAmount","penaltyAmount","serviceItems","refundAmount",reason,"gymName",status,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',$17)`,
-        [token, input.memberId, input.packageId ?? null, input.memberName, input.memberPhone ?? null, input.programName, input.paymentAmount, input.totalSessions, input.usedSessions, input.paymentMethod ?? null, input.taxAmount, input.penaltyAmount, JSON.stringify(input.serviceItems ?? []), input.refundAmount, input.reason ?? null, input.gymName ?? "자이언트짐", now]
+        `INSERT INTO refund_contracts (token,"memberId","packageId","memberName","memberPhone","programName","paymentAmount","totalSessions","usedSessions","paymentMethod","taxAmount","penaltyAmount","serviceItems","refundItems","refundAmount",reason,"gymName",status,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'pending',$18)`,
+        [token, input.memberId, firstPt?.packageId ?? null, input.memberName, input.memberPhone ?? null, programName, grossAmount, firstPt?.totalSessions ?? 0, firstPt?.usedSessions ?? 0, input.paymentMethod ?? null, input.taxAmount, input.penaltyAmount, JSON.stringify(input.serviceItems ?? []), JSON.stringify(input.refundItems), input.refundAmount, input.reason ?? null, input.gymName ?? "자이언트짐", now]
       );
 
       // ── 실제 환불 반영 ──────────────────────────────────────────────────────
       // 매출(환불 건 기록) + PT 패키지/락커/운동복 상태 정리. 계약서는 서류일 뿐이고
       // 이게 있어야 매출·정산·잔여 세션·락커 현황이 실제로 맞아떨어진다.
-      let trainerId: number | null = null;
-      if (input.packageId) {
-        const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages)
-          .where(eq(ptPackages.id, input.packageId)).limit(1);
-        trainerId = pkg?.trainerId ?? null;
-      }
-      if (input.refundAmount > 0) {
+      // 위약금·부가세·서비스차감은 전체 합계에서 한 번만 빼되, 항목별 매출은 총액 대비
+      // 그 항목이 차지하는 비중만큼 배분한다(유형별 매출 집계가 정확하도록).
+      for (const item of input.refundItems) {
+        const share = grossAmount > 0 ? item.amount / grossAmount : 0;
+        const itemNet = Math.round(input.refundAmount * share);
+        if (itemNet <= 0) continue;
+
+        let trainerId: number | null = null;
+        if (item.packageId) {
+          const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages)
+            .where(eq(ptPackages.id, item.packageId)).limit(1);
+          trainerId = pkg?.trainerId ?? null;
+        }
         await db.insert(revenueEntries).values({
           memberId: input.memberId,
           trainerId,
           createdBy: ctx.user!.id,
           customerName: input.memberName,
           phone: input.memberPhone ?? null,
-          programDetail: `${input.programName} 환불`,
-          type: input.refundType === "pt" ? "PT" : input.refundType === "health" ? "헬스" : "기타",
+          programDetail: `${item.label} 환불`,
+          type: item.type === "pt" ? "PT" : item.type === "health" ? "헬스" : "기타",
           subType: "환불",
-          amount: input.refundAmount,
+          amount: itemNet,
           discountAmount: 0,
-          paidAmount: -input.refundAmount,
+          paidAmount: -itemNet,
           unpaidAmount: 0,
-          refundAmount: input.refundAmount,
+          refundAmount: itemNet,
           paymentMethod: input.paymentMethod || undefined,
           paymentDate: kstDate(),
-          relatedEntryId: input.originalRevenueEntryId ?? null,
-          memo: input.reason || `${input.programName} 환불 계약서 발급 (${token})`,
+          relatedEntryId: item.originalRevenueEntryId ?? null,
+          memo: input.reason || `${programName} 환불 계약서 발급 (${token})`,
         });
       }
-      if (input.packageId) {
-        await db.update(ptPackages).set({ status: "refunded", updatedAt: now }).where(eq(ptPackages.id, input.packageId));
-      }
-      if (input.lockerId) {
-        await db.update(lockers)
-          .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: now })
-          .where(eq(lockers.id, input.lockerId));
-      }
-      if (input.uniformId) {
-        await db.update(uniforms).set({ isActive: 0, updatedAt: now }).where(eq(uniforms.id, input.uniformId));
+      for (const item of input.refundItems) {
+        if (item.packageId) {
+          await db.update(ptPackages).set({ status: "refunded", updatedAt: now }).where(eq(ptPackages.id, item.packageId));
+        }
+        if (item.lockerId) {
+          await db.update(lockers)
+            .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: now })
+            .where(eq(lockers.id, item.lockerId));
+        }
+        if (item.uniformId) {
+          await db.update(uniforms).set({ isActive: 0, updatedAt: now }).where(eq(uniforms.id, item.uniformId));
+        }
       }
 
       return { token, contractUrl: `/refund/${token}` };
@@ -3433,7 +3450,7 @@ const refundContractRouter = t.router({
         memberName: string | null; memberPhone: string | null; programName: string;
         paymentAmount: number; totalSessions: number; usedSessions: number;
         paymentMethod: string | null; taxAmount: number; penaltyAmount: number;
-        serviceItems: string | null;
+        serviceItems: string | null; refundItems: string | null;
         refundAmount: number; reason: string | null; gymName: string | null;
         status: string; createdAt: string;
       };
