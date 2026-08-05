@@ -849,7 +849,7 @@ export default function MemberDetail({ memberId }: Props) {
                     프로그램 추가
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-sm">
+                <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>프로그램 추가</DialogTitle>
                     <DialogDescription>{member.name}님에게 새 프로그램을 추가합니다.</DialogDescription>
