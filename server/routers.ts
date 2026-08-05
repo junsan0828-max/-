@@ -2107,12 +2107,20 @@ const ptRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages).where(eq(ptPackages.id, input.packageId)).limit(1);
-      if (!pkg) throw new TRPCError({ code: "NOT_FOUND" });
+      const { pool } = await import("./db");
+      const pkgRow = await pool.query<{ trainerId: number | null; revenueEntryId: number | null }>(
+        `SELECT "trainerId", "revenueEntryId" FROM pt_packages WHERE id = $1 LIMIT 1`,
+        [input.packageId]
+      );
+      if (pkgRow.rows.length === 0) throw new TRPCError({ code: "NOT_FOUND" });
+      const pkg = pkgRow.rows[0];
       const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
       if (!isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
         throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 삭제할 수 있습니다." });
       await db.delete(ptPackages).where(eq(ptPackages.id, input.packageId));
+      if (pkg.revenueEntryId) {
+        await db.delete(revenueEntries).where(eq(revenueEntries.id, pkg.revenueEntryId));
+      }
       return { success: true };
     }),
 
