@@ -3994,17 +3994,23 @@ const adminRouter = t.router({
             } else {
               await pool.query(`UPDATE par_q SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
             }
-            const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
-            if (gymPlusDelRow.rows.length > 0) {
-              const gid = gymPlusDelRow.rows[0].id;
-              const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
-              if (gymPlusKeepRow.rows.length > 0) {
-                await pool.query(`DELETE FROM gym_plus_messages WHERE "gymPlusMemberId" = $1`, [gid]);
-                await pool.query(`DELETE FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1`, [gid]);
-                await pool.query(`DELETE FROM gym_plus_push_subscriptions WHERE "gymPlusMemberId" = $1`, [gid]);
-                await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gid]);
-              } else {
-                await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gid]);
+            const gymPlusCheck = await pool.query(`SELECT to_regclass('gym_plus_members') IS NOT NULL AS exists`);
+            if (gymPlusCheck.rows[0]?.exists) {
+              const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
+              if (gymPlusDelRow.rows.length > 0) {
+                const gid = gymPlusDelRow.rows[0].id;
+                const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+                if (gymPlusKeepRow.rows.length > 0) {
+                  for (const childTbl of ['gym_plus_messages', 'gym_plus_workout_logs', 'gym_plus_push_subscriptions']) {
+                    const tblExists = await pool.query(`SELECT to_regclass($1) IS NOT NULL AS exists`, [childTbl]);
+                    if (tblExists.rows[0]?.exists) {
+                      await pool.query(`DELETE FROM "${childTbl}" WHERE "gymPlusMemberId" = $1`, [gid]);
+                    }
+                  }
+                  await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gid]);
+                } else {
+                  await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gid]);
+                }
               }
             }
             for (const [tbl, col] of [

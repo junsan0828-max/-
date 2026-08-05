@@ -2044,19 +2044,23 @@ async function start() {
           }
 
           // gym_plus_members — 자식 테이블 먼저 정리 후 처리
-          const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
-          if (gymPlusDelRow.rows.length > 0) {
-            const gymPlusDelId = gymPlusDelRow.rows[0].id;
-            const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
-            if (gymPlusKeepRow.rows.length > 0) {
-              // keepId도 gym_plus 있으면 delId 쪽 자식 데이터 삭제
-              await pool.query(`DELETE FROM gym_plus_messages WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
-              await pool.query(`DELETE FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
-              await pool.query(`DELETE FROM gym_plus_push_subscriptions WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
-              await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gymPlusDelId]);
-            } else {
-              // keepId에 gym_plus 없으면 memberId만 변경
-              await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gymPlusDelId]);
+          const gymPlusTableCheck = await pool.query(`SELECT to_regclass('gym_plus_members') IS NOT NULL AS exists`);
+          if (gymPlusTableCheck.rows[0]?.exists) {
+            const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
+            if (gymPlusDelRow.rows.length > 0) {
+              const gymPlusDelId = gymPlusDelRow.rows[0].id;
+              const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+              if (gymPlusKeepRow.rows.length > 0) {
+                for (const childTbl of ['gym_plus_messages', 'gym_plus_workout_logs', 'gym_plus_push_subscriptions']) {
+                  const tblExists = await pool.query(`SELECT to_regclass($1) IS NOT NULL AS exists`, [childTbl]);
+                  if (tblExists.rows[0]?.exists) {
+                    await pool.query(`DELETE FROM "${childTbl}" WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
+                  }
+                }
+                await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gymPlusDelId]);
+              } else {
+                await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gymPlusDelId]);
+              }
             }
           }
 
