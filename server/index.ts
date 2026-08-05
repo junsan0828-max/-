@@ -15,6 +15,7 @@ import { syncSheetNow } from "./sheetSync";
 import { startNotionBriefingScheduler } from "./notionBriefing";
 import { generateHealthReportHTML } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
+import { createBranchManagerMcpRouter } from "./branchManagerMcp";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -56,6 +57,9 @@ app.use(
     },
   })
 );
+
+// MCP: 온라인 지부장/제이용 읽기 전용 운영 조회
+app.use("/mcp/branch-manager", createBranchManagerMcpRouter());
 
 // tRPC API
 app.use(
