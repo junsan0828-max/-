@@ -666,16 +666,11 @@ export default function MemberDetail({ memberId }: Props) {
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
-              {member.name.charAt(0)}
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">{member.name}</h1>
-              <p className="text-xs text-muted-foreground">
-                {membershipLabels[member.grade]} · {statusLabels[member.status]}
-              </p>
-            </div>
+          <div>
+            <h1 className="text-lg font-bold">{member.name}</h1>
+            <p className="text-xs text-muted-foreground">
+              {membershipLabels[member.grade]} · {statusLabels[member.status]}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">

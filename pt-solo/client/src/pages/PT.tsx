@@ -550,11 +550,6 @@ function MembersTab() {
                         {isSelected ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5 text-muted-foreground" />}
                       </div>
                     )}
-                    {!selectMode && (
-                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
-                        {member.name.charAt(0)}
-                      </div>
-                    )}
                     <div className="min-w-0 flex-1">
                       {/* 1행: 이름 + 상태/경고 뱃지 */}
                       <div className="flex items-center gap-1.5 flex-wrap">
