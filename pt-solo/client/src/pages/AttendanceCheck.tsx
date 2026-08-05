@@ -303,9 +303,7 @@ export default function AttendanceCheck({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "취소 실패"),
   });
 
-  const useSessionMutation = trpc.pt.useSession.useMutation({
-    onError: (err) => toast.error(err.message || "세션 차감 실패"),
-  });
+  const useSessionMutation = trpc.pt.useSession.useMutation();
 
   const upsertMutation = trpc.attendanceChecks.upsert.useMutation({
     onSuccess: () => {
@@ -313,8 +311,12 @@ export default function AttendanceCheck({ memberId }: Props) {
         useSessionMutation.mutate(
           { packageId: selectedPkgId, memberId, sessionDate: checkDate },
           {
-            onSettled: () => {
+            onSuccess: () => {
               toast.success("출석 및 세션이 저장되었습니다.");
+              setLocation(`/attendance?date=${checkDate}`);
+            },
+            onError: () => {
+              toast.success("출석은 저장되었으나 세션 차감에 실패했습니다.");
               setLocation(`/attendance?date=${checkDate}`);
             },
           }
