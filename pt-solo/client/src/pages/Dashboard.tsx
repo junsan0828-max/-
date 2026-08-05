@@ -242,9 +242,6 @@ function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { c
           <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
         </div>
         <span className="text-sm font-semibold">{cat.label}</span>
-        <button onClick={() => onNavigate()} className={`ml-auto text-[12px] font-semibold ${cat.iconCls}`}>
-          설정 →
-        </button>
       </div>
       <div className="grid grid-cols-4 gap-3">
         {visibleItems.map(item => (
