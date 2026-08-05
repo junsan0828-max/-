@@ -902,6 +902,18 @@ async function initDatabase() {
       await pool.query(`INSERT INTO plan_settings (key, value) VALUES ('pricing_version','2') ON CONFLICT (key) DO UPDATE SET value='2'`);
     }
   }
+  // ── 할인율 중복 적용 버그 수정 (기존 DB 강제 갱신, 1회성) ─────────────────────
+  // PRO 가격(69,000원)은 이미 정가(150,000원) 대비 "오픈이벤트" 할인가인데,
+  // 관리자 화면에서 추가로 할인율(예: 60%)까지 설정해두면 69,000원 위에
+  // 한 번 더 할인이 걸려 27,600원처럼 의도치 않게 더 깎여 보이는 문제가 있었음.
+  // PRO/ELITE 추가 할인율을 0으로 되돌려 표시가만 다시 69,000원이 되게 한다.
+  {
+    const ver = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='pricing_version'`);
+    if (ver.rows[0]?.value !== '3') {
+      await pool.query(`UPDATE plan_settings SET value='0' WHERE key IN ('plan_discount_pro','plan_discount_elite')`);
+      await pool.query(`INSERT INTO plan_settings (key, value) VALUES ('pricing_version','3') ON CONFLICT (key) DO UPDATE SET value='3'`);
+    }
+  }
 
   // ── 웹 푸시 알림 ─────────────────────────────────────────────────────────────
   await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
