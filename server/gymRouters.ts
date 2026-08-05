@@ -1382,6 +1382,88 @@ const revenueRouter = t.router({
       return Object.values(byTrainer).sort((a, b) => b.total - a.total);
     }),
 
+  consultantSummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+
+      const allRows = await db.select({
+        entry: revenueEntries,
+        consultantName: users.username,
+      })
+        .from(revenueEntries)
+        .leftJoin(users, eq(revenueEntries.consultantId, users.id))
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
+
+      type ConsultantStats = {
+        consultantId: number;
+        consultantName: string;
+        total: number;
+        ptNew: number;
+        ptRenewal: number;
+        health: number;
+        etc: number;
+        count: number;
+        leadCount: number;
+        registeredCount: number;
+        conversionRate: number;
+      };
+      const byConsultant: Record<number, ConsultantStats> = {};
+
+      for (const row of rows) {
+        const cid = row.entry.consultantId ?? 0;
+        if (!byConsultant[cid]) {
+          byConsultant[cid] = {
+            consultantId: cid,
+            consultantName: row.consultantName ?? "미배정",
+            total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
+            leadCount: 0, registeredCount: 0, conversionRate: 0,
+          };
+        }
+        if (row.entry.subType === "이전") continue;
+        const amt = row.entry.paidAmount;
+        byConsultant[cid].total += amt;
+        byConsultant[cid].count += 1;
+        if (row.entry.type === "PT" && row.entry.subType === "신규") byConsultant[cid].ptNew += amt;
+        else if (row.entry.type === "PT" && row.entry.subType === "재등록") byConsultant[cid].ptRenewal += amt;
+        else if (row.entry.type === "헬스") byConsultant[cid].health += amt;
+        else byConsultant[cid].etc += amt;
+      }
+
+      const allLeads = await db.select().from(leads);
+      const monthLeads = allLeads.filter(l => (l.consultationDate ?? "").startsWith(prefix));
+
+      for (const lead of monthLeads) {
+        const cid = lead.assignedConsultantId ?? 0;
+        if (!byConsultant[cid]) {
+          const consultant = cid ? await db.select({ username: users.username }).from(users).where(eq(users.id, cid)).limit(1) : [];
+          byConsultant[cid] = {
+            consultantId: cid,
+            consultantName: consultant[0]?.username ?? "미배정",
+            total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
+            leadCount: 0, registeredCount: 0, conversionRate: 0,
+          };
+        }
+        byConsultant[cid].leadCount += 1;
+        if (lead.status === "registered") byConsultant[cid].registeredCount += 1;
+      }
+
+      for (const c of Object.values(byConsultant)) {
+        c.conversionRate = c.leadCount > 0 ? Math.round((c.registeredCount / c.leadCount) * 100) : 0;
+      }
+
+      return Object.values(byConsultant)
+        .filter(c => c.total > 0 || c.leadCount > 0)
+        .sort((a, b) => b.total - a.total);
+    }),
+
   channelSummary: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {

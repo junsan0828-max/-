@@ -273,6 +273,7 @@ export default function GymDashboard() {
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: consultantSummary } = trpc.gym.revenue.consultantSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: memberTrend } = trpc.gym.kpi.memberTrend.useQuery({ months: 6, ...(branchFilter ? { branchId: branchFilter } : {}) });
@@ -673,6 +674,56 @@ export default function GymDashboard() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상담담당자별 성과 */}
+      {(consultantSummary ?? []).length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">상담담당자별 성과</h2>
+          <div className="space-y-3">
+            {(consultantSummary ?? []).map((c, i) => {
+              const maxTotal = consultantSummary?.[0]?.total || 1;
+              return (
+                <div key={i} className="space-y-1.5 pb-2 border-b border-border last:border-0 last:pb-0">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-foreground">{c.consultantName}</span>
+                    <span className="text-sm font-semibold text-foreground">{fmt(c.total)}원</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${(c.total / maxTotal) * 100}%` }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">PT 신규</span>
+                      <span className="text-blue-400">{fmt(c.ptNew)}원</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">PT 재등록</span>
+                      <span className="text-green-400">{fmt(c.ptRenewal)}원</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">헬스</span>
+                      <span className="text-amber-400">{fmt(c.health)}원</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">기타</span>
+                      <span className="text-muted-foreground">{fmt(c.etc)}원</span>
+                    </div>
+                  </div>
+                  {c.leadCount > 0 && (
+                    <div className="flex items-center gap-3 text-[11px] mt-1 pt-1 border-t border-border/50">
+                      <span className="text-muted-foreground">상담 {c.leadCount}건</span>
+                      <span className="text-muted-foreground">등록 {c.registeredCount}건</span>
+                      <span className={`font-medium ${c.conversionRate >= 50 ? "text-emerald-400" : c.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>
+                        전환률 {c.conversionRate}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
