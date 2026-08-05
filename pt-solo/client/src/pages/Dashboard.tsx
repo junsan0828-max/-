@@ -79,17 +79,6 @@ type WsNavFn = (featureId?: string) => void;
 
 const WS_DASH: WsDashCat[] = [
   {
-    key: "content", label: "콘텐츠 · 운동 관리",
-    icon: PlaySquare, iconCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", itemColorCls: "text-violet-500",
-    items: [
-      { id: "templates",        icon: Dumbbell,     name: "운동 템플릿" },
-      { id: "fitstep_videos",   icon: PlaySquare,   name: "운동 영상 200" },
-      { id: "fitstep_diet",     icon: Utensils,     name: "식단 관리" },
-      { id: "fitstep_personal", icon: Activity,     name: "운동 기록" },
-      { id: "training_video",   icon: Video,        name: "일지+영상" },
-    ],
-  },
-  {
     key: "branding", label: "브랜딩 · 예약",
     icon: Globe, iconCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", itemColorCls: "text-blue-500",
     items: [
@@ -101,7 +90,7 @@ const WS_DASH: WsDashCat[] = [
     ],
   },
   {
-    key: "contract", label: "계약 · 상담 서류",
+    key: "contract", label: "계약 · 상담",
     icon: FileSignature, iconCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", itemColorCls: "text-cyan-500",
     items: [
       { id: "survey",           icon: ClipboardList,  name: "상담 설문" },
@@ -109,29 +98,6 @@ const WS_DASH: WsDashCat[] = [
       { id: "transfer_contract",icon: ArrowLeftRight, name: "양도 계약서" },
       { id: "e_contract",       icon: FileSignature,  name: "비대면 계약" },
       { id: "contract_kakao",   icon: MessageCircle,  name: "카카오 공유" },
-    ],
-  },
-  {
-    key: "revenue", label: "매출 · 재등록 분석",
-    icon: TrendingUp, iconCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", itemColorCls: "text-emerald-500",
-    items: [
-      { id: "sales_analysis",     icon: BarChart3,    name: "매출 분석" },
-      { id: "monthly_pnl",        icon: PieChart,     name: "월간 손익" },
-      { id: "renewal_analysis",   icon: TrendingUp,   name: "재등록 분석" },
-      { id: "consult_conversion", icon: ArrowUpRight, name: "상담 전환율" },
-    ],
-  },
-  {
-    key: "insight", label: "운영 리포트 · AI",
-    icon: Brain, iconCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", itemColorCls: "text-amber-500",
-    items: [
-      { id: "member_overview",    icon: Users,       name: "회원 운영 현황" },
-      { id: "activity_stats",     icon: Activity,    name: "활동 통계" },
-      { id: "kpi_report",         icon: Target,      name: "KPI 리포트" },
-      { id: "channel_analysis",   icon: Share2,      name: "채널 분석" },
-      { id: "marketing_analysis", icon: Zap,         name: "마케팅 분석" },
-      { id: "ai_insights",        icon: Brain,       name: "AI 인사이트" },
-      { id: "data_migration",     icon: Database,    name: "데이터 이전" },
     ],
   },
 ];
@@ -168,31 +134,40 @@ type ToolItem = {
   onClick: () => void;
   badge?: number | null;
   locked?: boolean;
+  comingSoon?: boolean;
 };
 
 function ToolGrid({ items }: { items: ToolItem[] }) {
   return (
     <div className="grid grid-cols-4 gap-3">
-      {items.map((item) => (
-        <button key={item.label} onClick={item.locked ? undefined : item.onClick} className="flex flex-col items-center gap-1.5 group">
-          <div className={`relative w-14 h-14 rounded-[18px] ${item.bgCls} border ${item.borderCls} flex items-center justify-center transition-all active:scale-90 ${item.locked ? "opacity-40" : ""}`}>
-            <item.icon className={`h-5 w-5 ${item.colorCls}`} />
-            {item.badge != null && item.badge > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1 border-2 border-background">
-                {item.badge > 99 ? "99+" : item.badge}
-              </span>
-            )}
-            {item.locked && (
-              <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
-                <Lock className="h-2.5 w-2.5 text-muted-foreground" />
-              </div>
-            )}
-          </div>
-          <span className={`text-[10.5px] font-semibold text-center leading-tight ${item.locked ? "text-muted-foreground/40" : "text-foreground/65 group-hover:text-foreground"} transition-colors`}>
-            {item.label}
-          </span>
-        </button>
-      ))}
+      {items.map((item) => {
+        const faded = item.locked || item.comingSoon;
+        return (
+          <button key={item.label} onClick={item.locked ? undefined : item.onClick} className="flex flex-col items-center gap-1.5 group">
+            <div className={`relative w-14 h-14 rounded-[18px] ${item.bgCls} border ${item.borderCls} flex items-center justify-center transition-all active:scale-90 ${faded ? "opacity-40" : ""}`}>
+              <item.icon className={`h-5 w-5 ${item.colorCls}`} />
+              {item.badge != null && item.badge > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1 border-2 border-background">
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
+              {item.locked && (
+                <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
+                  <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+                </div>
+              )}
+              {item.comingSoon && !item.locked && (
+                <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
+                  <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+            <span className={`text-[10.5px] font-semibold text-center leading-tight ${faded ? "text-muted-foreground/40" : "text-foreground/65 group-hover:text-foreground"} transition-colors`}>
+              {item.label}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -775,37 +750,43 @@ function TrainerDashboard() {
           { label: "미수금", icon: AlertTriangle, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
           { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
           { label: "재등록 안내", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
+          { label: "회원 운영 현황", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => openFeature("member_overview"), comingSoon: true },
         ]} />
       </div>
 
-      {/* 수업 */}
+      {/* 수업·운동 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
             <Dumbbell className="h-3.5 w-3.5 text-teal-500" />
           </div>
-          <span className="text-sm font-semibold">수업</span>
+          <span className="text-sm font-semibold">수업·운동</span>
         </div>
         <ToolGrid items={[
           { label: "오늘 수업 수", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
           { label: "이번달 수업", icon: BarChart3, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setPtStatsModalOpen(true) },
           { label: "수업 일지", icon: BookOpen, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setJournalOpen(true) },
           { label: "PAR-Q 미기록", icon: ShieldCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setParqModalOpen(true), badge: parqMissing?.length ?? null },
+          { label: "운동 템플릿", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("templates") },
+          { label: "운동 영상 200", icon: PlaySquare, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_videos"), locked: !isProPlan },
+          { label: "식단 관리", icon: Utensils, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_diet"), locked: !isProPlan },
+          { label: "운동 기록", icon: Activity, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_personal"), locked: !isProPlan },
+          { label: "일지+영상", icon: Video, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("training_video"), comingSoon: true },
         ]} />
       </div>
 
-      {/* 매출·통계 — 성장분석실로 바로 이동 (중복 화면 없이 한 곳에서 관리) */}
+      {/* 매출·분석 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
             </div>
-            <span className="text-sm font-semibold">매출·통계</span>
+            <span className="text-sm font-semibold">매출·분석</span>
           </div>
           <button onClick={() => setLocation("/settlement")}
             className="text-[12px] font-semibold text-muted-foreground hover:text-primary transition-colors">
-            성장분석실 전체보기 →
+            전체보기 →
           </button>
         </div>
         <ToolGrid items={[
@@ -813,22 +794,29 @@ function TrainerDashboard() {
           { label: "월 매출", icon: BarChart3, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=monthly") },
           { label: "월 지출", icon: Wallet, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=expense") },
           { label: "정산 요약", icon: FileText, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
+          { label: "월간 손익", icon: PieChart, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=analysis") },
+          { label: "재등록 분석", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("renewal_analysis"), comingSoon: true },
+          { label: "상담 전환율", icon: ArrowUpRight, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("consult_conversion"), comingSoon: true },
         ]} />
       </div>
 
-      {/* AI 분석 (외부 도구) */}
+      {/* AI·운영 리포트 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
             <Cpu className="h-3.5 w-3.5 text-violet-500" />
           </div>
-          <span className="text-sm font-semibold">AI 도구</span>
-          <span className="ml-auto text-[10px] font-semibold text-violet-500 bg-violet-500/10 px-2 py-0.5 rounded-full">NEW</span>
+          <span className="text-sm font-semibold">AI·운영 리포트</span>
         </div>
         <ToolGrid items={[
           { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
           { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
           { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
+          { label: "활동 통계", icon: Activity, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("activity_stats"), comingSoon: true },
+          { label: "KPI 리포트", icon: Target, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("kpi_report"), comingSoon: true },
+          { label: "채널 분석", icon: Share2, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("channel_analysis"), comingSoon: true },
+          { label: "마케팅 분석", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("marketing_analysis"), comingSoon: true },
+          { label: "데이터 이전", icon: Database, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("data_migration"), comingSoon: true },
         ]} />
       </div>
 
