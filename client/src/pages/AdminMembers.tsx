@@ -124,16 +124,23 @@ export default function AdminMembers() {
   });
 
   const [mergeResult, setMergeResult] = useState<string | null>(null);
+  const [hideDuplicateBanner, setHideDuplicateBanner] = useState(false);
   const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
     onSuccess: (data) => {
       const ok = data.results.filter(r => r.status === "success");
       const fail = data.results.filter(r => r.status === "failed");
-      const lines = [
-        `병합 완료: ${ok.length}건`,
-        ...ok.map(r => `✅ ${r.name} (${r.delId}→${r.keepId})`),
-        ...fail.map(r => `❌ ${r.name} (${r.delId}→${r.keepId}): ${r.error}`),
-      ];
-      setMergeResult(lines.join("\n"));
+      if (fail.length === 0 && ok.length > 0) {
+        toast.success(`중복 회원 ${ok.length}건 통합 완료`);
+        setMergeResult(null);
+        setHideDuplicateBanner(true);
+      } else if (fail.length > 0) {
+        const lines = ok.length > 0 ? [`성공 ${ok.length}건, 실패 ${fail.length}건`] : [`통합 실패 ${fail.length}건`];
+        lines.push(...fail.map(r => `❌ ${r.name} (${r.delId}→${r.keepId}): ${r.error}`));
+        setMergeResult(lines.join("\n"));
+      } else {
+        setMergeResult(null);
+        toast.info("통합할 중복 회원이 없습니다");
+      }
       if (ok.length > 0) utils.members.listAll.invalidate();
     },
     onError: (e) => setMergeResult(`오류: ${e.message}`),
@@ -527,7 +534,7 @@ export default function AdminMembers() {
       )}
 
       {/* 중복 회원 알림 배너 */}
-      {duplicateGroups.length > 0 && (
+      {duplicateGroups.length > 0 && !hideDuplicateBanner && (
         <div className={`w-full rounded-xl border px-4 py-3 ${showDuplicatesOnly ? "bg-amber-500/20 border-amber-500/50" : "bg-amber-500/10 border-amber-500/30"}`}>
           <div className="flex items-center justify-between gap-2">
             <button onClick={() => setShowDuplicatesOnly(v => !v)} className="flex items-center gap-2 flex-1 text-left text-amber-400">
@@ -544,6 +551,9 @@ export default function AdminMembers() {
               </button>
               <button onClick={() => setShowDuplicatesOnly(v => !v)} className="text-xs text-amber-400">
                 {showDuplicatesOnly ? "전체보기" : "중복만 보기"}
+              </button>
+              <button onClick={() => { setHideDuplicateBanner(true); setShowDuplicatesOnly(false); }} className="text-xs text-amber-400/60 hover:text-amber-400">
+                닫기
               </button>
             </div>
           </div>
