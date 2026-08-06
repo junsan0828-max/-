@@ -331,17 +331,74 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
     }
   }
 
+  function parseRegisterInput(raw: string) {
+    let rest = raw;
+    const result: { name: string; phone?: string; paymentMethod?: string; membershipStart?: string; membershipEnd?: string; gender?: string } = { name: "" };
+
+    const phoneMatch = rest.match(/\d{2,3}[-.]?\d{3,4}[-.]?\d{4}/);
+    if (phoneMatch) {
+      result.phone = phoneMatch[0].replace(/[-.]/g, "").replace(/^(\d{3})(\d{4})(\d{4})$/, "$1-$2-$3").replace(/^(\d{2})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+      rest = rest.replace(phoneMatch[0], " ");
+    }
+
+    const paymentMethods = ["카드", "현금", "계좌이체", "지역화폐"] as const;
+    for (const pm of paymentMethods) {
+      if (rest.includes(pm)) { result.paymentMethod = pm; rest = rest.replace(pm, " "); break; }
+    }
+
+    const dateLabels = [
+      { keywords: ["시작일", "시작"], field: "membershipStart" as const },
+      { keywords: ["만료일", "만료", "마감일", "마감", "종료일", "종료"], field: "membershipEnd" as const },
+    ];
+    for (const { keywords, field } of dateLabels) {
+      for (const kw of keywords) {
+        const pattern = new RegExp(`${kw}\\s*(\\d{2,4})[.\\-/](\\d{1,2})[.\\-/](\\d{1,2})`);
+        const m = rest.match(pattern);
+        if (m) {
+          const year = m[1].length === 2 ? `20${m[1]}` : m[1];
+          result[field] = `${year}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+          rest = rest.replace(m[0], " ");
+          break;
+        }
+      }
+    }
+
+    if (rest.includes("남성") || rest.includes("남자")) { result.gender = "male"; rest = rest.replace(/남성|남자/, " "); }
+    else if (rest.includes("여성") || rest.includes("여자")) { result.gender = "female"; rest = rest.replace(/여성|여자/, " "); }
+
+    const nameMatch = rest.match(/[가-힣]{2,5}/);
+    if (nameMatch) result.name = nameMatch[0];
+
+    return result;
+  }
+
   async function resolveCommand(q: string): Promise<QaMsg> {
     const has = (...kws: string[]) => kws.some(k => q.includes(k));
 
     if (has("회원 등록", "회원등록", "신규 등록", "신규등록")) {
-      const name = q.replace(/회원\s*등록|신규\s*등록/g, "").trim();
-      if (!name) {
-        return { role: "bot", text: "등록할 회원 이름을 함께 입력해주세요.\n예: \"홍길동 회원 등록\"" };
+      const raw = q.replace(/회원\s*등록|신규\s*등록/g, "").trim();
+      if (!raw) {
+        return { role: "bot", text: "등록할 회원 이름을 함께 입력해주세요.\n예: \"홍길동 01012345678 회원등록\"" };
+      }
+      const parsed = parseRegisterInput(raw);
+      if (!parsed.name) {
+        return { role: "bot", text: "이름을 인식하지 못했어요.\n예: \"홍길동 01012345678 카드 회원등록\"" };
       }
       try {
-        const result = await createMemberMutation.mutateAsync({ name, grade: "basic", status: "active" });
-        return { role: "bot", text: `✅ ${name} 회원이 등록되었습니다. 상세 정보를 입력하려면 아래를 눌러주세요.`, link: `/members/${result.id}` };
+        const payload: any = { name: parsed.name, grade: "basic", status: "active" };
+        if (parsed.phone) payload.phone = parsed.phone;
+        if (parsed.paymentMethod) payload.paymentMethod = parsed.paymentMethod;
+        if (parsed.membershipStart) payload.membershipStart = parsed.membershipStart;
+        if (parsed.membershipEnd) payload.membershipEnd = parsed.membershipEnd;
+        if (parsed.gender) payload.gender = parsed.gender;
+        const result = await createMemberMutation.mutateAsync(payload);
+        const details: string[] = [];
+        if (parsed.phone) details.push(`연락처: ${parsed.phone}`);
+        if (parsed.paymentMethod) details.push(`결제: ${parsed.paymentMethod}`);
+        if (parsed.membershipStart) details.push(`시작: ${parsed.membershipStart}`);
+        if (parsed.membershipEnd) details.push(`만료: ${parsed.membershipEnd}`);
+        const detailStr = details.length > 0 ? `\n${details.join(" / ")}` : "";
+        return { role: "bot", text: `✅ ${parsed.name} 회원이 등록되었습니다.${detailStr}`, link: `/members/${result.id}` };
       } catch (err: any) {
         return { role: "bot", text: err.message || "회원 등록에 실패했어요." };
       }
