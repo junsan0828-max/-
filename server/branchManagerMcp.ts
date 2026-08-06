@@ -3,11 +3,12 @@ import express from "express";
 import { pool } from "./db";
 
 const WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_MINUTE = Number(process.env.AI_BRANCH_MANAGER_RATE_LIMIT_PER_MINUTE || 30);
+const configuredRateLimit = Number(process.env.AI_BRANCH_MANAGER_RATE_LIMIT_PER_MINUTE);
+const MAX_REQUESTS_PER_MINUTE =
+  Number.isInteger(configuredRateLimit) && configuredRateLimit > 0 ? configuredRateLimit : 30;
 const requestBuckets = new Map<string, { count: number; resetAt: number }>();
 
 type JsonRpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: any };
-
 type ToolDef = { name: string; description: string; inputSchema: Record<string, unknown> };
 
 const dateSchema = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
@@ -60,30 +61,88 @@ function branchClause(alias: string, branchId: number | null, nextParam: number)
   return branchId ? ` AND ${alias}."branchId" = $${nextParam}` : "";
 }
 
+function withMetadata<T>(data: T, startDate: string, endDate: string, branchId: number | null, sourceTables: string[]) {
+  return {
+    generatedAt: new Date().toISOString(),
+    period: { startDate, endDate },
+    branchId,
+    sourceTables,
+    data,
+  };
+}
+
 async function callTool(name: string, params: any) {
   const { startDate, endDate, branchId, limit } = validateDateRange(params);
   if (name === "get_operational_kpi_summary") {
     const branch = branchClause("r", branchId, 3);
     const [revenue, members, leads] = await Promise.all([
-      selectOnly(`SELECT COALESCE(SUM("paidAmount"),0)::int AS "paidAmount", COALESCE(SUM("unpaidAmount"),0)::int AS "unpaidAmount", COUNT(*)::int AS count, COUNT(*) FILTER (WHERE "subType"='신규')::int AS "newCount", COUNT(*) FILTER (WHERE "subType"='재등록')::int AS "renewalCount" FROM revenue_entries r WHERE r."paymentDate" BETWEEN $1 AND $2${branch}`, branchId ? [startDate, endDate, branchId] : [startDate, endDate]),
+      selectOnly(`SELECT COALESCE(SUM("paidAmount"),0)::int AS "paidAmount", COALESCE(SUM("unpaidAmount"),0)::int AS "unpaidAmount", COUNT(*)::int AS count, COUNT(*) FILTER (WHERE "subType"='신규')::int AS "newCount", COUNT(*) FILTER (WHERE "subType"='재등록')::int AS "renewalCount" FROM revenue_entries r WHERE r."paymentDate" BETWEEN $1 AND $2 AND r."subType" IS DISTINCT FROM '이전'${branch}`, branchId ? [startDate, endDate, branchId] : [startDate, endDate]),
       selectOnly(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='active')::int AS active, COUNT(*) FILTER (WHERE "membershipEnd" BETWEEN $1 AND $2)::int AS expiring FROM members m WHERE 1=1${branchClause("m", branchId, 3)}`, branchId ? [startDate, endDate, branchId] : [startDate, endDate]),
       selectOnly(`SELECT status, COUNT(*)::int AS count FROM leads l WHERE l."createdAt"::date BETWEEN $1 AND $2${branchClause("l", branchId, 3)} GROUP BY status ORDER BY status`, branchId ? [startDate, endDate, branchId] : [startDate, endDate]),
     ]);
-    return { period: { startDate, endDate }, branchId, revenue: revenue[0], members: members[0], leadsByStatus: leads };
+    return withMetadata({ revenue: revenue[0], members: members[0], leadsByStatus: leads }, startDate, endDate, branchId, ["revenue_entries", "members", "leads"]);
   }
   if (name === "list_expiring_health_memberships") {
-    const rows = await selectOnly(`SELECT m.id, m.name, m.status, m."membershipStart", m."membershipEnd", m."renewalIntent", t."trainerName", b.name AS "branchName" FROM members m LEFT JOIN trainers t ON t.id=m."trainerId" LEFT JOIN branches b ON b.id=m."branchId" WHERE m."membershipEnd" BETWEEN $1 AND $2${branchClause("m", branchId, 3)} ORDER BY m."membershipEnd" ASC LIMIT $${branchId ? 4 : 3}`, branchId ? [startDate, endDate, branchId, limit] : [startDate, endDate, limit]);
-    return rows.map((r: any) => ({ ...r, name: maskName(r.name) }));
+    const rows = await selectOnly(`SELECT m.id, m.name, m.status, m."membershipStart", m."membershipEnd", t."trainerName", b.name AS "branchName" FROM members m LEFT JOIN trainers t ON t.id=m."trainerId" LEFT JOIN branches b ON b.id=m."branchId" WHERE m.status='active' AND m."membershipEnd" BETWEEN $1 AND $2${branchClause("m", branchId, 3)} ORDER BY m."membershipEnd" ASC LIMIT $${branchId ? 4 : 3}`, branchId ? [startDate, endDate, branchId, limit] : [startDate, endDate, limit]);
+    return withMetadata(rows.map((r: any) => ({ ...r, name: maskName(r.name) })), startDate, endDate, branchId, ["members", "trainers", "branches"]);
   }
   if (name === "get_staff_performance") {
-    return selectOnly(`SELECT COALESCE(t.id, u.id) AS "staffId", COALESCE(t."trainerName", u.username, '미지정') AS "staffName", COUNT(r.id)::int AS "salesCount", COALESCE(SUM(r."paidAmount"),0)::int AS "paidAmount", COALESCE(SUM(r.sessions),0)::int AS sessions, COUNT(DISTINCT l.id)::int AS "leadCount", COUNT(DISTINCT psl.id)::int AS "ptSessionCount" FROM users u FULL JOIN trainers t ON t."userId"=u.id LEFT JOIN revenue_entries r ON (r."trainerId"=t.id OR r."consultantId"=u.id) AND r."paymentDate" BETWEEN $1 AND $2${branchId ? ' AND r."branchId" = $3' : ''} LEFT JOIN leads l ON (l."assignedTrainerId"=t.id OR l."assignedConsultantId"=u.id) AND l."createdAt"::date BETWEEN $1 AND $2${branchId ? ' AND l."branchId" = $3' : ''} LEFT JOIN pt_session_logs psl ON psl."trainerId"=t.id AND psl."sessionDate" BETWEEN $1 AND $2 GROUP BY COALESCE(t.id, u.id), COALESCE(t."trainerName", u.username, '미지정') ORDER BY "paidAmount" DESC`, branchId ? [startDate, endDate, branchId] : [startDate, endDate]);
+    const rows = await selectOnly(`
+      WITH staff AS (
+        SELECT 'trainer'::text AS "staffType", t.id AS "staffId", t."trainerName" AS "staffName"
+        FROM trainers t
+        UNION ALL
+        SELECT 'user'::text AS "staffType", u.id AS "staffId", u.username AS "staffName"
+        FROM users u
+        WHERE u.role <> 'trainer' OR NOT EXISTS (SELECT 1 FROM trainers t WHERE t."userId"=u.id)
+      ), revenue_by_staff AS (
+        SELECT 'trainer'::text AS "staffType", r."trainerId" AS "staffId", COUNT(*)::int AS "salesCount", COALESCE(SUM(r."paidAmount"),0)::int AS "paidAmount", COALESCE(SUM(r.sessions),0)::int AS sessions
+        FROM revenue_entries r
+        WHERE r."trainerId" IS NOT NULL AND r."paymentDate" BETWEEN $1 AND $2 AND r."subType" IS DISTINCT FROM '이전'${branchClause("r", branchId, 3)}
+        GROUP BY r."trainerId"
+        UNION ALL
+        SELECT 'user'::text AS "staffType", r."consultantId" AS "staffId", COUNT(*)::int AS "salesCount", COALESCE(SUM(r."paidAmount"),0)::int AS "paidAmount", COALESCE(SUM(r.sessions),0)::int AS sessions
+        FROM revenue_entries r
+        WHERE r."consultantId" IS NOT NULL AND r."paymentDate" BETWEEN $1 AND $2 AND r."subType" IS DISTINCT FROM '이전'${branchClause("r", branchId, 3)}
+        GROUP BY r."consultantId"
+      ), leads_by_staff AS (
+        SELECT 'trainer'::text AS "staffType", l."assignedTrainerId" AS "staffId", COUNT(*)::int AS "leadCount"
+        FROM leads l
+        WHERE l."assignedTrainerId" IS NOT NULL AND l."createdAt"::date BETWEEN $1 AND $2${branchClause("l", branchId, 3)}
+        GROUP BY l."assignedTrainerId"
+        UNION ALL
+        SELECT 'user'::text AS "staffType", l."assignedConsultantId" AS "staffId", COUNT(*)::int AS "leadCount"
+        FROM leads l
+        WHERE l."assignedConsultantId" IS NOT NULL AND l."createdAt"::date BETWEEN $1 AND $2${branchClause("l", branchId, 3)}
+        GROUP BY l."assignedConsultantId"
+      ), sessions_by_staff AS (
+        SELECT 'trainer'::text AS "staffType", psl."trainerId" AS "staffId", COUNT(*)::int AS "ptSessionCount"
+        FROM pt_session_logs psl
+        JOIN members m ON m.id=psl."memberId"
+        WHERE psl."sessionDate" BETWEEN $1 AND $2${branchClause("m", branchId, 3)}
+        GROUP BY psl."trainerId"
+      )
+      SELECT s."staffType", s."staffId", s."staffName",
+        COALESCE(r."salesCount",0)::int AS "salesCount",
+        COALESCE(r."paidAmount",0)::int AS "paidAmount",
+        COALESCE(r.sessions,0)::int AS sessions,
+        COALESCE(l."leadCount",0)::int AS "leadCount",
+        COALESCE(ps."ptSessionCount",0)::int AS "ptSessionCount"
+      FROM staff s
+      LEFT JOIN revenue_by_staff r ON r."staffType"=s."staffType" AND r."staffId"=s."staffId"
+      LEFT JOIN leads_by_staff l ON l."staffType"=s."staffType" AND l."staffId"=s."staffId"
+      LEFT JOIN sessions_by_staff ps ON ps."staffType"=s."staffType" AND ps."staffId"=s."staffId"
+      ORDER BY "paidAmount" DESC, s."staffName" ASC
+    `, branchId ? [startDate, endDate, branchId] : [startDate, endDate]);
+    return withMetadata(rows, startDate, endDate, branchId, ["users", "trainers", "revenue_entries", "leads", "pt_session_logs", "members"]);
   }
   if (name === "list_follow_up_candidates") {
-    const rows = await selectOnly(`SELECT 'lead' AS type, id, name, status, "consultationDate" AS "targetDate", memo FROM leads l WHERE status IN ('pending','consulted') AND COALESCE("consultationDate", "createdAt"::date::text) BETWEEN $1 AND $2${branchClause("l", branchId, 3)} UNION ALL SELECT 'membership_expiry' AS type, id, name, status, "membershipEnd" AS "targetDate", "renewalIntent" AS memo FROM members m WHERE "membershipEnd" BETWEEN $1 AND $2 AND status='active'${branchClause("m", branchId, 3)} ORDER BY "targetDate" ASC LIMIT $${branchId ? 4 : 3}`, branchId ? [startDate, endDate, branchId, limit] : [startDate, endDate, limit]);
-    return rows.map((r: any) => ({ ...r, name: maskName(r.name), note: "후보 조회 전용이며 발송 확정/자동 메시지 기능은 포함하지 않습니다." }));
+    const rows = await selectOnly(`SELECT 'lead' AS type, id, name, status, "consultationDate" AS "targetDate" FROM leads l WHERE status IN ('pending','consulted') AND COALESCE("consultationDate", "createdAt"::date::text) BETWEEN $1 AND $2${branchClause("l", branchId, 3)} UNION ALL SELECT 'membership_expiry' AS type, id, name, status, "membershipEnd" AS "targetDate" FROM members m WHERE "membershipEnd" BETWEEN $1 AND $2 AND status='active'${branchClause("m", branchId, 3)} ORDER BY "targetDate" ASC LIMIT $${branchId ? 4 : 3}`, branchId ? [startDate, endDate, branchId, limit] : [startDate, endDate, limit]);
+    return withMetadata(rows.map((r: any) => ({ ...r, name: maskName(r.name), note: "후보 조회 전용이며 발송 확정/자동 메시지 기능은 포함하지 않습니다." })), startDate, endDate, branchId, ["leads", "members"]);
   }
   if (name === "check_data_quality") {
-    return selectOnly(`SELECT issue, COUNT(*)::int AS count FROM (SELECT 'member_date_reversed' issue FROM members m WHERE "membershipStart" IS NOT NULL AND "membershipEnd" IS NOT NULL AND "membershipStart" > "membershipEnd"${branchClause("m", branchId, 3)} UNION ALL SELECT 'revenue_amount_mismatch' issue FROM revenue_entries r WHERE ("paidAmount" + "unpaidAmount" + "discountAmount" - "refundAmount") <> amount AND "paymentDate" BETWEEN $1 AND $2${branchClause("r", branchId, 3)} UNION ALL SELECT 'missing_member_branch' issue FROM members m WHERE "branchId" IS NULL${branchClause("m", branchId, 3)} UNION ALL SELECT 'active_pt_overused' issue FROM pt_packages p JOIN members m ON m.id=p."memberId" WHERE p.status='active' AND p."usedSessions" > (p."totalSessions" + COALESCE(p."serviceSessions",0))${branchId ? ' AND m."branchId" = $3' : ''}) q GROUP BY issue ORDER BY count DESC LIMIT $${branchId ? 4 : 3}`, branchId ? [startDate, endDate, branchId, limit] : [startDate, endDate, limit]);
+    const rows = await selectOnly(`SELECT issue, COUNT(*)::int AS count FROM (SELECT 'member_date_reversed' issue FROM members m WHERE "membershipStart" IS NOT NULL AND "membershipEnd" IS NOT NULL AND "membershipStart" > "membershipEnd"${branchClause("m", branchId, 3)} UNION ALL SELECT 'revenue_amount_mismatch' issue FROM revenue_entries r WHERE ("paidAmount" + "unpaidAmount" + "discountAmount" - "refundAmount") <> amount AND r."subType" IS DISTINCT FROM '환불' AND r."subType" IS DISTINCT FROM '이전' AND r."subType" IS DISTINCT FROM '미수금' AND "paymentDate" BETWEEN $1 AND $2${branchClause("r", branchId, 3)} UNION ALL SELECT 'missing_member_branch' issue FROM members m WHERE "branchId" IS NULL${branchClause("m", branchId, 3)} UNION ALL SELECT 'active_pt_overused' issue FROM pt_packages p JOIN members m ON m.id=p."memberId" WHERE p.status='active' AND p."usedSessions" > (p."totalSessions" + COALESCE(p."serviceSessions",0))${branchId ? ' AND m."branchId" = $3' : ''}) q GROUP BY issue ORDER BY count DESC LIMIT $${branchId ? 4 : 3}`, branchId ? [startDate, endDate, branchId, limit] : [startDate, endDate, limit]);
+    return withMetadata(rows, startDate, endDate, branchId, ["members", "revenue_entries", "pt_packages"]);
   }
   throw new Error("알 수 없는 도구입니다.");
 }
@@ -98,8 +157,11 @@ function authenticate(req: Request, res: Response, next: NextFunction) {
 function rateLimit(req: Request, res: Response, next: NextFunction) {
   const key = req.ip || "unknown";
   const now = Date.now();
+  for (const [bucketKey, bucket] of requestBuckets) {
+    if (bucket.resetAt <= now) requestBuckets.delete(bucketKey);
+  }
   const bucket = requestBuckets.get(key);
-  if (!bucket || bucket.resetAt <= now) requestBuckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
+  if (!bucket) requestBuckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
   else if (bucket.count >= MAX_REQUESTS_PER_MINUTE) return res.status(429).json({ error: "Too Many Requests" });
   else bucket.count += 1;
   next();
