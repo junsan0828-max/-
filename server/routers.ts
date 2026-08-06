@@ -3526,7 +3526,7 @@ ${dataContext}
       const parts = input.planDate.split("-");
       const daySeed = (parseInt(parts[2] ?? "1") * 3 + parseInt(parts[1] ?? "1") * 7 + parseInt(parts[0] ?? "1")) % 47;
 
-      function pickMeal(category: string, budgetRatio: number, offset: number) {
+      function pickMeals(category: string, budgetRatio: number, offset: number, seed: number) {
         const target = input.targetCalories * budgetRatio;
         let pool = DIET_FOODS.filter(f =>
           f.category === category &&
@@ -3537,38 +3537,41 @@ ${dataContext}
           ? pool.filter(f => includeList.some((inc: string) => f.name.includes(inc) || f.amount.includes(inc)))
           : [];
         const source = preferred.length > 0 ? preferred : pool;
-        const sorted = [...source].sort((a, b) => Math.abs(a.calories - target) - Math.abs(b.calories - target));
-        const idx = (daySeed * 7 + offset * 13) % Math.min(5, sorted.length);
-        return sorted[idx];
+
+        const picked: typeof source = [];
+        let remaining = target;
+        const used = new Set<string>();
+        let pickIdx = 0;
+
+        while (remaining > 30 && picked.length < 4) {
+          const available = source.filter(f => !used.has(f.name));
+          if (available.length === 0) break;
+          const sorted = [...available].sort((a, b) => Math.abs(a.calories - remaining) - Math.abs(b.calories - remaining));
+          const topN = Math.min(3, sorted.length);
+          const idx = (seed * 7 + offset * 13 + pickIdx * 11) % topN;
+          const pick = sorted[idx];
+          picked.push(pick);
+          used.add(pick.name);
+          remaining -= pick.calories;
+          pickIdx++;
+          if (remaining < target * 0.1) break;
+        }
+
+        return picked.length > 0 ? picked : [source[(seed + offset) % source.length]];
       }
 
       const todayMeals = {
-        breakfast: pickMeal("아침", 0.30, 0),
-        lunch: pickMeal("점심", 0.35, 1),
-        dinner: pickMeal("저녁", 0.25, 2),
-        snack: pickMeal("건강 간식", 0.10, 3),
+        breakfast: pickMeals("아침", 0.30, 0, daySeed),
+        lunch: pickMeals("점심", 0.35, 1, daySeed),
+        dinner: pickMeals("저녁", 0.25, 2, daySeed),
+        snack: pickMeals("건강 간식", 0.10, 3, daySeed),
       };
       const tomorrowSeed = (daySeed + 11) % 47;
-      const pickTomorrow = (category: string, budgetRatio: number, offset: number) => {
-        const target = input.targetCalories * budgetRatio;
-        let pool = DIET_FOODS.filter(f =>
-          f.category === category &&
-          !excludeList.some((ex: string) => f.name.includes(ex))
-        );
-        if (pool.length === 0) pool = DIET_FOODS.filter(f => f.category === category);
-        const preferred = includeList.length > 0
-          ? pool.filter(f => includeList.some((inc: string) => f.name.includes(inc) || f.amount.includes(inc)))
-          : [];
-        const source = preferred.length > 0 ? preferred : pool;
-        const sorted = [...source].sort((a, b) => Math.abs(a.calories - target) - Math.abs(b.calories - target));
-        const idx = (tomorrowSeed * 7 + offset * 13) % Math.min(5, sorted.length);
-        return sorted[idx];
-      };
       const tomorrowMeals = {
-        breakfast: pickTomorrow("아침", 0.30, 0),
-        lunch: pickTomorrow("점심", 0.35, 1),
-        dinner: pickTomorrow("저녁", 0.25, 2),
-        snack: pickTomorrow("건강 간식", 0.10, 3),
+        breakfast: pickMeals("아침", 0.30, 0, tomorrowSeed),
+        lunch: pickMeals("점심", 0.35, 1, tomorrowSeed),
+        dinner: pickMeals("저녁", 0.25, 2, tomorrowSeed),
+        snack: pickMeals("건강 간식", 0.10, 3, tomorrowSeed),
       };
 
       // Replace existing plan for today
