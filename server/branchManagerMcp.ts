@@ -175,9 +175,22 @@ async function callTool(name: string, params: any) {
   throw new Error("알 수 없는 도구입니다.");
 }
 
-function unauthorized(res: Response, message = "Unauthorized") {
-  res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${RESOURCE_METADATA_URL}", scope="${OAUTH_SCOPE}"`);
-  return res.status(401).json({ error: message });
+function oauthChallenge(error = "invalid_token", description = "Login is required to use this read-only tool") {
+  return `Bearer resource_metadata="${RESOURCE_METADATA_URL}", scope="${OAUTH_SCOPE}", error="${error}", error_description="${description}"`;
+}
+
+function authenticationRequiredResult(id: JsonRpcRequest["id"], res: Response) {
+  const challenge = oauthChallenge();
+  res.setHeader("WWW-Authenticate", challenge);
+  return res.json({
+    jsonrpc: "2.0",
+    id: id ?? null,
+    result: {
+      content: [{ type: "text", text: "Authentication required: connect your authorized account to continue." }],
+      _meta: { "mcp/www_authenticate": [challenge] },
+      isError: true,
+    },
+  });
 }
 
 function decodeBase64UrlJson<T>(value: string): T {
@@ -221,12 +234,9 @@ async function verifyOAuthToken(token: string): Promise<JwtPayload> {
   return payload;
 }
 
-async function authenticate(req: Request, res: Response): Promise<boolean> {
+async function authenticate(req: Request): Promise<boolean> {
   const provided = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (!provided) {
-    unauthorized(res);
-    return false;
-  }
+  if (!provided) return false;
 
   const legacyToken = process.env.AI_BRANCH_MANAGER_TOKEN;
   if (legacyToken && legacyToken.length >= 32 && provided === legacyToken) return true;
@@ -236,7 +246,6 @@ async function authenticate(req: Request, res: Response): Promise<boolean> {
     return true;
   } catch (error) {
     console.warn("Branch manager OAuth rejected:", error instanceof Error ? error.message : error);
-    unauthorized(res);
     return false;
   }
 }
@@ -264,7 +273,7 @@ export function createBranchManagerMcpRouter(): Router {
       if (body.method === "initialize") return res.json({ jsonrpc: "2.0", id: body.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "branch-manager", version: "1.1.0" } } });
       if (body.method === "tools/list") return res.json({ jsonrpc: "2.0", id: body.id, result: { tools: exposedTools() } });
       if (body.method === "tools/call") {
-        if (!(await authenticate(req, res))) return;
+        if (!(await authenticate(req))) return authenticationRequiredResult(body.id, res);
         const result = await callTool(body.params?.name, body.params?.arguments ?? {});
         return res.json({ jsonrpc: "2.0", id: body.id, result: { content: [{ type: "text", text: JSON.stringify(result) }] } });
       }
