@@ -1614,6 +1614,11 @@ export default function MemberDetail({ memberId }: Props) {
             const lockerMismatch = memberPrograms !== undefined && !!badgeLockerNum && badgeLockerNum !== "서비스" && !lockerInTable;
             const uniformMismatch = !!memberPrograms && badgeHasUniform && !hasUniform;
 
+            const commonStart = member.membershipStart ?? healthRevs[0]?.startDate ?? null;
+            const commonEnd = member.membershipEnd ?? healthRevs[0]?.endDate ?? null;
+            const isSamePeriod = (s: string | null | undefined, e: string | null | undefined) =>
+              (s ?? null) === commonStart && (e ?? null) === commonEnd;
+
             return (
               <>
                 {/* 이용 현황 (헬스권 + 기타서비스 + 락커 + 운동복) */}
@@ -1628,6 +1633,21 @@ export default function MemberDetail({ memberId }: Props) {
                         <span>🔄</span> 환불
                       </button>
                     </div>
+                    {commonStart && commonEnd && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">
+                          이용 기간: {commonStart} ~ {commonEnd}
+                        </span>
+                        {healthDaysLeft !== null && healthDaysLeft > 0 && (
+                          <span className="text-xs font-semibold text-emerald-400">D-{healthDaysLeft}</span>
+                        )}
+                        {memberIsPaused && activePause && (
+                          <span className="text-xs text-yellow-400/80">
+                            (정지: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"})
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6 space-y-4">
                     {/* ── 헬스권 섹션 ── */}
@@ -1669,9 +1689,6 @@ export default function MemberDetail({ memberId }: Props) {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {healthDaysLeft !== null && healthDaysLeft > 0 && (
-                                    <span className="text-xs font-semibold text-emerald-400">D-{healthDaysLeft}</span>
-                                  )}
                                   <button
                                     onClick={() => setLocation(`/members/re-register?memberId=${memberId}`)}
                                     className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
@@ -1693,10 +1710,7 @@ export default function MemberDetail({ memberId }: Props) {
                                   </button>
                                 </div>
                               </div>
-                              <div className="mt-2 text-xs text-muted-foreground">
-                                {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
-                              </div>
-                              <div className="mt-2 text-amber-400/80 text-[11px]">
+                              <div className="mt-1 text-amber-400/80 text-[11px]">
                                 ※ 결제 내역 없음 — 재등록 시 장부·서비스 내역이 함께 저장됩니다
                               </div>
                             </div>
@@ -1734,12 +1748,7 @@ export default function MemberDetail({ memberId }: Props) {
                                   )}
                                 </div>
                                 <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                  {(r.startDate || displayEndDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {displayEndDate ?? "-"}</div>}
-                                  {memberIsPaused && activePause && (
-                                    <div className="col-span-2 text-yellow-400/80">
-                                      정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
-                                    </div>
-                                  )}
+                                  {(r.startDate || displayEndDate) && !isSamePeriod(r.startDate, displayEndDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {displayEndDate ?? "-"}</div>}
                                   <div>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></div>
                                   {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
                                   {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
@@ -1874,13 +1883,8 @@ export default function MemberDetail({ memberId }: Props) {
                                   <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">{locker.lockerType}</span>
                                 )}
                               </div>
-                              {(locker.startDate || locker.endDate) && (
+                              {(locker.startDate || locker.endDate) && !isSamePeriod(locker.startDate, locker.endDate) && (
                                 <p className="mt-1 text-xs text-muted-foreground">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</p>
-                              )}
-                              {memberIsPaused && activePause && (
-                                <p className="mt-1 text-xs text-yellow-400/80">
-                                  정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
-                                </p>
                               )}
                               {locker.memo && <p className="mt-1 text-xs text-muted-foreground/70">{locker.memo}</p>}
                             </div>
@@ -1947,13 +1951,8 @@ export default function MemberDetail({ memberId }: Props) {
                                   </span>
                                 )}
                               </div>
-                              {(u.startDate || u.endDate) && (
+                              {(u.startDate || u.endDate) && !isSamePeriod(u.startDate, u.endDate) && (
                                 <p className="mt-1 text-xs text-muted-foreground">{u.startDate ?? "-"} ~ {u.endDate ?? "-"}</p>
-                              )}
-                              {memberIsPaused && activePause && (
-                                <p className="mt-1 text-xs text-yellow-400/80">
-                                  정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
-                                </p>
                               )}
                               {u.memo && <p className="mt-1 text-xs text-muted-foreground/70">{u.memo}</p>}
                             </div>
