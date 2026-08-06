@@ -59,7 +59,7 @@ const AVATAR_GRADIENTS = [
 // 나머지는 전부 FREE에서도 이용 가능.
 const FREE_IDS = new Set([
   "brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract",
-  "report_branding", "contract_terms", "training_video", "e_contract",
+  "report_branding", "contract_terms", "e_contract",
   "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion",
   "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
   "renewal_analysis", "ai_insights",
@@ -67,7 +67,7 @@ const FREE_IDS = new Set([
 const PRO_IDS = new Set(["fitstep_plus", "fitstep_rec", "booking"]);
 const ELITE_IDS = new Set<string>([]);
 // contract_kakao는 이미 편집 모달(EContractManager 재사용)로 연결돼 있어 "준비 중"이 아님
-const COMING_SOON_IDS = new Set(["training_video", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
+const COMING_SOON_IDS = new Set(["activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
 
 type WsDashItem = { id: string; icon: React.ElementType; name: string; };
 type WsDashCat = {
@@ -1181,7 +1181,6 @@ function TrainerDashboard() {
           { label: "운동 영상 200", icon: PlaySquare, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_videos") },
           { label: "식단 관리", icon: Utensils, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_diet") },
           { label: "운동 기록", icon: Activity, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_personal") },
-          { label: "일지+영상", icon: Video, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("training_video"), comingSoon: true },
         ]} />
       </div>
 
