@@ -27,6 +27,7 @@ import {
   fitStepPlusEvents,
   fitStepPlusWorkoutLogs,
   fitStepPlusAttendance,
+  memberDietPlans,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
@@ -5891,6 +5892,44 @@ const trainerFeedbackRouter = t.router({
     }),
 });
 
+// ── 회원 식단 플랜 (AI 맞춤식단 저장) ──
+const dietPlansRouter = t.router({
+  save: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      planDate: z.string(),
+      goal: z.string(),
+      targetKcal: z.number(),
+      mealsJson: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [row] = await getDb().insert(memberDietPlans).values({ ...input, trainerId }).returning();
+      return row;
+    }),
+
+  listByMember: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      return getDb().select().from(memberDietPlans)
+        .where(and(eq(memberDietPlans.memberId, input.memberId), eq(memberDietPlans.trainerId, trainerId)))
+        .orderBy(desc(memberDietPlans.id));
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await getDb().delete(memberDietPlans)
+        .where(and(eq(memberDietPlans.id, input.id), eq(memberDietPlans.trainerId, trainerId)));
+      return { success: true };
+    }),
+});
+
 export const appRouter = t.router({
   auth: authRouter,
   members: membersRouter,
@@ -5922,6 +5961,7 @@ export const appRouter = t.router({
   eContract: eContractRouter,
   booking: bookingRouter,
   trainerFeedback: trainerFeedbackRouter,
+  dietPlans: dietPlansRouter,
 });
 
 export type AppRouter = typeof appRouter;

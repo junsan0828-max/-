@@ -3060,6 +3060,20 @@ export function TrainerDietManager() {
   const [sheetLoading, setSheetLoading] = useState(false);
   const [sheetError, setSheetError] = useState(false);
   const [altIdx, setAltIdx] = useState<Record<string, number>>({});
+  const [showSaved, setShowSaved] = useState(false);
+
+  const utils = trpc.useUtils();
+  const saveMutation = trpc.dietPlans.save.useMutation({
+    onSuccess: () => { toast.success("식단이 저장되었습니다"); utils.dietPlans.listByMember.invalidate(); },
+    onError: () => toast.error("저장에 실패했습니다"),
+  });
+  const deleteMutation = trpc.dietPlans.delete.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다"); utils.dietPlans.listByMember.invalidate(); },
+  });
+  const { data: savedPlans = [] } = trpc.dietPlans.listByMember.useQuery(
+    { memberId: selectedMemberId! },
+    { enabled: !!selectedMemberId }
+  );
 
   useEffect(() => {
     setSheetLoading(true);
@@ -3101,6 +3115,21 @@ export function TrainerDietManager() {
   const totalCarb = plan?.meals.reduce((s, m) => s + getItem(m).carb, 0) ?? 0;
   const totalProt = plan?.meals.reduce((s, m) => s + getItem(m).prot, 0) ?? 0;
   const totalFat  = plan?.meals.reduce((s, m) => s + getItem(m).fat,  0) ?? 0;
+
+  function handleSavePlan() {
+    if (!plan || !selectedMemberId) return;
+    const mealsData = plan.meals.map(m => {
+      const item = getItem(m);
+      return { mealType: m.mealType, name: item.name, amount: item.amount, kcal: item.kcal, carb: item.carb, prot: item.prot, fat: item.fat };
+    });
+    saveMutation.mutate({
+      memberId: selectedMemberId,
+      planDate: new Date().toISOString().slice(0, 10),
+      goal: plan.goalLabel,
+      targetKcal: plan.tdee,
+      mealsJson: JSON.stringify(mealsData),
+    });
+  }
 
   if (sheetLoading) return (
     <div className="text-center py-10">
@@ -3229,6 +3258,50 @@ export function TrainerDietManager() {
                     <span className="text-blue-500">단 {item.prot}g</span>
                     <span className="text-green-500">지 {item.fat}g</span>
                   </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <button onClick={handleSavePlan} disabled={saveMutation.isPending}
+            className="w-full py-3 rounded-2xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+            <BookMarked className="h-4 w-4" />
+            {saveMutation.isPending ? "저장 중..." : "회원 식단에 저장"}
+          </button>
+        </div>
+      )}
+
+      {/* 저장된 식단 */}
+      {selectedMemberId && (savedPlans as any[]).length > 0 && (
+        <div className="space-y-2">
+          <button onClick={() => setShowSaved(!showSaved)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
+            {showSaved ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            저장된 식단 ({(savedPlans as any[]).length}개)
+          </button>
+          {showSaved && (savedPlans as any[]).map((sp: any) => {
+            let meals: any[] = [];
+            try { meals = JSON.parse(sp.mealsJson); } catch {}
+            const totalK = meals.reduce((s: number, m: any) => s + (m.kcal || 0), 0);
+            return (
+              <div key={sp.id} className="border border-border rounded-2xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold">{sp.planDate} · {sp.goal}</p>
+                    <p className="text-[11px] text-muted-foreground">목표 {sp.targetKcal}kcal · 합계 {totalK}kcal</p>
+                  </div>
+                  <button onClick={() => { if (confirm("이 식단을 삭제할까요?")) deleteMutation.mutate({ id: sp.id }); }}
+                    className="text-muted-foreground hover:text-red-500 transition-colors p-1">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {meals.map((m: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs bg-muted/30 rounded-lg px-3 py-1.5">
+                      <span className="font-medium">{m.mealType}</span>
+                      <span className="text-muted-foreground">{m.name} · {m.kcal}kcal</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             );

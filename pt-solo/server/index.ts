@@ -1178,6 +1178,17 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS member_diet_plans (
+    id SERIAL PRIMARY KEY,
+    "memberId" INTEGER NOT NULL,
+    "trainerId" INTEGER NOT NULL,
+    "planDate" TEXT NOT NULL,
+    goal TEXT NOT NULL,
+    "targetKcal" INTEGER NOT NULL,
+    "mealsJson" TEXT NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
   // 시퀀스랩 플랜/제한 설정 — 관리자가 추후 조정 (가격 하드코딩 금지)
   for (const [k, v] of [
     ['sequence_lab_min_plan', 'free'],        // 최소 이용 가능 플랜 (free | pro)

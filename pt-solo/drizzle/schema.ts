@@ -318,6 +318,18 @@ export const fitStepPlusAttendance = pgTable("fit_step_plus_attendance", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// 회원 식단 플랜 (AI 맞춤식단 저장)
+export const memberDietPlans = pgTable("member_diet_plans", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  planDate: text("planDate").notNull(),
+  goal: text("goal").notNull(),
+  targetKcal: integer("targetKcal").notNull(),
+  mealsJson: text("mealsJson").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const trainerFeedbacks = pgTable("trainer_feedbacks", {
   id: serial("id").primaryKey(),
   trainerId: integer("trainerId").notNull(),
