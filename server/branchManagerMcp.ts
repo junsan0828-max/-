@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction, Router } from "express";
 import express from "express";
+import { createPublicKey, verify as verifySignature } from "crypto";
 import { pool } from "./db";
 
 const WINDOW_MS = 60_000;
@@ -8,8 +9,18 @@ const MAX_REQUESTS_PER_MINUTE =
   Number.isInteger(configuredRateLimit) && configuredRateLimit > 0 ? configuredRateLimit : 30;
 const requestBuckets = new Map<string, { count: number; resetAt: number }>();
 
+const MCP_RESOURCE_URL = (process.env.AI_BRANCH_MANAGER_RESOURCE_URL || "https://remarkable-tenderness-production.up.railway.app/mcp/branch-manager").replace(/\/$/, "");
+const AUTH0_ISSUER = (process.env.AI_BRANCH_MANAGER_AUTH0_ISSUER || "").replace(/\/$/, "");
+const OAUTH_AUDIENCE = process.env.AI_BRANCH_MANAGER_OAUTH_AUDIENCE || MCP_RESOURCE_URL;
+const OAUTH_SCOPE = process.env.AI_BRANCH_MANAGER_OAUTH_SCOPE || "branch-manager:read";
+const RESOURCE_METADATA_URL = new URL("/.well-known/oauth-protected-resource", MCP_RESOURCE_URL).toString();
+const JWKS_CACHE_MS = 15 * 60_000;
+type Jwk = Record<string, unknown> & { kid?: string; use?: string };
+let jwksCache: { keys: Jwk[]; expiresAt: number } | null = null;
+
 type JsonRpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: any };
 type ToolDef = { name: string; description: string; inputSchema: Record<string, unknown> };
+type JwtPayload = { iss?: string; aud?: string | string[]; exp?: number; nbf?: number; scope?: string; permissions?: string[]; sub?: string };
 
 const dateSchema = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 const branchSchema = { type: "integer", minimum: 1 };
@@ -22,6 +33,23 @@ const tools: ToolDef[] = [
   { name: "list_follow_up_candidates", description: "후속조치가 필요한 상담/만료 후보를 조회합니다. 발송 확정 대상으로 자동 처리하지 않습니다.", inputSchema: { type: "object", properties: { startDate: dateSchema, endDate: dateSchema, branchId: branchSchema, limit: limitSchema }, required: ["startDate", "endDate"], additionalProperties: false } },
   { name: "check_data_quality", description: "데이터 누락·모순(날짜 역전, 금액 모순, 누락된 담당/지점 등)을 점검합니다.", inputSchema: { type: "object", properties: { startDate: dateSchema, endDate: dateSchema, branchId: branchSchema, limit: limitSchema }, required: ["startDate", "endDate"], additionalProperties: false } },
 ];
+
+function exposedTools() {
+  return tools.map(tool => ({
+    ...tool,
+    securitySchemes: [{ type: "oauth2", scopes: [OAUTH_SCOPE] }],
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  }));
+}
+
+export function getBranchManagerProtectedResourceMetadata() {
+  return {
+    resource: MCP_RESOURCE_URL,
+    authorization_servers: AUTH0_ISSUER ? [AUTH0_ISSUER] : [],
+    scopes_supported: [OAUTH_SCOPE],
+    bearer_methods_supported: ["header"],
+  };
+}
 
 function maskName(name: string | null | undefined): string {
   if (!name) return "-";
@@ -147,11 +175,70 @@ async function callTool(name: string, params: any) {
   throw new Error("알 수 없는 도구입니다.");
 }
 
-function authenticate(req: Request, res: Response, next: NextFunction) {
-  const token = process.env.AI_BRANCH_MANAGER_TOKEN;
+function unauthorized(res: Response, message = "Unauthorized") {
+  res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${RESOURCE_METADATA_URL}", scope="${OAUTH_SCOPE}"`);
+  return res.status(401).json({ error: message });
+}
+
+function decodeBase64UrlJson<T>(value: string): T {
+  return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as T;
+}
+
+async function getJwks(): Promise<Jwk[]> {
+  const now = Date.now();
+  if (jwksCache && jwksCache.expiresAt > now) return jwksCache.keys;
+  if (!AUTH0_ISSUER) throw new Error("OAuth issuer is not configured");
+  const response = await fetch(`${AUTH0_ISSUER}/.well-known/jwks.json`, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error("Unable to load OAuth signing keys");
+  const body = await response.json() as { keys?: Jwk[] };
+  if (!Array.isArray(body.keys) || body.keys.length === 0) throw new Error("OAuth signing keys are unavailable");
+  jwksCache = { keys: body.keys, expiresAt: now + JWKS_CACHE_MS };
+  return body.keys;
+}
+
+async function verifyOAuthToken(token: string): Promise<JwtPayload> {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("Invalid token format");
+  const header = decodeBase64UrlJson<{ alg?: string; kid?: string }>(parts[0]);
+  const payload = decodeBase64UrlJson<JwtPayload>(parts[1]);
+  if (header.alg !== "RS256" || !header.kid) throw new Error("Unsupported token algorithm");
+  const keys = await getJwks();
+  const jwk = keys.find(key => key.kid === header.kid && (!key.use || key.use === "sig"));
+  if (!jwk) throw new Error("Unknown signing key");
+  const publicKey = createPublicKey({ key: jwk as any, format: "jwk" });
+  const signed = Buffer.from(`${parts[0]}.${parts[1]}`);
+  const signature = Buffer.from(parts[2], "base64url");
+  if (!verifySignature("RSA-SHA256", signed, publicKey, signature)) throw new Error("Invalid token signature");
+
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.iss !== `${AUTH0_ISSUER}/`) throw new Error("Invalid token issuer");
+  const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+  if (!audiences.includes(OAUTH_AUDIENCE)) throw new Error("Invalid token audience");
+  if (!payload.exp || payload.exp <= now) throw new Error("Expired token");
+  if (payload.nbf && payload.nbf > now + 30) throw new Error("Token is not active");
+  const granted = new Set([...(payload.scope || "").split(/\s+/).filter(Boolean), ...(payload.permissions || [])]);
+  if (!granted.has(OAUTH_SCOPE)) throw new Error("Missing read scope");
+  return payload;
+}
+
+async function authenticate(req: Request, res: Response): Promise<boolean> {
   const provided = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (!token || token.length < 32 || provided !== token) return res.status(401).json({ error: "Unauthorized" });
-  next();
+  if (!provided) {
+    unauthorized(res);
+    return false;
+  }
+
+  const legacyToken = process.env.AI_BRANCH_MANAGER_TOKEN;
+  if (legacyToken && legacyToken.length >= 32 && provided === legacyToken) return true;
+
+  try {
+    await verifyOAuthToken(provided);
+    return true;
+  } catch (error) {
+    console.warn("Branch manager OAuth rejected:", error instanceof Error ? error.message : error);
+    unauthorized(res);
+    return false;
+  }
 }
 
 function rateLimit(req: Request, res: Response, next: NextFunction) {
@@ -169,14 +256,15 @@ function rateLimit(req: Request, res: Response, next: NextFunction) {
 
 export function createBranchManagerMcpRouter(): Router {
   const router = express.Router();
-  router.use(authenticate, rateLimit);
-  router.get("/", (_req, res) => res.json({ name: "branch-manager", tools: tools.map(t => t.name), readOnly: true }));
+  router.use(rateLimit);
+  router.get("/", (_req, res) => res.json({ name: "branch-manager", tools: tools.map(t => t.name), readOnly: true, authentication: "oauth2" }));
   router.post("/", async (req, res) => {
     const body = req.body as JsonRpcRequest;
     try {
-      if (body.method === "initialize") return res.json({ jsonrpc: "2.0", id: body.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "branch-manager", version: "1.0.0" } } });
-      if (body.method === "tools/list") return res.json({ jsonrpc: "2.0", id: body.id, result: { tools } });
+      if (body.method === "initialize") return res.json({ jsonrpc: "2.0", id: body.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "branch-manager", version: "1.1.0" } } });
+      if (body.method === "tools/list") return res.json({ jsonrpc: "2.0", id: body.id, result: { tools: exposedTools() } });
       if (body.method === "tools/call") {
+        if (!(await authenticate(req, res))) return;
         const result = await callTool(body.params?.name, body.params?.arguments ?? {});
         return res.json({ jsonrpc: "2.0", id: body.id, result: { content: [{ type: "text", text: JSON.stringify(result) }] } });
       }
