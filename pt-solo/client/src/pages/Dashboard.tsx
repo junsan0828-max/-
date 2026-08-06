@@ -540,15 +540,20 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       if (memberResult) return memberResult;
     }
 
+    const answer = await resolveAnswer(q);
+    if (!answer.startsWith("인식하지 못한")) return { role: "bot", text: answer };
+
     const guessed = guessIntent(q);
     if (guessed) return guessed;
 
-    const answer = await resolveAnswer(q);
     return { role: "bot", text: answer };
   }
 
   function guessIntent(q: string): QaMsg | null {
-    const hasKoreanName = /[가-힣]{2,5}/.test(q);
+    const NOT_NAMES = new Set(["이번달", "이번", "오늘", "매출", "미수금", "만료", "임박", "마감", "세션", "수업", "잔여", "등록", "현재", "회원", "연락처", "전화", "등급", "상태", "시작일", "메모", "특이사항", "생년월일", "이메일", "회이하", "신규", "카드", "현금", "계좌이체", "지역화폐", "남성", "여성", "남자", "여자", "활성", "정지", "기본", "프리미엄"]);
+    const koreanWords = q.match(/[가-힣]{2,5}/g) || [];
+    const nameCandidate = koreanWords.find(w => !NOT_NAMES.has(w));
+    const hasKoreanName = !!nameCandidate;
     const hasPhone = /\d{2,3}[-.]?\d{3,4}[-.]?\d{4}/.test(q);
 
     if (hasKoreanName && hasPhone) {
@@ -585,8 +590,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
     }
 
     if (hasKoreanName && !hasPhone) {
-      const nameMatch = q.match(/[가-힣]{2,5}/);
-      const name = nameMatch?.[0];
+      const name = nameCandidate;
       if (name) {
         return {
           role: "bot",
