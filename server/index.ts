@@ -15,7 +15,7 @@ import { syncSheetNow } from "./sheetSync";
 import { startNotionBriefingScheduler } from "./notionBriefing";
 import { generateHealthReportHTML } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
-import { createBranchManagerMcpRouter } from "./branchManagerMcp";
+import { createBranchManagerMcpRouter, getBranchManagerProtectedResourceMetadata } from "./branchManagerMcp";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -57,6 +57,11 @@ app.use(
     },
   })
 );
+
+// OAuth 2.1 protected resource metadata for ChatGPT custom MCP registration
+app.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp/branch-manager"], (_req, res) => {
+  res.json(getBranchManagerProtectedResourceMetadata());
+});
 
 // MCP: 온라인 지부장/제이용 읽기 전용 운영 조회
 app.use("/mcp/branch-manager", createBranchManagerMcpRouter());
