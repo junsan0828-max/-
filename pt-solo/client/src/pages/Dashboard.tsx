@@ -415,6 +415,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
   const yearMonth = todayStr.slice(0, 7);
 
   const createMemberMutation = trpc.members.create.useMutation();
+  const [pendingMode, setPendingMode] = useState<"register" | null>(null);
 
   async function ask(question: string) {
     const q = question.trim();
@@ -423,13 +424,61 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
     setInput("");
     setBusy(true);
     try {
-      const result = await resolveCommand(q);
-      setMessages(m => [...m, result]);
+      if (pendingMode === "register") {
+        setPendingMode(null);
+        const result = await executeRegister(q);
+        setMessages(m => [...m, result]);
+      } else {
+        const result = await resolveCommand(q);
+        setMessages(m => [...m, result]);
+      }
     } catch {
       setMessages(m => [...m, { role: "bot", text: "처리 중 문제가 발생했어요. 잠시 후 다시 시도해주세요." }]);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function executeRegister(raw: string): Promise<QaMsg> {
+    const parsed = parseRegisterInput(raw);
+    if (!parsed.name) {
+      setPendingMode("register");
+      return { role: "bot", text: "이름을 인식하지 못했어요. 한글 이름을 포함해서 다시 입력해주세요.\n예: 홍길동 01012345678" };
+    }
+    const payload: any = { name: parsed.name, grade: "basic", status: "active" };
+    if (parsed.phone) payload.phone = parsed.phone;
+    if (parsed.paymentMethod) payload.paymentMethod = parsed.paymentMethod;
+    if (parsed.membershipStart) payload.membershipStart = parsed.membershipStart;
+    if (parsed.membershipEnd) payload.membershipEnd = parsed.membershipEnd;
+    if (parsed.gender) payload.gender = parsed.gender;
+
+    const details: string[] = [parsed.name];
+    if (parsed.phone) details.push(parsed.phone);
+    if (parsed.paymentMethod) details.push(parsed.paymentMethod);
+    if (parsed.membershipStart) details.push(`시작: ${parsed.membershipStart}`);
+    if (parsed.membershipEnd) details.push(`만료: ${parsed.membershipEnd}`);
+
+    return {
+      role: "bot",
+      text: `${details.join(" / ")} → 회원 등록을 진행할까요?`,
+      confirm: {
+        label: "등록 진행",
+        action: async () => {
+          try {
+            const result = await createMemberMutation.mutateAsync(payload);
+            const infos: string[] = [];
+            if (parsed.phone) infos.push(`연락처: ${parsed.phone}`);
+            if (parsed.paymentMethod) infos.push(`결제: ${parsed.paymentMethod}`);
+            if (parsed.membershipStart) infos.push(`시작: ${parsed.membershipStart}`);
+            if (parsed.membershipEnd) infos.push(`만료: ${parsed.membershipEnd}`);
+            const infoStr = infos.length > 0 ? `\n${infos.join(" / ")}` : "";
+            return { role: "bot" as const, text: `✅ ${parsed.name} 회원이 등록되었습니다.${infoStr}`, link: `/members/${result.id}` };
+          } catch (err: any) {
+            return { role: "bot" as const, text: err.message || "회원 등록에 실패했어요." };
+          }
+        },
+      },
+    };
   }
 
   function parseRegisterInput(raw: string) {
@@ -479,30 +528,10 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
     if (has("회원 등록", "회원등록", "신규 등록", "신규등록")) {
       const raw = q.replace(/회원\s*등록|신규\s*등록/g, "").trim();
       if (!raw) {
-        return { role: "bot", text: "등록할 회원 이름을 함께 입력해주세요.\n예: \"홍길동 01012345678 회원등록\"" };
+        setPendingMode("register");
+        return { role: "bot", text: "회원 등록을 시작할게요.\n이름과 연락처를 입력해주세요.\n\n예: 홍길동 01012345678\n\n추가 정보도 함께 입력할 수 있어요:\n• 결제방법: 카드, 현금, 계좌이체, 지역화폐\n• 시작일/만료일: 시작일 26.08.10\n• 성별: 남성, 여성" };
       }
-      const parsed = parseRegisterInput(raw);
-      if (!parsed.name) {
-        return { role: "bot", text: "이름을 인식하지 못했어요.\n예: \"홍길동 01012345678 카드 회원등록\"" };
-      }
-      try {
-        const payload: any = { name: parsed.name, grade: "basic", status: "active" };
-        if (parsed.phone) payload.phone = parsed.phone;
-        if (parsed.paymentMethod) payload.paymentMethod = parsed.paymentMethod;
-        if (parsed.membershipStart) payload.membershipStart = parsed.membershipStart;
-        if (parsed.membershipEnd) payload.membershipEnd = parsed.membershipEnd;
-        if (parsed.gender) payload.gender = parsed.gender;
-        const result = await createMemberMutation.mutateAsync(payload);
-        const details: string[] = [];
-        if (parsed.phone) details.push(`연락처: ${parsed.phone}`);
-        if (parsed.paymentMethod) details.push(`결제: ${parsed.paymentMethod}`);
-        if (parsed.membershipStart) details.push(`시작: ${parsed.membershipStart}`);
-        if (parsed.membershipEnd) details.push(`만료: ${parsed.membershipEnd}`);
-        const detailStr = details.length > 0 ? `\n${details.join(" / ")}` : "";
-        return { role: "bot", text: `✅ ${parsed.name} 회원이 등록되었습니다.${detailStr}`, link: `/members/${result.id}` };
-      } catch (err: any) {
-        return { role: "bot", text: err.message || "회원 등록에 실패했어요." };
-      }
+      return await executeRegister(raw);
     }
 
     const memberInfoKeywords = ["마감", "만료", "세션", "잔여", "연락처", "전화", "미수금", "등급", "상태", "시작일", "메모", "특이사항", "생년월일", "이메일"];
@@ -531,7 +560,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
           role: "bot",
           text: `"${details.join(" / ")}" → 회원 등록으로 판단했어요. 진행할까요?`,
           confirm: {
-            label: "회원 등록 진행",
+            label: "등록 진행",
             action: async () => {
               const payload: any = { name: parsed.name, grade: "basic", status: "active" };
               if (parsed.phone) payload.phone = parsed.phone;
@@ -561,9 +590,9 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       if (name) {
         return {
           role: "bot",
-          text: `"${name}" → 회원 등록으로 판단했어요. 진행할까요?`,
+          text: `"${name}" → 회원 등록으로 판단했어요. 진행할까요?\n\n연락처도 함께 입력하면 더 정확해요.\n예: ${name} 01012345678`,
           confirm: {
-            label: "회원 등록 진행",
+            label: "이름만으로 등록",
             action: async () => {
               try {
                 const result = await createMemberMutation.mutateAsync({ name, grade: "basic", status: "active" });
@@ -823,7 +852,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") ask(input); }}
-              placeholder={`${trainerName}님, 질문하거나 업무를 시켜보세요`}
+              placeholder={pendingMode === "register" ? "이름 연락처를 입력하세요 (예: 홍길동 01012345678)" : `${trainerName}님, 질문하거나 업무를 시켜보세요`}
               className="flex-1 min-w-0 px-3 py-2.5 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
             />
             <button onClick={() => ask(input)} disabled={busy || !input.trim()}
