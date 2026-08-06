@@ -64,7 +64,7 @@ const FREE_IDS = new Set([
   "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
   "renewal_analysis", "ai_insights",
 ]);
-const PRO_IDS = new Set(["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"]);
+const PRO_IDS = new Set(["fitstep_plus", "fitstep_rec", "booking"]);
 const ELITE_IDS = new Set<string>([]);
 // contract_kakao는 이미 편집 모달(EContractManager 재사용)로 연결돼 있어 "준비 중"이 아님
 const COMING_SOON_IDS = new Set(["training_video", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
@@ -1178,9 +1178,9 @@ function TrainerDashboard() {
           { label: "수업 일지", icon: BookOpen, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setJournalOpen(true) },
           { label: "PAR-Q 미기록", icon: ShieldCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setParqModalOpen(true), badge: parqMissing?.length ?? null },
           { label: "운동 템플릿", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("templates") },
-          { label: "운동 영상 200", icon: PlaySquare, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_videos"), locked: !isProPlan },
-          { label: "식단 관리", icon: Utensils, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_diet"), locked: !isProPlan },
-          { label: "운동 기록", icon: Activity, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_personal"), locked: !isProPlan },
+          { label: "운동 영상 200", icon: PlaySquare, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_videos") },
+          { label: "식단 관리", icon: Utensils, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_diet") },
+          { label: "운동 기록", icon: Activity, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_personal") },
           { label: "일지+영상", icon: Video, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("training_video"), comingSoon: true },
         ]} />
       </div>
