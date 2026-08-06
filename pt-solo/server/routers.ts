@@ -4336,6 +4336,27 @@ const fitStepPlusRouter = t.router({
       return rows;
     }),
 
+  trainer_updateWorkoutLog: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      exercisesJson: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const existing = await getDb()
+        .select({ id: fitStepPlusWorkoutLogs.id, fitStepPlusMemberId: fitStepPlusWorkoutLogs.fitStepPlusMemberId })
+        .from(fitStepPlusWorkoutLogs)
+        .innerJoin(fitStepPlusMembers, eq(fitStepPlusWorkoutLogs.fitStepPlusMemberId, fitStepPlusMembers.id))
+        .where(and(eq(fitStepPlusWorkoutLogs.id, input.id), eq(fitStepPlusMembers.trainerId, trainerId)))
+        .limit(1);
+      if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      const { id, ...data } = input;
+      const [row] = await getDb().update(fitStepPlusWorkoutLogs).set(data).where(eq(fitStepPlusWorkoutLogs.id, id)).returning();
+      return row;
+    }),
+
   trainer_listVideos: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });

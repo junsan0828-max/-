@@ -426,15 +426,38 @@ function AttendanceSection() {
 
 // ── 운동기록 조회 섹션 ──────────────────────────────────────────────────────
 export function WorkoutLogSection() {
+  const utils = trpc.useUtils();
   const { data: members } = trpc.members.list.useQuery();
   const [search, setSearch] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+  const [editingVideoIdx, setEditingVideoIdx] = useState<{ logId: number; idx: number } | null>(null);
+  const [videoUrlInput, setVideoUrlInput] = useState("");
 
   const { data: logs } = trpc.fitStepPlus.trainer_listWorkoutLogs.useQuery(
     { memberId: selectedMemberId! },
     { enabled: !!selectedMemberId }
   );
+
+  const updateLogMutation = trpc.fitStepPlus.trainer_updateWorkoutLog.useMutation({
+    onSuccess: () => {
+      utils.fitStepPlus.trainer_listWorkoutLogs.invalidate();
+      setEditingVideoIdx(null);
+      setVideoUrlInput("");
+      toast.success("영상 링크가 저장되었습니다");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function saveVideoUrl(logId: number, exercisesJson: string | null, exIdx: number, url: string) {
+    try {
+      const exercises = exercisesJson ? JSON.parse(exercisesJson) : [];
+      if (exercises[exIdx]) {
+        exercises[exIdx].videoUrl = url || undefined;
+        updateLogMutation.mutate({ id: logId, exercisesJson: JSON.stringify(exercises) });
+      }
+    } catch { toast.error("운동 데이터 파싱 오류"); }
+  }
 
   const filtered = members?.filter(m =>
     m.status === "active" && m.name.includes(search)
@@ -446,7 +469,7 @@ export function WorkoutLogSection() {
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <button onClick={() => { setSelectedMemberId(null); setExpandedLogId(null); }}
+          <button onClick={() => { setSelectedMemberId(null); setExpandedLogId(null); setEditingVideoIdx(null); }}
             className="text-xs text-primary font-semibold">← 회원 목록</button>
           <span className="text-sm font-semibold">{selectedMember.name}</span>
           <span className="text-xs text-muted-foreground">운동 기록</span>
@@ -457,15 +480,17 @@ export function WorkoutLogSection() {
         ) : (
           <div className="space-y-2">
             {logs.map((log) => (
-              <button key={log.id} onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                className="w-full text-left bg-background border border-border rounded-xl p-3 hover:bg-accent/30 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">{log.title || "운동 기록"}</p>
-                    <p className="text-xs text-muted-foreground">{log.logDate} {log.durationMinutes ? `· ${log.durationMinutes}분` : ""}</p>
+              <div key={log.id} className="bg-background border border-border rounded-xl p-3">
+                <button onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                  className="w-full text-left">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">{log.title || "운동 기록"}</p>
+                      <p className="text-xs text-muted-foreground">{log.logDate} {log.durationMinutes ? `· ${log.durationMinutes}분` : ""}</p>
+                    </div>
+                    {log.mood && <span className="text-sm">{log.mood === "great" ? "😊" : log.mood === "good" ? "🙂" : log.mood === "normal" ? "😐" : log.mood === "tired" ? "😮‍💨" : "😵"}</span>}
                   </div>
-                  {log.mood && <span className="text-sm">{log.mood === "great" ? "😊" : log.mood === "good" ? "🙂" : log.mood === "normal" ? "😐" : log.mood === "tired" ? "😮‍💨" : "😵"}</span>}
-                </div>
+                </button>
                 {expandedLogId === log.id && (
                   <div className="mt-2 pt-2 border-t border-border space-y-2">
                     {log.exercisesJson && (() => {
@@ -474,16 +499,43 @@ export function WorkoutLogSection() {
                         if (Array.isArray(exercises) && exercises.length > 0) {
                           return (
                             <div className="space-y-1.5">
-                              {exercises.map((ex: any, i: number) => (
-                                <div key={i} className="bg-accent/20 rounded-lg px-2.5 py-1.5">
-                                  <p className="text-xs font-medium">{ex.name || ex.exerciseName || `운동 ${i + 1}`}</p>
-                                  {(ex.sets || ex.reps || ex.weight) && (
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {ex.sets && `${ex.sets}세트`} {ex.reps && `${ex.reps}회`} {ex.weight && `${ex.weight}kg`}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
+                              {exercises.map((ex: any, i: number) => {
+                                const isEditing = editingVideoIdx?.logId === log.id && editingVideoIdx?.idx === i;
+                                return (
+                                  <div key={i} className="bg-accent/20 rounded-lg px-2.5 py-1.5 space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs font-medium">{ex.name || ex.exerciseName || `운동 ${i + 1}`}</p>
+                                      {ex.videoUrl && !isEditing && (
+                                        <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer"
+                                          className="flex items-center gap-0.5 text-[10px] text-primary font-semibold hover:underline"
+                                          onClick={e => e.stopPropagation()}>
+                                          <Video className="h-3 w-3" />영상
+                                        </a>
+                                      )}
+                                    </div>
+                                    {(ex.sets || ex.reps || ex.weight) && (
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {ex.sets && `${ex.sets}세트`} {ex.reps && `${ex.reps}회`} {ex.weight && `${ex.weight}kg`}
+                                      </p>
+                                    )}
+                                    {isEditing ? (
+                                      <div className="flex gap-1.5 mt-1">
+                                        <Input value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)}
+                                          placeholder="https://youtube.com/..." className="h-7 text-xs flex-1" />
+                                        <Button size="sm" className="h-7 px-2 text-xs" disabled={updateLogMutation.isPending}
+                                          onClick={() => saveVideoUrl(log.id, log.exercisesJson, i, videoUrlInput)}>저장</Button>
+                                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
+                                          onClick={() => setEditingVideoIdx(null)}>취소</Button>
+                                      </div>
+                                    ) : (
+                                      <button onClick={() => { setEditingVideoIdx({ logId: log.id, idx: i }); setVideoUrlInput(ex.videoUrl || ""); }}
+                                        className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-primary transition-colors mt-0.5">
+                                        <Edit2 className="h-2.5 w-2.5" />{ex.videoUrl ? "링크 수정" : "영상 링크 추가"}
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
                         }
@@ -493,7 +545,7 @@ export function WorkoutLogSection() {
                     {log.notes && <p className="text-xs text-muted-foreground">{log.notes}</p>}
                   </div>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         )}
