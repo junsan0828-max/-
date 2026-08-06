@@ -109,7 +109,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const today = new Date().toISOString().substring(0, 10);
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: trainerList } = trpc.trainers.list.useQuery();
-  const { data: consultantList } = trpc.admin.listConsultants.useQuery(undefined, { enabled: currentUser?.role === "admin" });
+  const { data: consultantList } = trpc.gym.staff.listConsultants.useQuery();
   const { data: allMembers = [] } = trpc.members.list.useQuery();
   const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const { data: allLockers } = trpc.access.getLockers.useQuery();
@@ -394,7 +394,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <CardTitle className="text-base font-semibold">기본 정보</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentUser?.role === "admin" && !isEdit && (
+            {!isEdit && (
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">
                   상담 담당자
@@ -407,8 +407,11 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     <SelectValue placeholder="상담 담당자 선택 (선택사항)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {consultantList?.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.username}</SelectItem>
+                    {(consultantList ?? []).length > 0 && (consultantList ?? []).map((c) => (
+                      <SelectItem key={`c-${c.id}`} value={String(c.id)}>{c.username}</SelectItem>
+                    ))}
+                    {(trainerList ?? []).map((t) => (
+                      <SelectItem key={`t-${t.userId ?? t.id}`} value={String(t.userId ?? t.id)}>{t.trainerName}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
