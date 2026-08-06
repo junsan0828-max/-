@@ -2560,8 +2560,29 @@ export default function DietPlanner() {
               );
             })}
 
+            {/* FIT STEP 연계 저장 */}
+            <button
+              onClick={() => {
+                const allEntries = [...mealPlan.breakfast, ...mealPlan.lunch, ...mealPlan.dinner, ...mealPlan.snack];
+                const meals = [
+                  ...mealPlan.breakfast.map(e => ({ mealType: "아침", name: e.name, amount: e.serving, kcal: e.kcal, carb: e.carb, prot: e.protein, fat: e.fat })),
+                  ...mealPlan.lunch.map(e => ({ mealType: "점심", name: e.name, amount: e.serving, kcal: e.kcal, carb: e.carb, prot: e.protein, fat: e.fat })),
+                  ...mealPlan.dinner.map(e => ({ mealType: "저녁", name: e.name, amount: e.serving, kcal: e.kcal, carb: e.carb, prot: e.protein, fat: e.fat })),
+                  ...mealPlan.snack.map(e => ({ mealType: "간식", name: e.name, amount: e.serving, kcal: e.kcal, carb: e.carb, prot: e.protein, fat: e.fat })),
+                ];
+                const total = sumMeal(allEntries);
+                const payload = { goal: goalCfg?.label || "맞춤식단", targetKcal: adjustedTdee || total.kcal, meals };
+                const encoded = btoa(new TextEncoder().encode(JSON.stringify(payload)).reduce((s, b) => s + String.fromCharCode(b), ""));
+                window.open(`https://fitstep.co.kr/import-diet?data=${encoded}`, "_blank");
+              }}
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+            >
+              <Zap className="w-4 h-4" />
+              FIT STEP 회원 식단에 저장
+            </button>
+
             <p className="text-xs text-center text-gray-600">
-              입력한 정보와 식단 결과는 서버에 저장되지 않습니다. 페이지를 나가면 데이터가 초기화됩니다.
+              입력한 정보와 식단 결과는 서버에 저장되지 않습니다. FIT STEP에 저장하면 회원 식단으로 관리할 수 있습니다.
             </p>
           </div>
         )}
