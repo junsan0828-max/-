@@ -35,6 +35,9 @@ export default function MemberReRegister() {
   const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: gymSettings } = trpc.gym.settings.get.useQuery();
+  const { data: trainerList } = trpc.trainers.list.useQuery();
+  const { data: consultantList } = trpc.gym.staff.listConsultants.useQuery();
+  const { data: currentUser } = trpc.auth.me.useQuery();
 
   const today = new Date().toISOString().substring(0, 10);
 
@@ -75,6 +78,9 @@ export default function MemberReRegister() {
   const [uniformMonths, setUniformMonths] = useState<number>(1);
   const [uniformEnd, setUniformEnd] = useState("");
   const [uniformPrice, setUniformPrice] = useState("");
+
+  // 상담 담당자
+  const [consultantId, setConsultantId] = useState("");
 
   // 공통 결제
   const [branchId, setBranchId] = useState<number | null>(null);
@@ -232,6 +238,7 @@ export default function MemberReRegister() {
         membershipStart: membershipStart || undefined,
         membershipEnd: finalMembershipEnd || undefined,
         subType: "재등록",
+        consultantId: consultantId ? parseInt(consultantId) : undefined,
         branchId: branchId ?? undefined,
         paymentMethod: method,
         paymentDate: date,
@@ -356,6 +363,24 @@ export default function MemberReRegister() {
             )}
           </CardContent>
         </Card>
+
+        {/* 상담 담당자 */}
+        <div className="px-1 space-y-1.5">
+          <Label className="text-sm text-muted-foreground">상담 담당자</Label>
+          <Select value={consultantId} onValueChange={setConsultantId}>
+            <SelectTrigger className="bg-input border-border">
+              <SelectValue placeholder="상담 담당자 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              {(consultantList ?? []).map((c: any) => (
+                <SelectItem key={`c-${c.id}`} value={String(c.id)}>{c.username}</SelectItem>
+              ))}
+              {(trainerList ?? []).map((t: any) => (
+                <SelectItem key={`t-${t.userId ?? t.id}`} value={String(t.userId ?? t.id)}>{t.trainerName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* 등록 유형 선택 */}
         <Card className="bg-card border-border">

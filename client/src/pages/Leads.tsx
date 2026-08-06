@@ -296,7 +296,7 @@ export default function LeadsPage() {
   });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
-  const { data: consultants } = trpc.admin.listConsultants.useQuery();
+  const { data: consultants } = trpc.gym.staff.listConsultants.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: gymSettings } = trpc.gym.settings.get.useQuery();

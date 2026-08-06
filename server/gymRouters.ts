@@ -3740,6 +3740,7 @@ const registerMutation = protectedProcedure
         const [healthRev] = await db.insert(revenueEntries).values({
           memberId,
           trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
           branchId: resolvedBranchId,
           createdBy: ctx.user.id,
           customerName: input.name,
@@ -3845,6 +3846,7 @@ const registerMutation = protectedProcedure
         const [ptRev] = await db.insert(revenueEntries).values({
           memberId,
           trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
           branchId: resolvedBranchId,
           eventId: input.eventId ?? undefined,
           createdBy: ctx.user.id,
@@ -3883,6 +3885,7 @@ const registerMutation = protectedProcedure
         const [otherRev] = await db.insert(revenueEntries).values({
           memberId,
           trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
           branchId: resolvedBranchId,
           createdBy: ctx.user.id,
           customerName: input.name,
@@ -3957,6 +3960,7 @@ const registerMutation = protectedProcedure
         await db.insert(revenueEntries).values({
           memberId,
           trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
           branchId: resolvedBranchId,
           createdBy: ctx.user.id,
           customerName: input.name,
