@@ -1616,373 +1616,351 @@ export default function MemberDetail({ memberId }: Props) {
 
             return (
               <>
-                {/* 헬스권 */}
+                {/* 이용 현황 (헬스권 + 기타서비스 + 락커 + 운동복) */}
                 <Card className="bg-card border-border">
                   <CardHeader className="px-4 sm:px-6 pb-2">
                     <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">헬스권</CardTitle>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={openRefundModal}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
-                        >
-                          <span>🔄</span> 환불
-                        </button>
-                        <button
-                          onClick={() => {
-                            setYangdoServiceType("health");
-                            setYangdoModalOpen(true);
-                            setYangdoContractUrl("");
-                            setYangdoSelectedItemId(healthRevs[0]?.id ?? "");
-                            setYangdoForm({ transferDate: "", trainerMemo: "" });
-                          }}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
-                        >
-                          <ArrowRightLeft className="h-3 w-3" /> 양도
-                        </button>
-                      </div>
+                      <CardTitle className="text-base">이용 현황</CardTitle>
+                      <button
+                        onClick={openRefundModal}
+                        className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
+                      >
+                        <span>🔄</span> 환불
+                      </button>
                     </div>
                   </CardHeader>
-                  <CardContent className="px-4 sm:px-6">
-                    {!hasHealth ? (
-                      <p className="text-muted-foreground text-sm text-center py-6">등록된 헬스권이 없습니다.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* 멤버 레코드 기반 헬스권 (revenue entry 없는 경우) */}
-                        {memberHasHealthRecord && (
-                          <div className="p-3 rounded-lg bg-accent/20 border border-border">
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium text-sm text-foreground">
-                                  헬스권
-                                </p>
-                                {healthDaysLeft !== null && healthDaysLeft > 0 ? (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
-                                    healthDaysLeft <= 7
-                                      ? `${STATUS_COLORS.expiring.bg} ${STATUS_COLORS.expiring.text} ${STATUS_COLORS.expiring.border}`
-                                      : `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}`
-                                  }`}>이용중</span>
-                                ) : (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.expired.bg} ${STATUS_COLORS.expired.text} ${STATUS_COLORS.expired.border}`}>만료</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {healthDaysLeft !== null && healthDaysLeft > 0 && (
-                                  <span className="text-xs font-semibold text-emerald-400">D-{healthDaysLeft}</span>
-                                )}
-                                <button
-                                  onClick={() => setLocation(`/members/re-register?memberId=${memberId}`)}
-                                  className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                  title="헬스권 수정 (재등록 페이지)"
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (confirm("헬스권을 삭제하시겠습니까?\n삭제 후 재등록하면 장부·서비스 내역이 함께 저장됩니다.")) {
-                                      clearHealthMutation.mutate({ id: memberId, membershipStart: null, membershipEnd: null });
-                                    }
-                                  }}
-                                  disabled={clearHealthMutation.isPending}
-                                  className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                                  title="헬스권 삭제"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
-                            </div>
-                            <div className="mt-2 text-amber-400/80 text-[11px]">
-                              ※ 결제 내역 없음 — 재등록 시 장부·서비스 내역이 함께 저장됩니다
-                            </div>
-                          </div>
+                  <CardContent className="px-4 sm:px-6 space-y-4">
+                    {/* ── 헬스권 섹션 ── */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">헬스권</h4>
+                        {hasHealth && (
+                          <button
+                            onClick={() => {
+                              setYangdoServiceType("health");
+                              setYangdoModalOpen(true);
+                              setYangdoContractUrl("");
+                              setYangdoSelectedItemId(healthRevs[0]?.id ?? "");
+                              setYangdoForm({ transferDate: "", trainerMemo: "" });
+                            }}
+                            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" /> 양도
+                          </button>
                         )}
-                        {/* serviceItems 기반 헬스 서비스 (healthRevs에 속하지 않는 항목만: PT 등록 서비스 헬스 등) */}
-                        {siHealth.filter(item => !healthRevs.some(r => r.id === item.fromEntry)).map(item => (
-                          <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.헬스.faint} border ${SERVICE_COLORS.헬스.border}`}>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>
-                              {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
+                      </div>
+                      {!hasHealth ? (
+                        <p className="text-muted-foreground text-xs text-center py-3">등록된 헬스권이 없습니다.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {memberHasHealthRecord && (
+                            <div className="p-3 rounded-lg bg-accent/20 border border-border">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-medium text-sm text-foreground">헬스권</p>
+                                  {healthDaysLeft !== null && healthDaysLeft > 0 ? (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
+                                      healthDaysLeft <= 7
+                                        ? `${STATUS_COLORS.expiring.bg} ${STATUS_COLORS.expiring.text} ${STATUS_COLORS.expiring.border}`
+                                        : `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}`
+                                    }`}>이용중</span>
+                                  ) : (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.expired.bg} ${STATUS_COLORS.expired.text} ${STATUS_COLORS.expired.border}`}>만료</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {healthDaysLeft !== null && healthDaysLeft > 0 && (
+                                    <span className="text-xs font-semibold text-emerald-400">D-{healthDaysLeft}</span>
+                                  )}
+                                  <button
+                                    onClick={() => setLocation(`/members/re-register?memberId=${memberId}`)}
+                                    className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                    title="헬스권 수정 (재등록 페이지)"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm("헬스권을 삭제하시겠습니까?\n삭제 후 재등록하면 장부·서비스 내역이 함께 저장됩니다.")) {
+                                        clearHealthMutation.mutate({ id: memberId, membershipStart: null, membershipEnd: null });
+                                      }
+                                    }}
+                                    disabled={clearHealthMutation.isPending}
+                                    className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                                    title="헬스권 삭제"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                              </div>
+                              <div className="mt-2 text-amber-400/80 text-[11px]">
+                                ※ 결제 내역 없음 — 재등록 시 장부·서비스 내역이 함께 저장됩니다
+                              </div>
                             </div>
-                            <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
-                          </div>
-                        ))}
-                        {/* 결제 기록 기반 헬스권 */}
-                        {healthRevs.map(r => {
-                          const isService = r.paidAmount === 0;
-                          const svcHealthMatch = (r.serviceItems ?? "").match(/헬스\((\d+)일\)/);
-                          const svcDays = svcHealthMatch ? parseInt(svcHealthMatch[1]) : 0;
-                          const displayEndDate = r.endDate && svcDays > 0
-                            ? new Date(new Date(r.endDate).getTime() + svcDays * 86400000).toISOString().split("T")[0]
-                            : r.endDate;
-                          return (
-                            <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                          )}
+                          {siHealth.filter(item => !healthRevs.some(r => r.id === item.fromEntry)).map(item => (
+                            <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.헬스.faint} border ${SERVICE_COLORS.헬스.border}`}>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium text-sm text-foreground">
-                                  헬스권{(r as any).duration ? ` ${(r as any).duration}개월` : ""}
+                                <p className="font-medium text-sm text-foreground">{item.detail}</p>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>
+                                {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
+                            </div>
+                          ))}
+                          {healthRevs.map(r => {
+                            const isService = r.paidAmount === 0;
+                            const svcHealthMatch = (r.serviceItems ?? "").match(/헬스\((\d+)일\)/);
+                            const svcDays = svcHealthMatch ? parseInt(svcHealthMatch[1]) : 0;
+                            const displayEndDate = r.endDate && svcDays > 0
+                              ? new Date(new Date(r.endDate).getTime() + svcDays * 86400000).toISOString().split("T")[0]
+                              : r.endDate;
+                            return (
+                              <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-medium text-sm text-foreground">
+                                    헬스권{(r as any).duration ? ` ${(r as any).duration}개월` : ""}
+                                  </p>
+                                  {r.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>}
+                                  {memberIsPaused && <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>}
+                                  {isService && !memberIsPaused && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>}
+                                  {svcHealthMatch && (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>
+                                      +서비스 {svcHealthMatch[1]}일
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                  {(r.startDate || displayEndDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {displayEndDate ?? "-"}</div>}
+                                  {memberIsPaused && activePause && (
+                                    <div className="col-span-2 text-yellow-400/80">
+                                      정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
+                                    </div>
+                                  )}
+                                  <div>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></div>
+                                  {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
+                                  {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
+                                  {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── 기타 서비스 섹션 ── */}
+                    {etcRevs.length > 0 && (
+                      <>
+                        <div className="border-t border-border" />
+                        <div>
+                          <h4 className="text-sm font-medium text-muted-foreground mb-2">기타 서비스</h4>
+                          <div className="space-y-2">
+                            {etcRevs.map(r => {
+                              const isService = r.paidAmount === 0;
+                              const detail = r.programDetail ?? r.memo ?? "기타";
+                              return (
+                                <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-medium text-sm text-foreground">{detail}</p>
+                                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
+                                    {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
+                                  </div>
+                                  <div className="mt-2 text-xs text-muted-foreground">
+                                    <span>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></span>
+                                    {r.unpaidAmount > 0 && <span className="ml-3">미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></span>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* ── 락커 섹션 ── */}
+                    <div className="border-t border-border" />
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">락커</h4>
+                        {hasLocker && (
+                          <button
+                            onClick={() => {
+                              setYangdoServiceType("locker");
+                              setYangdoModalOpen(true);
+                              setYangdoContractUrl("");
+                              setYangdoSelectedItemId(memberPrograms?.lockers[0]?.id ?? "");
+                              setYangdoForm({ transferDate: "", trainerMemo: "" });
+                            }}
+                            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" /> 양도
+                          </button>
+                        )}
+                      </div>
+                      {lockerMismatch && (
+                        <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                          <span className="text-orange-400 text-sm shrink-0">⚠️</span>
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-orange-400">락커 연동 오류</p>
+                            <p className="text-xs text-orange-400/80 mt-0.5">락커 {badgeLockerNum} 배지가 감지됐지만 이 회원에 연결된 락커 데이터가 없습니다.</p>
+                          </div>
+                          <button
+                            onClick={() => fixLockerMutation.mutate({
+                              memberId,
+                              memberName: member.name ?? "",
+                              memberPhone: member.phone ?? undefined,
+                              lockerNumber: badgeLockerNum!,
+                            })}
+                            disabled={fixLockerMutation.isPending}
+                            className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-50"
+                          >
+                            {fixLockerMutation.isPending ? "연결 중..." : "자동 연결"}
+                          </button>
+                        </div>
+                      )}
+                      {!hasLocker ? (
+                        <p className="text-muted-foreground text-xs text-center py-3">배정된 락커가 없습니다.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(memberPrograms?.lockers.length ?? 0) === 0 && allLockerItems.map(item => (
+                            <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.락커.faint} border ${SERVICE_COLORS.락커.border}`}>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm text-foreground">{item.detail}</p>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.락커.bg} ${SERVICE_COLORS.락커.text} ${SERVICE_COLORS.락커.border}`}>서비스</span>
+                                {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
+                              {memberPrograms?.lockers.length === 0 && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={lockerLinkNum}
+                                    onChange={e => setLockerLinkNum(e.target.value)}
+                                    placeholder="락커 번호 입력"
+                                    className="flex-1 text-xs px-2 py-1 rounded-md bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  />
+                                  <button
+                                    disabled={!lockerLinkNum.trim() || fixLockerMutation.isPending}
+                                    onClick={() => fixLockerMutation.mutate({
+                                      memberId,
+                                      memberName: member.name ?? "",
+                                      memberPhone: member.phone ?? undefined,
+                                      lockerNumber: lockerLinkNum.trim(),
+                                    })}
+                                    className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-40"
+                                  >
+                                    {fixLockerMutation.isPending ? "연결 중…" : "락커 연결"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {memberPrograms!.lockers.map(locker => (
+                            <div key={locker.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm text-foreground">락커 {locker.lockerNumber}</p>
+                                {memberIsPaused ? (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>
+                                ) : (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
+                                    {locker.isOccupied ? "이용중" : "미사용"}
+                                  </span>
+                                )}
+                                {locker.lockerType && locker.lockerType !== "personal" && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">{locker.lockerType}</span>
+                                )}
+                              </div>
+                              {(locker.startDate || locker.endDate) && (
+                                <p className="mt-1 text-xs text-muted-foreground">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</p>
+                              )}
+                              {memberIsPaused && activePause && (
+                                <p className="mt-1 text-xs text-yellow-400/80">
+                                  정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
                                 </p>
-                                {r.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>}
-                                {memberIsPaused && <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>}
-                                {isService && !memberIsPaused && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>}
-                                {svcHealthMatch && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>
-                                    +서비스 {svcHealthMatch[1]}일
+                              )}
+                              {locker.memo && <p className="mt-1 text-xs text-muted-foreground/70">{locker.memo}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── 운동복 섹션 ── */}
+                    <div className="border-t border-border" />
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">운동복</h4>
+                        {hasUniform && (
+                          <button
+                            onClick={() => {
+                              setYangdoServiceType("uniform");
+                              setYangdoModalOpen(true);
+                              setYangdoContractUrl("");
+                              setYangdoSelectedItemId(memberPrograms?.uniforms[0]?.id ?? "");
+                              setYangdoForm({ transferDate: "", trainerMemo: "" });
+                            }}
+                            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" /> 양도
+                          </button>
+                        )}
+                      </div>
+                      {uniformMismatch && (
+                        <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                          <span className="text-orange-400 text-sm shrink-0">⚠️</span>
+                          <div>
+                            <p className="text-xs font-medium text-orange-400">운동복 연동 오류</p>
+                            <p className="text-xs text-orange-400/80 mt-0.5">회원 목록에서 운동복 뱃지가 감지됐지만 이 회원 ID에 연결된 데이터가 없습니다. 장부에서 해당 결제 내역의 회원을 이 회원으로 연결해 주세요.</p>
+                          </div>
+                        </div>
+                      )}
+                      {!hasUniform ? (
+                        <p className="text-muted-foreground text-xs text-center py-3">대여중인 운동복이 없습니다.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {allUniformItems.map(item => (
+                            <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.운동복.faint} border ${SERVICE_COLORS.운동복.border}`}>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm text-foreground">{item.detail}</p>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.운동복.bg} ${SERVICE_COLORS.운동복.text} ${SERVICE_COLORS.운동복.border}`}>서비스</span>
+                                {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
+                            </div>
+                          ))}
+                          {memberPrograms!.uniforms.map(u => (
+                            <div key={u.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm text-foreground">운동복{u.size ? ` (${u.size})` : ""}</p>
+                                {(u.quantity ?? 1) > 1 && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">×{u.quantity}</span>
+                                )}
+                                {memberIsPaused ? (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>
+                                ) : (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
+                                    {u.isActive ? "이용중" : "반납"}
                                   </span>
                                 )}
                               </div>
-                              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                {(r.startDate || displayEndDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {displayEndDate ?? "-"}</div>}
-                                {memberIsPaused && activePause && (
-                                  <div className="col-span-2 text-yellow-400/80">
-                                    정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
-                                  </div>
-                                )}
-                                <div>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></div>
-                                {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
-                                {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
-                                {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
-                              </div>
+                              {(u.startDate || u.endDate) && (
+                                <p className="mt-1 text-xs text-muted-foreground">{u.startDate ?? "-"} ~ {u.endDate ?? "-"}</p>
+                              )}
+                              {memberIsPaused && activePause && (
+                                <p className="mt-1 text-xs text-yellow-400/80">
+                                  정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
+                                </p>
+                              )}
+                              {u.memo && <p className="mt-1 text-xs text-muted-foreground/70">{u.memo}</p>}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* 기타 서비스 */}
-                {etcRevs.length > 0 && (
-                  <Card className="bg-card border-border">
-                    <CardHeader className="px-4 sm:px-6 pb-2">
-                      <CardTitle className="text-base">기타 서비스</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 sm:px-6">
-                      <div className="space-y-3">
-                        {etcRevs.map(r => {
-                          const isService = r.paidAmount === 0;
-                          const detail = r.programDetail ?? r.memo ?? "기타";
-                          return (
-                            <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium text-sm text-foreground">{detail}</p>
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
-                                {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
-                              </div>
-                              <div className="mt-2 text-xs text-muted-foreground">
-                                <span>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></span>
-                                {r.unpaidAmount > 0 && <span className="ml-3">미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></span>}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* 락커 */}
-                <Card className="bg-card border-border">
-                  <CardHeader className="px-4 sm:px-6 pb-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">락커</CardTitle>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={openRefundModal}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
-                        >
-                          <span>🔄</span> 환불
-                        </button>
-                        <button
-                          onClick={() => {
-                            setYangdoServiceType("locker");
-                            setYangdoModalOpen(true);
-                            setYangdoContractUrl("");
-                            setYangdoSelectedItemId(memberPrograms?.lockers[0]?.id ?? "");
-                            setYangdoForm({ transferDate: "", trainerMemo: "" });
-                          }}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
-                        >
-                          <ArrowRightLeft className="h-3 w-3" /> 양도
-                        </button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="px-4 sm:px-6">
-                    {lockerMismatch && (
-                      <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                        <span className="text-orange-400 text-sm shrink-0">⚠️</span>
-                        <div className="flex-1">
-                          <p className="text-xs font-medium text-orange-400">락커 연동 오류</p>
-                          <p className="text-xs text-orange-400/80 mt-0.5">락커 {badgeLockerNum} 배지가 감지됐지만 이 회원에 연결된 락커 데이터가 없습니다.</p>
+                          ))}
                         </div>
-                        <button
-                          onClick={() => fixLockerMutation.mutate({
-                            memberId,
-                            memberName: member.name ?? "",
-                            memberPhone: member.phone ?? undefined,
-                            lockerNumber: badgeLockerNum!,
-                          })}
-                          disabled={fixLockerMutation.isPending}
-                          className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-50"
-                        >
-                          {fixLockerMutation.isPending ? "연결 중..." : "자동 연결"}
-                        </button>
-                      </div>
-                    )}
-                    {!hasLocker ? (
-                      <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* serviceItems/programDetail 기반 락커 서비스 — lockers 테이블에 연동되면 숨김 */}
-                        {(memberPrograms?.lockers.length ?? 0) === 0 && allLockerItems.map(item => (
-                          <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.락커.faint} border ${SERVICE_COLORS.락커.border}`}>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.락커.bg} ${SERVICE_COLORS.락커.text} ${SERVICE_COLORS.락커.border}`}>서비스</span>
-                              {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
-                            {memberPrograms?.lockers.length === 0 && (
-                              <div className="mt-2 flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={lockerLinkNum}
-                                  onChange={e => setLockerLinkNum(e.target.value)}
-                                  placeholder="락커 번호 입력"
-                                  className="flex-1 text-xs px-2 py-1 rounded-md bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                />
-                                <button
-                                  disabled={!lockerLinkNum.trim() || fixLockerMutation.isPending}
-                                  onClick={() => fixLockerMutation.mutate({
-                                    memberId,
-                                    memberName: member.name ?? "",
-                                    memberPhone: member.phone ?? undefined,
-                                    lockerNumber: lockerLinkNum.trim(),
-                                  })}
-                                  className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-40"
-                                >
-                                  {fixLockerMutation.isPending ? "연결 중…" : "락커 연결"}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                        {/* 실제 락커 배정 기록 */}
-                        {memberPrograms!.lockers.map(locker => (
-                          <div key={locker.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-foreground">락커 {locker.lockerNumber}</p>
-                              {memberIsPaused ? (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>
-                              ) : (
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
-                                  {locker.isOccupied ? "이용중" : "미사용"}
-                                </span>
-                              )}
-                              {locker.lockerType && locker.lockerType !== "personal" && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">{locker.lockerType}</span>
-                              )}
-                            </div>
-                            {(locker.startDate || locker.endDate) && (
-                              <p className="mt-1 text-xs text-muted-foreground">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</p>
-                            )}
-                            {memberIsPaused && activePause && (
-                              <p className="mt-1 text-xs text-yellow-400/80">
-                                정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
-                              </p>
-                            )}
-                            {locker.memo && <p className="mt-1 text-xs text-muted-foreground/70">{locker.memo}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* 운동복 */}
-                <Card className="bg-card border-border">
-                  <CardHeader className="px-4 sm:px-6 pb-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">운동복</CardTitle>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={openRefundModal}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
-                        >
-                          <span>🔄</span> 환불
-                        </button>
-                        <button
-                          onClick={() => {
-                            setYangdoServiceType("uniform");
-                            setYangdoModalOpen(true);
-                            setYangdoContractUrl("");
-                            setYangdoSelectedItemId(memberPrograms?.uniforms[0]?.id ?? "");
-                            setYangdoForm({ transferDate: "", trainerMemo: "" });
-                          }}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
-                        >
-                          <ArrowRightLeft className="h-3 w-3" /> 양도
-                        </button>
-                      </div>
+                      )}
                     </div>
-                  </CardHeader>
-                  <CardContent className="px-4 sm:px-6">
-                    {uniformMismatch && (
-                      <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                        <span className="text-orange-400 text-sm shrink-0">⚠️</span>
-                        <div>
-                          <p className="text-xs font-medium text-orange-400">운동복 연동 오류</p>
-                          <p className="text-xs text-orange-400/80 mt-0.5">회원 목록에서 운동복 뱃지가 감지됐지만 이 회원 ID에 연결된 데이터가 없습니다. 장부에서 해당 결제 내역의 회원을 이 회원으로 연결해 주세요.</p>
-                        </div>
-                      </div>
-                    )}
-                    {!hasUniform ? (
-                      <p className="text-muted-foreground text-sm text-center py-6">대여중인 운동복이 없습니다.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* serviceItems/programDetail 기반 운동복 서비스 */}
-                        {allUniformItems.map(item => (
-                          <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.운동복.faint} border ${SERVICE_COLORS.운동복.border}`}>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.운동복.bg} ${SERVICE_COLORS.운동복.text} ${SERVICE_COLORS.운동복.border}`}>서비스</span>
-                              {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
-                          </div>
-                        ))}
-                        {/* 실제 운동복 대여 기록 */}
-                        {memberPrograms!.uniforms.map(u => (
-                          <div key={u.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-foreground">운동복{u.size ? ` (${u.size})` : ""}</p>
-                              {(u.quantity ?? 1) > 1 && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">×{u.quantity}</span>
-                              )}
-                              {memberIsPaused ? (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>
-                              ) : (
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
-                                  {u.isActive ? "이용중" : "반납"}
-                                </span>
-                              )}
-                            </div>
-                            {(u.startDate || u.endDate) && (
-                              <p className="mt-1 text-xs text-muted-foreground">{u.startDate ?? "-"} ~ {u.endDate ?? "-"}</p>
-                            )}
-                            {memberIsPaused && activePause && (
-                              <p className="mt-1 text-xs text-yellow-400/80">
-                                정지 기간: {activePause.pauseStart} ~ {activePause.pauseEnd ?? "미정"}{activePause.reason ? ` · ${activePause.reason}` : ""}
-                              </p>
-                            )}
-                            {u.memo && <p className="mt-1 text-xs text-muted-foreground/70">{u.memo}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               </>
