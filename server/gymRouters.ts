@@ -441,12 +441,12 @@ const revenueRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.execute(sql`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
-      // 트레이너: trainerId, consultantId 자동 설정
+      // 트레이너: consultantId만 자동 설정. trainerId는 폼에서 명시적으로 선택한 값만 사용.
+      // ⚠ 상담 담당자 ≠ 담당 트레이너 (CLAUDE.md 규칙 6)
       const trainerAutoFields = ctx.user?.role === "trainer" ? {
-        trainerId: input.trainerId ?? ctx.user.trainerId ?? undefined,
         consultantId: input.consultantId ?? ctx.user.id,
       } : {};
-      const resolvedTrainerId = (trainerAutoFields as any).trainerId ?? input.trainerId ?? undefined;
+      const resolvedTrainerId = input.trainerId ?? undefined;
 
       // branchId 미지정 시 트레이너 소속 지점으로 자동 할당
       let resolvedBranchId = input.branchId ?? undefined;
@@ -3627,16 +3627,16 @@ const registerMutation = protectedProcedure
 
     // 1. 담당 트레이너(trainerId) 결정.
     //    ⚠ 상담 담당자 ≠ 담당 트레이너 (CLAUDE.md 데이터 무결성 원칙 6).
-    //    - 폼에서 고른 트레이너(input.trainerId)가 항상 우선한다. 예전엔 로그인한 사람이
-    //      트레이너면 폼 선택을 무시하고 무조건 본인을 담당으로 박아서, 상담만 진행한
-    //      트레이너의 회원 목록에 남의 회원이 들어가는 사고가 있었다.
-    //    - PT가 없는 등록(헬스권/락커/운동복만)은 담당 트레이너 개념 자체가 없으므로
-    //      trainerId를 비운다. 자기 담당으로 자동 귀속되면 안 된다.
+    //    - 트레이너가 등록을 진행하면 그 트레이너는 '상담 담당자'(consultantId)다.
+    //      담당 트레이너(trainerId)는 별개이며, 폼에서 명시적으로 선택한 경우에만 설정.
+    //    - 재등록 시에는 회원의 기존 담당 트레이너를 유지한다.
+    //    - PT가 없는 등록(헬스권/락커/운동복만)은 담당 트레이너 개념이 없으므로 비운다.
     const hasPt = !!input.addPt && (input.ptSessions ?? 0) > 0;
     let resolvedTrainerId: number | null = input.trainerId ?? null;
-    if (!resolvedTrainerId && hasPt && ctx.user.role === "trainer") {
-      // 트레이너가 PT를 직접 등록하면서 담당을 따로 안 골랐을 때만 본인으로 채운다.
-      resolvedTrainerId = ctx.user.trainerId ?? null;
+    if (!resolvedTrainerId && hasPt && input.memberId) {
+      const [existingMember] = await db.select({ trainerId: members.trainerId })
+        .from(members).where(eq(members.id, input.memberId)).limit(1);
+      resolvedTrainerId = existingMember?.trainerId ?? null;
     }
     if (!hasPt) resolvedTrainerId = null;
 
