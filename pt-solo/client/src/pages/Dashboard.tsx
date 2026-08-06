@@ -721,12 +721,11 @@ function TrainerDashboard() {
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
             {recentMembers.map((m) => (
               <button key={m.id} onClick={() => setLocation(`/members/${m.id}`)}
-                className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-90 transition-transform">
-                <div className={`w-14 h-14 rounded-[18px] bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center`}
+                className="flex-shrink-0 active:scale-95 transition-transform">
+                <div className={`px-4 py-2 rounded-2xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center`}
                   style={{ boxShadow: "0 2px 8px rgba(0,0,0,.1)" }}>
-                  <span className="text-lg font-bold text-white">{m.name.charAt(0)}</span>
+                  <span className="text-sm font-bold text-white whitespace-nowrap">{m.name}</span>
                 </div>
-                <span className="text-[10.5px] font-semibold text-foreground/65 text-center w-14 truncate">{m.name}</span>
               </button>
             ))}
           </div>
