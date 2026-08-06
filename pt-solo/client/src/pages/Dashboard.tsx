@@ -400,7 +400,7 @@ function MemberOverview() {
 }
 
 // ─── 빠른 작업 (데이터 조회 + 업무 명령 — 외부 전송 없음) ─────────────
-type QaMsg = { role: "user" | "bot"; text: string; link?: string };
+type QaMsg = { role: "user" | "bot"; text: string; link?: string; confirm?: { label: string; action: () => Promise<QaMsg> } };
 
 const QUICK_QUERY_CHIPS = ["현재 회원 수", "이번달 매출", "이번달 마감", "미수금", "만료임박", "6회이하 세션", "오늘 수업"];
 const QUICK_ACTION_CHIPS = ["회원 등록"];
@@ -511,8 +511,73 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       if (memberResult) return memberResult;
     }
 
+    const guessed = guessIntent(q);
+    if (guessed) return guessed;
+
     const answer = await resolveAnswer(q);
     return { role: "bot", text: answer };
+  }
+
+  function guessIntent(q: string): QaMsg | null {
+    const hasKoreanName = /[가-힣]{2,5}/.test(q);
+    const hasPhone = /\d{2,3}[-.]?\d{3,4}[-.]?\d{4}/.test(q);
+
+    if (hasKoreanName && hasPhone) {
+      const parsed = parseRegisterInput(q);
+      if (parsed.name) {
+        const details: string[] = [parsed.name];
+        if (parsed.phone) details.push(parsed.phone);
+        return {
+          role: "bot",
+          text: `"${details.join(" / ")}" → 회원 등록으로 판단했어요. 진행할까요?`,
+          confirm: {
+            label: "회원 등록 진행",
+            action: async () => {
+              const payload: any = { name: parsed.name, grade: "basic", status: "active" };
+              if (parsed.phone) payload.phone = parsed.phone;
+              if (parsed.paymentMethod) payload.paymentMethod = parsed.paymentMethod;
+              if (parsed.membershipStart) payload.membershipStart = parsed.membershipStart;
+              if (parsed.membershipEnd) payload.membershipEnd = parsed.membershipEnd;
+              if (parsed.gender) payload.gender = parsed.gender;
+              try {
+                const result = await createMemberMutation.mutateAsync(payload);
+                const infos: string[] = [];
+                if (parsed.phone) infos.push(`연락처: ${parsed.phone}`);
+                if (parsed.paymentMethod) infos.push(`결제: ${parsed.paymentMethod}`);
+                const infoStr = infos.length > 0 ? `\n${infos.join(" / ")}` : "";
+                return { role: "bot" as const, text: `✅ ${parsed.name} 회원이 등록되었습니다.${infoStr}`, link: `/members/${result.id}` };
+              } catch (err: any) {
+                return { role: "bot" as const, text: err.message || "회원 등록에 실패했어요." };
+              }
+            },
+          },
+        };
+      }
+    }
+
+    if (hasKoreanName && !hasPhone) {
+      const nameMatch = q.match(/[가-힣]{2,5}/);
+      const name = nameMatch?.[0];
+      if (name) {
+        return {
+          role: "bot",
+          text: `"${name}" → 회원 등록으로 판단했어요. 진행할까요?`,
+          confirm: {
+            label: "회원 등록 진행",
+            action: async () => {
+              try {
+                const result = await createMemberMutation.mutateAsync({ name, grade: "basic", status: "active" });
+                return { role: "bot" as const, text: `✅ ${name} 회원이 등록되었습니다.`, link: `/members/${result.id}` };
+              } catch (err: any) {
+                return { role: "bot" as const, text: err.message || "회원 등록에 실패했어요." };
+              }
+            },
+          },
+        };
+      }
+    }
+
+    return null;
   }
 
   async function findMemberByQuery(q: string, keywords: string[]): Promise<QaMsg | null> {
@@ -676,7 +741,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       return `이번달 총 수업 수는 ${total}회예요.`;
     }
 
-    return "아직 이해하지 못한 질문이에요. 이렇게 물어봐 주세요 → " + QUICK_QUERY_CHIPS.map(c => `"${c}"`).join(", ") + "\n\n업무 명령도 가능해요 → " + QUICK_ACTION_CHIPS.map(c => `"${c}"`).join(", ");
+    return "인식하지 못한 요청이에요. 이런 질문이 가능해요:\n" + QUICK_QUERY_CHIPS.map(c => `• ${c}`).join("\n") + "\n\n업무 명령:\n" + QUICK_ACTION_CHIPS.map(c => `• ${c}`).join("\n") + "\n• 이름+번호 입력 시 회원 등록 제안";
   }
 
   return (
@@ -713,6 +778,30 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
                     m.role === "user" ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-accent/50 text-foreground rounded-bl-sm"
                   }`}>
                     {m.text}
+                    {m.confirm && (
+                      <div className="mt-2 flex gap-2">
+                        <button onClick={async () => {
+                          setBusy(true);
+                          try {
+                            const result = await m.confirm!.action();
+                            setMessages(msgs => {
+                              const updated = [...msgs];
+                              const idx = updated.indexOf(m);
+                              if (idx >= 0) updated[idx] = { ...m, confirm: undefined, text: m.text.replace("진행할까요?", "진행 중...") };
+                              return [...updated, result];
+                            });
+                          } catch { setMessages(msgs => [...msgs, { role: "bot", text: "처리 중 오류가 발생했어요." }]); }
+                          finally { setBusy(false); }
+                        }} disabled={busy}
+                          className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 disabled:opacity-50">
+                          {m.confirm.label}
+                        </button>
+                        <button onClick={() => setMessages(msgs => [...msgs, { role: "bot", text: "취소했어요." }])}
+                          className="px-3 py-1.5 rounded-lg border border-border text-[11px] font-medium text-muted-foreground hover:bg-accent/50">
+                          취소
+                        </button>
+                      </div>
+                    )}
                     {m.link && (
                       <button onClick={() => onNavigate(m.link!)}
                         className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
