@@ -426,36 +426,98 @@ function AttendanceSection() {
 
 // ── 운동기록 조회 섹션 ──────────────────────────────────────────────────────
 export function WorkoutLogSection() {
-  const today = new Date().toISOString().slice(0, 10);
-  const [month, setMonth] = useState(today.slice(0, 7));
-  const { data: logs } = trpc.fitStepPlus.trainer_listWorkoutLogs.useQuery({ month });
-  const months = Array.from({ length: 4 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - i); return d.toISOString().slice(0, 7); });
+  const { data: members } = trpc.members.list.useQuery();
+  const [search, setSearch] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+
+  const { data: logs } = trpc.fitStepPlus.trainer_listWorkoutLogs.useQuery(
+    { memberId: selectedMemberId! },
+    { enabled: !!selectedMemberId }
+  );
+
+  const filtered = members?.filter(m =>
+    m.status === "active" && m.name.includes(search)
+  ) ?? [];
+
+  const selectedMember = members?.find(m => m.id === selectedMemberId);
+
+  if (selectedMemberId && selectedMember) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setSelectedMemberId(null); setExpandedLogId(null); }}
+            className="text-xs text-primary font-semibold">← 회원 목록</button>
+          <span className="text-sm font-semibold">{selectedMember.name}</span>
+          <span className="text-xs text-muted-foreground">운동 기록</span>
+        </div>
+
+        {!logs || logs.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-6">등록된 운동 기록이 없습니다</p>
+        ) : (
+          <div className="space-y-2">
+            {logs.map((log) => (
+              <button key={log.id} onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                className="w-full text-left bg-background border border-border rounded-xl p-3 hover:bg-accent/30 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">{log.title || "운동 기록"}</p>
+                    <p className="text-xs text-muted-foreground">{log.logDate} {log.durationMinutes ? `· ${log.durationMinutes}분` : ""}</p>
+                  </div>
+                  {log.mood && <span className="text-sm">{log.mood === "great" ? "😊" : log.mood === "good" ? "🙂" : log.mood === "normal" ? "😐" : log.mood === "tired" ? "😮‍💨" : "😵"}</span>}
+                </div>
+                {expandedLogId === log.id && (
+                  <div className="mt-2 pt-2 border-t border-border space-y-2">
+                    {log.exercisesJson && (() => {
+                      try {
+                        const exercises = JSON.parse(log.exercisesJson);
+                        if (Array.isArray(exercises) && exercises.length > 0) {
+                          return (
+                            <div className="space-y-1.5">
+                              {exercises.map((ex: any, i: number) => (
+                                <div key={i} className="bg-accent/20 rounded-lg px-2.5 py-1.5">
+                                  <p className="text-xs font-medium">{ex.name || ex.exerciseName || `운동 ${i + 1}`}</p>
+                                  {(ex.sets || ex.reps || ex.weight) && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {ex.sets && `${ex.sets}세트`} {ex.reps && `${ex.reps}회`} {ex.weight && `${ex.weight}kg`}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                      } catch { /* ignore */ }
+                      return null;
+                    })()}
+                    {log.notes && <p className="text-xs text-muted-foreground">{log.notes}</p>}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {months.map((m) => (
-          <button key={m} onClick={() => setMonth(m)}
-            className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors ${month === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-            {m.replace("-", "년 ")}월
-          </button>
-        ))}
-      </div>
-      {!logs || logs.length === 0 ? (
-        <p className="text-center text-sm text-muted-foreground py-4">운동 기록이 없습니다</p>
+      <Input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="회원 이름 검색" className="h-9 text-sm" />
+      {filtered.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground py-4">회원이 없습니다</p>
       ) : (
-        <div className="space-y-2">
-          {logs.map((log) => (
-            <div key={log.id} className="bg-background border border-border rounded-xl p-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">{log.memberName} · {log.logDate}</p>
-                  <p className="text-sm font-semibold">{log.title || "운동 기록"}</p>
-                </div>
-                {log.durationMinutes && <span className="text-[10px] text-muted-foreground">⏱ {log.durationMinutes}분</span>}
+        <div className="space-y-1.5">
+          {filtered.map(m => (
+            <button key={m.id} onClick={() => setSelectedMemberId(m.id)}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-background border border-border hover:bg-accent/30 transition-colors text-left">
+              <div>
+                <p className="text-sm font-medium">{m.name}</p>
+                <p className="text-xs text-muted-foreground">{m.phone || "연락처 미등록"}</p>
               </div>
-              {log.notes && <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{log.notes}</p>}
-            </div>
+              <ChevronDown className="h-4 w-4 text-muted-foreground -rotate-90" />
+            </button>
           ))}
         </div>
       )}
