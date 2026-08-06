@@ -298,12 +298,13 @@ function MemberPickModal({
   );
 }
 
-// ─── 빠른 질문 (내부 데이터 기반 규칙형 질의응답 — 외부 전송 없음) ─────────────
-type QaMsg = { role: "user" | "bot"; text: string };
+// ─── 빠른 작업 (데이터 조회 + 업무 명령 — 외부 전송 없음) ─────────────
+type QaMsg = { role: "user" | "bot"; text: string; link?: string };
 
-const QUICK_ASK_CHIPS = ["이번달 매출", "미수금", "만료임박", "6회이하 세션", "PAR-Q 미기록", "오늘 수업"];
+const QUICK_QUERY_CHIPS = ["이번달 매출", "미수금", "만료임박", "6회이하 세션", "PAR-Q 미기록", "오늘 수업"];
+const QUICK_ACTION_CHIPS = ["회원 등록"];
 
-function QuickAskCard({ trainerName }: { trainerName: string }) {
+function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavigate: (path: string) => void }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<QaMsg[]>([]);
@@ -312,6 +313,8 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
   const todayStr = new Date().toISOString().split("T")[0];
   const yearMonth = todayStr.slice(0, 7);
 
+  const createMemberMutation = trpc.members.create.useMutation();
+
   async function ask(question: string) {
     const q = question.trim();
     if (!q || busy) return;
@@ -319,13 +322,33 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
     setInput("");
     setBusy(true);
     try {
-      const answer = await resolveAnswer(q);
-      setMessages(m => [...m, { role: "bot", text: answer }]);
+      const result = await resolveCommand(q);
+      setMessages(m => [...m, result]);
     } catch {
-      setMessages(m => [...m, { role: "bot", text: "데이터를 불러오는 중 문제가 발생했어요. 잠시 후 다시 시도해주세요." }]);
+      setMessages(m => [...m, { role: "bot", text: "처리 중 문제가 발생했어요. 잠시 후 다시 시도해주세요." }]);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function resolveCommand(q: string): Promise<QaMsg> {
+    const has = (...kws: string[]) => kws.some(k => q.includes(k));
+
+    if (has("회원 등록", "회원등록", "신규 등록", "신규등록")) {
+      const name = q.replace(/회원\s*등록|신규\s*등록/g, "").trim();
+      if (!name) {
+        return { role: "bot", text: "등록할 회원 이름을 함께 입력해주세요.\n예: \"홍길동 회원 등록\"" };
+      }
+      try {
+        const result = await createMemberMutation.mutateAsync({ name, grade: "basic", status: "active" });
+        return { role: "bot", text: `✅ ${name} 회원이 등록되었습니다. 상세 정보를 입력하려면 아래를 눌러주세요.`, link: `/members/${result.id}` };
+      } catch (err: any) {
+        return { role: "bot", text: err.message || "회원 등록에 실패했어요." };
+      }
+    }
+
+    const answer = await resolveAnswer(q);
+    return { role: "bot", text: answer };
   }
 
   // 서버에 저장된 데이터만 조회 — 외부로 전송되는 데이터 없음. 정해진 질문 패턴만 인식.
@@ -399,7 +422,7 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
       return `이번달 총 수업 수는 ${total}회예요.`;
     }
 
-    return "아직 이해하지 못한 질문이에요. 이렇게 물어봐 주세요 → " + QUICK_ASK_CHIPS.map(c => `"${c}"`).join(", ");
+    return "아직 이해하지 못한 질문이에요. 이렇게 물어봐 주세요 → " + QUICK_QUERY_CHIPS.map(c => `"${c}"`).join(", ") + "\n\n업무 명령도 가능해요 → " + QUICK_ACTION_CHIPS.map(c => `"${c}"`).join(", ");
   }
 
   return (
@@ -408,16 +431,22 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
         <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
           <MessageCircle className="h-3.5 w-3.5 text-teal-500" />
         </div>
-        <span className="text-sm font-semibold">빠른 질문</span>
-        <span className="text-[10px] text-muted-foreground">내 데이터로 바로 확인</span>
+        <span className="text-sm font-semibold">빠른 작업</span>
+        <span className="text-[10px] text-muted-foreground">질문 & 업무 명령</span>
         <ChevronRight className={`h-4 w-4 text-muted-foreground ml-auto transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       {open && (
         <div className="px-4 pb-4 space-y-3">
           <div className="flex flex-wrap gap-1.5">
-            {QUICK_ASK_CHIPS.map(c => (
+            {QUICK_QUERY_CHIPS.map(c => (
               <button key={c} onClick={() => ask(c)} disabled={busy}
                 className="text-[12px] font-semibold px-2.5 py-1.5 rounded-full bg-teal-500/8 text-teal-600 hover:bg-teal-500/15 transition-colors disabled:opacity-50">
+                {c}
+              </button>
+            ))}
+            {QUICK_ACTION_CHIPS.map(c => (
+              <button key={c} onClick={() => ask(c)} disabled={busy}
+                className="text-[12px] font-semibold px-2.5 py-1.5 rounded-full bg-indigo-500/8 text-indigo-600 hover:bg-indigo-500/15 transition-colors disabled:opacity-50">
                 {c}
               </button>
             ))}
@@ -430,6 +459,12 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
                     m.role === "user" ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-accent/50 text-foreground rounded-bl-sm"
                   }`}>
                     {m.text}
+                    {m.link && (
+                      <button onClick={() => onNavigate(m.link!)}
+                        className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
+                        상세 정보 입력 <ArrowRight className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -445,7 +480,7 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") ask(input); }}
-              placeholder={`${trainerName}님, 궁금한 걸 물어보세요`}
+              placeholder={`${trainerName}님, 질문하거나 업무를 시켜보세요`}
               className="flex-1 min-w-0 px-3 py-2.5 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
             />
             <button onClick={() => ask(input)} disabled={busy || !input.trim()}
@@ -453,7 +488,7 @@ function QuickAskCard({ trainerName }: { trainerName: string }) {
               <Send className="h-4 w-4" />
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground">정해진 질문 패턴에만 답해요. 회원 정보는 이 기기와 서버 사이에서만 계산돼요.</p>
+          <p className="text-[10px] text-muted-foreground">질문·업무 명령 모두 가능해요. 예: "홍길동 회원 등록", "이번달 매출"</p>
         </div>
       )}
     </div>
@@ -709,7 +744,7 @@ function TrainerDashboard() {
         </button>
       </div>
 
-      <QuickAskCard trainerName={trainerName} />
+      <QuickAskCard trainerName={trainerName} onNavigate={setLocation} />
 
       {/* 최근 회원 */}
       {recentMembers.length > 0 && (
