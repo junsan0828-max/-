@@ -301,7 +301,7 @@ function MemberPickModal({
 // ─── 빠른 작업 (데이터 조회 + 업무 명령 — 외부 전송 없음) ─────────────
 type QaMsg = { role: "user" | "bot"; text: string; link?: string };
 
-const QUICK_QUERY_CHIPS = ["이번달 매출", "미수금", "만료임박", "6회이하 세션", "PAR-Q 미기록", "오늘 수업"];
+const QUICK_QUERY_CHIPS = ["현재 회원 수", "이번달 매출", "이번달 마감", "미수금", "만료임박", "6회이하 세션", "오늘 수업"];
 const QUICK_ACTION_CHIPS = ["회원 등록"];
 
 function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavigate: (path: string) => void }) {
@@ -420,9 +420,36 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
     return null;
   }
 
-  // 서버에 저장된 데이터만 조회 — 외부로 전송되는 데이터 없음. 정해진 질문 패턴만 인식.
   async function resolveAnswer(q: string): Promise<string> {
     const has = (...kws: string[]) => kws.some(k => q.includes(k));
+
+    if (has("회원 몇", "회원 수", "총 회원", "현재 회원", "회원수", "몇명")) {
+      const all = await utils.members.list.fetch();
+      const active = all.filter(m => m.status === "active");
+      const paused = all.filter(m => m.status === "paused");
+      return `현재 등록 회원은 총 ${all.length}명이에요. (활성 ${active.length}명, 정지 ${paused.length}명)`;
+    }
+
+    if (has("이번달 마감", "이번 달 마감", "이달 마감", "이번달 만료", "이번 달 만료")) {
+      const expiring = await utils.members.getExpiring.fetch({ days: 31 });
+      const now = new Date();
+      const thisMonth = expiring.filter(m => {
+        const d = new Date(m.membershipEnd!);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
+      if (thisMonth.length === 0) return "이번달에 만료 예정인 회원이 없어요.";
+      const names = thisMonth.slice(0, 5).map(m => `${m.name}(${m.membershipEnd})`).join(", ");
+      return `이번달 만료 예정 회원은 ${thisMonth.length}명이에요.\n${names}${thisMonth.length > 5 ? ` 외 ${thisMonth.length - 5}명` : ""}`;
+    }
+
+    if (has("신규 회원", "이번달 등록", "이번 달 등록", "신규")) {
+      const all = await utils.members.list.fetch();
+      const monthStart = todayStr.slice(0, 7);
+      const newMembers = all.filter(m => m.createdAt && String(m.createdAt).startsWith(monthStart));
+      if (newMembers.length === 0) return "이번달 신규 등록 회원이 없어요.";
+      const names = newMembers.slice(0, 5).map(m => m.name).join(", ");
+      return `이번달 신규 등록 회원은 ${newMembers.length}명이에요. (${names}${newMembers.length > 5 ? ` 외 ${newMembers.length - 5}명` : ""})`;
+    }
 
     if (has("매출")) {
       const monthly = has("오늘", "일일") ? null : await utils.trainers.getMonthlySettlement.fetch({ yearMonth });
