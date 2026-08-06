@@ -28,7 +28,7 @@ import TransferContractManager from "@/components/editors/TransferContractManage
 import { WorkoutLogSection, TrainerDietManager, VideoSection, WS_CATALOG } from "@/pages/Workshop";
 
 // 작업실을 거치지 않고 대시보드 모달로 바로 여는 기능 — 하나씩 여기 추가하며 이전 중
-const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet", "fitstep_videos"]);
+const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet", "fitstep_videos", "member_overview"]);
 const MODAL_FEATURE_META: Record<string, { title: string; Component: React.ComponentType }> = {
   report_branding: { title: "보고서 브랜딩", Component: ReportBrandingEditor },
   contract_terms: { title: "약관 브랜딩", Component: ContractTermsEditor },
@@ -41,6 +41,7 @@ const MODAL_FEATURE_META: Record<string, { title: string; Component: React.Compo
   fitstep_personal: { title: "개인 운동 기록 관리", Component: WorkoutLogSection },
   fitstep_diet: { title: "맞춤 식단 관리", Component: TrainerDietManager },
   fitstep_videos: { title: "운동 영상 관리", Component: VideoSection },
+  member_overview: { title: "회원 운영 현황", Component: MemberOverview },
 };
 
 // ─── 아바타 색상 ──────────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ const FREE_IDS = new Set([
 const PRO_IDS = new Set(["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"]);
 const ELITE_IDS = new Set<string>([]);
 // contract_kakao는 이미 편집 모달(EContractManager 재사용)로 연결돼 있어 "준비 중"이 아님
-const COMING_SOON_IDS = new Set(["training_video", "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
+const COMING_SOON_IDS = new Set(["training_video", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
 
 type WsDashItem = { id: string; icon: React.ElementType; name: string; };
 type WsDashCat = {
@@ -295,6 +296,106 @@ function MemberPickModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── 회원 운영 현황 ──────────────────────────────────────────────────────
+function MemberOverview() {
+  const { data: memberList = [] } = trpc.members.list.useQuery();
+  const { data: expiring = [] } = trpc.members.getExpiring.useQuery({ days: 30 });
+  const [, setLocation] = useLocation();
+
+  const active = memberList.filter((m: any) => m.status === "active");
+  const paused = memberList.filter((m: any) => m.status === "paused");
+  const total = memberList.length;
+
+  const now = new Date();
+  const thisMonthExpiring = expiring.filter((m: any) => {
+    const d = new Date(m.membershipEnd);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+
+  const expired = memberList.filter((m: any) => {
+    if (!m.membershipEnd || m.status !== "active") return false;
+    return new Date(m.membershipEnd) < now;
+  });
+
+  const maleCount = memberList.filter((m: any) => m.gender === "male").length;
+  const femaleCount = memberList.filter((m: any) => m.gender === "female").length;
+  const genderUnknown = total - maleCount - femaleCount;
+
+  const ageGroups: Record<string, number> = { "10대": 0, "20대": 0, "30대": 0, "40대": 0, "50대": 0, "60대+": 0, "미등록": 0 };
+  memberList.forEach((m: any) => {
+    if (!m.birthDate) { ageGroups["미등록"]++; return; }
+    const age = now.getFullYear() - new Date(m.birthDate).getFullYear();
+    if (age < 20) ageGroups["10대"]++;
+    else if (age < 30) ageGroups["20대"]++;
+    else if (age < 40) ageGroups["30대"]++;
+    else if (age < 50) ageGroups["40대"]++;
+    else if (age < 60) ageGroups["50대"]++;
+    else ageGroups["60대+"]++;
+  });
+  const maxAge = Math.max(1, ...Object.values(ageGroups));
+
+  const statCls = "bg-background border border-border rounded-xl p-3 text-center";
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-3 gap-2">
+        <div className={statCls}><p className="text-2xl font-bold">{total}</p><p className="text-[11px] text-muted-foreground mt-0.5">전체</p></div>
+        <div className={statCls}><p className="text-2xl font-bold text-green-600">{active.length}</p><p className="text-[11px] text-muted-foreground mt-0.5">활성</p></div>
+        <div className={statCls}><p className="text-2xl font-bold text-muted-foreground">{paused.length}</p><p className="text-[11px] text-muted-foreground mt-0.5">정지</p></div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className={statCls}><p className="text-xl font-bold text-orange-500">{thisMonthExpiring.length}</p><p className="text-[11px] text-muted-foreground mt-0.5">이번달 만료 예정</p></div>
+        <div className={statCls}><p className="text-xl font-bold text-red-500">{expired.length}</p><p className="text-[11px] text-muted-foreground mt-0.5">만료됨</p></div>
+      </div>
+
+      {thisMonthExpiring.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-muted-foreground">이번달 만료 예정 회원</p>
+          <div className="space-y-1">
+            {thisMonthExpiring.map((m: any) => (
+              <button key={m.id} onClick={() => setLocation(`/members/${m.id}`)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-orange-500/5 hover:bg-orange-500/10 transition-colors text-left">
+                <span className="text-sm font-medium">{m.name}</span>
+                <span className="text-xs text-muted-foreground">{m.membershipEnd}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground">성별 비율</p>
+        <div className="flex gap-2 h-5 rounded-full overflow-hidden">
+          {maleCount > 0 && <div className="bg-blue-500 rounded-full" style={{ flex: maleCount }} />}
+          {femaleCount > 0 && <div className="bg-pink-500 rounded-full" style={{ flex: femaleCount }} />}
+          {genderUnknown > 0 && <div className="bg-muted rounded-full" style={{ flex: genderUnknown }} />}
+        </div>
+        <div className="flex gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />남성 {maleCount}명</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-500" />여성 {femaleCount}명</span>
+          {genderUnknown > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted" />미등록 {genderUnknown}명</span>}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground">연령대 분포</p>
+        <div className="space-y-1.5">
+          {Object.entries(ageGroups).filter(([, v]) => v > 0).map(([label, count]) => (
+            <div key={label} className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-10 shrink-0">{label}</span>
+              <div className="flex-1 h-5 bg-muted/30 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${(count / maxAge) * 100}%` }} />
+              </div>
+              <span className="text-xs font-medium w-8 text-right">{count}명</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -937,7 +1038,7 @@ function TrainerDashboard() {
           { label: "미수금", icon: AlertTriangle, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
           { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
           { label: "재등록 안내", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
-          { label: "회원 운영 현황", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => openFeature("member_overview"), comingSoon: true },
+          { label: "회원 운영 현황", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => openFeature("member_overview") },
         ]} />
       </div>
 

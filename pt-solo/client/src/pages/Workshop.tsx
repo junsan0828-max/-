@@ -2041,7 +2041,7 @@ export const WS_CATALOG: WsCatDef[] = [
   {
     key: "operations", label: "회원 운영 관리", icon: Users, iconCls: "text-blue-500", bgCls: "bg-blue-500/10",
     items: [
-      { id: "member_overview", icon: Users, name: "회원 운영 현황", shortDesc: "전체 회원 상태 한눈에 파악", status: "coming_soon",
+      { id: "member_overview", icon: Users, name: "회원 운영 현황", shortDesc: "전체 회원 상태 한눈에 파악", status: "active",
         description: "전체 회원, 활성 회원, 만료 임박·만료·정지 회원을 한눈에 확인하세요. 성별 비율, 연령대 그래프로 회원 구성을 분석할 수 있습니다.",
         tags: ["활성 회원", "만료 임박", "성별 비율", "연령대"],
         useCases: ["월말 회원 현황 파악", "만료 예정 회원 관리", "회원 구성 분석"] },
