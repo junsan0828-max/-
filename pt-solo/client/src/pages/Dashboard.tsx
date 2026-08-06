@@ -347,8 +347,77 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       }
     }
 
+    const memberInfoKeywords = ["마감", "만료", "세션", "잔여", "연락처", "전화", "미수금", "등급", "상태", "시작일", "메모", "특이사항", "생년월일", "이메일"];
+    if (memberInfoKeywords.some(k => q.includes(k))) {
+      const memberResult = await findMemberByQuery(q, memberInfoKeywords);
+      if (memberResult) return memberResult;
+    }
+
     const answer = await resolveAnswer(q);
     return { role: "bot", text: answer };
+  }
+
+  async function findMemberByQuery(q: string, keywords: string[]): Promise<QaMsg | null> {
+    const name = keywords.reduce((s, k) => s.replace(k, ""), q).replace(/\s+/g, " ").trim();
+    if (!name || name.length > 10) return null;
+
+    const allMembers = await utils.members.list.fetch();
+    const member = allMembers.find(m => m.name === name);
+    if (!member) return { role: "bot", text: `"${name}" 회원을 찾을 수 없어요.` };
+
+    const has = (...kws: string[]) => kws.some(k => q.includes(k));
+
+    if (has("마감", "만료")) {
+      if (!member.membershipEnd) return { role: "bot", text: `${name} 회원의 만료일이 설정되어 있지 않아요.`, link: `/members/${member.id}` };
+      const end = new Date(member.membershipEnd);
+      const diff = Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const status = diff < 0 ? `${Math.abs(diff)}일 지남` : diff === 0 ? "오늘 만료" : `${diff}일 남음`;
+      return { role: "bot", text: `${name} 회원 만료일: ${member.membershipEnd} (${status})`, link: `/members/${member.id}` };
+    }
+
+    if (has("세션", "잔여")) {
+      const pkgs = await utils.pt.listByMember.fetch({ memberId: member.id });
+      const active = pkgs.filter((p: any) => p.status === "active");
+      if (active.length === 0) return { role: "bot", text: `${name} 회원의 활성 PT 패키지가 없어요.`, link: `/members/${member.id}` };
+      const lines = active.map((p: any) => `${p.packageName || "PT"}: ${p.totalSessions - p.usedSessions}회 남음 (${p.usedSessions}/${p.totalSessions})`);
+      return { role: "bot", text: `${name} 회원 잔여 세션:\n${lines.join("\n")}`, link: `/members/${member.id}` };
+    }
+
+    if (has("연락처", "전화")) {
+      return { role: "bot", text: `${name} 회원 연락처: ${member.phone || "미등록"}`, link: `/members/${member.id}` };
+    }
+
+    if (has("미수금")) {
+      const unpaid = (member as any).unpaidAmount ?? 0;
+      return { role: "bot", text: unpaid > 0 ? `${name} 회원 미수금: ${unpaid.toLocaleString()}원` : `${name} 회원은 미수금이 없어요.`, link: `/members/${member.id}` };
+    }
+
+    if (has("등급")) {
+      const gradeMap: Record<string, string> = { basic: "기본", premium: "프리미엄", vip: "VIP" };
+      return { role: "bot", text: `${name} 회원 등급: ${gradeMap[member.grade] || member.grade}`, link: `/members/${member.id}` };
+    }
+
+    if (has("상태")) {
+      return { role: "bot", text: `${name} 회원 상태: ${member.status === "active" ? "활성" : "정지"}`, link: `/members/${member.id}` };
+    }
+
+    if (has("시작일")) {
+      return { role: "bot", text: `${name} 회원 시작일: ${member.membershipStart || "미설정"}`, link: `/members/${member.id}` };
+    }
+
+    if (has("메모", "특이사항")) {
+      return { role: "bot", text: `${name} 회원 특이사항: ${member.profileNote || "없음"}`, link: `/members/${member.id}` };
+    }
+
+    if (has("생년월일")) {
+      return { role: "bot", text: `${name} 회원 생년월일: ${member.birthDate || "미등록"}`, link: `/members/${member.id}` };
+    }
+
+    if (has("이메일")) {
+      return { role: "bot", text: `${name} 회원 이메일: ${member.email || "미등록"}`, link: `/members/${member.id}` };
+    }
+
+    return null;
   }
 
   // 서버에 저장된 데이터만 조회 — 외부로 전송되는 데이터 없음. 정해진 질문 패턴만 인식.
