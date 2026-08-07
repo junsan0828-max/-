@@ -89,6 +89,19 @@ if (fs.existsSync(clientDistPath)) {
     });
   });
 
+  app.get("/.well-known/assetlinks.json", (_req, res) => {
+    res.json([{
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: "com.ziantgym.plus",
+        sha256_cert_fingerprints: [
+          process.env.TWA_SHA256_FINGERPRINT || "TO_BE_SET_AFTER_SIGNING"
+        ],
+      },
+    }]);
+  });
+
   app.use(express.static(clientDistPath));
   app.get("*", (_req, res) => {
     res.sendFile(path.join(clientDistPath, "index.html"));
