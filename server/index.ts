@@ -102,6 +102,18 @@ if (fs.existsSync(clientDistPath)) {
     }]);
   });
 
+  app.get("/sw.js", (_req, res) => {
+    res.setHeader("Service-Worker-Allowed", "/");
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.join(clientDistPath, "sw.js"));
+  });
+
+  app.get("/manifest.json", (_req, res) => {
+    res.setHeader("Content-Type", "application/manifest+json");
+    res.sendFile(path.join(clientDistPath, "manifest.json"));
+  });
+
   app.use(express.static(clientDistPath));
   app.get("*", (_req, res) => {
     res.sendFile(path.join(clientDistPath, "index.html"));

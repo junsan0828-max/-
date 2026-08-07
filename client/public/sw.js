@@ -1,9 +1,9 @@
-const CACHE_NAME = 'ziantgym-plus-v1';
+const CACHE_NAME = 'ziantgym-plus-v2';
 const PRECACHE_URLS = [
   '/gym-plus',
   '/manifest.json',
-  '/icon-192.svg',
-  '/icon-512.svg',
+  '/icon-192.png',
+  '/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {

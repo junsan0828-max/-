@@ -4,7 +4,7 @@
   "description": "맞춤운동센터 자이언트짐 회원 전용 앱. 출석체크, 포인트, 맞춤 식단, 1:1 PT 관리.",
   "id": "/gym-plus",
   "start_url": "/gym-plus",
-  "scope": "/gym-plus",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#09090b",
   "theme_color": "#6366f1",
@@ -36,6 +36,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ZIANTGYM+ 홈 화면"
     }
   ]
 }
