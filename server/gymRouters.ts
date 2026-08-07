@@ -3256,10 +3256,20 @@ const staffRouter = t.router({
   listConsultants: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: users.id, username: users.username })
+    const consultantUsers = await db.select({ id: users.id, username: users.username })
       .from(users)
       .where(eq(users.role, "consultant"))
       .orderBy(users.username);
+    const trainerUsers = await db
+      .select({ id: users.id, username: trainers.trainerName })
+      .from(trainers)
+      .innerJoin(users, eq(trainers.userId, users.id))
+      .orderBy(trainers.trainerName);
+    const seenIds = new Set(consultantUsers.map(c => c.id));
+    return [
+      ...consultantUsers,
+      ...trainerUsers.filter(t => !seenIds.has(t.id)),
+    ];
   }),
   listBranches: protectedProcedure.query(async () => {
     const db = await getDb();

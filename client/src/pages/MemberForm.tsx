@@ -407,11 +407,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     <SelectValue placeholder="상담 담당자 선택 (선택사항)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(consultantList ?? []).length > 0 && (consultantList ?? []).map((c) => (
-                      <SelectItem key={`c-${c.id}`} value={String(c.id)}>{c.username}</SelectItem>
-                    ))}
-                    {(trainerList ?? []).map((t) => (
-                      <SelectItem key={`t-${t.userId ?? t.id}`} value={String(t.userId ?? t.id)}>{t.trainerName}</SelectItem>
+                    {(consultantList ?? []).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.username}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
