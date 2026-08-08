@@ -5037,7 +5037,12 @@ const kioskRouter = t.router({
         } catch (e) {
           console.error("kiosk uniform check error (already):", e);
         }
-        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, uniformEnd: uniformEndAlready };
+        let totalPointsAlready = 0;
+        try {
+          const gmAlready = await pool.query(`SELECT points FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [member.id]);
+          totalPointsAlready = gmAlready.rows[0]?.points ?? 0;
+        } catch {}
+        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, totalPoints: totalPointsAlready, uniformEnd: uniformEndAlready };
       }
 
       // 키오스크 출입 기록 (trainerId=0: 시스템/키오스크)
@@ -5103,7 +5108,12 @@ const kioskRouter = t.router({
         console.error("kiosk uniform check error:", e);
       }
 
-      return { name: member.name, alreadyCheckedIn: false, pointsEarned, uniformEnd };
+      let totalPoints = 0;
+      try {
+        const gmTotal = await pool.query(`SELECT points FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [member.id]);
+        totalPoints = gmTotal.rows[0]?.points ?? 0;
+      } catch {}
+      return { name: member.name, alreadyCheckedIn: false, pointsEarned, totalPoints, uniformEnd };
     }),
 });
 
