@@ -14,6 +14,7 @@ export default function KioskPage() {
   const [memberName, setMemberName] = useState("");
   const [pointsEarned, setPointsEarned] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
+  const [showPoints, setShowPoints] = useState(true);
   const [uniformEnd, setUniformEnd] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(nowTimeStr());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +36,7 @@ export default function KioskPage() {
       setMemberName(data.name);
       setPointsEarned(data.pointsEarned);
       setTotalPoints(data.totalPoints);
+      setShowPoints(data.showPoints);
       setUniformEnd(data.uniformEnd ?? null);
       setStage(data.alreadyCheckedIn ? "already" : "success");
       scheduleReset();
@@ -160,7 +162,7 @@ export default function KioskPage() {
               <p className="text-emerald-400 font-semibold mt-1">출입이 확인되었습니다</p>
               <p className="text-white/40 text-sm mt-0.5">환영합니다! 즐거운 운동 되세요</p>
             </div>
-            {pointsEarned > 0 && (
+            {showPoints && pointsEarned > 0 && (
               <div className="bg-[#4f6ef7]/10 border border-[#4f6ef7]/20 rounded-2xl px-4 py-3">
                 <p className="text-[#7b9bff] text-sm font-semibold">
                   +{pointsEarned.toLocaleString("ko-KR")}P 적립되었습니다
@@ -193,7 +195,7 @@ export default function KioskPage() {
               <p className="text-amber-400 font-semibold mt-1">오늘 이미 출입이 확인되었습니다</p>
               <p className="text-white/40 text-sm mt-0.5">즐거운 운동 되세요!</p>
             </div>
-            {totalPoints > 0 && (
+            {showPoints && totalPoints > 0 && (
               <div className="bg-[#4f6ef7]/10 border border-[#4f6ef7]/20 rounded-2xl px-4 py-3">
                 <p className="text-white/40 text-xs">누적 포인트</p>
                 <p className="text-[#7b9bff] text-sm font-semibold mt-0.5">{totalPoints.toLocaleString("ko-KR")}P</p>

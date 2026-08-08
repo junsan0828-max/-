@@ -4489,9 +4489,12 @@ ${dataContext}
   // ─── 출입 포인트 설정 ────────────────────────────────────────────────────────
 
   getCheckinPointSetting: adminOnlyGymPlus.query(async () => {
-    const res = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'checkin_point_amount'`);
-    const val = parseInt(res.rows[0]?.value ?? "100");
-    return { amount: isNaN(val) ? 100 : val };
+    const res = await pool.query(`SELECT key, value FROM gym_plus_settings WHERE key IN ('checkin_point_amount', 'kiosk_show_points')`);
+    const rows = res.rows as { key: string; value: string }[];
+    const amountRow = rows.find(r => r.key === "checkin_point_amount");
+    const showRow = rows.find(r => r.key === "kiosk_show_points");
+    const val = parseInt(amountRow?.value ?? "100");
+    return { amount: isNaN(val) ? 100 : val, kioskShowPoints: showRow?.value !== "false" };
   }),
 
   setCheckinPointSetting: adminOnlyGymPlus
@@ -4501,6 +4504,17 @@ ${dataContext}
         `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('checkin_point_amount', $1, now()::text)
          ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
         [String(input.amount)]
+      );
+      return { success: true };
+    }),
+
+  setKioskShowPoints: adminOnlyGymPlus
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('kiosk_show_points', $1, now()::text)
+         ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
+        [String(input.enabled)]
       );
       return { success: true };
     }),
@@ -4990,6 +5004,9 @@ const kioskRouter = t.router({
   checkIn: publicProcedure
     .input(z.object({ phone: z.string().min(9) }))
     .mutation(async ({ input }) => {
+      const showPointsRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_show_points'`);
+      const showPoints = showPointsRes.rows[0]?.value !== "false";
+
       // 전화번호로 회원 찾기 (숫자만 비교)
       const digits = input.phone.replace(/\D/g, "");
       // 같은 전화번호로 중복 등록된 회원이 있을 수 있다. 정렬 없이 LIMIT 1을 쓰면 매번 다른 행이
@@ -5042,7 +5059,7 @@ const kioskRouter = t.router({
           const gmAlready = await pool.query(`SELECT points FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [member.id]);
           totalPointsAlready = gmAlready.rows[0]?.points ?? 0;
         } catch {}
-        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, totalPoints: totalPointsAlready, uniformEnd: uniformEndAlready };
+        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, totalPoints: totalPointsAlready, showPoints, uniformEnd: uniformEndAlready };
       }
 
       // 키오스크 출입 기록 (trainerId=0: 시스템/키오스크)
@@ -5113,7 +5130,7 @@ const kioskRouter = t.router({
         const gmTotal = await pool.query(`SELECT points FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [member.id]);
         totalPoints = gmTotal.rows[0]?.points ?? 0;
       } catch {}
-      return { name: member.name, alreadyCheckedIn: false, pointsEarned, totalPoints, uniformEnd };
+      return { name: member.name, alreadyCheckedIn: false, pointsEarned, totalPoints, showPoints, uniformEnd };
     }),
 });
 

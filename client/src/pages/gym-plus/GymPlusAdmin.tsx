@@ -1474,6 +1474,42 @@ export function GymPlusSettingsAdmin() {
           <p>• 적립 내역은 회원의 포인트 로그에서 확인할 수 있습니다.</p>
         </div>
       </div>
+
+      {/* 키오스크 포인트 표시 토글 */}
+      <KioskShowPointsToggle kioskShowPoints={setting?.kioskShowPoints ?? true} />
+    </div>
+  );
+}
+
+function KioskShowPointsToggle({ kioskShowPoints }: { kioskShowPoints: boolean }) {
+  const utils = trpc.useUtils();
+  const toggleMutation = trpc.gymPlus.setKioskShowPoints.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.getCheckinPointSetting.invalidate();
+      toast.success("저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">키오스크 포인트 표시</p>
+          <p className="text-xs text-muted-foreground mt-0.5">출입 체크 시 적립 포인트 및 누적 포인트를 화면에 표시합니다</p>
+        </div>
+        <button
+          onClick={() => toggleMutation.mutate({ enabled: !kioskShowPoints })}
+          disabled={toggleMutation.isPending}
+          className={`relative w-11 h-6 rounded-full transition-colors ${kioskShowPoints ? "bg-primary" : "bg-muted"}`}
+        >
+          <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform absolute top-0.5 ${kioskShowPoints ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+        </button>
+      </div>
+      <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+        <p>• 켜면: 출석 시 "+100P 적립" 및 "누적 포인트 1,500P" 표시</p>
+        <p>• 끄면: 포인트 적립은 계속되지만 키오스크 화면에 표시하지 않음</p>
+      </div>
     </div>
   );
 }
