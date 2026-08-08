@@ -707,6 +707,26 @@ async function initDatabase() {
     console.log("✅ 구글시트 URL 갱신 완료");
   }
 
+  // 포인트 시스템 2026-08 이전 데이터 정리 (1회성 마이그레이션)
+  const pointCutoff = "2026-08-01";
+  const oldLogs = await pool.query(
+    `SELECT COUNT(*) as cnt FROM gym_plus_point_logs WHERE "createdAt" < $1`, [pointCutoff]
+  );
+  if (parseInt(oldLogs.rows[0]?.cnt || "0") > 0) {
+    console.log(`🧹 포인트 정리: ${pointCutoff} 이전 데이터 삭제 시작...`);
+    await pool.query(`DELETE FROM gym_plus_point_logs WHERE "createdAt" < $1`, [pointCutoff]);
+    await pool.query(`DELETE FROM gym_plus_point_claims WHERE "createdAt" < $1`, [pointCutoff]);
+    await pool.query(`DELETE FROM gym_plus_point_charge_requests WHERE "createdAt" < $1`, [pointCutoff]);
+    await pool.query(`DELETE FROM gym_plus_point_extension_requests WHERE "createdAt" < $1`, [pointCutoff]);
+    // 잔액 재계산: 남아있는 로그 기준으로 각 회원 포인트 합산
+    await pool.query(`
+      UPDATE gym_plus_members SET points = COALESCE((
+        SELECT SUM(amount) FROM gym_plus_point_logs WHERE "gymPlusMemberId" = gym_plus_members.id
+      ), 0)
+    `);
+    console.log("✅ 포인트 정리 완료: 2026-08 이전 기록 삭제 & 잔액 재계산");
+  }
+
   console.log("✨ DB 초기화 완료!");
 }
 
