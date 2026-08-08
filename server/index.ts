@@ -1506,20 +1506,42 @@ async function initDatabase() {
       const now = new Date().toISOString();
       const svcSessions = (rev as any).serviceSessions ?? 0;
 
-      // 이 매출과 내용이 일치하는 패키지가 이미 있으면 건너뜀 (복제 방지).
-      // 과거에는 "회원에게 패키지가 하나라도 있으면" 무조건 건너뛰었는데, 그러면 회원이
-      // 가진 패키지가 이 매출과 무관한 별개 항목(예: 1회성 "기타" 부가항목)일 때도
-      // 정작 이 매출을 뒷받침하는 진짜 패키지를 영영 못 만들게 되어, 세션 자동연결이
-      // 그 무관한 패키지를 잘못 골라 정산 단가가 틀어지는 사고로 이어졌다.
+      // 같은 회원에게 세션 수·시작일이 비슷한 패키지가 이미 있으면 건너뜀 (복제 방지).
       const dupMatch = await pool.query(
         `SELECT 1 FROM pt_packages
          WHERE "memberId" = $1
-           AND "totalSessions" = $2
-           AND "startDate" IS NOT DISTINCT FROM $3
+           AND (
+             "totalSessions" = $2
+             OR "totalSessions" = $3
+           )
+           AND (
+             "startDate" IS NOT DISTINCT FROM $4
+             OR "paymentDate" IS NOT DISTINCT FROM $5
+           )
          LIMIT 1`,
-        [rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.startDate ?? rev.paymentDate ?? null]
+        [
+          rev.memberId,
+          (rev.sessions ?? 0) + svcSessions,
+          rev.sessions ?? 0,
+          rev.startDate ?? rev.paymentDate ?? null,
+          rev.paymentDate ?? null,
+        ]
       );
-      if (dupMatch.rows.length > 0) continue;
+      if (dupMatch.rows.length > 0) {
+        await pool.query(
+          `UPDATE pt_packages SET "revenueEntryId" = $1
+           WHERE id = (
+             SELECT id FROM pt_packages
+             WHERE "memberId" = $2 AND "revenueEntryId" IS NULL
+               AND ("totalSessions" = $3 OR "totalSessions" = $4)
+               AND ("startDate" IS NOT DISTINCT FROM $5 OR "paymentDate" IS NOT DISTINCT FROM $6)
+             LIMIT 1
+           )`,
+          [rev.id, rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.sessions ?? 0,
+           rev.startDate ?? rev.paymentDate ?? null, rev.paymentDate ?? null]
+        );
+        continue;
+      }
       await pool.query(`
         INSERT INTO pt_packages
           ("memberId","trainerId","totalSessions","serviceSessions","usedSessions",
@@ -1564,6 +1586,28 @@ async function initDatabase() {
     if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 빈 복제 PT 패키지 정리: ${cleaned.rowCount}건`);
   } catch (e) {
     console.error("빈 복제 PT 패키지 정리 오류:", e);
+  }
+
+  // ── 완료된 패키지가 있는데 같은 내용의 active 0회 사용 복제본 제거 ────────────
+  // PT 완료 후 서버 재시작 시 매출 기반으로 새 패키지가 생기는 사고 방지.
+  // 같은 회원·같은 세션수·같은 시작일로 completed 패키지가 있으면 active 0회 사용본 삭제.
+  try {
+    const dupActive = await pool.query(`
+      DELETE FROM pt_packages p
+      WHERE p.status = 'active'
+        AND p."usedSessions" = 0
+        AND EXISTS (
+          SELECT 1 FROM pt_packages q
+          WHERE q.id <> p.id
+            AND q."memberId" = p."memberId"
+            AND q."totalSessions" = p."totalSessions"
+            AND q.status IN ('completed','refunded')
+            AND COALESCE(q."startDate",'') = COALESCE(p."startDate",'')
+        )
+    `);
+    if ((dupActive.rowCount ?? 0) > 0) console.log(`🧹 완료 패키지 복제본 정리: ${dupActive.rowCount}건`);
+  } catch (e) {
+    console.error("완료 패키지 복제본 정리 오류:", e);
   }
 
   // ── 담당 트레이너 변경이 안 따라간 진행 중 PT 패키지 보정 ────────────────────
