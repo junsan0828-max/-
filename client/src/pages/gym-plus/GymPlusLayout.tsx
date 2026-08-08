@@ -140,7 +140,7 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="gymplus-light min-h-screen flex flex-col max-w-md mx-auto">
+    <div className="gymplus-light min-h-screen flex flex-col max-w-md mx-auto" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
         <button
@@ -200,7 +200,7 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
         }}
       >
         {/* 사이드바 헤더 */}
-        <div className="px-5 pt-12 pb-6 border-b border-gray-100">
+        <div className="px-5 pb-6 border-b border-gray-100" style={{ paddingTop: "calc(env(safe-area-inset-top) + 2rem)" }}>
           <span
             style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.12em" }}
             className="text-xl font-semibold text-[#1a2b4b]"
