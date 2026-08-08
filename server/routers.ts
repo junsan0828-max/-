@@ -4509,15 +4509,30 @@ ${dataContext}
     }),
 
   setKioskShowPoints: adminOnlyGymPlus
-    .input(z.object({ enabled: z.boolean() }))
+    .input(z.object({ enabled: z.boolean(), branchId: z.number().optional() }))
     .mutation(async ({ input }) => {
+      const key = input.branchId ? `kiosk_show_points_branch_${input.branchId}` : "kiosk_show_points";
       await pool.query(
-        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('kiosk_show_points', $1, now()::text)
-         ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
-        [String(input.enabled)]
+        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ($1, $2, now()::text)
+         ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = now()::text`,
+        [key, String(input.enabled)]
       );
       return { success: true };
     }),
+
+  getKioskShowPointsByBranch: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT key, value FROM gym_plus_settings WHERE key LIKE 'kiosk_show_points%'`
+    );
+    const rows = res.rows as { key: string; value: string }[];
+    const global = rows.find(r => r.key === "kiosk_show_points")?.value !== "false";
+    const branches: Record<number, boolean> = {};
+    for (const r of rows) {
+      const m = r.key.match(/^kiosk_show_points_branch_(\d+)$/);
+      if (m) branches[parseInt(m[1])] = r.value !== "false";
+    }
+    return { global, branches };
+  }),
 
   // ─── 구매신청 ────────────────────────────────────────────────────────────────
 
@@ -5004,15 +5019,12 @@ const kioskRouter = t.router({
   checkIn: publicProcedure
     .input(z.object({ phone: z.string().min(9) }))
     .mutation(async ({ input }) => {
-      const showPointsRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_show_points'`);
-      const showPoints = showPointsRes.rows[0]?.value !== "false";
-
       // 전화번호로 회원 찾기 (숫자만 비교)
       const digits = input.phone.replace(/\D/g, "");
       // 같은 전화번호로 중복 등록된 회원이 있을 수 있다. 정렬 없이 LIMIT 1을 쓰면 매번 다른 행이
       // 뽑혀 출입 기록·포인트가 여러 행으로 흩어지므로, 만료일이 가장 나중인(=현재 유효한) 행을 고정 선택한다.
       const all = await pool.query(
-        `SELECT id, name, phone, "membershipEnd" FROM members
+        `SELECT id, name, phone, "membershipEnd", "branchId" FROM members
          WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active'
          ORDER BY "membershipEnd" DESC NULLS LAST, id DESC
          LIMIT 1`,
@@ -5020,7 +5032,25 @@ const kioskRouter = t.router({
       );
       if (!all.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
 
-      const member = all.rows[0] as { id: number; name: string; phone: string; membershipEnd: string | null };
+      const member = all.rows[0] as { id: number; name: string; phone: string; membershipEnd: string | null; branchId: number | null };
+
+      // 지점별 포인트 표시 설정 확인
+      let showPoints = true;
+      if (member.branchId) {
+        const branchRes = await pool.query(
+          `SELECT value FROM gym_plus_settings WHERE key = $1`,
+          [`kiosk_show_points_branch_${member.branchId}`]
+        );
+        if (branchRes.rows[0]) {
+          showPoints = branchRes.rows[0].value !== "false";
+        } else {
+          const globalRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_show_points'`);
+          showPoints = globalRes.rows[0]?.value !== "false";
+        }
+      } else {
+        const globalRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_show_points'`);
+        showPoints = globalRes.rows[0]?.value !== "false";
+      }
       // KST(UTC+9) 기준 날짜·시각 사용 — UTC로 계산하면 자정~오전9시 구간에 날짜가 하루 앞서서 포인트 중복 적립 가능
       const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const today = kstNow.toISOString().slice(0, 10);

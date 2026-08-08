@@ -1483,21 +1483,35 @@ export function GymPlusSettingsAdmin() {
 
 function KioskShowPointsToggle({ kioskShowPoints }: { kioskShowPoints: boolean }) {
   const utils = trpc.useUtils();
+  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: branchSettings } = trpc.gymPlus.getKioskShowPointsByBranch.useQuery();
+
   const toggleMutation = trpc.gymPlus.setKioskShowPoints.useMutation({
     onSuccess: () => {
       utils.gymPlus.getCheckinPointSetting.invalidate();
+      utils.gymPlus.getKioskShowPointsByBranch.invalidate();
       toast.success("저장되었습니다.");
     },
     onError: (e) => toast.error(e.message),
   });
 
+  const branches = branchList ?? [];
+
+  function isEnabled(branchId: number) {
+    if (branchSettings?.branches[branchId] !== undefined) return branchSettings.branches[branchId];
+    return kioskShowPoints;
+  }
+
   return (
     <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold">키오스크 포인트 표시</p>
-          <p className="text-xs text-muted-foreground mt-0.5">출입 체크 시 적립 포인트 및 누적 포인트를 화면에 표시합니다</p>
-        </div>
+      <div>
+        <p className="text-sm font-semibold">키오스크 포인트 표시</p>
+        <p className="text-xs text-muted-foreground mt-0.5">출입 체크 시 적립 포인트 및 누적 포인트를 화면에 표시합니다</p>
+      </div>
+
+      {/* 전체 기본값 */}
+      <div className="flex items-center justify-between py-2">
+        <p className="text-sm text-muted-foreground">전체 기본값</p>
         <button
           onClick={() => toggleMutation.mutate({ enabled: !kioskShowPoints })}
           disabled={toggleMutation.isPending}
@@ -1506,9 +1520,33 @@ function KioskShowPointsToggle({ kioskShowPoints }: { kioskShowPoints: boolean }
           <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform absolute top-0.5 ${kioskShowPoints ? "translate-x-[22px]" : "translate-x-0.5"}`} />
         </button>
       </div>
+
+      {/* 지점별 설정 */}
+      {branches.length > 0 && (
+        <div className="border-t border-border pt-3 space-y-2">
+          <p className="text-xs text-muted-foreground font-medium">지점별 설정</p>
+          {branches.map((b: { id: number; name: string }) => {
+            const enabled = isEnabled(b.id);
+            return (
+              <div key={b.id} className="flex items-center justify-between py-1.5">
+                <p className="text-sm">{b.name}</p>
+                <button
+                  onClick={() => toggleMutation.mutate({ enabled: !enabled, branchId: b.id })}
+                  disabled={toggleMutation.isPending}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${enabled ? "bg-primary" : "bg-muted"}`}
+                >
+                  <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform absolute top-0.5 ${enabled ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
-        <p>• 켜면: 출석 시 "+100P 적립" 및 "누적 포인트 1,500P" 표시</p>
+        <p>• 켜면: 출석 시 "+100P 적립" 및 "누적 포인트" 표시</p>
         <p>• 끄면: 포인트 적립은 계속되지만 키오스크 화면에 표시하지 않음</p>
+        <p>• 지점별 설정이 없으면 전체 기본값을 따릅니다</p>
       </div>
     </div>
   );
