@@ -3911,8 +3911,12 @@ const adminRouter = t.router({
           })
           .sort((a, b) => b.avgPrice - a.avgPrice);
 
-        // 신규/재등록/헬스 등록 매출 — trainerId 또는 consultantId가 이 트레이너인 것
+        // 신규/재등록/헬스 등록 매출
+        // trainerId, consultantId, 또는 배정된 회원(members.trainerId)의 매출 모두 포함
         const trainerUserId = trainer.userId;
+        const assignedMemberIds = (await db.select({ id: members.id })
+          .from(members).where(eq(members.trainerId, trainer.id))).map(m => m.id);
+
         const regRevRows = await db.select({
           memberId: revenueEntries.memberId,
           type: revenueEntries.type,
@@ -3923,7 +3927,14 @@ const adminRouter = t.router({
           channelId: revenueEntries.channelId,
         }).from(revenueEntries).where(and(
           sql`(${revenueEntries.type} = 'PT' OR ${revenueEntries.type} = '헬스')`,
-          sql`(${revenueEntries.trainerId} = ${trainer.id} OR ${revenueEntries.consultantId} = ${trainerUserId})`,
+          sql`(
+            ${revenueEntries.trainerId} = ${trainer.id}
+            OR ${revenueEntries.consultantId} = ${trainerUserId}
+            ${assignedMemberIds.length > 0
+              ? sql`OR ${revenueEntries.memberId} IN (${sql.join(assignedMemberIds.map(id => sql`${id}`), sql`, `)})`
+              : sql``
+            }
+          )`,
           sql`${revenueEntries.paymentDate} >= ${monthStart}`,
           sql`${revenueEntries.paymentDate} < ${monthEnd}`,
         ));
