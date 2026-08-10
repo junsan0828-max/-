@@ -82,6 +82,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   const renewalEntries = monthEntries.filter(r => r.entry.subType === "재등록");
   const ptEntries = monthEntries.filter(r => r.entry.type === "PT");
   const healthEntries = monthEntries.filter(r => r.entry.type === "헬스");
+  const refundEntries = monthEntries.filter(r => r.entry.subType === "환불");
   const monthLeads = (leads ?? []).filter(l => (l.lead.createdAt ?? "").startsWith(prefix));
   const registeredLeads = monthLeads.filter(l => l.lead.status === "registered");
   const unpaidList = (unpaidRows ?? []).filter(p => (p.unpaidAmount ?? 0) > 0);
@@ -109,13 +110,30 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
     },
     month: {
       title: `${month}월 누적 매출 내역`,
-      rows: monthEntries.map(r => ({
+      rows: monthEntries.filter(r => r.entry.subType !== "환불").map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type, r.entry.subType ?? ""]),
         warn: !r.entry.branchId,
       })),
-      detail: null,
+      detail: refundEntries.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-semibold text-orange-400 uppercase tracking-wide">환불 내역 ({refundEntries.length}건)</p>
+          {refundEntries.map((r, i) => (
+            <div key={i} className="flex justify-between items-center text-sm py-1.5 border-b border-border/50">
+              <div>
+                <span className="font-medium">{r.memberName ?? r.entry.customerName ?? "-"}</span>
+                <span className="text-muted-foreground ml-2 text-xs">{r.entry.paymentDate} · {r.entry.programDetail ?? r.entry.type}</span>
+              </div>
+              <span className="font-medium text-orange-400">{(r.entry.paidAmount ?? 0).toLocaleString()}원</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-sm font-bold pt-1">
+            <span className="text-muted-foreground">환불 합계</span>
+            <span className="text-orange-400">{refundEntries.reduce((s, r) => s + (r.entry.paidAmount ?? 0), 0).toLocaleString()}원</span>
+          </div>
+        </div>
+      ) : null,
     },
     new: {
       title: `${month}월 신규 매출`,
@@ -478,6 +496,7 @@ export default function GymDashboard() {
         <KpiCard
           label="이번달 누적"
           value={`${fmt(kpi?.monthTotal ?? 0)}원`}
+          sub={(kpi?.monthRefund ?? 0) > 0 ? `환불 -${fmt(kpi!.monthRefund)}원 반영` : undefined}
           trend={kpi?.momGrowth}
           icon={TrendingUp}
           color="text-primary"
