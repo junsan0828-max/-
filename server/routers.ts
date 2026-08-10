@@ -3886,10 +3886,11 @@ const adminRouter = t.router({
             avgPrice: v.sessions > 0 ? Math.round(v.totalPrice / v.sessions) : 0,
             totalPrice: v.totalPrice,
           }))
-          .sort((a, b) => b.sessions - a.sessions);
+          .sort((a, b) => b.avgPrice - a.avgPrice);
 
-        // 신규/재등록 매출 (해당 월 revenue_entries 기준)
+        // 신규/재등록 매출 (해당 월 revenue_entries 기준) — 회원 이름 포함
         const ptRevRows = await db.select({
+          memberId: revenueEntries.memberId,
           subType: revenueEntries.subType,
           paidAmount: revenueEntries.paidAmount,
         }).from(revenueEntries).where(and(
@@ -3898,12 +3899,28 @@ const adminRouter = t.router({
           sql`${revenueEntries.paymentDate} >= ${monthStart}`,
           sql`${revenueEntries.paymentDate} < ${monthEnd}`,
         ));
+        const revMemberIds = [...new Set(ptRevRows.map(r => r.memberId).filter(Boolean))] as number[];
+        const revMemberNames: Record<number, string> = {};
+        if (revMemberIds.length > 0) {
+          const nm = await db.select({ id: members.id, name: members.name })
+            .from(members).where(inArray(members.id, revMemberIds));
+          for (const m of nm) revMemberNames[m.id] = m.name ?? `회원#${m.id}`;
+        }
         let newRevenue = 0, reRegRevenue = 0, otherRevenue = 0;
+        const newMembers: { name: string; amount: number }[] = [];
+        const reRegMembers: { name: string; amount: number }[] = [];
         for (const r of ptRevRows) {
           const amt = r.paidAmount ?? 0;
-          if (r.subType === "신규" || r.subType === "신규배정") newRevenue += amt;
-          else if (r.subType === "재등록") reRegRevenue += amt;
-          else otherRevenue += amt;
+          const mName = r.memberId ? (revMemberNames[r.memberId] ?? `회원#${r.memberId}`) : "미지정";
+          if (r.subType === "신규" || r.subType === "신규배정") {
+            newRevenue += amt;
+            newMembers.push({ name: mName, amount: amt });
+          } else if (r.subType === "재등록") {
+            reRegRevenue += amt;
+            reRegMembers.push({ name: mName, amount: amt });
+          } else {
+            otherRevenue += amt;
+          }
         }
 
         return {
@@ -3919,6 +3936,8 @@ const adminRouter = t.router({
           newRevenue,
           reRegRevenue,
           otherRevenue,
+          newMembers,
+          reRegMembers,
         };
       }));
 
