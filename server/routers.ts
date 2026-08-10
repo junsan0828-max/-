@@ -4004,10 +4004,28 @@ const adminRouter = t.router({
           }
         }
 
-        // 재등록률: 이 트레이너 회원 중 재등록 비율
-        const totalPtRevCount = regRevRows.filter(r => r.type === "PT").length;
-        const reRegCount = regRevRows.filter(r => r.subType === "재등록").length;
-        const reRegRate = totalPtRevCount > 0 ? Math.round((reRegCount / totalPtRevCount) * 100) : 0;
+        // 재등록률: 이달 패키지 완료/만료 회원 중 재등록한 비율
+        const expiredPkgRows = await db.select({
+          memberId: ptPackages.memberId,
+        }).from(ptPackages).where(and(
+          eq(ptPackages.trainerId, trainer.id),
+          sql`(
+            (${ptPackages.status} = 'completed' AND ${ptPackages.updatedAt} >= ${monthStart} AND ${ptPackages.updatedAt} < ${monthEnd})
+            OR (${ptPackages.status} = 'active' AND ${ptPackages.expiryDate} IS NOT NULL AND ${ptPackages.expiryDate} >= ${monthStart} AND ${ptPackages.expiryDate} < ${monthEnd} AND ${ptPackages.expiryDate} < ${today})
+          )`,
+        ));
+        const expiredMemberIds = [...new Set(expiredPkgRows.map(r => r.memberId))];
+        const reRegMemberIds = expiredMemberIds.length > 0
+          ? [...new Set((await db.select({ memberId: revenueEntries.memberId })
+              .from(revenueEntries).where(and(
+                inArray(revenueEntries.memberId, expiredMemberIds),
+                eq(revenueEntries.type, "PT"),
+                eq(revenueEntries.subType, "재등록"),
+              ))).map(r => r.memberId))]
+          : [];
+        const reRegCount = reRegMemberIds.length;
+        const totalExpiredCount = expiredMemberIds.length;
+        const reRegRate = totalExpiredCount > 0 ? Math.round((reRegCount / totalExpiredCount) * 100) : 0;
 
         return {
           trainerId: trainer.id,
@@ -4028,7 +4046,7 @@ const adminRouter = t.router({
           healthMembers,
           reRegRate,
           reRegCount,
-          totalPtRevCount,
+          totalExpiredCount,
         };
       }));
 

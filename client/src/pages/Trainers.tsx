@@ -293,14 +293,14 @@ function SettlementTab() {
                       <StatCard label="정산 비용" value={`${fmt(selectedTrainer.settlement)}원`} sub={`× ${selectedTrainer.settlementRate}%`} />
                       <StatCard label="3.3% 제외 후" value={`${fmt(selectedTrainer.afterTax)}원`} />
                     </div>
-                    {(selectedTrainer as any).totalPtRevCount > 0 && (
+                    {(selectedTrainer as any).totalExpiredCount > 0 && (
                       <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/20 border border-border">
                         <span className="text-xs text-muted-foreground">재등록률</span>
                         <span className={`text-sm font-bold ${(selectedTrainer as any).reRegRate >= 50 ? "text-emerald-400" : (selectedTrainer as any).reRegRate >= 30 ? "text-yellow-400" : "text-red-400"}`}>
                           {(selectedTrainer as any).reRegRate}%
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          ({(selectedTrainer as any).reRegCount}건 / {(selectedTrainer as any).totalPtRevCount}건)
+                          ({(selectedTrainer as any).reRegCount}명 / 만료 {(selectedTrainer as any).totalExpiredCount}명)
                         </span>
                       </div>
                     )}
