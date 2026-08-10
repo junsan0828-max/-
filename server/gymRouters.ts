@@ -3478,6 +3478,10 @@ const refundContractRouter = t.router({
       // 이게 있어야 매출·정산·잔여 세션·락커 현황이 실제로 맞아떨어진다.
       // 위약금·부가세·서비스차감은 전체 합계에서 한 번만 빼되, 항목별 매출은 총액 대비
       // 그 항목이 차지하는 비중만큼 배분한다(유형별 매출 집계가 정확하도록).
+      const [memberRow] = await db.select({ branchId: members.branchId }).from(members)
+        .where(eq(members.id, input.memberId)).limit(1);
+      const memberBranchId = memberRow?.branchId ?? null;
+
       for (const item of input.refundItems) {
         const share = grossAmount > 0 ? item.amount / grossAmount : 0;
         const itemNet = Math.round(input.refundAmount * share);
@@ -3492,6 +3496,7 @@ const refundContractRouter = t.router({
         await db.insert(revenueEntries).values({
           memberId: input.memberId,
           trainerId,
+          branchId: memberBranchId,
           createdBy: ctx.user!.id,
           customerName: input.memberName,
           phone: input.memberPhone ?? null,
