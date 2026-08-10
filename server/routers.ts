@@ -4197,11 +4197,17 @@ const adminRouter = t.router({
       const stats = await Promise.all(trainerList.map(async (trainer) => {
         const tid = trainer.id;
 
+        const videoCountSql = sql`
+          SELECT COUNT(*)::int AS c FROM pt_session_logs s,
+          LATERAL jsonb_array_elements(CASE WHEN s."exercisesJson" IS NOT NULL AND s."exercisesJson" <> '' THEN s."exercisesJson"::jsonb ELSE '[]'::jsonb END) AS ex
+          WHERE s."trainerId" = ${tid} AND ex->>'videoUrl' IS NOT NULL AND ex->>'videoUrl' <> ''`;
+
         const [
           totalMembersRes, totalSessionsRes, totalNoShowRes, totalChurnedRes, remainingPtRes,
           monthSessionsRes, monthNoShowRes, todaySessionsRes,
           pkgCountByMember,
           totalMemosRes, monthMemosRes, todayMemosRes,
+          totalVideosRes, monthVideosRes, todayVideosRes,
         ] = await Promise.all([
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), hasPtPackage)),
           db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tid)),
@@ -4235,6 +4241,17 @@ const adminRouter = t.router({
             eq(workoutMemos.trainerId, tid),
             sql`${workoutMemos.memoDate} = ${today}`,
           )),
+          db.execute(videoCountSql),
+          db.execute(sql`
+            SELECT COUNT(*)::int AS c FROM pt_session_logs s,
+            LATERAL jsonb_array_elements(CASE WHEN s."exercisesJson" IS NOT NULL AND s."exercisesJson" <> '' THEN s."exercisesJson"::jsonb ELSE '[]'::jsonb END) AS ex
+            WHERE s."trainerId" = ${tid} AND ex->>'videoUrl' IS NOT NULL AND ex->>'videoUrl' <> ''
+            AND s."sessionDate" >= ${monthStart} AND s."sessionDate" < ${monthEnd}`),
+          db.execute(sql`
+            SELECT COUNT(*)::int AS c FROM pt_session_logs s,
+            LATERAL jsonb_array_elements(CASE WHEN s."exercisesJson" IS NOT NULL AND s."exercisesJson" <> '' THEN s."exercisesJson"::jsonb ELSE '[]'::jsonb END) AS ex
+            WHERE s."trainerId" = ${tid} AND ex->>'videoUrl' IS NOT NULL AND ex->>'videoUrl' <> ''
+            AND s."sessionDate" = ${today}`),
         ]);
 
         const totalRereg = pkgCountByMember.reduce((s, r) => s + Math.max(0, Number(r.count) - 1), 0);
@@ -4264,6 +4281,9 @@ const adminRouter = t.router({
           totalMemos: Number(totalMemosRes[0]?.c ?? 0),
           monthMemos: Number(monthMemosRes[0]?.c ?? 0),
           todayMemos: Number(todayMemosRes[0]?.c ?? 0),
+          totalVideos: Number((totalVideosRes.rows ?? totalVideosRes)[0]?.c ?? 0),
+          monthVideos: Number((monthVideosRes.rows ?? monthVideosRes)[0]?.c ?? 0),
+          todayVideos: Number((todayVideosRes.rows ?? todayVideosRes)[0]?.c ?? 0),
         };
       }));
 

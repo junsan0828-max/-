@@ -462,6 +462,8 @@ function ActivityStatsTab() {
                     <th className={th}>이번달 노쇼</th>
                     <th className={th}>오늘 기록지</th>
                     <th className={th}>이번달 기록지</th>
+                    <th className={th}>오늘 영상</th>
+                    <th className={th}>이번달 영상</th>
                     <th className={th}>회원수</th>
                   </tr>
                 </thead>
@@ -480,6 +482,10 @@ function ActivityStatsTab() {
                         {t.todayMemos}건
                       </td>
                       <td className={tdNum(t.monthMemos, "text-teal-400")}>{t.monthMemos}건</td>
+                      <td className={tdNum(t.todayVideos, t.todayVideos > 0 ? "text-violet-400" : "text-muted-foreground")}>
+                        {t.todayVideos}건
+                      </td>
+                      <td className={tdNum(t.monthVideos, "text-violet-400")}>{t.monthVideos}건</td>
                       <td className={tdNum(t.totalMembers)}>{t.totalMembers}명</td>
                     </tr>
                   ))}
@@ -499,6 +505,7 @@ function ActivityStatsTab() {
                     <th className={th}>누적 수업</th>
                     <th className={th}>월평균 수업</th>
                     <th className={th}>누적 기록지</th>
+                    <th className={th}>누적 영상</th>
                     <th className={th}>재등록</th>
                     <th className={th}>재등록률</th>
                     <th className={th}>이탈</th>
@@ -512,6 +519,7 @@ function ActivityStatsTab() {
                       <td className={tdNum(t.totalSessions, "text-green-400")}>{t.totalSessions}회</td>
                       <td className={tdNum(t.avgMonthlyPt)}>{t.avgMonthlyPt}회</td>
                       <td className={tdNum(t.totalMemos, "text-teal-400")}>{t.totalMemos}건</td>
+                      <td className={tdNum(t.totalVideos, "text-violet-400")}>{t.totalVideos}건</td>
                       <td className={tdNum(t.totalRereg, "text-primary")}>{t.totalRereg}회</td>
                       <td className={tdNum(t.reregRate, t.reregRate >= 50 ? "text-emerald-400" : t.reregRate >= 30 ? "text-yellow-400" : "text-red-400")}>
                         {t.reregRate}%
