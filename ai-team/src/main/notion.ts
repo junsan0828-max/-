@@ -204,12 +204,22 @@ export async function pushPayrollReport(result: PayrollResult, sheetUrl?: string
       : [
           heading(`✅ ${result.yearMonth} 급여 정산 완료`),
           paragraph("단가 오류: 없음 / 중복 정산 의심: 없음"),
+          heading(`💸 전체 이체 필요액: ${result.totalTransferAmount.toLocaleString()}원`),
+          heading("🏢 지점별 소계"),
+          ...result.branches.map((b) =>
+            bullet(
+              `${b.branchName} — 수업 ${b.sessionCount}건, 수업정산(세후) ${b.sessionSettlementAfterTax.toLocaleString()}원 + 기본급(세후) ${b.basePayAfterTax.toLocaleString()}원 = 소계 ${b.subtotal.toLocaleString()}원`
+            )
+          ),
           heading("트레이너별 지급액"),
           ...result.trainers.map((t) =>
             bullet(
-              `${t.trainerName} — 수업정산 ${t.afterTax.toLocaleString()}원 + 기본급(세후) ${t.basePayAfterTax.toLocaleString()}원 = 총 ${t.totalPay.toLocaleString()}원`
+              `${t.trainerName} [${t.primaryBranchName}] — 수업정산 ${t.afterTax.toLocaleString()}원 + 기본급(세후) ${t.basePayAfterTax.toLocaleString()}원 = 총 ${t.totalPay.toLocaleString()}원`
             )
           ),
+          ...(result.branchNotes.length > 0
+            ? [heading("⚠️ 지점 배분 확인 필요 (금액은 정확함, 귀속 지점만 확인)"), ...result.branchNotes.map((n) => bullet(n))]
+            : []),
           ...(sheetUrl ? [paragraph(`구글 시트: ${sheetUrl}`)] : []),
           heading("자동 점검 불가 항목 (참고용, 별도 확인 필요)"),
           ...result.uncheckable.map((u) => bullet(u)),

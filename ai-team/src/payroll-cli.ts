@@ -27,11 +27,24 @@ async function main() {
   console.log("✅ 단가 오류 없음 / 중복 정산 의심 없음\n");
   for (const t of result.trainers) {
     console.log(
-      `${t.trainerName.padEnd(6)} 수업정산 ${t.afterTax.toLocaleString().padStart(10)}원 + 기본급(세후) ${t.basePayAfterTax
+      `${t.trainerName.padEnd(6)} [${t.primaryBranchName}] 수업정산 ${t.afterTax.toLocaleString().padStart(10)}원 + 기본급(세후) ${t.basePayAfterTax
         .toLocaleString()
         .padStart(10)}원 = 총 ${t.totalPay.toLocaleString().padStart(10)}원`
     );
   }
+
+  if (result.branchNotes.length > 0) {
+    console.log(`\n⚠️  지점 배분 확인 필요:`);
+    for (const note of result.branchNotes) console.log(`- ${note}`);
+  }
+
+  console.log(`\n🏢 지점별 소계`);
+  for (const b of result.branches) {
+    console.log(
+      `${b.branchName.padEnd(6)} 수업 ${b.sessionCount}건, 수업정산(세후) ${b.sessionSettlementAfterTax.toLocaleString()}원 + 기본급(세후) ${b.basePayAfterTax.toLocaleString()}원 = 소계 ${b.subtotal.toLocaleString()}원`
+    );
+  }
+  console.log(`전체 이체 필요액: ${result.totalTransferAmount.toLocaleString()}원`);
 
   console.log(`\n📊 구글 시트 작성 중...`);
   const { url } = await writePayrollSheet(result);
