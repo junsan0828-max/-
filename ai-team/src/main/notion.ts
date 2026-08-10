@@ -121,7 +121,7 @@ export async function pushDailyReport(
       ),
       ...c.byBranch.map((b) =>
         bullet(
-          `${b.branchName} — 활성 ${b.active} · 실입금 ${b.monthRevenue.toLocaleString()}원 · 미수금 ${b.unpaidTotal.toLocaleString()}원 · 만료예정 ${b.expiringSoonCount}명 · 이탈위험 ${b.recentlyExpiredCount}명`
+          `${b.branchName} — 활성 ${b.active} · 계약액 ${b.contractAmount.toLocaleString()}원 · 실입금 ${b.monthRevenue.toLocaleString()}원 · 미수금 ${b.unpaidTotal.toLocaleString()}원 · 만료예정 ${b.expiringSoonCount}명 · 이탈위험 ${b.recentlyExpiredCount}명 · 신규 ${b.newCount}건 · 재등록 ${b.reRegisterCount}건`
         )
       ),
       heading("💰 매출·비용 상세 (이번달)"),
