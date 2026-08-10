@@ -4249,6 +4249,20 @@ ${dataContext}
       .limit(50);
   }),
 
+  getPointTransactions: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const [gm] = await db.select({ memberId: gymPlusMembers.memberId })
+      .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+    if (!gm?.memberId) return [];
+    const res = await pool.query(
+      `SELECT id, type, amount, description, "createdAt" FROM point_transactions
+       WHERE "memberId" = $1 ORDER BY "createdAt" DESC LIMIT 50`,
+      [gm.memberId]
+    );
+    return res.rows as { id: number; type: string; amount: number; description: string | null; createdAt: string }[];
+  }),
+
   admin_chargePoints: adminOnlyGymPlus
     .input(z.object({
       gymPlusMemberId: z.number(),
@@ -4404,6 +4418,15 @@ ${dataContext}
         relatedId: row.id,
       });
 
+      const [gmForTx] = await db.select({ memberId: gymPlusMembers.memberId })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+      if (gmForTx?.memberId) {
+        await pool.query(
+          `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'use', $2, $3, now()::text)`,
+          [gmForTx.memberId, cost, `회원권 ${input.days}일 연장`]
+        );
+      }
+
       const extContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
       sendRequestNotification({
         kind: "회원권 연장(포인트)",
@@ -4478,6 +4501,16 @@ ${dataContext}
           reason: `회원권 ${reqRow.requestedDays}일 연장 신청 거절 · 포인트 반환`,
           relatedId: reqRow.id,
         });
+
+        const [gmRefundTx] = await db.select({ memberId: gymPlusMembers.memberId })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, reqRow.gymPlusMemberId)).limit(1);
+        if (gmRefundTx?.memberId) {
+          await pool.query(
+            `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'earn', $2, $3, now()::text)`,
+            [gmRefundTx.memberId, reqRow.pointsUsed, `회원권 연장 거절 · 포인트 반환`]
+          );
+        }
+
         return { success: true, refunded: reqRow.pointsUsed };
       }
 
@@ -4620,6 +4653,15 @@ ${dataContext}
           relatedId: req.id,
         });
 
+        const [gmPurchaseTx] = await db.select({ memberId: gymPlusMembers.memberId })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+        if (gmPurchaseTx?.memberId) {
+          await pool.query(
+            `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'use', $2, $3, now()::text)`,
+            [gmPurchaseTx.memberId, pointsUsed, `${product.name} 구매`]
+          );
+        }
+
         if (remainder > 0) {
           const splitContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
           sendRequestNotification({
@@ -4727,6 +4769,15 @@ ${dataContext}
           reason: `${existing.productName} 구매 반려 · 포인트 반환`,
           relatedId: existing.id,
         });
+
+        const [gmPurchaseRefund] = await db.select({ memberId: gymPlusMembers.memberId })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, existing.gymPlusMemberId)).limit(1);
+        if (gmPurchaseRefund?.memberId) {
+          await pool.query(
+            `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'earn', $2, $3, now()::text)`,
+            [gmPurchaseRefund.memberId, existing.pointsUsed, `${existing.productName} 구매 반려 · 포인트 반환`]
+          );
+        }
       }
 
       await db.update(gymPlusPurchaseRequests).set({ status: input.status })

@@ -288,6 +288,9 @@ export default function GymPlusProfile() {
     onError: (e) => toast.error(e.message),
   });
 
+  const { data: pointHistory } = trpc.gymPlus.getPointTransactions.useQuery();
+  const [showPointHistory, setShowPointHistory] = useState(false);
+
   const requestPointExtension = trpc.gymPlus.requestPointExtension.useMutation({
     onSuccess: () => {
       utils.gymPlus.memberMe.invalidate();
@@ -597,7 +600,49 @@ export default function GymPlusProfile() {
             </button>
           );
         })()}
+        <button
+          onClick={() => setShowPointHistory(!showPointHistory)}
+          className="mt-2 w-full rounded-xl py-2 text-xs font-medium flex items-center justify-center gap-1 bg-white/10 hover:bg-white/15 text-white/80 transition-colors"
+        >
+          적립/사용 내역 {showPointHistory ? "접기" : "보기"}
+          <svg viewBox="0 0 20 20" fill="currentColor" className={`w-3.5 h-3.5 transition-transform ${showPointHistory ? "rotate-180" : ""}`}>
+            <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
+
+      {showPointHistory && (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50">
+            <h3 className="text-sm font-bold text-[#1a2b4b]">포인트 내역</h3>
+            <p className="text-[10px] text-gray-400 mt-0.5">출석 적립은 하루 1회 100P 자동 적립</p>
+          </div>
+          {!pointHistory || pointHistory.length === 0 ? (
+            <div className="py-8 text-center text-xs text-gray-400">아직 포인트 내역이 없습니다</div>
+          ) : (
+            <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
+              {pointHistory.map((tx) => (
+                <div key={tx.id} className="px-4 py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      tx.type === "earn" ? "bg-blue-50 text-blue-500" : "bg-red-50 text-red-500"
+                    }`}>
+                      {tx.type === "earn" ? "+" : "-"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-[#1a2b4b] truncate">{tx.description || (tx.type === "earn" ? "포인트 적립" : "포인트 사용")}</p>
+                      <p className="text-[10px] text-gray-400">{tx.createdAt?.slice(0, 10).replace(/-/g, ".")}</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-bold flex-shrink-0 ${tx.type === "earn" ? "text-blue-500" : "text-red-500"}`}>
+                    {tx.type === "earn" ? "+" : "-"}{tx.amount.toLocaleString("ko-KR")}P
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 카테고리 필터 */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">

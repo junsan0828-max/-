@@ -617,6 +617,14 @@ async function initDatabase() {
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `INSERT INTO gym_plus_settings (key, value) VALUES ('checkin_point_amount', '100') ON CONFLICT (key) DO NOTHING`,
+    `CREATE TABLE IF NOT EXISTS point_transactions (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      description TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS gym_plus_diet_foods (
       id SERIAL PRIMARY KEY,
       category TEXT NOT NULL,
