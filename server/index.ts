@@ -2009,6 +2009,81 @@ async function start() {
     console.error("DB 초기화 오류 (서버는 계속 실행):", e);
   }
 
+  // ── pending 환불 계약서 반영 (계약서만 생성되고 side-effect가 실패한 건) ──
+  try {
+    const pendingRefunds = await pool.query(
+      `SELECT id, token, "memberId", "refundItems", "refundAmount", reason, "createdAt"
+       FROM refund_contracts WHERE status = 'pending'`
+    );
+    for (const rc of pendingRefunds.rows) {
+      const items = (() => { try { return JSON.parse(rc.refundItems || "[]"); } catch { return []; } })();
+      if (!items.length) continue;
+
+      const memberRow = await pool.query(`SELECT "branchId" FROM members WHERE id = $1`, [rc.memberId]);
+      const branchId = memberRow.rows[0]?.branchId ?? null;
+      const grossAmount = items.reduce((s: number, i: any) => s + (i.amount || 0), 0);
+      const now = new Date().toISOString();
+
+      for (const item of items) {
+        const share = grossAmount > 0 ? item.amount / grossAmount : 0;
+        const itemNet = Math.round((rc.refundAmount || 0) * share);
+        if (itemNet > 0) {
+          const dup = await pool.query(
+            `SELECT id FROM revenue_entries WHERE memo LIKE $1 AND "subType" = '환불' LIMIT 1`,
+            [`%${rc.token}%`]
+          );
+          if (dup.rows.length === 0) {
+            let trainerId = null;
+            if (item.packageId) {
+              const pkgRow = await pool.query(`SELECT "trainerId" FROM pt_packages WHERE id = $1`, [item.packageId]);
+              trainerId = pkgRow.rows[0]?.trainerId ?? null;
+            }
+            const revType = item.type === "pt" ? "PT" : item.type === "health" ? "헬스" : "기타";
+            await pool.query(
+              `INSERT INTO revenue_entries ("memberId","trainerId","branchId","customerName","programDetail","type","subType","amount","discountAmount","paidAmount","unpaidAmount","refundAmount","paymentDate","memo","createdAt")
+               VALUES ($1,$2,$3,$4,$5,$6,'환불',$7,0,$8,0,$7,$9,$10,now()::text)`,
+              [rc.memberId, trainerId, branchId, rc.memberName || "", `${item.label} 환불`, revType, itemNet, -itemNet,
+               rc.createdAt?.substring(0, 10) || now.substring(0, 10),
+               rc.reason || `${item.label} 환불 계약서 발급 (${rc.token})`]
+            );
+          }
+        }
+        if (item.packageId) {
+          await pool.query(
+            `UPDATE pt_packages SET status = 'refunded', "updatedAt" = $1 WHERE id = $2 AND status = 'active'`,
+            [now, item.packageId]
+          );
+        }
+        if (item.lockerId) {
+          await pool.query(
+            `UPDATE lockers SET "memberId" = NULL, "memberName" = NULL, "memberPhone" = NULL, "isOccupied" = 0, "startDate" = NULL, "endDate" = NULL, "rentalType" = NULL, "updatedAt" = $1 WHERE id = $2`,
+            [now, item.lockerId]
+          );
+        }
+        if (item.type === "health") {
+          const today = now.substring(0, 10);
+          await pool.query(
+            `UPDATE members SET "membershipEnd" = $1, "updatedAt" = $2 WHERE id = $3`,
+            [today, now, rc.memberId]
+          );
+        }
+      }
+      const remainActive = await pool.query(
+        `SELECT id FROM pt_packages WHERE "memberId" = $1 AND status = 'active' LIMIT 1`,
+        [rc.memberId]
+      );
+      const memRow = await pool.query(`SELECT "membershipEnd" FROM members WHERE id = $1`, [rc.memberId]);
+      const today = now.substring(0, 10);
+      if (remainActive.rows.length === 0 && (!memRow.rows[0]?.membershipEnd || memRow.rows[0].membershipEnd <= today)) {
+        await pool.query(`UPDATE members SET status = 'ended', "updatedAt" = $1 WHERE id = $2`, [now, rc.memberId]);
+      }
+      await pool.query(`UPDATE refund_contracts SET status = 'completed' WHERE id = $1`, [rc.id]);
+      console.log(`🔄 pending 환불 계약서 반영 완료: ${rc.memberName} (token: ${rc.token})`);
+    }
+  } catch (e) {
+    console.error("pending 환불 계약서 반영 오류:", e);
+  }
+
   // ── 완료된 양도양수 계약 중 양수인 회원 미생성 건 자동 보정 (initDatabase 실패해도 실행) ──
   try {
     const completedContracts = await pool.query(
