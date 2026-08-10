@@ -3509,6 +3509,7 @@ const refundContractRouter = t.router({
           memo: input.reason || `${programName} 환불 계약서 발급 (${token})`,
         });
       }
+      let hasHealth = false;
       for (const item of input.refundItems) {
         if (item.packageId) {
           await db.update(ptPackages).set({ status: "refunded", updatedAt: now }).where(eq(ptPackages.id, item.packageId));
@@ -3521,7 +3522,28 @@ const refundContractRouter = t.router({
         if (item.uniformId) {
           await db.update(uniforms).set({ isActive: 0, updatedAt: now }).where(eq(uniforms.id, item.uniformId));
         }
+        if (item.type === "health") hasHealth = true;
       }
+
+      // 헬스 환불 시 회원권 종료일 처리
+      if (hasHealth) {
+        await db.update(members).set({ membershipEnd: kstDate(), updatedAt: now })
+          .where(eq(members.id, input.memberId));
+      }
+
+      // 전체 환불인지 확인: 남은 활성 PT 패키지가 없고 헬스도 만료됐으면 종료 처리
+      const remainActive = await db.select({ id: ptPackages.id }).from(ptPackages)
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active"))).limit(1);
+      const [mem] = await db.select({ membershipEnd: members.membershipEnd }).from(members)
+        .where(eq(members.id, input.memberId)).limit(1);
+      const today = kstDate();
+      if (remainActive.length === 0 && (!mem?.membershipEnd || mem.membershipEnd <= today)) {
+        await db.update(members).set({ status: "ended", updatedAt: now })
+          .where(eq(members.id, input.memberId));
+      }
+
+      // 계약서 상태 완료 처리
+      await pool.query(`UPDATE refund_contracts SET status = 'completed' WHERE token = $1`, [token]);
 
       return { token, contractUrl: `/refund/${token}` };
     }),
@@ -3540,6 +3562,29 @@ const refundContractRouter = t.router({
         refundAmount: number; reason: string | null; gymName: string | null;
         status: string; createdAt: string;
       };
+    }),
+
+  listRefundContracts: protectedProcedure
+    .input(z.object({ yearMonth: z.string().optional() }))
+    .query(async ({ input }) => {
+      const result = input.yearMonth
+        ? await pool.query(
+            `SELECT id, token, "memberId", "memberName", "memberPhone", "programName",
+                    "paymentAmount", "refundAmount", reason, status, "createdAt"
+             FROM refund_contracts WHERE "createdAt" LIKE $1 ORDER BY "createdAt" DESC LIMIT 100`,
+            [`${input.yearMonth}%`]
+          )
+        : await pool.query(
+            `SELECT id, token, "memberId", "memberName", "memberPhone", "programName",
+                    "paymentAmount", "refundAmount", reason, status, "createdAt"
+             FROM refund_contracts ORDER BY "createdAt" DESC LIMIT 100`
+          );
+      return result.rows as {
+        id: number; token: string; memberId: number | null;
+        memberName: string | null; memberPhone: string | null; programName: string;
+        paymentAmount: number; refundAmount: number; reason: string | null;
+        status: string; createdAt: string;
+      }[];
     }),
 });
 
