@@ -41,7 +41,15 @@ function formatDateLabel(dateStr: string) {
 type FoodItem = {
   name: string; amount: string; calories: number; carbs: number; protein: number; fat: number;
 };
-type DayMeals = { breakfast: FoodItem; lunch: FoodItem; dinner: FoodItem; snack: FoodItem };
+type MealItems = FoodItem | FoodItem[];
+type DayMeals = { breakfast: MealItems; lunch: MealItems; dinner: MealItems; snack: MealItems };
+
+function toArray(m: MealItems): FoodItem[] {
+  return Array.isArray(m) ? m : [m];
+}
+function mealCalories(m: MealItems): number {
+  return toArray(m).reduce((s, f) => s + f.calories, 0);
+}
 
 const MEAL_META = [
   { key: "breakfast", label: "아침", icon: "🌅", ratio: 0.30 },
@@ -51,15 +59,19 @@ const MEAL_META = [
 ] as const;
 
 function MealCard({
-  meta, food, completedKey, completed, onToggle, isPending,
+  meta, foods, completedKey, completed, onToggle, isPending,
 }: {
   meta: (typeof MEAL_META)[number];
-  food: FoodItem;
+  foods: FoodItem[];
   completedKey: string;
   completed: boolean;
   onToggle: (key: string, val: boolean) => void;
   isPending: boolean;
 }) {
+  const totalCal = foods.reduce((s, f) => s + f.calories, 0);
+  const totalCarbs = foods.reduce((s, f) => s + f.carbs, 0);
+  const totalProtein = foods.reduce((s, f) => s + f.protein, 0);
+  const totalFat = foods.reduce((s, f) => s + f.fat, 0);
   return (
     <div className={`rounded-xl border p-3 transition-colors ${completed ? "border-green-500/30 bg-green-500/5 opacity-80" : "border-border bg-card"}`}>
       <div className="flex items-center justify-between mb-1.5">
@@ -79,13 +91,19 @@ function MealCard({
           {completed ? "✓ 완료" : "완료"}
         </button>
       </div>
-      <p className={`font-semibold text-sm ${completed ? "line-through text-muted-foreground" : ""}`}>{food.name}</p>
-      <p className="text-[10px] text-muted-foreground mt-0.5">{food.amount}</p>
+      <div className={`space-y-1 ${completed ? "line-through text-muted-foreground" : ""}`}>
+        {foods.map((food, i) => (
+          <div key={i}>
+            <p className="font-semibold text-sm">{food.name}</p>
+            <p className="text-[10px] text-muted-foreground">{food.amount}</p>
+          </div>
+        ))}
+      </div>
       <div className="flex gap-2.5 mt-1.5 text-[10px]">
-        <span className="font-bold text-foreground">{food.calories} kcal</span>
-        <span className="text-muted-foreground">탄 {food.carbs}g</span>
-        <span className="text-muted-foreground">단 {food.protein}g</span>
-        <span className="text-muted-foreground">지 {food.fat}g</span>
+        <span className="font-bold text-foreground">{totalCal} kcal</span>
+        <span className="text-muted-foreground">탄 {totalCarbs}g</span>
+        <span className="text-muted-foreground">단 {totalProtein}g</span>
+        <span className="text-muted-foreground">지 {totalFat}g</span>
       </div>
     </div>
   );
@@ -103,7 +121,7 @@ function DaySection({
   isPending: boolean;
   targetCalories: number;
 }) {
-  const totalCals = MEAL_META.reduce((s, m) => s + meals[m.key].calories, 0);
+  const totalCals = MEAL_META.reduce((s, m) => s + mealCalories(meals[m.key]), 0);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -118,7 +136,7 @@ function DaySection({
           <MealCard
             key={m.key}
             meta={m}
-            food={meals[m.key]}
+            foods={toArray(meals[m.key])}
             completedKey={`${prefix}_${m.key}`}
             completed={!!completedMeals[`${prefix}_${m.key}`]}
             onToggle={onToggle}
@@ -188,15 +206,16 @@ export default function GymPlusDiet() {
   // Report: only today's meals
   const todayReport = useMemo(() => {
     if (!plan) return null;
-    const done: Array<{ label: string; food: FoodItem }> = [];
-    const missed: Array<{ label: string; food: FoodItem }> = [];
+    const done: Array<{ label: string; foods: FoodItem[]; calories: number }> = [];
+    const missed: Array<{ label: string; foods: FoodItem[]; calories: number }> = [];
     MEAL_META.forEach((m) => {
-      const food = plan.todayMeals[m.key] as FoodItem;
+      const foods = toArray(plan.todayMeals[m.key] as MealItems);
+      const calories = foods.reduce((s, f) => s + f.calories, 0);
       const isCompleted = !!plan.completedMeals[`today_${m.key}`];
-      if (isCompleted) done.push({ label: m.label, food });
-      else missed.push({ label: m.label, food });
+      if (isCompleted) done.push({ label: m.label, foods, calories });
+      else missed.push({ label: m.label, foods, calories });
     });
-    const totalConsumed = done.reduce((s, x) => s + x.food.calories, 0);
+    const totalConsumed = done.reduce((s, x) => s + x.calories, 0);
     const totalTarget = plan.targetCalories;
     const rate = Math.round((totalConsumed / totalTarget) * 100);
     return { done, missed, totalConsumed, totalTarget, rate };
@@ -376,8 +395,8 @@ export default function GymPlusDiet() {
                   {todayReport.done.map((x) => (
                     <div key={x.label} className="flex items-center justify-between text-xs bg-green-500/5 border border-green-500/20 rounded-lg px-3 py-1.5">
                       <span className="text-muted-foreground">{x.label}</span>
-                      <span className="font-medium">{x.food.name}</span>
-                      <span className="text-green-400 font-semibold">{x.food.calories} kcal</span>
+                      <span className="font-medium">{x.foods.map(f => f.name).join(" + ")}</span>
+                      <span className="text-green-400 font-semibold">{x.calories} kcal</span>
                     </div>
                   ))}
                 </div>
@@ -390,8 +409,8 @@ export default function GymPlusDiet() {
                   {todayReport.missed.map((x) => (
                     <div key={x.label} className="flex items-center justify-between text-xs bg-muted/20 border border-border rounded-lg px-3 py-1.5">
                       <span className="text-muted-foreground">{x.label}</span>
-                      <span className="text-muted-foreground">{x.food.name}</span>
-                      <span className="text-muted-foreground">{x.food.calories} kcal</span>
+                      <span className="text-muted-foreground">{x.foods.map(f => f.name).join(" + ")}</span>
+                      <span className="text-muted-foreground">{x.calories} kcal</span>
                     </div>
                   ))}
                 </div>

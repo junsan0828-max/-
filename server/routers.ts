@@ -3526,7 +3526,7 @@ ${dataContext}
       const parts = input.planDate.split("-");
       const daySeed = (parseInt(parts[2] ?? "1") * 3 + parseInt(parts[1] ?? "1") * 7 + parseInt(parts[0] ?? "1")) % 47;
 
-      function pickMeal(category: string, budgetRatio: number, offset: number) {
+      function pickMeals(category: string, budgetRatio: number, offset: number, seed: number) {
         const target = input.targetCalories * budgetRatio;
         let pool = DIET_FOODS.filter(f =>
           f.category === category &&
@@ -3537,38 +3537,41 @@ ${dataContext}
           ? pool.filter(f => includeList.some((inc: string) => f.name.includes(inc) || f.amount.includes(inc)))
           : [];
         const source = preferred.length > 0 ? preferred : pool;
-        const sorted = [...source].sort((a, b) => Math.abs(a.calories - target) - Math.abs(b.calories - target));
-        const idx = (daySeed * 7 + offset * 13) % Math.min(5, sorted.length);
-        return sorted[idx];
+
+        const picked: typeof source = [];
+        let remaining = target;
+        const used = new Set<string>();
+        let pickIdx = 0;
+
+        while (remaining > 30 && picked.length < 4) {
+          const available = source.filter(f => !used.has(f.name));
+          if (available.length === 0) break;
+          const sorted = [...available].sort((a, b) => Math.abs(a.calories - remaining) - Math.abs(b.calories - remaining));
+          const topN = Math.min(3, sorted.length);
+          const idx = (seed * 7 + offset * 13 + pickIdx * 11) % topN;
+          const pick = sorted[idx];
+          picked.push(pick);
+          used.add(pick.name);
+          remaining -= pick.calories;
+          pickIdx++;
+          if (remaining < target * 0.1) break;
+        }
+
+        return picked.length > 0 ? picked : [source[(seed + offset) % source.length]];
       }
 
       const todayMeals = {
-        breakfast: pickMeal("아침", 0.30, 0),
-        lunch: pickMeal("점심", 0.35, 1),
-        dinner: pickMeal("저녁", 0.25, 2),
-        snack: pickMeal("건강 간식", 0.10, 3),
+        breakfast: pickMeals("아침", 0.30, 0, daySeed),
+        lunch: pickMeals("점심", 0.35, 1, daySeed),
+        dinner: pickMeals("저녁", 0.25, 2, daySeed),
+        snack: pickMeals("건강 간식", 0.10, 3, daySeed),
       };
       const tomorrowSeed = (daySeed + 11) % 47;
-      const pickTomorrow = (category: string, budgetRatio: number, offset: number) => {
-        const target = input.targetCalories * budgetRatio;
-        let pool = DIET_FOODS.filter(f =>
-          f.category === category &&
-          !excludeList.some((ex: string) => f.name.includes(ex))
-        );
-        if (pool.length === 0) pool = DIET_FOODS.filter(f => f.category === category);
-        const preferred = includeList.length > 0
-          ? pool.filter(f => includeList.some((inc: string) => f.name.includes(inc) || f.amount.includes(inc)))
-          : [];
-        const source = preferred.length > 0 ? preferred : pool;
-        const sorted = [...source].sort((a, b) => Math.abs(a.calories - target) - Math.abs(b.calories - target));
-        const idx = (tomorrowSeed * 7 + offset * 13) % Math.min(5, sorted.length);
-        return sorted[idx];
-      };
       const tomorrowMeals = {
-        breakfast: pickTomorrow("아침", 0.30, 0),
-        lunch: pickTomorrow("점심", 0.35, 1),
-        dinner: pickTomorrow("저녁", 0.25, 2),
-        snack: pickTomorrow("건강 간식", 0.10, 3),
+        breakfast: pickMeals("아침", 0.30, 0, tomorrowSeed),
+        lunch: pickMeals("점심", 0.35, 1, tomorrowSeed),
+        dinner: pickMeals("저녁", 0.25, 2, tomorrowSeed),
+        snack: pickMeals("건강 간식", 0.10, 3, tomorrowSeed),
       };
 
       // Replace existing plan for today
@@ -4486,9 +4489,12 @@ ${dataContext}
   // ─── 출입 포인트 설정 ────────────────────────────────────────────────────────
 
   getCheckinPointSetting: adminOnlyGymPlus.query(async () => {
-    const res = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'checkin_point_amount'`);
-    const val = parseInt(res.rows[0]?.value ?? "100");
-    return { amount: isNaN(val) ? 100 : val };
+    const res = await pool.query(`SELECT key, value FROM gym_plus_settings WHERE key IN ('checkin_point_amount', 'kiosk_show_points')`);
+    const rows = res.rows as { key: string; value: string }[];
+    const amountRow = rows.find(r => r.key === "checkin_point_amount");
+    const showRow = rows.find(r => r.key === "kiosk_show_points");
+    const val = parseInt(amountRow?.value ?? "100");
+    return { amount: isNaN(val) ? 100 : val, kioskShowPoints: showRow?.value !== "false" };
   }),
 
   setCheckinPointSetting: adminOnlyGymPlus
@@ -4501,6 +4507,32 @@ ${dataContext}
       );
       return { success: true };
     }),
+
+  setKioskShowPoints: adminOnlyGymPlus
+    .input(z.object({ enabled: z.boolean(), branchId: z.number().optional() }))
+    .mutation(async ({ input }) => {
+      const key = input.branchId ? `kiosk_show_points_branch_${input.branchId}` : "kiosk_show_points";
+      await pool.query(
+        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ($1, $2, now()::text)
+         ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = now()::text`,
+        [key, String(input.enabled)]
+      );
+      return { success: true };
+    }),
+
+  getKioskShowPointsByBranch: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT key, value FROM gym_plus_settings WHERE key LIKE 'kiosk_show_points%'`
+    );
+    const rows = res.rows as { key: string; value: string }[];
+    const global = rows.find(r => r.key === "kiosk_show_points")?.value !== "false";
+    const branches: Record<number, boolean> = {};
+    for (const r of rows) {
+      const m = r.key.match(/^kiosk_show_points_branch_(\d+)$/);
+      if (m) branches[parseInt(m[1])] = r.value !== "false";
+    }
+    return { global, branches };
+  }),
 
   // ─── 구매신청 ────────────────────────────────────────────────────────────────
 
@@ -4992,7 +5024,7 @@ const kioskRouter = t.router({
       // 같은 전화번호로 중복 등록된 회원이 있을 수 있다. 정렬 없이 LIMIT 1을 쓰면 매번 다른 행이
       // 뽑혀 출입 기록·포인트가 여러 행으로 흩어지므로, 만료일이 가장 나중인(=현재 유효한) 행을 고정 선택한다.
       const all = await pool.query(
-        `SELECT id, name, phone, "membershipEnd" FROM members
+        `SELECT id, name, phone, "membershipEnd", "branchId" FROM members
          WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active'
          ORDER BY "membershipEnd" DESC NULLS LAST, id DESC
          LIMIT 1`,
@@ -5000,7 +5032,25 @@ const kioskRouter = t.router({
       );
       if (!all.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
 
-      const member = all.rows[0] as { id: number; name: string; phone: string; membershipEnd: string | null };
+      const member = all.rows[0] as { id: number; name: string; phone: string; membershipEnd: string | null; branchId: number | null };
+
+      // 지점별 포인트 표시 설정 확인
+      let showPoints = true;
+      if (member.branchId) {
+        const branchRes = await pool.query(
+          `SELECT value FROM gym_plus_settings WHERE key = $1`,
+          [`kiosk_show_points_branch_${member.branchId}`]
+        );
+        if (branchRes.rows[0]) {
+          showPoints = branchRes.rows[0].value !== "false";
+        } else {
+          const globalRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_show_points'`);
+          showPoints = globalRes.rows[0]?.value !== "false";
+        }
+      } else {
+        const globalRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_show_points'`);
+        showPoints = globalRes.rows[0]?.value !== "false";
+      }
       // KST(UTC+9) 기준 날짜·시각 사용 — UTC로 계산하면 자정~오전9시 구간에 날짜가 하루 앞서서 포인트 중복 적립 가능
       const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const today = kstNow.toISOString().slice(0, 10);
@@ -5034,7 +5084,12 @@ const kioskRouter = t.router({
         } catch (e) {
           console.error("kiosk uniform check error (already):", e);
         }
-        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, uniformEnd: uniformEndAlready };
+        let totalPointsAlready = 0;
+        try {
+          const gmAlready = await pool.query(`SELECT points FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [member.id]);
+          totalPointsAlready = gmAlready.rows[0]?.points ?? 0;
+        } catch {}
+        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, totalPoints: totalPointsAlready, showPoints, uniformEnd: uniformEndAlready };
       }
 
       // 키오스크 출입 기록 (trainerId=0: 시스템/키오스크)
@@ -5100,7 +5155,12 @@ const kioskRouter = t.router({
         console.error("kiosk uniform check error:", e);
       }
 
-      return { name: member.name, alreadyCheckedIn: false, pointsEarned, uniformEnd };
+      let totalPoints = 0;
+      try {
+        const gmTotal = await pool.query(`SELECT points FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [member.id]);
+        totalPoints = gmTotal.rows[0]?.points ?? 0;
+      } catch {}
+      return { name: member.name, alreadyCheckedIn: false, pointsEarned, totalPoints, showPoints, uniformEnd };
     }),
 });
 

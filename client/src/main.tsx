@@ -7,6 +7,12 @@ import App from "./App";
 import { trpc } from "./lib/trpc";
 import "./index.css";
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 // 짐+ PWA가 홈화면에서 열릴 때 /gym-plus로 리다이렉트
 const isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
   (window.navigator as any).standalone === true;
