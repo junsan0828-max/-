@@ -293,6 +293,17 @@ function SettlementTab() {
                       <StatCard label="정산 비용" value={`${fmt(selectedTrainer.settlement)}원`} sub={`× ${selectedTrainer.settlementRate}%`} />
                       <StatCard label="3.3% 제외 후" value={`${fmt(selectedTrainer.afterTax)}원`} />
                     </div>
+                    {(selectedTrainer as any).totalPtRevCount > 0 && (
+                      <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/20 border border-border">
+                        <span className="text-xs text-muted-foreground">재등록률</span>
+                        <span className={`text-sm font-bold ${(selectedTrainer as any).reRegRate >= 50 ? "text-emerald-400" : (selectedTrainer as any).reRegRate >= 30 ? "text-yellow-400" : "text-red-400"}`}>
+                          {(selectedTrainer as any).reRegRate}%
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          ({(selectedTrainer as any).reRegCount}건 / {(selectedTrainer as any).totalPtRevCount}건)
+                        </span>
+                      </div>
+                    )}
 
                     {/* 신규/재등록/헬스 등록 매출 */}
                     {((selectedTrainer as any).newRevenue > 0 || (selectedTrainer as any).reRegRevenue > 0 || (selectedTrainer as any).healthRevenue > 0 || (selectedTrainer as any).otherRevenue > 0) && (
@@ -307,7 +318,7 @@ function SettlementTab() {
                               </div>
                               {((selectedTrainer as any).newMembers ?? []).map((m: any, i: number) => (
                                 <div key={i} className="flex items-center justify-between text-xs text-emerald-400/80 pl-2">
-                                  <span>{m.name}</span>
+                                  <span>{m.name}{m.channel ? ` (${m.channel})` : ""}</span>
                                   <span>{fmt(m.amount)}원</span>
                                 </div>
                               ))}
@@ -364,8 +375,17 @@ function SettlementTab() {
                               <p className="text-xs text-muted-foreground">단가 {fmt(m.avgPrice)}원</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm font-bold">{m.sessions}회</p>
-                              <p className="text-xs text-muted-foreground">{fmt(m.totalPrice)}원</p>
+                              <p className="text-sm font-bold">
+                                {m.sessions}회
+                                {m.pkgTotal > 0 && (
+                                  <span className="text-xs font-normal text-muted-foreground ml-1">/ {m.pkgTotal}회</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {m.pkgTotal > 0
+                                  ? `잔여 ${m.pkgTotal - m.pkgUsed}회`
+                                  : `${fmt(m.totalPrice)}원`}
+                              </p>
                             </div>
                           </div>
                         ))}

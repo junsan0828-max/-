@@ -30,6 +30,7 @@ import {
   uniforms,
   ptEventPrograms,
   leads,
+  channels,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
@@ -3871,21 +3872,43 @@ const adminRouter = t.router({
           memberMap[l.memberId].totalPrice += calcPrice(l);
         }
         const memberIds = Object.keys(memberMap).map(Number);
+        // 회원별 패키지 잔여/총 횟수 조회
+        const pkgInfo: Record<number, { total: number; used: number }> = {};
         if (memberIds.length > 0) {
           const mRows = await db.select({ id: members.id, name: members.name })
             .from(members).where(inArray(members.id, memberIds));
           for (const m of mRows) {
             if (memberMap[m.id]) memberMap[m.id].name = m.name ?? `회원#${m.id}`;
           }
+          const pkgRows = await db.select({
+            memberId: ptPackages.memberId,
+            totalSessions: ptPackages.totalSessions,
+            usedSessions: ptPackages.usedSessions,
+            status: ptPackages.status,
+          }).from(ptPackages).where(and(
+            inArray(ptPackages.memberId, memberIds),
+            eq(ptPackages.trainerId, trainer.id),
+          ));
+          for (const p of pkgRows) {
+            if (!pkgInfo[p.memberId]) pkgInfo[p.memberId] = { total: 0, used: 0 };
+            pkgInfo[p.memberId].total += p.totalSessions ?? 0;
+            pkgInfo[p.memberId].used += p.usedSessions ?? 0;
+          }
         }
         const memberDetails = Object.entries(memberMap)
-          .map(([id, v]) => ({
-            memberId: Number(id),
-            name: v.name || `회원#${id}`,
-            sessions: v.sessions,
-            avgPrice: v.sessions > 0 ? Math.round(v.totalPrice / v.sessions) : 0,
-            totalPrice: v.totalPrice,
-          }))
+          .map(([id, v]) => {
+            const nid = Number(id);
+            const pkg = pkgInfo[nid];
+            return {
+              memberId: nid,
+              name: v.name || `회원#${id}`,
+              sessions: v.sessions,
+              avgPrice: v.sessions > 0 ? Math.round(v.totalPrice / v.sessions) : 0,
+              totalPrice: v.totalPrice,
+              pkgTotal: pkg?.total ?? 0,
+              pkgUsed: pkg?.used ?? 0,
+            };
+          })
           .sort((a, b) => b.avgPrice - a.avgPrice);
 
         // 신규/재등록/헬스 등록 매출 — trainerId 또는 consultantId가 이 트레이너인 것
@@ -3897,6 +3920,7 @@ const adminRouter = t.router({
           paidAmount: revenueEntries.paidAmount,
           consultantId: revenueEntries.consultantId,
           trainerId: revenueEntries.trainerId,
+          channelId: revenueEntries.channelId,
         }).from(revenueEntries).where(and(
           sql`(${revenueEntries.type} = 'PT' OR ${revenueEntries.type} = '헬스')`,
           sql`(${revenueEntries.trainerId} = ${trainer.id} OR ${revenueEntries.consultantId} = ${trainerUserId})`,
@@ -3910,24 +3934,32 @@ const adminRouter = t.router({
             .from(members).where(inArray(members.id, revMemberIds));
           for (const m of nm) revMemberNames[m.id] = m.name ?? `회원#${m.id}`;
         }
+        // 유입경로 이름 조회
+        const chIds = [...new Set(regRevRows.map(r => r.channelId).filter(Boolean))] as number[];
+        const channelNames: Record<number, string> = {};
+        if (chIds.length > 0) {
+          const chRows = await db.select({ id: channels.id, name: channels.name })
+            .from(channels).where(inArray(channels.id, chIds));
+          for (const ch of chRows) channelNames[ch.id] = ch.name;
+        }
         let newRevenue = 0, reRegRevenue = 0, healthRevenue = 0, otherRevenue = 0;
-        const newMembers: { name: string; amount: number }[] = [];
+        const newMembers: { name: string; amount: number; channel: string }[] = [];
         const reRegMembers: { name: string; amount: number }[] = [];
         const healthMembers: { name: string; amount: number }[] = [];
         for (const r of regRevRows) {
           const amt = r.paidAmount ?? 0;
           const mName = r.memberId ? (revMemberNames[r.memberId] ?? `회원#${r.memberId}`) : "미지정";
+          const chName = r.channelId ? (channelNames[r.channelId] ?? "") : "";
 
           if (r.type === "헬스") {
             healthRevenue += amt;
             healthMembers.push({ name: mName, amount: amt });
             continue;
           }
-          // PT 신규: 직접 상담(consultantId 일치)만 포함, 배정(신규배정)은 제외
           if (r.subType === "신규") {
             if (r.consultantId === trainerUserId) {
               newRevenue += amt;
-              newMembers.push({ name: mName, amount: amt });
+              newMembers.push({ name: mName, amount: amt, channel: chName });
             }
           } else if (r.subType === "재등록") {
             reRegRevenue += amt;
@@ -3936,6 +3968,11 @@ const adminRouter = t.router({
             otherRevenue += amt;
           }
         }
+
+        // 재등록률: 이 트레이너 회원 중 재등록 비율
+        const totalPtRevCount = regRevRows.filter(r => r.type === "PT").length;
+        const reRegCount = regRevRows.filter(r => r.subType === "재등록").length;
+        const reRegRate = totalPtRevCount > 0 ? Math.round((reRegCount / totalPtRevCount) * 100) : 0;
 
         return {
           trainerId: trainer.id,
@@ -3954,6 +3991,9 @@ const adminRouter = t.router({
           newMembers,
           reRegMembers,
           healthMembers,
+          reRegRate,
+          reRegCount,
+          totalPtRevCount,
         };
       }));
 
