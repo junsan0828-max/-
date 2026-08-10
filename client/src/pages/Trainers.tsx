@@ -368,32 +368,38 @@ function SettlementTab() {
                         회원별 수업 현황 ({(selectedTrainer as any).memberDetails?.length ?? 0}명)
                       </h4>
                       <div className="space-y-1.5">
-                        {((selectedTrainer as any).memberDetails ?? []).map((m: any) => (
-                          <div key={m.memberId} className="flex items-center justify-between p-2.5 rounded-lg bg-accent/20 border border-border">
-                            <div>
-                              <p className="text-sm font-medium">{m.name}</p>
-                              <p className="text-xs text-muted-foreground">단가 {fmt(m.avgPrice)}원</p>
+                        {((selectedTrainer as any).memberDetails ?? []).map((m: any) => {
+                          const activeRemain = m.activeTotal - m.activeUsed;
+                          const activePaid = m.activeTotal - (m.activeService ?? 0);
+                          return (
+                          <div key={m.memberId} className="p-2.5 rounded-lg bg-accent/20 border border-border">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium">{m.name}</p>
+                                <p className="text-xs text-muted-foreground">단가 {fmt(m.avgPrice)}원</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-bold">이번달 {m.sessions}회</p>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-bold">
-                                {m.sessions}회
-                                {m.pkgTotal > 0 && (
-                                  <span className="text-xs font-normal text-muted-foreground ml-1">
-                                    / {m.pkgTotal}회
-                                    {(m.pkgService ?? 0) > 0 && (
-                                      <span className="text-violet-400"> (서비스 {m.pkgService}회)</span>
-                                    )}
+                            {(m.activeTotal > 0 || m.cumTotal > 0) && (
+                              <div className="mt-1.5 pt-1.5 border-t border-border/50 flex gap-3 text-[11px]">
+                                {m.activeTotal > 0 && (
+                                  <span className="text-blue-400">
+                                    현재 {activePaid}회{(m.activeService ?? 0) > 0 ? `+${m.activeService}서비스` : ""}
+                                    <span className="text-muted-foreground"> ({m.activeUsed}/{m.activeTotal} 진행, 잔여 {activeRemain})</span>
                                   </span>
                                 )}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {m.pkgTotal > 0
-                                  ? `잔여 ${m.pkgTotal - m.pkgUsed}회`
-                                  : `${fmt(m.totalPrice)}원`}
-                              </p>
-                            </div>
+                                {m.cumTotal > m.activeTotal && (
+                                  <span className="text-muted-foreground">
+                                    누적 {m.cumTotal - (m.cumService ?? 0)}회{(m.cumService ?? 0) > 0 ? `+${m.cumService}서비스` : ""}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

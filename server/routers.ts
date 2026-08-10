@@ -3872,8 +3872,13 @@ const adminRouter = t.router({
           memberMap[l.memberId].totalPrice += calcPrice(l);
         }
         const memberIds = Object.keys(memberMap).map(Number);
-        // 회원별 패키지 잔여/총 횟수 조회
-        const pkgInfo: Record<number, { total: number; used: number; service: number }> = {};
+        // 회원별 패키지 정보 (활성/누적 분리)
+        type PkgSummary = {
+          activeTotal: number; activeUsed: number; activeService: number;
+          cumTotal: number; cumUsed: number; cumService: number;
+          activeName: string | null;
+        };
+        const pkgInfo: Record<number, PkgSummary> = {};
         if (memberIds.length > 0) {
           const mRows = await db.select({ id: members.id, name: members.name })
             .from(members).where(inArray(members.id, memberIds));
@@ -3886,15 +3891,27 @@ const adminRouter = t.router({
             usedSessions: ptPackages.usedSessions,
             serviceSessions: ptPackages.serviceSessions,
             status: ptPackages.status,
+            packageName: ptPackages.packageName,
           }).from(ptPackages).where(and(
             inArray(ptPackages.memberId, memberIds),
             eq(ptPackages.trainerId, trainer.id),
           ));
           for (const p of pkgRows) {
-            if (!pkgInfo[p.memberId]) pkgInfo[p.memberId] = { total: 0, used: 0, service: 0 };
-            pkgInfo[p.memberId].total += p.totalSessions ?? 0;
-            pkgInfo[p.memberId].used += p.usedSessions ?? 0;
-            pkgInfo[p.memberId].service += p.serviceSessions ?? 0;
+            if (!pkgInfo[p.memberId]) pkgInfo[p.memberId] = {
+              activeTotal: 0, activeUsed: 0, activeService: 0,
+              cumTotal: 0, cumUsed: 0, cumService: 0,
+              activeName: null,
+            };
+            const info = pkgInfo[p.memberId];
+            info.cumTotal += p.totalSessions ?? 0;
+            info.cumUsed += p.usedSessions ?? 0;
+            info.cumService += p.serviceSessions ?? 0;
+            if (p.status === "active") {
+              info.activeTotal += p.totalSessions ?? 0;
+              info.activeUsed += p.usedSessions ?? 0;
+              info.activeService += p.serviceSessions ?? 0;
+              if (!info.activeName) info.activeName = p.packageName ?? null;
+            }
           }
         }
         const memberDetails = Object.entries(memberMap)
@@ -3907,9 +3924,13 @@ const adminRouter = t.router({
               sessions: v.sessions,
               avgPrice: v.sessions > 0 ? Math.round(v.totalPrice / v.sessions) : 0,
               totalPrice: v.totalPrice,
-              pkgTotal: pkg?.total ?? 0,
-              pkgUsed: pkg?.used ?? 0,
-              pkgService: pkg?.service ?? 0,
+              activeTotal: pkg?.activeTotal ?? 0,
+              activeUsed: pkg?.activeUsed ?? 0,
+              activeService: pkg?.activeService ?? 0,
+              activeName: pkg?.activeName ?? null,
+              cumTotal: pkg?.cumTotal ?? 0,
+              cumUsed: pkg?.cumUsed ?? 0,
+              cumService: pkg?.cumService ?? 0,
             };
           })
           .sort((a, b) => b.avgPrice - a.avgPrice);
