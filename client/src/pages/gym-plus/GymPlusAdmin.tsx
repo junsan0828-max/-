@@ -1477,6 +1477,9 @@ export function GymPlusSettingsAdmin() {
 
       {/* 키오스크 포인트 표시 토글 */}
       <KioskShowPointsToggle kioskShowPoints={setting?.kioskShowPoints ?? true} />
+
+      {/* 키오스크 공지사항 */}
+      <KioskNoticesEditor />
     </div>
   );
 }
@@ -1548,6 +1551,98 @@ function KioskShowPointsToggle({ kioskShowPoints }: { kioskShowPoints: boolean }
         <p>• 끄면: 포인트 적립은 계속되지만 키오스크 화면에 표시하지 않음</p>
         <p>• 지점별 설정이 없으면 전체 기본값을 따릅니다</p>
       </div>
+    </div>
+  );
+}
+
+function KioskNoticesEditor() {
+  const utils = trpc.useUtils();
+  const { data: notices, isLoading } = trpc.gymPlus.getKioskNotices.useQuery();
+  const [editing, setEditing] = useState(false);
+  const [items, setItems] = useState<string[]>([]);
+
+  const saveMutation = trpc.gymPlus.setKioskNotices.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.getKioskNotices.invalidate();
+      setEditing(false);
+      toast.success("저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function startEdit() {
+    setItems(notices?.length ? [...notices] : [""]);
+    setEditing(true);
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">키오스크 공지사항</p>
+          <p className="text-xs text-muted-foreground mt-0.5">키오스크 화면 상단에 순환 표시됩니다 (최대 5개)</p>
+        </div>
+        {!editing && (
+          <button onClick={startEdit} className="text-xs text-primary hover:underline">수정</button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">로딩 중...</p>
+      ) : editing ? (
+        <div className="space-y-2">
+          {items.map((item, i) => (
+            <div key={i} className="flex gap-2">
+              <Input
+                value={item}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[i] = e.target.value;
+                  setItems(next);
+                }}
+                placeholder={`공지사항 ${i + 1}`}
+                className="h-9 text-sm flex-1"
+                maxLength={100}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 px-2 text-muted-foreground"
+                onClick={() => setItems(items.filter((_, j) => j !== i))}
+              >
+                ✕
+              </Button>
+            </div>
+          ))}
+          {items.length < 5 && (
+            <button
+              onClick={() => setItems([...items, ""])}
+              className="text-xs text-primary hover:underline"
+            >
+              + 공지 추가
+            </button>
+          )}
+          <div className="flex gap-2 pt-1">
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate({ notices: items.filter(Boolean) })}
+              disabled={saveMutation.isPending}
+              className="h-9"
+            >
+              저장
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)} className="h-9">취소</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {notices?.length ? notices.map((n: string, i: number) => (
+            <p key={i} className="text-sm text-foreground">• {n}</p>
+          )) : (
+            <p className="text-sm text-muted-foreground">등록된 공지사항이 없습니다</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

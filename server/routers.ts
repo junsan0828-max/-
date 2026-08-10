@@ -4534,6 +4534,26 @@ ${dataContext}
     return { global, branches };
   }),
 
+  // ─── 키오스크 공지사항 관리 ───────────────────────────────────────────────────
+
+  getKioskNotices: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_notices'`);
+    const raw = res.rows[0]?.value;
+    if (!raw) return [];
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }),
+
+  setKioskNotices: adminOnlyGymPlus
+    .input(z.object({ notices: z.array(z.string().max(100)).max(5) }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('kiosk_notices', $1, now()::text)
+         ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
+        [JSON.stringify(input.notices)]
+      );
+      return { success: true };
+    }),
+
   // ─── 구매신청 ────────────────────────────────────────────────────────────────
 
   requestPurchase: gymPlusProtected
@@ -5016,6 +5036,15 @@ const landingRouter = t.router({
 
 // ─── Kiosk ────────────────────────────────────────────────────────────────────
 const kioskRouter = t.router({
+  getNotices: publicProcedure.query(async () => {
+    const res = await pool.query(
+      `SELECT value FROM gym_plus_settings WHERE key = 'kiosk_notices'`
+    );
+    const raw = res.rows[0]?.value;
+    if (!raw) return [];
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }),
+
   checkIn: publicProcedure
     .input(z.object({ phone: z.string().min(9) }))
     .mutation(async ({ input }) => {
