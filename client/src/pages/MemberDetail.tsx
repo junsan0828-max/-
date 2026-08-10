@@ -261,12 +261,6 @@ export default function MemberDetail({ memberId }: Props) {
     paymentMemo: "",
   });
 
-  // 패키지 환불 등록 상태
-  const [refundPkgOpen, setRefundPkgOpen] = useState(false);
-  const [refundPkgForm, setRefundPkgForm] = useState({
-    packageId: 0, packageName: "", originalAmount: 0,
-    refundAmount: "", paymentDate: new Date().toISOString().substring(0, 10), memo: "",
-  });
 
   const [calendarDate, setCalendarDate] = useState(() => {
     const d = new Date();
@@ -447,28 +441,31 @@ export default function MemberDetail({ memberId }: Props) {
     [memberPrograms]
   );
 
-  // 환불 모달 열기 — 현재 활성 상태인 PT·헬스·락커·운동복을 전부 기본 체크한 채로 연다.
-  // 필요 없는 항목은 모달 안에서 체크 해제하면 된다(대부분 나갈 때는 전체 정리이므로).
-  function openRefundModal() {
+  function openRefundModal(onlyPackageId?: number) {
     const checked: Record<string, boolean> = {};
     const amounts: Record<string, string> = {};
     for (const p of (ptPackages ?? []).filter((p: any) => p.status === "active")) {
-      checked[`pt-${p.id}`] = true;
+      const shouldCheck = onlyPackageId ? p.id === onlyPackageId : true;
+      if (shouldCheck) checked[`pt-${p.id}`] = true;
       amounts[`pt-${p.id}`] = String(p.paymentAmount ?? 0);
     }
-    for (const r of healthRevsForModal as any[]) {
-      checked[`health-${r.id}`] = true;
-      amounts[`health-${r.id}`] = String(r.paidAmount ?? r.amount ?? 0);
+    if (!onlyPackageId) {
+      for (const r of healthRevsForModal as any[]) {
+        checked[`health-${r.id}`] = true;
+        amounts[`health-${r.id}`] = String(r.paidAmount ?? r.amount ?? 0);
+      }
+      for (const l of (memberPrograms?.lockers ?? [])) {
+        checked[`locker-${l.id}`] = true;
+        amounts[`locker-${l.id}`] = "0";
+      }
+      for (const u of (memberPrograms?.uniforms ?? [])) {
+        checked[`uniform-${u.id}`] = true;
+        amounts[`uniform-${u.id}`] = "0";
+      }
     }
-    for (const l of (memberPrograms?.lockers ?? [])) {
-      checked[`locker-${l.id}`] = true;
-      amounts[`locker-${l.id}`] = "0";
-    }
-    for (const u of (memberPrograms?.uniforms ?? [])) {
-      checked[`uniform-${u.id}`] = true;
-      amounts[`uniform-${u.id}`] = "0";
-    }
-    const total = Object.values(amounts).reduce((s, v) => s + (Number(v) || 0), 0);
+    const total = Object.entries(amounts)
+      .filter(([k]) => checked[k])
+      .reduce((s, [, v]) => s + (Number(v) || 0), 0);
     setRefundChecked(checked);
     setRefundItemAmounts(amounts);
     setRefundServiceDeductions([]);
@@ -673,6 +670,12 @@ export default function MemberDetail({ memberId }: Props) {
   const createRefundContractMutation = trpc.gym.createRefundContract.useMutation({
     onSuccess: (data) => {
       setRefundContractUrl(window.location.origin + data.contractUrl);
+      toast.success("환불이 반영되었습니다");
+      refetchPt();
+      utils.members.getById.invalidate({ id: memberId });
+      utils.gym.revenue.invalidate();
+      utils.gym.kpi.overview.invalidate();
+      utils.access.getMemberPrograms.invalidate({ memberId });
     },
     onError: (e) => toast.error(e.message || "계약서 생성 실패"),
   });
@@ -779,14 +782,6 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "수정 실패"),
   });
 
-  const refundPkgMutation = trpc.gym.revenue.create.useMutation({
-    onSuccess: () => {
-      toast.success("환불이 등록되었습니다");
-      setRefundPkgOpen(false);
-      utils.gym.revenue.invalidate();
-    },
-    onError: (err) => toast.error(err.message || "환불 등록 실패"),
-  });
 
   // 달력 계산 (hooks는 조건부 return 이전에 호출해야 함)
   const attendanceMap = useMemo(() => {
@@ -1368,17 +1363,7 @@ export default function MemberDetail({ memberId }: Props) {
                             </div>
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => {
-                                  setRefundPkgForm({
-                                    packageId: pkg.id,
-                                    packageName: pkg.packageName || "PT 프로그램",
-                                    originalAmount: pkg.paymentAmount ?? 0,
-                                    refundAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
-                                    paymentDate: new Date().toISOString().substring(0, 10),
-                                    memo: "",
-                                  });
-                                  setRefundPkgOpen(true);
-                                }}
+                                onClick={() => openRefundModal(pkg.id)}
                                 className="text-xs text-orange-400 underline hover:text-orange-300 transition-colors"
                               >
                                 환불
@@ -2453,62 +2438,6 @@ export default function MemberDetail({ memberId }: Props) {
         </TabsContent>
       </Tabs>
 
-      {/* PT 패키지 환불 다이얼로그 */}
-      <Dialog open={refundPkgOpen} onOpenChange={setRefundPkgOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>환불 등록</DialogTitle>
-            <DialogDescription>{refundPkgForm.packageName}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            {refundPkgForm.originalAmount > 0 && (
-              <div className="bg-muted/30 rounded-lg px-3 py-2 text-xs text-muted-foreground">
-                결제 금액: <span className="font-medium text-foreground">{refundPkgForm.originalAmount.toLocaleString()}원</span>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-xs">환불 금액 *</Label>
-              <Input type="number" min="0" placeholder="0"
-                value={refundPkgForm.refundAmount}
-                onChange={e => setRefundPkgForm(f => ({ ...f, refundAmount: e.target.value }))}
-                className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">환불일 *</Label>
-              <Input type="date" value={refundPkgForm.paymentDate}
-                onChange={e => setRefundPkgForm(f => ({ ...f, paymentDate: e.target.value }))}
-                className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">사유 / 메모</Label>
-              <Input placeholder="환불 사유" value={refundPkgForm.memo}
-                onChange={e => setRefundPkgForm(f => ({ ...f, memo: e.target.value }))}
-                className="h-9 text-sm" />
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setRefundPkgOpen(false)}>취소</Button>
-              <Button
-                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                disabled={!refundPkgForm.refundAmount || refundPkgMutation.isPending}
-                onClick={() => {
-                  const amount = parseInt(refundPkgForm.refundAmount);
-                  if (!amount || amount <= 0) return toast.error("환불 금액을 입력해주세요");
-                  refundPkgMutation.mutate({
-                    customerName: member?.name ?? "",
-                    type: "기타", subType: "환불",
-                    amount, discountAmount: 0, paidAmount: -amount, unpaidAmount: 0, refundAmount: amount,
-                    paymentDate: refundPkgForm.paymentDate,
-                    memo: refundPkgForm.memo || `${refundPkgForm.packageName} 환불`,
-                    memberId: member?.id,
-                  });
-                }}
-              >
-                {refundPkgMutation.isPending ? "등록 중..." : "환불 등록"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* PT 패키지 수정 다이얼로그 */}
       <Dialog open={editPkgOpen} onOpenChange={setEditPkgOpen}>
