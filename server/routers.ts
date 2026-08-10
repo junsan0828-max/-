@@ -3863,6 +3863,49 @@ const adminRouter = t.router({
         const settlement = Math.round(revenue * rate / 100);
         const afterTax = Math.round(settlement * (1 - 0.033));
 
+        // 회원별 수업 횟수·단가 집계
+        const memberMap: Record<number, { name: string; sessions: number; totalPrice: number }> = {};
+        for (const l of logs) {
+          if (!memberMap[l.memberId]) memberMap[l.memberId] = { name: "", sessions: 0, totalPrice: 0 };
+          memberMap[l.memberId].sessions++;
+          memberMap[l.memberId].totalPrice += calcPrice(l);
+        }
+        const memberIds = Object.keys(memberMap).map(Number);
+        if (memberIds.length > 0) {
+          const mRows = await db.select({ id: members.id, name: members.name })
+            .from(members).where(inArray(members.id, memberIds));
+          for (const m of mRows) {
+            if (memberMap[m.id]) memberMap[m.id].name = m.name ?? `회원#${m.id}`;
+          }
+        }
+        const memberDetails = Object.entries(memberMap)
+          .map(([id, v]) => ({
+            memberId: Number(id),
+            name: v.name || `회원#${id}`,
+            sessions: v.sessions,
+            avgPrice: v.sessions > 0 ? Math.round(v.totalPrice / v.sessions) : 0,
+            totalPrice: v.totalPrice,
+          }))
+          .sort((a, b) => b.sessions - a.sessions);
+
+        // 신규/재등록 매출 (해당 월 revenue_entries 기준)
+        const ptRevRows = await db.select({
+          subType: revenueEntries.subType,
+          paidAmount: revenueEntries.paidAmount,
+        }).from(revenueEntries).where(and(
+          eq(revenueEntries.type, "PT"),
+          eq(revenueEntries.trainerId, trainer.id),
+          sql`${revenueEntries.paymentDate} >= ${monthStart}`,
+          sql`${revenueEntries.paymentDate} < ${monthEnd}`,
+        ));
+        let newRevenue = 0, reRegRevenue = 0, otherRevenue = 0;
+        for (const r of ptRevRows) {
+          const amt = r.paidAmount ?? 0;
+          if (r.subType === "신규" || r.subType === "신규배정") newRevenue += amt;
+          else if (r.subType === "재등록") reRegRevenue += amt;
+          else otherRevenue += amt;
+        }
+
         return {
           trainerId: trainer.id,
           trainerName: trainer.trainerName,
@@ -3872,6 +3915,10 @@ const adminRouter = t.router({
           settlementRate: rate,
           settlement,
           afterTax,
+          memberDetails,
+          newRevenue,
+          reRegRevenue,
+          otherRevenue,
         };
       }));
 

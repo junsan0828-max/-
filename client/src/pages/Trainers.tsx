@@ -206,6 +206,7 @@ function SettlementTab() {
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
   const { data, isLoading } = trpc.admin.getSettlementReport.useQuery({ yearMonth });
+  const [selectedTrainer, setSelectedTrainer] = useState<(typeof data)["trainers"][number] | null>(null);
 
   return (
     <div className="space-y-4">
@@ -227,7 +228,6 @@ function SettlementTab() {
             <CardContent className="grid grid-cols-2 gap-3">
               <StatCard label="총 PT 횟수" value={`${fmt(data.total.sessionCount)}회`} />
               <StatCard label="전체 평균 단가" value={`${fmt(data.total.avgPrice)}원`} />
-              <StatCard label="총 매출" value={`${fmt(data.total.revenue)}원`} />
               <StatCard label="총 정산 비용" value={`${fmt(data.total.settlement)}원`} />
               <StatCard label="3.3% 제외 후 정산" value={`${fmt(data.total.afterTax)}원`}
                 sub={`공제액 ${fmt(data.total.settlement - data.total.afterTax)}원`} />
@@ -239,7 +239,8 @@ function SettlementTab() {
           ) : (
             <div className="space-y-3">
               {data.trainers.filter(t => t.sessionCount > 0).sort((a, b) => b.settlement - a.settlement).map(t => (
-                <Card key={t.trainerId} className="bg-card border-border">
+                <Card key={t.trainerId} className="bg-card border-border cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => setSelectedTrainer(t)}>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center justify-between">
                       <span className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" />{t.trainerName}</span>
@@ -249,15 +250,93 @@ function SettlementTab() {
                   <CardContent className="grid grid-cols-2 gap-3">
                     <StatCard label="PT 횟수" value={`${fmt(t.sessionCount)}회`} />
                     <StatCard label="평균 단가" value={`${fmt(t.avgPrice)}원`} />
-                    <StatCard label="매출" value={`${fmt(t.revenue)}원`} />
-                    <StatCard label="정산 비용" value={`${fmt(t.settlement)}원`} sub={`매출 × ${t.settlementRate}%`} />
+                    <StatCard label="정산 비용" value={`${fmt(t.settlement)}원`} sub={`수업합계 × ${t.settlementRate}%`} />
                     <StatCard label="3.3% 제외 후" value={`${fmt(t.afterTax)}원`}
                       sub={`공제 ${fmt(t.settlement - t.afterTax)}원`} />
+                    {((t as any).newRevenue > 0 || (t as any).reRegRevenue > 0) && (
+                      <>
+                        {(t as any).newRevenue > 0 && (
+                          <StatCard label="신규 등록 매출" value={`${fmt((t as any).newRevenue)}원`} />
+                        )}
+                        {(t as any).reRegRevenue > 0 && (
+                          <StatCard label="재등록 매출" value={`${fmt((t as any).reRegRevenue)}원`} />
+                        )}
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               ))}
             </div>
           )}
+
+          {/* 트레이너 상세 모달 */}
+          <Dialog open={!!selectedTrainer} onOpenChange={(open) => !open && setSelectedTrainer(null)}>
+            <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+              {selectedTrainer && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      {selectedTrainer.trainerName} — {yearMonth.replace("-", "년 ")}월
+                    </DialogTitle>
+                    <DialogDescription>회원별 수업 현황 및 매출 내역</DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4 mt-2">
+                    {/* 정산 요약 */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <StatCard label="PT 횟수" value={`${fmt(selectedTrainer.sessionCount)}회`} />
+                      <StatCard label="평균 단가" value={`${fmt(selectedTrainer.avgPrice)}원`} />
+                      <StatCard label="정산 비용" value={`${fmt(selectedTrainer.settlement)}원`} sub={`× ${selectedTrainer.settlementRate}%`} />
+                      <StatCard label="3.3% 제외 후" value={`${fmt(selectedTrainer.afterTax)}원`} />
+                    </div>
+
+                    {/* 신규/재등록 매출 */}
+                    {((selectedTrainer as any).newRevenue > 0 || (selectedTrainer as any).reRegRevenue > 0 || (selectedTrainer as any).otherRevenue > 0) && (
+                      <div>
+                        <h4 className="text-xs font-medium text-muted-foreground mb-2">이달 등록 매출</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-center">
+                            <p className="text-[11px] text-emerald-400">신규</p>
+                            <p className="text-sm font-bold text-emerald-400">{fmt((selectedTrainer as any).newRevenue ?? 0)}원</p>
+                          </div>
+                          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-center">
+                            <p className="text-[11px] text-blue-400">재등록</p>
+                            <p className="text-sm font-bold text-blue-400">{fmt((selectedTrainer as any).reRegRevenue ?? 0)}원</p>
+                          </div>
+                          <div className="p-2 rounded-lg bg-accent/20 border border-border text-center">
+                            <p className="text-[11px] text-muted-foreground">기타</p>
+                            <p className="text-sm font-bold">{fmt((selectedTrainer as any).otherRevenue ?? 0)}원</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 회원별 수업 목록 */}
+                    <div>
+                      <h4 className="text-xs font-medium text-muted-foreground mb-2">
+                        회원별 수업 현황 ({(selectedTrainer as any).memberDetails?.length ?? 0}명)
+                      </h4>
+                      <div className="space-y-1.5">
+                        {((selectedTrainer as any).memberDetails ?? []).map((m: any) => (
+                          <div key={m.memberId} className="flex items-center justify-between p-2.5 rounded-lg bg-accent/20 border border-border">
+                            <div>
+                              <p className="text-sm font-medium">{m.name}</p>
+                              <p className="text-xs text-muted-foreground">단가 {fmt(m.avgPrice)}원</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold">{m.sessions}회</p>
+                              <p className="text-xs text-muted-foreground">{fmt(m.totalPrice)}원</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
