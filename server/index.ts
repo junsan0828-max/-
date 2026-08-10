@@ -900,6 +900,7 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "requestedMonths" INTEGER`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "points" INTEGER DEFAULT 0`,
     `CREATE TABLE IF NOT EXISTS access_logs (
       id SERIAL PRIMARY KEY,
       "memberId" INTEGER,
@@ -951,6 +952,18 @@ async function initDatabase() {
       id SERIAL PRIMARY KEY,
       content TEXT NOT NULL,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS point_transactions (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER,
+      "gymPlusMemberId" INTEGER,
+      type TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      balance INTEGER NOT NULL DEFAULT 0,
+      description TEXT,
+      "referenceType" TEXT,
+      "referenceId" INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `CREATE TABLE IF NOT EXISTS point_membership_extensions (
       id SERIAL PRIMARY KEY,

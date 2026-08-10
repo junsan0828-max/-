@@ -561,8 +561,22 @@ export const gymPlusMembers = pgTable("gym_plus_members", {
   membershipStart: text("membershipStart"),
   membershipEnd: text("membershipEnd"),
   isActive: integer("isActive").default(1).notNull(),
+  points: integer("points").default(0),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const pointTransactions = pgTable("point_transactions", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId"),
+  gymPlusMemberId: integer("gymPlusMemberId"),
+  type: text("type").notNull(),
+  amount: integer("amount").notNull(),
+  balance: integer("balance").notNull().default(0),
+  description: text("description"),
+  referenceType: text("referenceType"),
+  referenceId: integer("referenceId"),
+  createdAt: text("createdAt").default(now).notNull(),
 });
 
 export const gymPlusVideoCategories = pgTable("gym_plus_video_categories", {

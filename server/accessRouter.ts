@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like, sql } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories, uniforms, revenueEntries } from "../drizzle/schema";
+import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories, uniforms, revenueEntries, gymPlusMembers, pointTransactions } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -209,9 +209,58 @@ export const accessRouter = t.router({
         lockerNumber: lockerRow[0]?.lockerNumber ?? null,
       });
 
+      // 포인트 적립 (입장 허용 시만, 하루 1회)
+      let earnedPoints = 0;
+      let totalPoints = 0;
+      if (accessResult === "allowed") {
+        const CHECKIN_POINTS = 100;
+        const phone4 = normalizePhone(found.phone ?? "").slice(-4);
+        const gpRows = await db.select({ id: gymPlusMembers.id, points: gymPlusMembers.points })
+          .from(gymPlusMembers)
+          .where(eq(gymPlusMembers.memberId, found.id))
+          .limit(1);
+        let gp = gpRows[0];
+        if (!gp && phone4.length === 4) {
+          const gpByPhone = await db.select({ id: gymPlusMembers.id, points: gymPlusMembers.points })
+            .from(gymPlusMembers)
+            .where(like(gymPlusMembers.phone, `%${phone4}`))
+            .limit(1);
+          gp = gpByPhone[0];
+        }
+        if (gp) {
+          const alreadyEarned = await db.select({ id: pointTransactions.id })
+            .from(pointTransactions)
+            .where(and(
+              eq(pointTransactions.gymPlusMemberId, gp.id),
+              eq(pointTransactions.referenceType, "checkin"),
+              like(pointTransactions.createdAt, `${today}%`),
+            ))
+            .limit(1);
+          if (alreadyEarned.length === 0) {
+            const newBalance = (gp.points ?? 0) + CHECKIN_POINTS;
+            await db.update(gymPlusMembers).set({ points: newBalance }).where(eq(gymPlusMembers.id, gp.id));
+            await db.insert(pointTransactions).values({
+              memberId: found.id,
+              gymPlusMemberId: gp.id,
+              type: "earn",
+              amount: CHECKIN_POINTS,
+              balance: newBalance,
+              description: "출석 체크인 포인트",
+              referenceType: "checkin",
+            });
+            earnedPoints = CHECKIN_POINTS;
+            totalPoints = newBalance;
+          } else {
+            totalPoints = gp.points ?? 0;
+          }
+        }
+      }
+
       return {
         result: accessResult,
         branchName,
+        earnedPoints,
+        totalPoints,
         member: {
           id: found.id,
           name: found.name,

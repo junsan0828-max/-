@@ -25,6 +25,8 @@ type Banner = {
 type CheckResult = {
   result: string;
   branchName?: string | null;
+  earnedPoints?: number;
+  totalPoints?: number;
   candidates?: { id: number; name: string }[];
   member: {
     id: number;
@@ -720,6 +722,32 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
           </div>
         </div>
       </div>
+
+      {/* 포인트 적립 */}
+      {(result.earnedPoints ?? 0) > 0 && (
+        <div style={{ margin: "0 24px", padding: "16px 20px", background: "linear-gradient(135deg, #1a1a40, #2a1a50)", borderRadius: 16, border: "1px solid rgba(139,92,246,0.3)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: fs(36) }}>⭐</span>
+            <div>
+              <p style={{ color: "#a78bfa", fontSize: fs(24), fontWeight: 600 }}>포인트 적립</p>
+              <p style={{ color: "#c4b5fd", fontSize: fs(40), fontWeight: 800 }}>+{result.earnedPoints}P</p>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ color: "#666", fontSize: fs(22) }}>누적 포인트</p>
+            <p style={{ color: "#e0d4ff", fontSize: fs(36), fontWeight: 700 }}>{(result.totalPoints ?? 0).toLocaleString()}P</p>
+          </div>
+        </div>
+      )}
+      {(result.earnedPoints ?? 0) === 0 && (result.totalPoints ?? 0) > 0 && !expired && (
+        <div style={{ margin: "0 24px", padding: "14px 20px", background: "rgba(139,92,246,0.08)", borderRadius: 16, border: "1px solid rgba(139,92,246,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: fs(30) }}>⭐</span>
+            <p style={{ color: "#888", fontSize: fs(26) }}>오늘 이미 적립됨</p>
+          </div>
+          <p style={{ color: "#c4b5fd", fontSize: fs(32), fontWeight: 700 }}>{(result.totalPoints ?? 0).toLocaleString()}P</p>
+        </div>
+      )}
 
       <div style={{ height: 2, background: "#1e1e1e" }} />
 
