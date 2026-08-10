@@ -253,13 +253,16 @@ function SettlementTab() {
                     <StatCard label="정산 비용" value={`${fmt(t.settlement)}원`} sub={`수업합계 × ${t.settlementRate}%`} />
                     <StatCard label="3.3% 제외 후" value={`${fmt(t.afterTax)}원`}
                       sub={`공제 ${fmt(t.settlement - t.afterTax)}원`} />
-                    {((t as any).newRevenue > 0 || (t as any).reRegRevenue > 0) && (
+                    {((t as any).newRevenue > 0 || (t as any).reRegRevenue > 0 || (t as any).healthRevenue > 0) && (
                       <>
                         {(t as any).newRevenue > 0 && (
-                          <StatCard label="신규 등록 매출" value={`${fmt((t as any).newRevenue)}원`} />
+                          <StatCard label="PT 신규" value={`${fmt((t as any).newRevenue)}원`} />
                         )}
                         {(t as any).reRegRevenue > 0 && (
-                          <StatCard label="재등록 매출" value={`${fmt((t as any).reRegRevenue)}원`} />
+                          <StatCard label="PT 재등록" value={`${fmt((t as any).reRegRevenue)}원`} />
+                        )}
+                        {(t as any).healthRevenue > 0 && (
+                          <StatCard label="헬스권" value={`${fmt((t as any).healthRevenue)}원`} />
                         )}
                       </>
                     )}
@@ -291,15 +294,15 @@ function SettlementTab() {
                       <StatCard label="3.3% 제외 후" value={`${fmt(selectedTrainer.afterTax)}원`} />
                     </div>
 
-                    {/* 신규/재등록 매출 */}
-                    {((selectedTrainer as any).newRevenue > 0 || (selectedTrainer as any).reRegRevenue > 0 || (selectedTrainer as any).otherRevenue > 0) && (
+                    {/* 신규/재등록/헬스 등록 매출 */}
+                    {((selectedTrainer as any).newRevenue > 0 || (selectedTrainer as any).reRegRevenue > 0 || (selectedTrainer as any).healthRevenue > 0 || (selectedTrainer as any).otherRevenue > 0) && (
                       <div>
                         <h4 className="text-xs font-medium text-muted-foreground mb-2">이달 등록 매출</h4>
                         <div className="space-y-2">
                           {(selectedTrainer as any).newRevenue > 0 && (
                             <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-medium text-emerald-400">신규</span>
+                                <span className="text-xs font-medium text-emerald-400">PT 신규</span>
                                 <span className="text-sm font-bold text-emerald-400">{fmt((selectedTrainer as any).newRevenue)}원</span>
                               </div>
                               {((selectedTrainer as any).newMembers ?? []).map((m: any, i: number) => (
@@ -313,11 +316,25 @@ function SettlementTab() {
                           {(selectedTrainer as any).reRegRevenue > 0 && (
                             <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/30">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-medium text-blue-400">재등록</span>
+                                <span className="text-xs font-medium text-blue-400">PT 재등록</span>
                                 <span className="text-sm font-bold text-blue-400">{fmt((selectedTrainer as any).reRegRevenue)}원</span>
                               </div>
                               {((selectedTrainer as any).reRegMembers ?? []).map((m: any, i: number) => (
                                 <div key={i} className="flex items-center justify-between text-xs text-blue-400/80 pl-2">
+                                  <span>{m.name}</span>
+                                  <span>{fmt(m.amount)}원</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {(selectedTrainer as any).healthRevenue > 0 && (
+                            <div className="p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/30">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-purple-400">헬스권</span>
+                                <span className="text-sm font-bold text-purple-400">{fmt((selectedTrainer as any).healthRevenue)}원</span>
+                              </div>
+                              {((selectedTrainer as any).healthMembers ?? []).map((m: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between text-xs text-purple-400/80 pl-2">
                                   <span>{m.name}</span>
                                   <span>{fmt(m.amount)}원</span>
                                 </div>
