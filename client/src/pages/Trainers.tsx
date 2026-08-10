@@ -378,7 +378,12 @@ function SettlementTab() {
                               <p className="text-sm font-bold">
                                 {m.sessions}회
                                 {m.pkgTotal > 0 && (
-                                  <span className="text-xs font-normal text-muted-foreground ml-1">/ {m.pkgTotal}회</span>
+                                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                                    / {m.pkgTotal}회
+                                    {(m.pkgService ?? 0) > 0 && (
+                                      <span className="text-violet-400"> (서비스 {m.pkgService}회)</span>
+                                    )}
+                                  </span>
                                 )}
                               </p>
                               <p className="text-xs text-muted-foreground">

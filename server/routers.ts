@@ -3873,7 +3873,7 @@ const adminRouter = t.router({
         }
         const memberIds = Object.keys(memberMap).map(Number);
         // 회원별 패키지 잔여/총 횟수 조회
-        const pkgInfo: Record<number, { total: number; used: number }> = {};
+        const pkgInfo: Record<number, { total: number; used: number; service: number }> = {};
         if (memberIds.length > 0) {
           const mRows = await db.select({ id: members.id, name: members.name })
             .from(members).where(inArray(members.id, memberIds));
@@ -3884,15 +3884,17 @@ const adminRouter = t.router({
             memberId: ptPackages.memberId,
             totalSessions: ptPackages.totalSessions,
             usedSessions: ptPackages.usedSessions,
+            serviceSessions: ptPackages.serviceSessions,
             status: ptPackages.status,
           }).from(ptPackages).where(and(
             inArray(ptPackages.memberId, memberIds),
             eq(ptPackages.trainerId, trainer.id),
           ));
           for (const p of pkgRows) {
-            if (!pkgInfo[p.memberId]) pkgInfo[p.memberId] = { total: 0, used: 0 };
+            if (!pkgInfo[p.memberId]) pkgInfo[p.memberId] = { total: 0, used: 0, service: 0 };
             pkgInfo[p.memberId].total += p.totalSessions ?? 0;
             pkgInfo[p.memberId].used += p.usedSessions ?? 0;
+            pkgInfo[p.memberId].service += p.serviceSessions ?? 0;
           }
         }
         const memberDetails = Object.entries(memberMap)
@@ -3907,6 +3909,7 @@ const adminRouter = t.router({
               totalPrice: v.totalPrice,
               pkgTotal: pkg?.total ?? 0,
               pkgUsed: pkg?.used ?? 0,
+              pkgService: pkg?.service ?? 0,
             };
           })
           .sort((a, b) => b.avgPrice - a.avgPrice);
