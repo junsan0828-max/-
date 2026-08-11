@@ -2106,17 +2106,40 @@ const ptRouter = t.router({
       await db.update(ptPackages).set({ status: input.status, updatedAt: new Date().toISOString() }).where(eq(ptPackages.id, input.packageId));
 
       if (input.status === "refunded" && pkg.status === "active" && pkg.memberId) {
-        const refundAmt = pkg.paymentAmount ?? 0;
+        const { pool } = await import("./db");
+        const [mem] = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, membershipEnd: members.membershipEnd })
+          .from(members).where(eq(members.id, pkg.memberId)).limit(1);
+
+        let refundAmt = pkg.paymentAmount ?? 0;
+        let memo = `${pkg.packageName || "PT"} 환불`;
+        const contractRow = await pool.query(
+          `SELECT "refundAmount", "penaltyAmount", "taxAmount", "serviceItems", token, status
+           FROM refund_contracts WHERE "memberId" = $1 AND "packageId" = $2
+           ORDER BY "createdAt" DESC LIMIT 1`,
+          [pkg.memberId, input.packageId]
+        ).catch(() => ({ rows: [] }));
+        if (contractRow.rows.length > 0) {
+          const rc = contractRow.rows[0];
+          refundAmt = rc.refundAmount || refundAmt;
+          const parts: string[] = [];
+          if (rc.penaltyAmount > 0) parts.push(`위약금 ${rc.penaltyAmount.toLocaleString()}원`);
+          if (rc.taxAmount > 0) parts.push(`부가세 ${rc.taxAmount.toLocaleString()}원`);
+          const svcItems = (() => { try { return JSON.parse(rc.serviceItems || "[]"); } catch { return []; } })();
+          for (const si of svcItems) { if (si.amount > 0) parts.push(`${si.label} ${si.amount.toLocaleString()}원`); }
+          memo = `${pkg.packageName || "PT"} 환불` + (parts.length ? ` (공제: ${parts.join(", ")})` : "");
+          if (rc.status === "pending") {
+            await pool.query(`UPDATE refund_contracts SET status = 'completed' WHERE token = $1`, [rc.token]);
+          }
+        }
+
         if (refundAmt > 0) {
-          const [mem] = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, membershipEnd: members.membershipEnd })
-            .from(members).where(eq(members.id, pkg.memberId)).limit(1);
-          const dup = await db.select({ id: revenueEntries.id }).from(revenueEntries)
+          const existingRefund = await db.select({ id: revenueEntries.id }).from(revenueEntries)
             .where(and(
               eq(revenueEntries.memberId, pkg.memberId),
               eq(revenueEntries.subType, "환불"),
-              sql`ABS("paidAmount") = ${refundAmt}`,
+              sql`"paidAmount" < 0`,
             )).limit(1);
-          if (dup.length === 0) {
+          if (existingRefund.length === 0) {
             await db.insert(revenueEntries).values({
               memberId: pkg.memberId, trainerId: pkg.trainerId,
               branchId: mem?.branchId ?? null, createdBy: ctx.user.id,
@@ -2125,15 +2148,13 @@ const ptRouter = t.router({
               type: "PT", subType: "환불",
               amount: refundAmt, discountAmount: 0,
               paidAmount: -refundAmt, unpaidAmount: 0, refundAmount: refundAmt,
-              paymentDate: kstDate(), memo: `${pkg.packageName || "PT"} 환불`,
+              paymentDate: kstDate(), memo,
             });
           }
         }
         const remainActive = await db.select({ id: ptPackages.id }).from(ptPackages)
           .where(and(eq(ptPackages.memberId, pkg.memberId), eq(ptPackages.status, "active"))).limit(1);
         if (remainActive.length === 0) {
-          const [mem] = await db.select({ membershipEnd: members.membershipEnd })
-            .from(members).where(eq(members.id, pkg.memberId)).limit(1);
           const today = kstDate();
           if (!mem?.membershipEnd || mem.membershipEnd <= today) {
             await db.update(members).set({ status: "ended", updatedAt: new Date().toISOString() })
