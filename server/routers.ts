@@ -4418,10 +4418,23 @@ const adminRouter = t.router({
       const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName })
         .from(trainers).orderBy(trainers.trainerName);
 
+      const today = kstDate();
+
       const trainerRows = await Promise.all(trainerList.map(async (trainer) => {
         const tid = trainer.id;
+        const trainerUserId = (await db.select({ userId: trainers.userId }).from(trainers).where(eq(trainers.id, tid)).limit(1))[0]?.userId;
+        const assignedMemberIds = (await db.select({ id: members.id }).from(members).where(eq(members.trainerId, tid))).map(m => m.id);
 
-        const [sessionsRes, noShowRes, completedPkgRes, newRevRes, reregRevRes, monthlySessionsRes, monthlyReregRes] = await Promise.all([
+        const revOwnerFilter = sql`(
+          r."trainerId" = ${tid}
+          OR r."consultantId" = ${trainerUserId}
+          ${assignedMemberIds.length > 0
+            ? sql`OR r."memberId" IN (${sql.join(assignedMemberIds.map(id => sql`${id}`), sql`, `)})`
+            : sql``
+          }
+        )`;
+
+        const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes] = await Promise.all([
           db.select({ c: sql<number>`COUNT(*)::int` }).from(ptSessionLogs).where(and(
             eq(ptSessionLogs.trainerId, tid),
             sql`${ptSessionLogs.sessionDate} >= ${periodStart}`,
@@ -4438,27 +4451,19 @@ const adminRouter = t.router({
             WHERE "trainerId" = ${tid}
               AND (
                 (status = 'completed' AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd})
-                OR (status IN ('active','completed','expired') AND "expiryDate" IS NOT NULL
-                    AND "expiryDate" >= ${periodStart} AND "expiryDate" < ${periodEnd})
+                OR (status = 'active' AND "expiryDate" IS NOT NULL
+                    AND "expiryDate" >= ${periodStart} AND "expiryDate" < ${periodEnd}
+                    AND "expiryDate" < ${today})
               )
           `),
-          db.select({ c: sql<number>`COUNT(DISTINCT "memberId")::int` }).from(revenueEntries).where(and(
-            eq(revenueEntries.trainerId, tid),
-            eq(revenueEntries.type, "PT"),
-            sql`${revenueEntries.subType} IN ('신규', '신규배정')`,
-            sql`${revenueEntries.paymentDate} >= ${periodStart}`,
-            sql`${revenueEntries.paymentDate} < ${periodEnd}`,
-          )),
-          db.select({
-            c: sql<number>`COUNT(*)::int`,
-            members: sql<number>`COUNT(DISTINCT "memberId")::int`,
-          }).from(revenueEntries).where(and(
-            eq(revenueEntries.trainerId, tid),
-            eq(revenueEntries.type, "PT"),
-            eq(revenueEntries.subType, "재등록"),
-            sql`${revenueEntries.paymentDate} >= ${periodStart}`,
-            sql`${revenueEntries.paymentDate} < ${periodEnd}`,
-          )),
+          db.execute(sql`
+            SELECT r."subType", r."memberId", r."consultantId", r."trainerId"
+            FROM revenue_entries r
+            WHERE r.type = 'PT'
+              AND ${revOwnerFilter}
+              AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}
+              AND r."subType" IN ('신규', '신규배정', '재등록')
+          `),
           db.execute(sql`
             SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, COUNT(*)::int AS c
             FROM pt_session_logs
@@ -4467,20 +4472,34 @@ const adminRouter = t.router({
             GROUP BY m ORDER BY m
           `),
           db.execute(sql`
-            SELECT EXTRACT(MONTH FROM "paymentDate"::date)::int AS m, COUNT(*)::int AS c
-            FROM revenue_entries
-            WHERE "trainerId" = ${tid} AND type = 'PT' AND "subType" = '재등록'
-              AND "paymentDate" >= ${periodStart} AND "paymentDate" < ${periodEnd}
+            SELECT EXTRACT(MONTH FROM r."paymentDate"::date)::int AS m, COUNT(*)::int AS c
+            FROM revenue_entries r
+            WHERE r.type = 'PT' AND r."subType" = '재등록'
+              AND ${revOwnerFilter}
+              AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}
             GROUP BY m ORDER BY m
           `),
         ]);
 
+        const revResultRows: any[] = (revRows as any).rows ?? revRows;
+        const newMemberIds = new Set<number>();
+        const reregMemberIds = new Set<number>();
+        let reregCount = 0;
+        for (const r of revResultRows) {
+          if (r.subType === "신규" || r.subType === "신규배정") {
+            if (r.subType === "신규" && r.consultantId !== trainerUserId) continue;
+            if (r.memberId) newMemberIds.add(r.memberId);
+          } else if (r.subType === "재등록") {
+            reregCount++;
+            if (r.memberId) reregMemberIds.add(r.memberId);
+          }
+        }
+
         const sessions = sessionsRes[0]?.c ?? 0;
         const noShows = noShowRes[0]?.c ?? 0;
         const completed = ((completedPkgRes as any).rows ?? completedPkgRes)[0]?.c ?? 0;
-        const newMembers = newRevRes[0]?.c ?? 0;
-        const reregCount = reregRevRes[0]?.c ?? 0;
-        const reregMembers = reregRevRes[0]?.members ?? 0;
+        const newMembers = newMemberIds.size;
+        const reregMembers = reregMemberIds.size;
         const reregRate = completed > 0 ? Math.round((reregMembers / completed) * 1000) / 10 : 0;
 
         const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
