@@ -3822,8 +3822,9 @@ const adminRouter = t.router({
   getSettlementReport: protectedProcedure
     .input(z.object({ yearMonth: z.string() }))
     .query(async ({ ctx, input }) => {
-      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = getDb();
+      const today = kstDate();
       const monthStart = `${input.yearMonth}-01`;
       const monthEnd = new Date(
         parseInt(input.yearMonth.split("-")[0]),

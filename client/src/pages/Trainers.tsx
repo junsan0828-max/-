@@ -205,7 +205,7 @@ function SettlementTab() {
   const [yearMonth, setYearMonth] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
-  const { data, isLoading } = trpc.admin.getSettlementReport.useQuery({ yearMonth });
+  const { data, isLoading, error } = trpc.admin.getSettlementReport.useQuery({ yearMonth });
   const [selectedTrainer, setSelectedTrainer] = useState<(typeof data)["trainers"][number] | null>(null);
 
   return (
@@ -217,6 +217,8 @@ function SettlementTab() {
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground text-center py-8">로딩 중...</p>
+      ) : error ? (
+        <p className="text-sm text-red-400 text-center py-8">정산 데이터를 불러오지 못했습니다.</p>
       ) : !data ? null : (
         <>
           <Card className="bg-card border-border">
