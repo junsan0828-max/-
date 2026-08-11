@@ -2094,12 +2094,53 @@ const ptRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages).where(eq(ptPackages.id, input.packageId)).limit(1);
+      const [pkg] = await db.select({
+        trainerId: ptPackages.trainerId, memberId: ptPackages.memberId,
+        paymentAmount: ptPackages.paymentAmount, packageName: ptPackages.packageName,
+        status: ptPackages.status,
+      }).from(ptPackages).where(eq(ptPackages.id, input.packageId)).limit(1);
       if (!pkg) throw new TRPCError({ code: "NOT_FOUND" });
       const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
       if (!isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
         throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 변경할 수 있습니다." });
-      await db.update(ptPackages).set({ status: input.status }).where(eq(ptPackages.id, input.packageId));
+      await db.update(ptPackages).set({ status: input.status, updatedAt: new Date().toISOString() }).where(eq(ptPackages.id, input.packageId));
+
+      if (input.status === "refunded" && pkg.status === "active" && pkg.memberId) {
+        const refundAmt = pkg.paymentAmount ?? 0;
+        if (refundAmt > 0) {
+          const [mem] = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, membershipEnd: members.membershipEnd })
+            .from(members).where(eq(members.id, pkg.memberId)).limit(1);
+          const dup = await db.select({ id: revenueEntries.id }).from(revenueEntries)
+            .where(and(
+              eq(revenueEntries.memberId, pkg.memberId),
+              eq(revenueEntries.subType, "환불"),
+              sql`ABS("paidAmount") = ${refundAmt}`,
+            )).limit(1);
+          if (dup.length === 0) {
+            await db.insert(revenueEntries).values({
+              memberId: pkg.memberId, trainerId: pkg.trainerId,
+              branchId: mem?.branchId ?? null, createdBy: ctx.user.id,
+              customerName: mem?.name ?? "", phone: mem?.phone ?? null,
+              programDetail: `${pkg.packageName || "PT"} 환불`,
+              type: "PT", subType: "환불",
+              amount: refundAmt, discountAmount: 0,
+              paidAmount: -refundAmt, unpaidAmount: 0, refundAmount: refundAmt,
+              paymentDate: kstDate(), memo: `${pkg.packageName || "PT"} 환불`,
+            });
+          }
+        }
+        const remainActive = await db.select({ id: ptPackages.id }).from(ptPackages)
+          .where(and(eq(ptPackages.memberId, pkg.memberId), eq(ptPackages.status, "active"))).limit(1);
+        if (remainActive.length === 0) {
+          const [mem] = await db.select({ membershipEnd: members.membershipEnd })
+            .from(members).where(eq(members.id, pkg.memberId)).limit(1);
+          const today = kstDate();
+          if (!mem?.membershipEnd || mem.membershipEnd <= today) {
+            await db.update(members).set({ status: "ended", updatedAt: new Date().toISOString() })
+              .where(eq(members.id, pkg.memberId));
+          }
+        }
+      }
       return { success: true };
     }),
 

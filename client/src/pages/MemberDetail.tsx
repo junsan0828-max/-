@@ -736,7 +736,13 @@ export default function MemberDetail({ memberId }: Props) {
   };
 
   const updateStatusMutation = trpc.pt.updateStatus.useMutation({
-    onSuccess: () => { toast.success("상태가 변경되었습니다."); refetchPt(); },
+    onSuccess: () => {
+      toast.success("상태가 변경되었습니다.");
+      refetchPt();
+      utils.members.getById.invalidate({ id: memberId });
+      utils.gym.revenue.invalidate();
+      utils.gym.kpi.overview.invalidate();
+    },
     onError: () => toast.error("상태 변경 실패"),
   });
   const addPauseMutation = trpc.pt.addPause.useMutation({
