@@ -1154,6 +1154,12 @@ export default function MemberDetail({ memberId }: Props) {
                         <ArrowRightLeft className="h-3 w-3" />
                         양도
                       </button>
+                      <button
+                        onClick={() => openRefundModal()}
+                        className="text-xs px-2 py-0.5 rounded border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors flex items-center gap-1"
+                      >
+                        🔄 환불
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1369,7 +1375,7 @@ export default function MemberDetail({ memberId }: Props) {
                             </div>
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => openRefundModal(pkg.id)}
+                                onClick={() => openRefundModal()}
                                 className="text-xs text-orange-400 underline hover:text-orange-300 transition-colors"
                               >
                                 환불
