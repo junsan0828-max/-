@@ -218,7 +218,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
 
   const cfg = configs[type];
   const total = cfg.rows.reduce((s, r) => {
-    const n = parseInt(r.value.replace(/[^0-9]/g, ""));
+    const n = parseInt(r.value.replace(/[^0-9-]/g, ""));
     return isNaN(n) ? s : s + n;
   }, 0);
   const showTotal = ["today", "month", "new", "renewal", "pt", "health", "unpaid"].includes(type);
