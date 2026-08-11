@@ -586,9 +586,188 @@ function ActivityStatsTab() {
   );
 }
 
+function PeriodReportTab() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [period, setPeriod] = useState<"H1" | "H2" | "annual">(now.getMonth() < 6 ? "H1" : "H2");
+  const { data, isLoading, error } = trpc.admin.getTrainerPeriodReport.useQuery({ year, period });
+
+  const periodLabel = period === "H1" ? "상반기 (1~6월)" : period === "H2" ? "하반기 (7~12월)" : "연간 (1~12월)";
+  const th = "px-2 py-2 text-center text-[11px] font-semibold text-muted-foreground whitespace-nowrap bg-muted/40 border-b border-border";
+  const td = "px-2 py-2 text-center text-xs text-foreground whitespace-nowrap border-b border-border/40";
+  const tdNum = (v: number, color?: string) =>
+    `px-2 py-2 text-center text-xs font-medium ${color ?? "text-foreground"} whitespace-nowrap border-b border-border/40`;
+
+  return (
+    <div className="space-y-4">
+      {/* 기간 선택 */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-sm font-semibold text-foreground">트레이너 반기 리포트</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg px-2 py-1">
+            <button onClick={() => setYear(y => y - 1)} className="p-0.5 text-muted-foreground hover:text-foreground">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs font-medium min-w-[40px] text-center">{year}년</span>
+            <button onClick={() => setYear(y => y + 1)} className="p-0.5 text-muted-foreground hover:text-foreground">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex bg-card border border-border rounded-lg p-0.5 gap-0.5">
+            {([["H1", "상반기"], ["H2", "하반기"], ["annual", "연간"]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setPeriod(k)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  period === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}>{l}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">로딩 중...</div>
+      ) : error ? (
+        <p className="text-sm text-red-400 text-center py-8">데이터를 불러오지 못했습니다.</p>
+      ) : !data ? null : (
+        <>
+          {/* 전체 요약 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" />{year}년 {periodLabel} 전체 요약
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-3 gap-2">
+              <StatCard label="총 수업" value={`${fmt(data.total.sessions)}회`} />
+              <StatCard label="종료 회원" value={`${fmt(data.total.completed)}명`} />
+              <StatCard label="신규 배정" value={`${fmt(data.total.newMembers)}명`} />
+              <StatCard label="재등록" value={`${fmt(data.total.reregCount)}건`} sub={`${data.total.reregMembers}명`} />
+              <StatCard label="재등록률" value={`${data.total.reregRate}%`} />
+              <StatCard label="노쇼" value={`${fmt(data.total.noShows)}회`} />
+            </CardContent>
+          </Card>
+
+          {/* 트레이너별 종합 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">트레이너별 성과</p>
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[640px]">
+                <thead>
+                  <tr>
+                    <th className={`${th} text-left pl-3`}>트레이너</th>
+                    <th className={th}>총 수업</th>
+                    <th className={th}>월평균</th>
+                    <th className={th}>종료</th>
+                    <th className={th}>신규</th>
+                    <th className={th}>재등록</th>
+                    <th className={th}>재등록률</th>
+                    <th className={th}>노쇼</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data.trainers].sort((a, b) => b.sessions - a.sessions).map(t => (
+                    <tr key={t.trainerId} className="hover:bg-muted/10">
+                      <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
+                      <td className={tdNum(t.sessions, "text-blue-400")}>{fmt(t.sessions)}회</td>
+                      <td className={tdNum(t.avgMonthly)}>{t.avgMonthly}회</td>
+                      <td className={tdNum(t.completed, t.completed > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.completed}명</td>
+                      <td className={tdNum(t.newMembers, t.newMembers > 0 ? "text-cyan-400" : "text-muted-foreground")}>{t.newMembers}명</td>
+                      <td className={tdNum(t.reregCount, "text-primary")}>{t.reregCount}건</td>
+                      <td className={tdNum(t.reregRate, t.reregRate >= 50 ? "text-emerald-400" : t.reregRate >= 30 ? "text-yellow-400" : "text-red-400")}>
+                        {t.reregRate}%
+                      </td>
+                      <td className={tdNum(t.noShows, t.noShows > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.noShows}회</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-muted/20">
+                    <td className={`${td} text-left pl-3 font-bold`}>합계</td>
+                    <td className={`${td} font-bold text-blue-400`}>{fmt(data.total.sessions)}회</td>
+                    <td className={td}>-</td>
+                    <td className={`${td} font-bold`}>{fmt(data.total.completed)}명</td>
+                    <td className={`${td} font-bold`}>{fmt(data.total.newMembers)}명</td>
+                    <td className={`${td} font-bold text-primary`}>{fmt(data.total.reregCount)}건</td>
+                    <td className={`${td} font-bold`}>{data.total.reregRate}%</td>
+                    <td className={`${td} font-bold`}>{fmt(data.total.noShows)}회</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* 월별 수업 추이 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">월별 수업 현황</p>
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[480px]">
+                <thead>
+                  <tr>
+                    <th className={`${th} text-left pl-3`}>트레이너</th>
+                    {data.trainers[0]?.monthly.map(m => (
+                      <th key={m.month} className={th}>{m.month}월</th>
+                    ))}
+                    <th className={th}>합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data.trainers].sort((a, b) => b.sessions - a.sessions).map(t => (
+                    <tr key={t.trainerId} className="hover:bg-muted/10">
+                      <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
+                      {t.monthly.map(m => (
+                        <td key={m.month} className={tdNum(m.sessions, m.sessions > 0 ? "text-blue-400" : "text-muted-foreground")}>
+                          {m.sessions}
+                        </td>
+                      ))}
+                      <td className={`${td} font-bold text-blue-400`}>{fmt(t.sessions)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 월별 재등록 추이 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">월별 재등록 현황</p>
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[480px]">
+                <thead>
+                  <tr>
+                    <th className={`${th} text-left pl-3`}>트레이너</th>
+                    {data.trainers[0]?.monthly.map(m => (
+                      <th key={m.month} className={th}>{m.month}월</th>
+                    ))}
+                    <th className={th}>합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data.trainers].sort((a, b) => b.reregCount - a.reregCount).map(t => (
+                    <tr key={t.trainerId} className="hover:bg-muted/10">
+                      <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
+                      {t.monthly.map(m => (
+                        <td key={m.month} className={tdNum(m.rereg, m.rereg > 0 ? "text-primary" : "text-muted-foreground")}>
+                          {m.rereg}
+                        </td>
+                      ))}
+                      <td className={`${td} font-bold text-primary`}>{fmt(t.reregCount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground text-center pb-2">* 재등록률 = 재등록 회원 / 종료 회원 · 종료 = 패키지 완료+만료 기준</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { key: "trainers", label: "트레이너 관리" },
   { key: "stats", label: "활동 통계" },
+  { key: "period", label: "반기 리포트" },
   { key: "settlement", label: "수업 정산" },
 ] as const;
 type Tab = typeof TABS[number]["key"];
@@ -618,7 +797,7 @@ export default function Trainers() {
       <div>
         <h1 className="text-xl font-bold">트레이너</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          {tab === "trainers" ? "트레이너 계정 및 회원 관리" : tab === "stats" ? "트레이너별 활동 통계 비교" : "트레이너별 PT 정산 현황"}
+          {tab === "trainers" ? "트레이너 계정 및 회원 관리" : tab === "stats" ? "트레이너별 활동 통계 비교" : tab === "period" ? "상반기·하반기·연간 성과 리포트" : "트레이너별 PT 정산 현황"}
         </p>
       </div>
 
@@ -635,7 +814,7 @@ export default function Trainers() {
         </div>
       </div>
 
-      {tab === "trainers" ? <TrainerList /> : tab === "stats" ? <ActivityStatsTab /> : <SettlementTab />}
+      {tab === "trainers" ? <TrainerList /> : tab === "stats" ? <ActivityStatsTab /> : tab === "period" ? <PeriodReportTab /> : <SettlementTab />}
     </div>
   );
 }

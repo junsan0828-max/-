@@ -4399,6 +4399,133 @@ const adminRouter = t.router({
       return stats;
     }),
 
+  getTrainerPeriodReport: protectedProcedure
+    .input(z.object({
+      year: z.number(),
+      period: z.enum(["H1", "H2", "annual"]),
+    }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      const { year, period } = input;
+
+      const periodStart = period === "H2" ? `${year}-07-01` : `${year}-01-01`;
+      const periodEnd = period === "H1" ? `${year}-07-01` : `${year + 1}-01-01`;
+      const monthCount = period === "annual" ? 12 : 6;
+      const startMonth = period === "H2" ? 7 : 1;
+
+      const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName })
+        .from(trainers).orderBy(trainers.trainerName);
+
+      const trainerRows = await Promise.all(trainerList.map(async (trainer) => {
+        const tid = trainer.id;
+
+        const [sessionsRes, noShowRes, completedPkgRes, newRevRes, reregRevRes, monthlySessionsRes, monthlyReregRes] = await Promise.all([
+          db.select({ c: sql<number>`COUNT(*)::int` }).from(ptSessionLogs).where(and(
+            eq(ptSessionLogs.trainerId, tid),
+            sql`${ptSessionLogs.sessionDate} >= ${periodStart}`,
+            sql`${ptSessionLogs.sessionDate} < ${periodEnd}`,
+          )),
+          db.select({ c: sql<number>`COUNT(*)::int` }).from(attendanceChecks).where(and(
+            eq(attendanceChecks.trainerId, tid),
+            eq(attendanceChecks.status, "noshow"),
+            sql`${attendanceChecks.checkDate} >= ${periodStart}`,
+            sql`${attendanceChecks.checkDate} < ${periodEnd}`,
+          )),
+          db.execute(sql`
+            SELECT COUNT(DISTINCT "memberId")::int AS c FROM pt_packages
+            WHERE "trainerId" = ${tid}
+              AND (
+                (status = 'completed' AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd})
+                OR (status IN ('active','completed','expired') AND "expiryDate" IS NOT NULL
+                    AND "expiryDate" >= ${periodStart} AND "expiryDate" < ${periodEnd})
+              )
+          `),
+          db.select({ c: sql<number>`COUNT(DISTINCT "memberId")::int` }).from(revenueEntries).where(and(
+            eq(revenueEntries.trainerId, tid),
+            eq(revenueEntries.type, "PT"),
+            sql`${revenueEntries.subType} IN ('신규', '신규배정')`,
+            sql`${revenueEntries.paymentDate} >= ${periodStart}`,
+            sql`${revenueEntries.paymentDate} < ${periodEnd}`,
+          )),
+          db.select({
+            c: sql<number>`COUNT(*)::int`,
+            members: sql<number>`COUNT(DISTINCT "memberId")::int`,
+          }).from(revenueEntries).where(and(
+            eq(revenueEntries.trainerId, tid),
+            eq(revenueEntries.type, "PT"),
+            eq(revenueEntries.subType, "재등록"),
+            sql`${revenueEntries.paymentDate} >= ${periodStart}`,
+            sql`${revenueEntries.paymentDate} < ${periodEnd}`,
+          )),
+          db.execute(sql`
+            SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, COUNT(*)::int AS c
+            FROM pt_session_logs
+            WHERE "trainerId" = ${tid}
+              AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+            GROUP BY m ORDER BY m
+          `),
+          db.execute(sql`
+            SELECT EXTRACT(MONTH FROM "paymentDate"::date)::int AS m, COUNT(*)::int AS c
+            FROM revenue_entries
+            WHERE "trainerId" = ${tid} AND type = 'PT' AND "subType" = '재등록'
+              AND "paymentDate" >= ${periodStart} AND "paymentDate" < ${periodEnd}
+            GROUP BY m ORDER BY m
+          `),
+        ]);
+
+        const sessions = sessionsRes[0]?.c ?? 0;
+        const noShows = noShowRes[0]?.c ?? 0;
+        const completed = ((completedPkgRes as any).rows ?? completedPkgRes)[0]?.c ?? 0;
+        const newMembers = newRevRes[0]?.c ?? 0;
+        const reregCount = reregRevRes[0]?.c ?? 0;
+        const reregMembers = reregRevRes[0]?.members ?? 0;
+        const reregRate = completed > 0 ? Math.round((reregMembers / completed) * 1000) / 10 : 0;
+
+        const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
+        for (let i = 0; i < monthCount; i++) {
+          monthlyMap[startMonth + i] = { sessions: 0, rereg: 0 };
+        }
+        for (const r of ((monthlySessionsRes as any).rows ?? monthlySessionsRes)) {
+          if (monthlyMap[r.m]) monthlyMap[r.m].sessions = r.c;
+        }
+        for (const r of ((monthlyReregRes as any).rows ?? monthlyReregRes)) {
+          if (monthlyMap[r.m]) monthlyMap[r.m].rereg = r.c;
+        }
+
+        return {
+          trainerId: tid,
+          trainerName: trainer.trainerName,
+          sessions,
+          avgMonthly: Math.round((sessions / monthCount) * 10) / 10,
+          noShows,
+          completed,
+          newMembers,
+          reregCount,
+          reregMembers,
+          reregRate,
+          monthly: Object.entries(monthlyMap).map(([m, v]) => ({
+            month: Number(m),
+            sessions: v.sessions,
+            rereg: v.rereg,
+          })),
+        };
+      }));
+
+      const total = {
+        sessions: trainerRows.reduce((s, t) => s + t.sessions, 0),
+        noShows: trainerRows.reduce((s, t) => s + t.noShows, 0),
+        completed: trainerRows.reduce((s, t) => s + t.completed, 0),
+        newMembers: trainerRows.reduce((s, t) => s + t.newMembers, 0),
+        reregCount: trainerRows.reduce((s, t) => s + t.reregCount, 0),
+        reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
+      };
+      const totalReregRate = total.completed > 0 ? Math.round((total.reregMembers / total.completed) * 1000) / 10 : 0;
+
+      return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
+    }),
+
   resyncAllSharedLogs: protectedProcedure.mutation(async ({ ctx }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
