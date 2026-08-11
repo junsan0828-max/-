@@ -2010,6 +2010,46 @@ async function start() {
   }
 
 
+  // ── 환불 매출 금액 교정: 계약서의 실환불액과 매출이 다르면 계약서 기준으로 보정 ──
+  try {
+    const hasRcTable = await pool.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='refund_contracts' LIMIT 1`
+    ).then(r => r.rows.length > 0).catch(() => false);
+    if (hasRcTable) {
+      const mismatch = await pool.query(`
+        SELECT r.id AS rev_id, r."paidAmount", rc."refundAmount", rc."penaltyAmount", rc."serviceItems",
+               rc.token, p."packageName"
+        FROM revenue_entries r
+        JOIN refund_contracts rc ON rc."memberId" = r."memberId"
+        LEFT JOIN pt_packages p ON p.id = rc."packageId"
+        WHERE r."subType" = '환불' AND r."paidAmount" < 0
+          AND rc."refundAmount" > 0
+          AND ABS(r."paidAmount") <> rc."refundAmount"
+        ORDER BY r."createdAt" DESC
+      `);
+      for (const row of mismatch.rows) {
+        const correctAmt = row.refundAmount;
+        await pool.query(
+          `UPDATE revenue_entries SET "paidAmount" = $1, "amount" = $2, "refundAmount" = $2, "updatedAt" = now()::text WHERE id = $3`,
+          [-correctAmt, correctAmt, row.rev_id]
+        );
+        const parts: string[] = [];
+        if (row.penaltyAmount > 0) parts.push(`위약금 ${Number(row.penaltyAmount).toLocaleString()}원`);
+        const svcItems = (() => { try { return JSON.parse(row.serviceItems || "[]"); } catch { return []; } })();
+        for (const si of svcItems) { if (si.amount > 0) parts.push(`${si.label} ${Number(si.amount).toLocaleString()}원`); }
+        if (parts.length > 0) {
+          await pool.query(
+            `UPDATE revenue_entries SET memo = $1 WHERE id = $2`,
+            [`${row.packageName || "PT"} 환불 (공제: ${parts.join(", ")})`, row.rev_id]
+          );
+        }
+        console.log(`🔧 환불 매출 금액 교정: rev#${row.rev_id} ${row.paidAmount} → ${-correctAmt} (계약서 ${row.token})`);
+      }
+    }
+  } catch (e) {
+    console.error("환불 매출 금액 교정 오류:", e);
+  }
+
   // ── 완료된 양도양수 계약 중 양수인 회원 미생성 건 자동 보정 (initDatabase 실패해도 실행) ──
   try {
     const completedContracts = await pool.query(

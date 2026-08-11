@@ -2112,12 +2112,16 @@ const ptRouter = t.router({
 
         let refundAmt = pkg.paymentAmount ?? 0;
         let memo = `${pkg.packageName || "PT"} 환불`;
-        const contractRow = await pool.query(
+        const tableExists = await pool.query(
+          `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'refund_contracts' LIMIT 1`
+        ).then(r => r.rows.length > 0).catch(() => false);
+        const contractRow = tableExists ? await pool.query(
           `SELECT "refundAmount", "penaltyAmount", "taxAmount", "serviceItems", token, status
-           FROM refund_contracts WHERE "memberId" = $1 AND "packageId" = $2
+           FROM refund_contracts
+           WHERE "memberId" = $1 AND ("packageId" = $2 OR "packageId" IS NULL)
            ORDER BY "createdAt" DESC LIMIT 1`,
           [pkg.memberId, input.packageId]
-        ).catch(() => ({ rows: [] }));
+        ).catch(() => ({ rows: [] })) : { rows: [] };
         if (contractRow.rows.length > 0) {
           const rc = contractRow.rows[0];
           refundAmt = rc.refundAmount || refundAmt;
