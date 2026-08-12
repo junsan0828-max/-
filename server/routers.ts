@@ -4315,7 +4315,7 @@ const adminRouter = t.router({
       const [y, m] = input.yearMonth.split("-").map(Number);
       const monthStart = `${input.yearMonth}-01`;
       const monthEnd = new Date(y, m, 1).toISOString().split("T")[0];
-      const today = new Date().toISOString().split("T")[0];
+      const today = kstDate();
 
       const trainerList = await db
         .select({ id: trainers.id, trainerName: trainers.trainerName, createdAt: trainers.createdAt })
