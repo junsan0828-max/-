@@ -4090,7 +4090,8 @@ const adminRouter = t.router({
           }).from(ptPackages).where(and(
             inArray(ptPackages.memberId, memberIds),
             eq(ptPackages.trainerId, trainer.id),
-          ));
+          )).orderBy(desc(ptPackages.createdAt));
+          const activeSet = new Set<number>();
           for (const p of pkgRows) {
             if (!pkgInfo[p.memberId]) pkgInfo[p.memberId] = {
               activeTotal: 0, activeUsed: 0, activeService: 0,
@@ -4101,11 +4102,12 @@ const adminRouter = t.router({
             info.cumTotal += p.totalSessions ?? 0;
             info.cumUsed += p.usedSessions ?? 0;
             info.cumService += p.serviceSessions ?? 0;
-            if (p.status === "active") {
-              info.activeTotal += p.totalSessions ?? 0;
-              info.activeUsed += p.usedSessions ?? 0;
-              info.activeService += p.serviceSessions ?? 0;
-              if (!info.activeName) info.activeName = p.packageName ?? null;
+            if (p.status === "active" && !activeSet.has(p.memberId)) {
+              activeSet.add(p.memberId);
+              info.activeTotal = p.totalSessions ?? 0;
+              info.activeUsed = p.usedSessions ?? 0;
+              info.activeService = p.serviceSessions ?? 0;
+              info.activeName = p.packageName ?? null;
             }
           }
         }
