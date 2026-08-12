@@ -2798,12 +2798,15 @@ const trainersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const settingsRow = await db
-        .select({ settlementRate: trainerSettings.settlementRate })
-        .from(trainerSettings)
-        .where(eq(trainerSettings.trainerId, input.trainerId))
-        .limit(1);
+      const [settingsRow, gymSettingsRow] = await Promise.all([
+        db.select({ settlementRate: trainerSettings.settlementRate })
+          .from(trainerSettings)
+          .where(eq(trainerSettings.trainerId, input.trainerId))
+          .limit(1),
+        db.execute(sql`SELECT "servicePtUnitPrice" FROM gym_settings WHERE id = 1 LIMIT 1`),
+      ]);
       const settlementRate = settingsRow[0]?.settlementRate ?? 50;
+      const defaultSvcPrice = Number(((gymSettingsRow as any).rows ?? gymSettingsRow)[0]?.servicePtUnitPrice ?? 0);
 
       const logs = await db
         .select({
@@ -2889,7 +2892,7 @@ const trainersRouter = t.router({
         // 서비스 세션인 경우: serviceSamePrice=1이면 정규 회당 단가로 정산, 아니면 serviceSessionPrice 사용
         const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
         if (isSvc && l.serviceSamePrice !== 1) {
-          return l.serviceSessionPrice ?? 0;
+          return l.serviceSessionPrice ?? defaultSvcPrice;
         }
         // 혼합 결제는 저장된 pricePerSession 직접 사용
         if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
@@ -3827,6 +3830,8 @@ const adminRouter = t.router({
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = getDb();
       const today = kstDate();
+      const gsRow = await db.execute(sql`SELECT "servicePtUnitPrice" FROM gym_settings WHERE id = 1 LIMIT 1`);
+      const defaultSvcPrice = Number(((gsRow as any).rows ?? gsRow)[0]?.servicePtUnitPrice ?? 0);
       const monthStart = `${input.yearMonth}-01`;
       const monthEnd = new Date(
         parseInt(input.yearMonth.split("-")[0]),
@@ -3915,7 +3920,7 @@ const adminRouter = t.router({
         const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; packageName?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null }) => {
           // 서비스 세션: serviceSamePrice=1이면 정규 단가로, 아니면 serviceSessionPrice 사용
           const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
-          if (isSvc && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
+          if (isSvc && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? defaultSvcPrice;
           if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
           // 결제금액 기준 계산 우선 (pricePerSession은 갱신 안 됐을 수 있음)
           if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)

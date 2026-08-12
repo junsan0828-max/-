@@ -2050,6 +2050,18 @@ async function start() {
       if (fixedLogs.rows.length > 0)
         console.log(`🔧 세션 로그 ${fixedLogs.rows.length}건 isServiceSession 교정`);
     }
+    // serviceSessionPrice 미설정된 서비스세션 패키지에 관리자 설정 단가 적용
+    const gsRes = await pool.query(`SELECT "servicePtUnitPrice" FROM gym_settings WHERE id = 1 LIMIT 1`);
+    const defPrice = gsRes.rows[0]?.servicePtUnitPrice ?? 0;
+    if (defPrice > 0) {
+      const fixedPrice = await pool.query(`
+        UPDATE pt_packages SET "serviceSessionPrice" = $1
+        WHERE "packageName" = '서비스세션' AND COALESCE("serviceSessionPrice", 0) = 0
+        RETURNING id
+      `, [defPrice]);
+      if (fixedPrice.rows.length > 0)
+        console.log(`🔧 서비스세션 패키지 ${fixedPrice.rows.length}건 serviceSessionPrice=${defPrice} 설정`);
+    }
   } catch (e) {
     console.error("서비스세션 교정 오류:", e);
   }
