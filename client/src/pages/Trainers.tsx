@@ -205,12 +205,22 @@ function SettlementTab() {
   const [yearMonth, setYearMonth] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
-  const { data, isLoading, error } = trpc.admin.getSettlementReport.useQuery({ yearMonth });
+  const [branchId, setBranchId] = useState<number | undefined>(undefined);
+  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data, isLoading, error } = trpc.admin.getSettlementReport.useQuery({ yearMonth, branchId });
   const [selectedTrainer, setSelectedTrainer] = useState<(typeof data)["trainers"][number] | null>(null);
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-1 bg-card border border-border rounded-lg p-0.5">
+          <button onClick={() => setBranchId(undefined)}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${!branchId ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>전체</button>
+          {branchList?.map(b => (
+            <button key={b.id} onClick={() => setBranchId(b.id)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${branchId === b.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
+          ))}
+        </div>
         <input type="month" value={yearMonth} onChange={(e) => setYearMonth(e.target.value)}
           className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-foreground" />
       </div>

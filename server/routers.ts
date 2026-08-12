@@ -2790,7 +2790,7 @@ const trainersRouter = t.router({
 
   // 월별 정산 조회
   getMonthlySettlement: protectedProcedure
-    .input(z.object({ trainerId: z.number(), yearMonth: z.string(), dateFilter: z.string().optional() }))
+    .input(z.object({ trainerId: z.number(), yearMonth: z.string(), dateFilter: z.string().optional(), branchId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.trainerId !== input.trainerId) {
         throw new TRPCError({ code: "FORBIDDEN" });
@@ -2836,6 +2836,7 @@ const trainersRouter = t.router({
                   gte(ptSessionLogs.sessionDate, `${input.yearMonth}-01`),
                   lte(ptSessionLogs.sessionDate, `${input.yearMonth}-31`),
                 ),
+            ...(input.branchId ? [eq(members.branchId, input.branchId)] : []),
           )
         )
         .orderBy(desc(ptSessionLogs.sessionDate));
@@ -3825,7 +3826,7 @@ const adminRouter = t.router({
 
   // 정산 리포트 (관리자)
   getSettlementReport: protectedProcedure
-    .input(z.object({ yearMonth: z.string() }))
+    .input(z.object({ yearMonth: z.string(), branchId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = getDb();
@@ -3857,9 +3858,11 @@ const adminRouter = t.router({
             isServiceSession: ptSessionLogs.isServiceSession,
             serviceSessionPrice: ptPackages.serviceSessionPrice,
             serviceSamePrice: ptPackages.serviceSamePrice,
+            memberBranchId: members.branchId,
           })
             .from(ptSessionLogs)
             .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+            .leftJoin(members, eq(ptSessionLogs.memberId, members.id))
             .where(and(
               eq(ptSessionLogs.trainerId, trainer.id),
               sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
@@ -3867,8 +3870,13 @@ const adminRouter = t.router({
             )),
         ]);
 
+        // 지점 필터: 회원의 branchId 기준
+        const filteredLogs = input.branchId
+          ? logs.filter(l => l.memberBranchId === input.branchId)
+          : logs;
+
         // packageId 없는 세션은 회원 패키지로 단가 폴백
-        const allLogMemberIds = [...new Set(logs.map(l => l.memberId))];
+        const allLogMemberIds = [...new Set(filteredLogs.map(l => l.memberId))];
         const memberPkgMap: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod: string | null }> = {};
         if (allLogMemberIds.length > 0) {
           const fallbackPkgs = await db.select({
@@ -3934,15 +3942,15 @@ const adminRouter = t.router({
           // 최후 폴백: revenue_entries 기반 회당 단가
           return memberRevenueMap[l.memberId] ?? 0;
         };
-        const sessionCount = logs.length;
-        const revenue = logs.reduce((s, l) => s + calcPrice(l), 0);
+        const sessionCount = filteredLogs.length;
+        const revenue = filteredLogs.reduce((s, l) => s + calcPrice(l), 0);
         const avgPrice = sessionCount > 0 ? Math.round(revenue / sessionCount) : 0;
         const settlement = Math.round(revenue * rate / 100);
         const afterTax = Math.round(settlement * (1 - 0.033));
 
         // 회원별 수업 횟수·단가 집계
         const memberMap: Record<number, { name: string; sessions: number; totalPrice: number }> = {};
-        for (const l of logs) {
+        for (const l of filteredLogs) {
           if (!memberMap[l.memberId]) memberMap[l.memberId] = { name: "", sessions: 0, totalPrice: 0 };
           memberMap[l.memberId].sessions++;
           memberMap[l.memberId].totalPrice += calcPrice(l);
@@ -4025,6 +4033,7 @@ const adminRouter = t.router({
           consultantId: revenueEntries.consultantId,
           trainerId: revenueEntries.trainerId,
           channelId: revenueEntries.channelId,
+          branchId: revenueEntries.branchId,
         }).from(revenueEntries).where(and(
           sql`(${revenueEntries.type} = 'PT' OR ${revenueEntries.type} = '헬스')`,
           sql`(
@@ -4037,6 +4046,7 @@ const adminRouter = t.router({
           )`,
           sql`${revenueEntries.paymentDate} >= ${monthStart}`,
           sql`${revenueEntries.paymentDate} < ${monthEnd}`,
+          ...(input.branchId ? [sql`${revenueEntries.branchId} = ${input.branchId}`] : []),
         ));
         const revMemberIds = [...new Set(regRevRows.map(r => r.memberId).filter(Boolean))] as number[];
         const revMemberNames: Record<number, string> = {};
