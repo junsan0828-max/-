@@ -280,27 +280,28 @@ export default function AdminMembers() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().slice(0, 10);
 
-    const totalList = allMembers;
+    const totalList = allMembers.filter(m => m.status !== "ended");
     const pausedList = allMembers.filter(m => m.status === "paused");
 
-    const total = allMembers.length;
+    const total = totalList.length;
     const paused = pausedList.length;
 
-    const expiredList = allMembers.filter(m => {
+    const expiredList = totalList.filter(m => {
       if (m.status === "paused") return false;
+      if (m.status === "inactive") return true;
       if (!m.membershipEnd) return false;
       return new Date(m.membershipEnd) < today;
     });
     const expired = expiredList.length;
 
-    const activeList = allMembers.filter(m => {
+    const activeList = totalList.filter(m => {
       if (m.status !== "active") return false;
       if (m.membershipEnd && new Date(m.membershipEnd) < today) return false;
       return true;
     });
     const active = activeList.length;
 
-    const expiringSoonList = allMembers.filter(m => {
+    const expiringSoonList = totalList.filter(m => {
       if (!m.membershipEnd || m.status !== "active") return false;
       const diff = Math.ceil((new Date(m.membershipEnd).getTime() - today.getTime()) / 86400000);
       return diff >= 0 && diff <= 7;
@@ -311,9 +312,9 @@ export default function AdminMembers() {
     const thisMonthStr = todayStr.slice(0, 7);
     const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const prevMonthStr = prevMonthDate.toISOString().slice(0, 7);
-    const newThisMonthList = allMembers.filter(m => m.createdAt?.slice(0, 7) === thisMonthStr);
+    const newThisMonthList = totalList.filter(m => m.createdAt?.slice(0, 7) === thisMonthStr);
     const newThisMonth = newThisMonthList.length;
-    const newPrevMonth = allMembers.filter(m => m.createdAt?.slice(0, 7) === prevMonthStr).length;
+    const newPrevMonth = totalList.filter(m => m.createdAt?.slice(0, 7) === prevMonthStr).length;
     const newDiff = newThisMonth - newPrevMonth;
 
     const memberLists = { total: totalList, active: activeList, expiringSoon: expiringSoonList, expired: expiredList, paused: pausedList, newThisMonth: newThisMonthList };
