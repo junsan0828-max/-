@@ -2808,8 +2808,8 @@ const trainersRouter = t.router({
       const settlementRate = settingsRow[0]?.settlementRate ?? 50;
       const defaultSvcPrice = Number(((gymSettingsRow as any).rows ?? gymSettingsRow)[0]?.servicePtUnitPrice ?? 0);
 
-      const logs = await db
-        .select({
+      const [sessionLogs, attRows] = await Promise.all([
+        db.select({
           id: ptSessionLogs.id,
           memberId: ptSessionLogs.memberId,
           memberNameSnapshot: ptSessionLogs.memberName,
@@ -2824,22 +2824,66 @@ const trainersRouter = t.router({
           serviceSessionPrice: ptPackages.serviceSessionPrice,
           serviceSamePrice: ptPackages.serviceSamePrice,
         })
-        .from(ptSessionLogs)
-        .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
-        .leftJoin(members, eq(ptSessionLogs.memberId, members.id))
-        .where(
-          and(
-            eq(ptSessionLogs.trainerId, input.trainerId),
-            input.dateFilter
-              ? eq(ptSessionLogs.sessionDate, input.dateFilter)
-              : and(
-                  gte(ptSessionLogs.sessionDate, `${input.yearMonth}-01`),
-                  lte(ptSessionLogs.sessionDate, `${input.yearMonth}-31`),
-                ),
-            ...(input.branchId ? [eq(members.branchId, input.branchId)] : []),
+          .from(ptSessionLogs)
+          .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+          .leftJoin(members, eq(ptSessionLogs.memberId, members.id))
+          .where(
+            and(
+              eq(ptSessionLogs.trainerId, input.trainerId),
+              input.dateFilter
+                ? eq(ptSessionLogs.sessionDate, input.dateFilter)
+                : and(
+                    gte(ptSessionLogs.sessionDate, `${input.yearMonth}-01`),
+                    lte(ptSessionLogs.sessionDate, `${input.yearMonth}-31`),
+                  ),
+              ...(input.branchId ? [eq(members.branchId, input.branchId)] : []),
+            )
           )
-        )
-        .orderBy(desc(ptSessionLogs.sessionDate));
+          .orderBy(desc(ptSessionLogs.sessionDate)),
+        db.select({
+          memberId: attendanceChecks.memberId,
+          checkDate: attendanceChecks.checkDate,
+          memberName: members.name,
+          memberBranchId: members.branchId,
+        })
+          .from(attendanceChecks)
+          .leftJoin(members, eq(attendanceChecks.memberId, members.id))
+          .where(
+            and(
+              eq(attendanceChecks.trainerId, input.trainerId),
+              eq(attendanceChecks.status, "attended"),
+              input.dateFilter
+                ? eq(attendanceChecks.checkDate, input.dateFilter)
+                : and(
+                    gte(attendanceChecks.checkDate, `${input.yearMonth}-01`),
+                    lte(attendanceChecks.checkDate, `${input.yearMonth}-31`),
+                  ),
+              ...(input.branchId ? [eq(members.branchId, input.branchId)] : []),
+            )
+          ),
+      ]);
+
+      // 출석체크는 있지만 PT세션 기록이 없는 건도 정산에 포함
+      const sessionKeys = new Set(sessionLogs.map(l => `${l.memberId}|${l.sessionDate}`));
+      const attendanceOnlyLogs = attRows
+        .filter(a => !sessionKeys.has(`${a.memberId}|${a.checkDate}`))
+        .map(a => ({
+          id: -a.memberId,
+          memberId: a.memberId,
+          memberNameSnapshot: a.memberName,
+          sessionDate: a.checkDate,
+          pricePerSession: null as number | null,
+          paymentAmount: null as number | null,
+          totalSessions: null as number | null,
+          paymentMethod: null as string | null,
+          packageName: null as string | null,
+          memberNameJoined: a.memberName,
+          isServiceSession: 0 as number | null,
+          serviceSessionPrice: null as number | null,
+          serviceSamePrice: null as number | null,
+        }));
+      const logs = [...sessionLogs, ...attendanceOnlyLogs]
+        .sort((a, b) => (b.sessionDate ?? "").localeCompare(a.sessionDate ?? ""));
 
       // 단가 폴백 1: 회원의 모든 패키지에서 가격/패키지명 조회
       const allLogMemberIds = [...new Set(logs.map(l => l.memberId))];
@@ -3843,13 +3887,14 @@ const adminRouter = t.router({
       const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
 
       const trainerRows = await Promise.all(trainerList.map(async (trainer) => {
-        const [settings, logs] = await Promise.all([
+        const [settings, logs, attRows] = await Promise.all([
           db.select({ settlementRate: trainerSettings.settlementRate })
             .from(trainerSettings)
             .where(eq(trainerSettings.trainerId, trainer.id))
             .limit(1),
           db.select({
             memberId: ptSessionLogs.memberId,
+            sessionDate: ptSessionLogs.sessionDate,
             pricePerSession: ptPackages.pricePerSession,
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
@@ -3868,12 +3913,44 @@ const adminRouter = t.router({
               sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
               sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
             )),
+          db.select({
+            memberId: attendanceChecks.memberId,
+            checkDate: attendanceChecks.checkDate,
+            memberBranchId: members.branchId,
+          })
+            .from(attendanceChecks)
+            .leftJoin(members, eq(attendanceChecks.memberId, members.id))
+            .where(and(
+              eq(attendanceChecks.trainerId, trainer.id),
+              eq(attendanceChecks.status, "attended"),
+              sql`${attendanceChecks.checkDate} >= ${monthStart}`,
+              sql`${attendanceChecks.checkDate} < ${monthEnd}`,
+            )),
         ]);
+
+        // 출석체크는 있지만 PT세션 기록이 없는 건도 정산에 포함
+        const sessionKeys = new Set(logs.map(l => `${l.memberId}|${l.sessionDate}`));
+        const attendanceOnlyLogs = attRows
+          .filter(a => !sessionKeys.has(`${a.memberId}|${a.checkDate}`))
+          .map(a => ({
+            memberId: a.memberId,
+            sessionDate: a.checkDate,
+            pricePerSession: null as number | null,
+            paymentAmount: null as number | null,
+            totalSessions: null as number | null,
+            paymentMethod: null as string | null,
+            packageName: null as string | null,
+            isServiceSession: 0 as number | null,
+            serviceSessionPrice: null as number | null,
+            serviceSamePrice: null as number | null,
+            memberBranchId: a.memberBranchId,
+          }));
+        const allLogs = [...logs, ...attendanceOnlyLogs];
 
         // 지점 필터: 회원의 branchId 기준
         const filteredLogs = input.branchId
-          ? logs.filter(l => l.memberBranchId === input.branchId)
-          : logs;
+          ? allLogs.filter(l => l.memberBranchId === input.branchId)
+          : allLogs;
 
         // packageId 없는 세션은 회원 패키지로 단가 폴백
         const allLogMemberIds = [...new Set(filteredLogs.map(l => l.memberId))];
@@ -4338,25 +4415,30 @@ const adminRouter = t.router({
           totalVideosRes, monthVideosRes, todayVideosRes,
         ] = await Promise.all([
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), hasPtPackage)),
-          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tid)),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended'
+          ) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"))),
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "inactive"), hasPtPackage)),
           db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
             .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), eq(ptPackages.status, "active"))),
-          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(
-            eq(ptSessionLogs.trainerId, tid),
-            sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
-            sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
-          )),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${monthStart} AND "sessionDate" < ${monthEnd}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${monthStart} AND "checkDate" < ${monthEnd}
+          ) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(
             eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"),
             sql`${attendanceChecks.checkDate} >= ${monthStart}`,
             sql`${attendanceChecks.checkDate} < ${monthEnd}`,
           )),
-          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(
-            eq(ptSessionLogs.trainerId, tid),
-            sql`${ptSessionLogs.sessionDate} = ${today}`,
-          )),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" = ${today}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" = ${today}
+          ) combined`),
           db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
             .from(ptPackages).where(eq(ptPackages.trainerId, tid)).groupBy(ptPackages.memberId),
           db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(eq(workoutMemos.trainerId, tid)),
@@ -4385,7 +4467,7 @@ const adminRouter = t.router({
         const totalRereg = pkgCountByMember.reduce((s, r) => s + Math.max(0, Number(r.count) - 1), 0);
         const reregMemberCount = pkgCountByMember.filter(r => Number(r.count) > 1).length;
         const totalMembers = Number(totalMembersRes[0]?.c ?? 0);
-        const totalSessionsNum = Number(totalSessionsRes[0]?.c ?? 0);
+        const totalSessionsNum = Number(((totalSessionsRes as any).rows ?? totalSessionsRes)[0]?.c ?? 0);
 
         const trainerCreatedAt = trainer.createdAt;
         const monthsActive = trainerCreatedAt
@@ -4402,9 +4484,9 @@ const adminRouter = t.router({
           remainingPt: Number(remainingPtRes[0]?.total ?? 0),
           totalRereg,
           reregRate: totalMembers > 0 ? Math.round((reregMemberCount / totalMembers) * 1000) / 10 : 0,
-          monthSessions: Number(monthSessionsRes[0]?.c ?? 0),
+          monthSessions: Number(((monthSessionsRes as any).rows ?? monthSessionsRes)[0]?.c ?? 0),
           monthNoShow: Number(monthNoShowRes[0]?.c ?? 0),
-          todaySessions: Number(todaySessionsRes[0]?.c ?? 0),
+          todaySessions: Number(((todaySessionsRes as any).rows ?? todaySessionsRes)[0]?.c ?? 0),
           avgMonthlyPt: Math.round((totalSessionsNum / monthsActive) * 10) / 10,
           totalMemos: Number(totalMemosRes[0]?.c ?? 0),
           monthMemos: Number(monthMemosRes[0]?.c ?? 0),
@@ -4454,11 +4536,11 @@ const adminRouter = t.router({
         )`;
 
         const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes] = await Promise.all([
-          db.select({ c: sql<number>`COUNT(*)::int` }).from(ptSessionLogs).where(and(
-            eq(ptSessionLogs.trainerId, tid),
-            sql`${ptSessionLogs.sessionDate} >= ${periodStart}`,
-            sql`${ptSessionLogs.sessionDate} < ${periodEnd}`,
-          )),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+          ) combined`),
           db.select({ c: sql<number>`COUNT(*)::int` }).from(attendanceChecks).where(and(
             eq(attendanceChecks.trainerId, tid),
             eq(attendanceChecks.status, "noshow"),
@@ -4484,11 +4566,11 @@ const adminRouter = t.router({
               AND r."subType" IN ('신규', '신규배정', '재등록')
           `),
           db.execute(sql`
-            SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, COUNT(*)::int AS c
-            FROM pt_session_logs
-            WHERE "trainerId" = ${tid}
-              AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
-            GROUP BY m ORDER BY m
+            SELECT m, COUNT(*)::int AS c FROM (
+              SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, "memberId", "sessionDate" AS d FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+              UNION
+              SELECT EXTRACT(MONTH FROM "checkDate"::date)::int AS m, "memberId", "checkDate" AS d FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+            ) combined GROUP BY m ORDER BY m
           `),
           db.execute(sql`
             SELECT EXTRACT(MONTH FROM r."paymentDate"::date)::int AS m, COUNT(*)::int AS c
@@ -4514,7 +4596,7 @@ const adminRouter = t.router({
           }
         }
 
-        const sessions = sessionsRes[0]?.c ?? 0;
+        const sessions = ((sessionsRes as any).rows ?? sessionsRes)[0]?.c ?? 0;
         const noShows = noShowRes[0]?.c ?? 0;
         const completed = ((completedPkgRes as any).rows ?? completedPkgRes)[0]?.c ?? 0;
         const newMembers = newMemberIds.size;
