@@ -2862,34 +2862,45 @@ const trainersRouter = t.router({
           ),
       ]);
 
-      // 회원+날짜 기준 고유 세션만 카운트 (세션 기록 우선, 없으면 출석 체크)
-      // 세션 기록 + 출석 체크 합산, 같은 회원+날짜는 1회만 (세션 기록 우선)
-      const uniqueMap = new Map<string, typeof sessionLogs[number]>();
+      // 회원별 세션 카운트: 출석체크 있는 회원 → 출석만 카운트, 없는 회원 → 세션기록 카운트
+      const membersWithAtt = new Set<number>();
+      for (const a of attRows) membersWithAtt.add(a.memberId);
+
+      const sessionByKey = new Map<string, typeof sessionLogs[number]>();
       for (const l of sessionLogs) {
         const key = `${l.memberId}|${l.sessionDate}`;
-        if (!uniqueMap.has(key)) uniqueMap.set(key, l);
+        if (!sessionByKey.has(key)) sessionByKey.set(key, l);
       }
+
+      const resultEntries: (typeof sessionLogs[number])[] = [];
       for (const a of attRows) {
-        const key = `${a.memberId}|${a.checkDate}`;
-        if (!uniqueMap.has(key)) {
-          uniqueMap.set(key, {
-            id: -a.memberId,
-            memberId: a.memberId,
-            memberNameSnapshot: a.memberName,
-            sessionDate: a.checkDate,
-            pricePerSession: null,
-            paymentAmount: null,
-            totalSessions: null,
-            paymentMethod: null,
-            packageName: null,
-            memberNameJoined: a.memberName,
-            isServiceSession: 0,
-            serviceSessionPrice: null,
-            serviceSamePrice: null,
-          });
-        }
+        const sessionLog = sessionByKey.get(`${a.memberId}|${a.checkDate}`);
+        resultEntries.push(sessionLog ?? {
+          id: -a.memberId,
+          memberId: a.memberId,
+          memberNameSnapshot: a.memberName,
+          sessionDate: a.checkDate,
+          pricePerSession: null,
+          paymentAmount: null,
+          totalSessions: null,
+          paymentMethod: null,
+          packageName: null,
+          memberNameJoined: a.memberName,
+          isServiceSession: 0,
+          serviceSessionPrice: null,
+          serviceSamePrice: null,
+        });
       }
-      const logs = [...uniqueMap.values()]
+      const addedLogKeys = new Set<string>();
+      for (const l of sessionLogs) {
+        if (membersWithAtt.has(l.memberId)) continue;
+        const key = `${l.memberId}|${l.sessionDate}`;
+        if (addedLogKeys.has(key)) continue;
+        addedLogKeys.add(key);
+        resultEntries.push(l);
+      }
+
+      const logs = resultEntries
         .sort((a, b) => (b.sessionDate ?? "").localeCompare(a.sessionDate ?? ""));
 
       // 단가 폴백 1: 회원의 모든 패키지에서 가격/패키지명 조회
@@ -3935,34 +3946,45 @@ const adminRouter = t.router({
             )),
         ]);
 
-        // 세션 기록 + 출석 체크 합산, 같은 회원+날짜는 1회만 카운트
-        // 세션 기록 우선 (패키지 단가 정보 보유)
-        const uniqueMap = new Map<string, typeof logs[number]>();
+        // 회원별 세션 카운트: 출석체크 있는 회원 → 출석만 카운트, 없는 회원 → 세션기록 카운트
+        const membersWithAtt = new Set<number>();
+        for (const a of attRows) membersWithAtt.add(a.memberId);
+
+        const sessionByKey = new Map<string, typeof logs[number]>();
         for (const l of logs) {
           const key = `${l.memberId}|${l.sessionDate}`;
-          if (!uniqueMap.has(key)) uniqueMap.set(key, l);
+          if (!sessionByKey.has(key)) sessionByKey.set(key, l);
         }
+
+        const resultEntries: (typeof logs[number])[] = [];
         for (const a of attRows) {
-          const key = `${a.memberId}|${a.checkDate}`;
-          if (!uniqueMap.has(key)) {
-            uniqueMap.set(key, {
-              memberId: a.memberId,
-              sessionDate: a.checkDate,
-              pricePerSession: null,
-              paymentAmount: null,
-              totalSessions: null,
-              paymentMethod: null,
-              packageName: null,
-              isServiceSession: 0,
-              serviceSessionPrice: null,
-              serviceSamePrice: null,
-              memberBranchId: a.memberBranchId,
-            });
-          }
+          const sessionLog = sessionByKey.get(`${a.memberId}|${a.checkDate}`);
+          resultEntries.push(sessionLog ?? {
+            memberId: a.memberId,
+            sessionDate: a.checkDate,
+            pricePerSession: null,
+            paymentAmount: null,
+            totalSessions: null,
+            paymentMethod: null,
+            packageName: null,
+            isServiceSession: 0,
+            serviceSessionPrice: null,
+            serviceSamePrice: null,
+            memberBranchId: a.memberBranchId,
+          });
         }
+        const addedLogKeys = new Set<string>();
+        for (const l of logs) {
+          if (membersWithAtt.has(l.memberId)) continue;
+          const key = `${l.memberId}|${l.sessionDate}`;
+          if (addedLogKeys.has(key)) continue;
+          addedLogKeys.add(key);
+          resultEntries.push(l);
+        }
+
         const filteredLogs = input.branchId
-          ? [...uniqueMap.values()].filter(l => l.memberBranchId === input.branchId)
-          : [...uniqueMap.values()];
+          ? resultEntries.filter(l => l.memberBranchId === input.branchId)
+          : resultEntries;
 
         // packageId 없는 세션은 회원 패키지로 단가 폴백
         const allLogMemberIds = [...new Set(filteredLogs.map(l => l.memberId))];
@@ -4429,7 +4451,8 @@ const adminRouter = t.router({
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), hasPtPackage)),
           db.execute(sql`SELECT COUNT(*)::int AS c FROM (
             SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid}
-            UNION
+              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended')
+            UNION ALL
             SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended'
           ) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"))),
@@ -4438,7 +4461,8 @@ const adminRouter = t.router({
             .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), eq(ptPackages.status, "active"))),
           db.execute(sql`SELECT COUNT(*)::int AS c FROM (
             SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${monthStart} AND "sessionDate" < ${monthEnd}
-            UNION
+              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${monthStart} AND "checkDate" < ${monthEnd})
+            UNION ALL
             SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${monthStart} AND "checkDate" < ${monthEnd}
           ) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(
@@ -4448,7 +4472,8 @@ const adminRouter = t.router({
           )),
           db.execute(sql`SELECT COUNT(*)::int AS c FROM (
             SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" = ${today}
-            UNION
+              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" = ${today})
+            UNION ALL
             SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" = ${today}
           ) combined`),
           db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
@@ -4550,7 +4575,8 @@ const adminRouter = t.router({
         const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes] = await Promise.all([
           db.execute(sql`SELECT COUNT(*)::int AS c FROM (
             SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
-            UNION
+              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd})
+            UNION ALL
             SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
           ) combined`),
           db.select({ c: sql<number>`COUNT(*)::int` }).from(attendanceChecks).where(and(
@@ -4580,7 +4606,8 @@ const adminRouter = t.router({
           db.execute(sql`
             SELECT m, COUNT(*)::int AS c FROM (
               SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, "memberId", "sessionDate" AS d FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
-              UNION
+                AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd})
+              UNION ALL
               SELECT EXTRACT(MONTH FROM "checkDate"::date)::int AS m, "memberId", "checkDate" AS d FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
             ) combined GROUP BY m ORDER BY m
           `),
