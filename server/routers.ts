@@ -1692,8 +1692,7 @@ const ptRouter = t.router({
       const paidSessions = isFullServicePkg ? 0 : pkg.totalSessions - (pkg.serviceSessions ?? 0);
       const isServiceSession = isFullServicePkg || pkg.usedSessions >= paidSessions ? 1 : 0;
 
-      const today = new Date().toISOString().split("T")[0];
-      const targetDate = input.sessionDate ?? today;
+      const targetDate = input.sessionDate ?? kstDate();
 
       // 같은 날 같은 회원 세션 중복 방지
       const [dupCheck] = await db
@@ -2415,7 +2414,7 @@ const attendancesRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = kstDate();
 
       // 오늘 출석 여부 확인
       const existing = await db
@@ -2863,26 +2862,33 @@ const trainersRouter = t.router({
           ),
       ]);
 
-      // 출석체크는 있지만 PT세션 기록이 없는 건도 정산에 포함
-      const sessionKeys = new Set(sessionLogs.map(l => `${l.memberId}|${l.sessionDate}`));
-      const attendanceOnlyLogs = attRows
-        .filter(a => !sessionKeys.has(`${a.memberId}|${a.checkDate}`))
-        .map(a => ({
-          id: -a.memberId,
-          memberId: a.memberId,
-          memberNameSnapshot: a.memberName,
-          sessionDate: a.checkDate,
-          pricePerSession: null as number | null,
-          paymentAmount: null as number | null,
-          totalSessions: null as number | null,
-          paymentMethod: null as string | null,
-          packageName: null as string | null,
-          memberNameJoined: a.memberName,
-          isServiceSession: 0 as number | null,
-          serviceSessionPrice: null as number | null,
-          serviceSamePrice: null as number | null,
-        }));
-      const logs = [...sessionLogs, ...attendanceOnlyLogs]
+      // 회원+날짜 기준 고유 세션만 카운트 (세션 기록 우선, 없으면 출석 체크)
+      const uniqueMap = new Map<string, typeof sessionLogs[number]>();
+      for (const l of sessionLogs) {
+        const key = `${l.memberId}|${l.sessionDate}`;
+        if (!uniqueMap.has(key)) uniqueMap.set(key, l);
+      }
+      for (const a of attRows) {
+        const key = `${a.memberId}|${a.checkDate}`;
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, {
+            id: -a.memberId,
+            memberId: a.memberId,
+            memberNameSnapshot: a.memberName,
+            sessionDate: a.checkDate,
+            pricePerSession: null,
+            paymentAmount: null,
+            totalSessions: null,
+            paymentMethod: null,
+            packageName: null,
+            memberNameJoined: a.memberName,
+            isServiceSession: 0,
+            serviceSessionPrice: null,
+            serviceSamePrice: null,
+          });
+        }
+      }
+      const logs = [...uniqueMap.values()]
         .sort((a, b) => (b.sessionDate ?? "").localeCompare(a.sessionDate ?? ""));
 
       // 단가 폴백 1: 회원의 모든 패키지에서 가격/패키지명 조회
@@ -3928,24 +3934,31 @@ const adminRouter = t.router({
             )),
         ]);
 
-        // 출석체크는 있지만 PT세션 기록이 없는 건도 정산에 포함
-        const sessionKeys = new Set(logs.map(l => `${l.memberId}|${l.sessionDate}`));
-        const attendanceOnlyLogs = attRows
-          .filter(a => !sessionKeys.has(`${a.memberId}|${a.checkDate}`))
-          .map(a => ({
-            memberId: a.memberId,
-            sessionDate: a.checkDate,
-            pricePerSession: null as number | null,
-            paymentAmount: null as number | null,
-            totalSessions: null as number | null,
-            paymentMethod: null as string | null,
-            packageName: null as string | null,
-            isServiceSession: 0 as number | null,
-            serviceSessionPrice: null as number | null,
-            serviceSamePrice: null as number | null,
-            memberBranchId: a.memberBranchId,
-          }));
-        const allLogs = [...logs, ...attendanceOnlyLogs];
+        // 회원+날짜 기준 고유 세션만 카운트 (세션 기록 우선, 없으면 출석 체크)
+        const uniqueMap = new Map<string, typeof logs[number]>();
+        for (const l of logs) {
+          const key = `${l.memberId}|${l.sessionDate}`;
+          if (!uniqueMap.has(key)) uniqueMap.set(key, l);
+        }
+        for (const a of attRows) {
+          const key = `${a.memberId}|${a.checkDate}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, {
+              memberId: a.memberId,
+              sessionDate: a.checkDate,
+              pricePerSession: null,
+              paymentAmount: null,
+              totalSessions: null,
+              paymentMethod: null,
+              packageName: null,
+              isServiceSession: 0,
+              serviceSessionPrice: null,
+              serviceSamePrice: null,
+              memberBranchId: a.memberBranchId,
+            });
+          }
+        }
+        const allLogs = [...uniqueMap.values()];
 
         // 지점 필터: 회원의 branchId 기준
         const filteredLogs = input.branchId
