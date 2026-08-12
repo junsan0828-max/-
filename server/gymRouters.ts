@@ -381,7 +381,7 @@ const revenueRouter = t.router({
         memberName: members.name,
         channelName: channels.name,
         branchName: branches.name,
-        consultantName: users.username,
+        consultantName: sql<string | null>`COALESCE(${users.username}, (SELECT "username" FROM users WHERE id = ${members.consultantId}))`,
       })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
@@ -1394,10 +1394,12 @@ const revenueRouter = t.router({
 
       const allRows = await db.select({
         entry: revenueEntries,
-        consultantName: users.username,
+        consultantName: sql<string | null>`COALESCE(${users.username}, (SELECT "username" FROM users WHERE id = ${members.consultantId}))`,
+        memberConsultantId: members.consultantId,
       })
         .from(revenueEntries)
         .leftJoin(users, eq(revenueEntries.consultantId, users.id))
+        .leftJoin(members, eq(revenueEntries.memberId, members.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
 
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
@@ -1418,7 +1420,7 @@ const revenueRouter = t.router({
       const byConsultant: Record<number, ConsultantStats> = {};
 
       for (const row of rows) {
-        const cid = row.entry.consultantId ?? 0;
+        const cid = row.entry.consultantId ?? (row as any).memberConsultantId ?? 0;
         if (!byConsultant[cid]) {
           byConsultant[cid] = {
             consultantId: cid,
