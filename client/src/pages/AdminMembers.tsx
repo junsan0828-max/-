@@ -281,18 +281,24 @@ export default function AdminMembers() {
     const todayStr = today.toISOString().slice(0, 10);
 
     const totalList = allMembers;
-    const activeList = allMembers.filter(m => m.status === "active");
     const pausedList = allMembers.filter(m => m.status === "paused");
 
     const total = allMembers.length;
-    const active = activeList.length;
     const paused = pausedList.length;
 
     const expiredList = allMembers.filter(m => {
+      if (m.status === "paused") return false;
       if (!m.membershipEnd) return false;
       return new Date(m.membershipEnd) < today;
     });
     const expired = expiredList.length;
+
+    const activeList = allMembers.filter(m => {
+      if (m.status !== "active") return false;
+      if (m.membershipEnd && new Date(m.membershipEnd) < today) return false;
+      return true;
+    });
+    const active = activeList.length;
 
     const expiringSoonList = allMembers.filter(m => {
       if (!m.membershipEnd || m.status !== "active") return false;
