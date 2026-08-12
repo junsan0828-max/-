@@ -2863,21 +2863,16 @@ const trainersRouter = t.router({
       ]);
 
       // 회원+날짜 기준 고유 세션만 카운트 (세션 기록 우선, 없으면 출석 체크)
-      // 출석 체크가 세션 수의 기준. PT세션 기록은 단가 참조용.
-      const sessionByDate = new Map<string, typeof sessionLogs[number]>();
+      // 세션 기록 + 출석 체크 합산, 같은 회원+날짜는 1회만 (세션 기록 우선)
+      const uniqueMap = new Map<string, typeof sessionLogs[number]>();
       for (const l of sessionLogs) {
         const key = `${l.memberId}|${l.sessionDate}`;
-        if (!sessionByDate.has(key)) sessionByDate.set(key, l);
+        if (!uniqueMap.has(key)) uniqueMap.set(key, l);
       }
-
-      const logEntries: (typeof sessionLogs[number])[] = [];
       for (const a of attRows) {
         const key = `${a.memberId}|${a.checkDate}`;
-        const sessionLog = sessionByDate.get(key);
-        if (sessionLog) {
-          logEntries.push(sessionLog);
-        } else {
-          logEntries.push({
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, {
             id: -a.memberId,
             memberId: a.memberId,
             memberNameSnapshot: a.memberName,
@@ -2894,11 +2889,7 @@ const trainersRouter = t.router({
           });
         }
       }
-      // 출석 데이터가 아예 없으면 기존 PT세션 기록 기반 폴백
-      if (attRows.length === 0) {
-        for (const l of sessionLogs) logEntries.push(l);
-      }
-      const logs = logEntries
+      const logs = [...uniqueMap.values()]
         .sort((a, b) => (b.sessionDate ?? "").localeCompare(a.sessionDate ?? ""));
 
       // 단가 폴백 1: 회원의 모든 패키지에서 가격/패키지명 조회
@@ -3944,24 +3935,17 @@ const adminRouter = t.router({
             )),
         ]);
 
-        // 출석 체크가 세션 수의 기준 (출석=수업). PT세션 기록은 단가 참조용.
-        // 세션 기록을 날짜별 맵으로 구성 (단가 조회용)
-        const sessionByDate = new Map<string, typeof logs[number]>();
+        // 세션 기록 + 출석 체크 합산, 같은 회원+날짜는 1회만 카운트
+        // 세션 기록 우선 (패키지 단가 정보 보유)
+        const uniqueMap = new Map<string, typeof logs[number]>();
         for (const l of logs) {
           const key = `${l.memberId}|${l.sessionDate}`;
-          if (!sessionByDate.has(key)) sessionByDate.set(key, l);
+          if (!uniqueMap.has(key)) uniqueMap.set(key, l);
         }
-
-        // 출석 체크 기반으로 정산 세션 목록 구성
-        const filteredEntries: (typeof logs[number])[] = [];
         for (const a of attRows) {
-          if (input.branchId && a.memberBranchId !== input.branchId) continue;
           const key = `${a.memberId}|${a.checkDate}`;
-          const sessionLog = sessionByDate.get(key);
-          if (sessionLog) {
-            filteredEntries.push(sessionLog);
-          } else {
-            filteredEntries.push({
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, {
               memberId: a.memberId,
               sessionDate: a.checkDate,
               pricePerSession: null,
@@ -3976,18 +3960,9 @@ const adminRouter = t.router({
             });
           }
         }
-
-        // 출석 체크가 아직 없는 트레이너/회원의 기존 세션도 포함 (하위 호환)
-        const attKeys = new Set(attRows.map(a => `${a.memberId}|${a.checkDate}`));
-        const hasAnyAttendance = attRows.length > 0;
-        if (!hasAnyAttendance) {
-          // 출석 체크 데이터가 아예 없으면 기존 PT세션 기록 기반으로 폴백
-          for (const l of logs) {
-            if (input.branchId && l.memberBranchId !== input.branchId) continue;
-            filteredEntries.push(l);
-          }
-        }
-        const filteredLogs = filteredEntries;
+        const filteredLogs = input.branchId
+          ? [...uniqueMap.values()].filter(l => l.memberBranchId === input.branchId)
+          : [...uniqueMap.values()];
 
         // packageId 없는 세션은 회원 패키지로 단가 폴백
         const allLogMemberIds = [...new Set(filteredLogs.map(l => l.memberId))];
@@ -4452,25 +4427,30 @@ const adminRouter = t.router({
           totalVideosRes, monthVideosRes, todayVideosRes,
         ] = await Promise.all([
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), hasPtPackage)),
-          db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "attended"))),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended'
+          ) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"))),
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "inactive"), hasPtPackage)),
           db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
             .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), eq(ptPackages.status, "active"))),
-          db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(
-            eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "attended"),
-            sql`${attendanceChecks.checkDate} >= ${monthStart}`,
-            sql`${attendanceChecks.checkDate} < ${monthEnd}`,
-          )),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${monthStart} AND "sessionDate" < ${monthEnd}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${monthStart} AND "checkDate" < ${monthEnd}
+          ) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(
             eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"),
             sql`${attendanceChecks.checkDate} >= ${monthStart}`,
             sql`${attendanceChecks.checkDate} < ${monthEnd}`,
           )),
-          db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(
-            eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "attended"),
-            sql`${attendanceChecks.checkDate} = ${today}`,
-          )),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" = ${today}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" = ${today}
+          ) combined`),
           db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
             .from(ptPackages).where(eq(ptPackages.trainerId, tid)).groupBy(ptPackages.memberId),
           db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(eq(workoutMemos.trainerId, tid)),
@@ -4499,7 +4479,7 @@ const adminRouter = t.router({
         const totalRereg = pkgCountByMember.reduce((s, r) => s + Math.max(0, Number(r.count) - 1), 0);
         const reregMemberCount = pkgCountByMember.filter(r => Number(r.count) > 1).length;
         const totalMembers = Number(totalMembersRes[0]?.c ?? 0);
-        const totalSessionsNum = Number(totalSessionsRes[0]?.c ?? 0);
+        const totalSessionsNum = Number(((totalSessionsRes as any).rows ?? totalSessionsRes)[0]?.c ?? 0);
 
         const trainerCreatedAt = trainer.createdAt;
         const monthsActive = trainerCreatedAt
@@ -4516,9 +4496,9 @@ const adminRouter = t.router({
           remainingPt: Number(remainingPtRes[0]?.total ?? 0),
           totalRereg,
           reregRate: totalMembers > 0 ? Math.round((reregMemberCount / totalMembers) * 1000) / 10 : 0,
-          monthSessions: Number(monthSessionsRes[0]?.c ?? 0),
+          monthSessions: Number(((monthSessionsRes as any).rows ?? monthSessionsRes)[0]?.c ?? 0),
           monthNoShow: Number(monthNoShowRes[0]?.c ?? 0),
-          todaySessions: Number(todaySessionsRes[0]?.c ?? 0),
+          todaySessions: Number(((todaySessionsRes as any).rows ?? todaySessionsRes)[0]?.c ?? 0),
           avgMonthlyPt: Math.round((totalSessionsNum / monthsActive) * 10) / 10,
           totalMemos: Number(totalMemosRes[0]?.c ?? 0),
           monthMemos: Number(monthMemosRes[0]?.c ?? 0),
@@ -4568,12 +4548,11 @@ const adminRouter = t.router({
         )`;
 
         const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes] = await Promise.all([
-          db.select({ c: sql<number>`COUNT(*)::int` }).from(attendanceChecks).where(and(
-            eq(attendanceChecks.trainerId, tid),
-            eq(attendanceChecks.status, "attended"),
-            sql`${attendanceChecks.checkDate} >= ${periodStart}`,
-            sql`${attendanceChecks.checkDate} < ${periodEnd}`,
-          )),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+            UNION
+            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+          ) combined`),
           db.select({ c: sql<number>`COUNT(*)::int` }).from(attendanceChecks).where(and(
             eq(attendanceChecks.trainerId, tid),
             eq(attendanceChecks.status, "noshow"),
@@ -4599,11 +4578,11 @@ const adminRouter = t.router({
               AND r."subType" IN ('신규', '신규배정', '재등록')
           `),
           db.execute(sql`
-            SELECT EXTRACT(MONTH FROM "checkDate"::date)::int AS m, COUNT(*)::int AS c
-            FROM attendance_checks
-            WHERE "trainerId" = ${tid} AND status = 'attended'
-              AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
-            GROUP BY m ORDER BY m
+            SELECT m, COUNT(*)::int AS c FROM (
+              SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, "memberId", "sessionDate" AS d FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+              UNION
+              SELECT EXTRACT(MONTH FROM "checkDate"::date)::int AS m, "memberId", "checkDate" AS d FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+            ) combined GROUP BY m ORDER BY m
           `),
           db.execute(sql`
             SELECT EXTRACT(MONTH FROM r."paymentDate"::date)::int AS m, COUNT(*)::int AS c
@@ -4629,7 +4608,7 @@ const adminRouter = t.router({
           }
         }
 
-        const sessions = sessionsRes[0]?.c ?? 0;
+        const sessions = ((sessionsRes as any).rows ?? sessionsRes)[0]?.c ?? 0;
         const noShows = noShowRes[0]?.c ?? 0;
         const completed = ((completedPkgRes as any).rows ?? completedPkgRes)[0]?.c ?? 0;
         const newMembers = newMemberIds.size;
