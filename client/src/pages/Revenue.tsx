@@ -294,7 +294,7 @@ function RevenueTab() {
                     ? <span>{row.entry.startDate} 등록</span>
                     : <span>{row.entry.paymentDate}</span>}
                   {row.entry.paymentMethod && <span>· {row.entry.paymentMethod}</span>}
-                  {row.trainerName && <span>· {row.trainerName}</span>}
+                  {(row.trainerName || row.consultantName) && <span>· {row.trainerName || row.consultantName}</span>}
                   {(row as any).branchName && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-medium">{(row as any).branchName}</span>
                   )}
