@@ -3821,7 +3821,7 @@ const registerMutation = protectedProcedure
     // 5. PT 처리
     if (input.addPt && input.ptSessions && input.ptSessions > 0) {
       const sessionCount = input.ptSessions;
-      const svcSessions = input.serviceSessions ?? 0;
+      const svcSessions = input.isServiceSession ? sessionCount : (input.serviceSessions ?? 0);
       const ptPaid = input.isServiceSession ? 0 : (input.ptPrice ?? 0);
       const discAmt = input.discountAmount ?? 0;
       const unpaid = input.unpaidAmount ?? 0;

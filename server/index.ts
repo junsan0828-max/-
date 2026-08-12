@@ -2032,6 +2032,28 @@ async function start() {
   }
 
 
+  // ── 서비스세션 패키지 교정: serviceSessions가 0인 "서비스세션" 패키지 + 세션 로그 isServiceSession 보정 ──
+  try {
+    const fixedPkgs = await pool.query(`
+      UPDATE pt_packages SET "serviceSessions" = "totalSessions"
+      WHERE "packageName" = '서비스세션' AND COALESCE("serviceSessions", 0) < "totalSessions"
+      RETURNING id, "totalSessions"
+    `);
+    if (fixedPkgs.rows.length > 0) {
+      console.log(`🔧 서비스세션 패키지 ${fixedPkgs.rows.length}건 serviceSessions 교정`);
+      const pkgIds = fixedPkgs.rows.map((r: any) => r.id);
+      const fixedLogs = await pool.query(`
+        UPDATE pt_session_logs SET "isServiceSession" = 1
+        WHERE "packageId" = ANY($1) AND COALESCE("isServiceSession", 0) = 0
+        RETURNING id
+      `, [pkgIds]);
+      if (fixedLogs.rows.length > 0)
+        console.log(`🔧 세션 로그 ${fixedLogs.rows.length}건 isServiceSession 교정`);
+    }
+  } catch (e) {
+    console.error("서비스세션 교정 오류:", e);
+  }
+
   // ── 환불 계약서 디버그 로그 ──
   try {
     const rcCount = await pool.query(`SELECT COUNT(*)::int AS c FROM refund_contracts`);

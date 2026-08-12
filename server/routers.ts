@@ -1687,9 +1687,10 @@ const ptRouter = t.router({
       const newUsed = pkg.usedSessions + 1;
       const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
 
-      // Determine if this is a service session (beyond paid sessions)
-      const paidSessions = pkg.totalSessions - (pkg.serviceSessions ?? 0);
-      const isServiceSession = pkg.usedSessions >= paidSessions ? 1 : 0;
+      // Determine if this is a service session (beyond paid sessions, or entire package is service)
+      const isFullServicePkg = pkg.packageName === "서비스세션" || (pkg.serviceSessions ?? 0) >= pkg.totalSessions;
+      const paidSessions = isFullServicePkg ? 0 : pkg.totalSessions - (pkg.serviceSessions ?? 0);
+      const isServiceSession = isFullServicePkg || pkg.usedSessions >= paidSessions ? 1 : 0;
 
       const today = new Date().toISOString().split("T")[0];
       const targetDate = input.sessionDate ?? today;
@@ -2884,9 +2885,10 @@ const trainersRouter = t.router({
         }
       }
 
-      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null }) => {
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; packageName?: string | null }) => {
         // 서비스 세션인 경우: serviceSamePrice=1이면 정규 회당 단가로 정산, 아니면 serviceSessionPrice 사용
-        if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) {
+        const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
+        if (isSvc && l.serviceSamePrice !== 1) {
           return l.serviceSessionPrice ?? 0;
         }
         // 혼합 결제는 저장된 pricePerSession 직접 사용
@@ -3846,6 +3848,7 @@ const adminRouter = t.router({
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
             paymentMethod: ptPackages.paymentMethod,
+            packageName: ptPackages.packageName,
             isServiceSession: ptSessionLogs.isServiceSession,
             serviceSessionPrice: ptPackages.serviceSessionPrice,
             serviceSamePrice: ptPackages.serviceSamePrice,
@@ -3909,9 +3912,10 @@ const adminRouter = t.router({
 
         const rate = settings[0]?.settlementRate ?? 50;
         // ⚠️ 월별 정산 상세(getMonthlySettlement)와 동일한 계산식을 사용해야 두 화면 금액이 일치한다.
-        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null }) => {
+        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; packageName?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null }) => {
           // 서비스 세션: serviceSamePrice=1이면 정규 단가로, 아니면 serviceSessionPrice 사용
-          if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
+          const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
+          if (isSvc && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
           if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
           // 결제금액 기준 계산 우선 (pricePerSession은 갱신 안 됐을 수 있음)
           if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
