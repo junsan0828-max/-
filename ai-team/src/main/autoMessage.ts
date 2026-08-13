@@ -147,7 +147,7 @@ async function findConsultFollowupCandidates(sql: NeonQueryFunction<false, false
   )) as LeadRow[];
 }
 
-function expiryD10Message(name: string, branchId: number | null, endDate: string): string {
+export function expiryD10Message(name: string, branchId: number | null, endDate: string): string {
   return `안녕하세요, ${branchGreeting(branchId)}.
 
 ${name} 회원님의 헬스 이용권이 ${formatKoreanDate(endDate)}에 종료될 예정입니다.
@@ -157,11 +157,12 @@ ${name} 회원님의 헬스 이용권이 ${formatKoreanDate(endDate)}에 종료�
 운동영상, 운동기록, 맞춤식단 및 이벤트 안내는 자이언트짐+ 회원전용 앱에서도 확인하실 수 있습니다.
 
 ${GYM_PLUS_URL}
+(아이디: 휴대폰번호 / 비밀번호: 휴대폰번호 뒷자리 4자리)
 
 감사합니다.`;
 }
 
-function expiryD5Message(name: string, branchId: number | null, endDate: string): string {
+export function expiryD5Message(name: string, branchId: number | null, endDate: string): string {
   return `안녕하세요, ${branchGreeting(branchId)}.
 
 ${name} 회원님의 헬스 이용권이 ${formatKoreanDate(endDate)}에 종료될 예정으로 다시 한번 안내드립니다.
@@ -170,11 +171,12 @@ ${name} 회원님의 헬스 이용권이 ${formatKoreanDate(endDate)}에 종료�
 
 자이언트짐+ 회원전용 앱
 ${GYM_PLUS_URL}
+(아이디: 휴대폰번호 / 비밀번호: 휴대폰번호 뒷자리 4자리)
 
 감사합니다.`;
 }
 
-function consultFollowupMessage(name: string | null, branchId: number | null): string {
+export function consultFollowupMessage(name: string | null, branchId: number | null): string {
   const greeting = `안녕하세요, ${branchGreeting(branchId)}.`;
   if (name) {
     return `${greeting}
