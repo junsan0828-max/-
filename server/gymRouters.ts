@@ -3852,7 +3852,7 @@ const registerMutation = protectedProcedure
       const discAmt = input.discountAmount ?? 0;
       const unpaid = input.unpaidAmount ?? 0;
       const paid = Math.max(0, ptPaid - discAmt - unpaid);
-      const totalSessions = sessionCount + svcSessions;
+      const totalSessions = input.isServiceSession ? sessionCount : sessionCount + svcSessions;
 
       // ptPackage 생성 (중복 방지: memberId+startDate+totalSessions)
       const [existingPkg] = await db.select()

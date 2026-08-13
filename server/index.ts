@@ -1951,6 +1951,24 @@ async function initDatabase() {
     console.warn("⚠️ PT 서비스 헬스 만료일 보정 실패:", e);
   }
 
+  // ── 서비스세션 패키지 totalSessions 이중계산 보정 ────────────────────────
+  // 서비스세션 생성 시 totalSessions = sessionCount + svcSessions 로 2배 기록된 버그 수정.
+  // serviceSessions > 0 이고 totalSessions = serviceSessions * 2 인 패키지만 대상.
+  try {
+    const svcFixRes = await pool.query(
+      `UPDATE pt_packages
+       SET "totalSessions" = "serviceSessions",
+           "updatedAt" = now()::text
+       WHERE "serviceSessions" > 0
+         AND "totalSessions" = "serviceSessions" * 2
+         AND ("packageName" = '서비스세션' OR "isServiceSession" = 1)`
+    );
+    if ((svcFixRes.rowCount ?? 0) > 0)
+      console.log(`✅ 서비스세션 totalSessions 이중계산 보정: ${svcFixRes.rowCount}건`);
+  } catch (e) {
+    console.warn("⚠️ 서비스세션 totalSessions 보정 실패:", e);
+  }
+
   // ── (비활성화) PT 없는 회원 담당 트레이너 자동 해제 ─────────────────────────
   // 매 재시작마다 실행되어, PT 패키지가 아직 없는 회원에게 "일부러" 배정한 담당
   // 트레이너까지 지워버리는 문제가 있었다(서나연→김나연 배정이 사라짐).
