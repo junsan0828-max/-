@@ -471,10 +471,10 @@ export default function AdminMembers() {
           {/* 요약 카드 6개 */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {([
-              { key: "total" as StatModal, label: "전체 회원", value: stats.total, icon: <Users className="h-4 w-4 text-primary" />, color: "border-primary/20 bg-primary/5" },
+              { key: "total" as StatModal, label: "누적 회원", value: stats.total, icon: <Users className="h-4 w-4 text-primary" />, color: "border-primary/20 bg-primary/5" },
               { key: "active" as StatModal, label: "활성 회원", value: stats.active, icon: <UserCheck className="h-4 w-4 text-green-400" />, color: "border-green-500/20 bg-green-500/5" },
-              { key: "expiringSoon" as StatModal, label: "만료 임박 (7일)", value: stats.expiringSoon, icon: <Clock className="h-4 w-4 text-yellow-400" />, color: "border-yellow-500/20 bg-yellow-500/5" },
               { key: "expired" as StatModal, label: "만료 회원", value: stats.expired, icon: <UserX className="h-4 w-4 text-red-400" />, color: "border-red-500/20 bg-red-500/5" },
+              { key: "expiringSoon" as StatModal, label: "만료 임박 (7일)", value: stats.expiringSoon, icon: <Clock className="h-4 w-4 text-yellow-400" />, color: "border-yellow-500/20 bg-yellow-500/5" },
               { key: "paused" as StatModal, label: "정지 회원", value: stats.paused, icon: <Pause className="h-4 w-4 text-orange-400" />, color: "border-orange-500/20 bg-orange-500/5" },
               {
                 key: "newThisMonth" as StatModal,
