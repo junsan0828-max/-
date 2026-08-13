@@ -385,6 +385,7 @@ function SettlementTab() {
                         {((selectedTrainer as any).memberDetails ?? []).map((m: any) => {
                           const activeRemain = m.activeTotal - m.activeUsed;
                           const activePaid = m.activeTotal - (m.activeService ?? 0);
+                          const totalSessions = m.sessions + (m.svcSessions ?? 0);
                           return (
                           <div key={m.memberId} className="p-2.5 rounded-lg bg-accent/20 border border-border">
                             <div className="flex items-center justify-between">
@@ -393,9 +394,15 @@ function SettlementTab() {
                                 <p className="text-xs text-muted-foreground">단가 {fmt(m.avgPrice)}원</p>
                               </div>
                               <div className="text-right">
-                                <p className="text-sm font-bold">이번달 {m.sessions}회</p>
+                                <p className="text-sm font-bold">이번달 {totalSessions}회</p>
                               </div>
                             </div>
+                            {(m.svcSessions ?? 0) > 0 && (
+                              <div className="mt-1 flex items-center gap-2 text-[11px]">
+                                <span className="text-emerald-400">서비스 {m.svcSessions}회</span>
+                                <span className="text-muted-foreground">단가 {fmt(m.svcAvgPrice ?? 0)}원</span>
+                              </div>
+                            )}
                             {(m.activeTotal > 0 || m.cumTotal > 0) && (
                               <div className="mt-1.5 pt-1.5 border-t border-border/50 flex gap-3 text-[11px]">
                                 {m.activeTotal > 0 && (

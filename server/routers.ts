@@ -4072,12 +4072,18 @@ const adminRouter = t.router({
         const settlement = Math.round(revenue * rate / 100);
         const afterTax = Math.round(settlement * (1 - 0.033));
 
-        // 회원별 수업 횟수·단가 집계
-        const memberMap: Record<number, { name: string; sessions: number; totalPrice: number }> = {};
+        // 회원별 수업 횟수·단가 집계 (유료/서비스 분리)
+        const memberMap: Record<number, { name: string; sessions: number; totalPrice: number; svcSessions: number; svcTotalPrice: number }> = {};
         for (const l of filteredLogs) {
-          if (!memberMap[l.memberId]) memberMap[l.memberId] = { name: "", sessions: 0, totalPrice: 0 };
-          memberMap[l.memberId].sessions++;
-          memberMap[l.memberId].totalPrice += calcPrice(l);
+          if (!memberMap[l.memberId]) memberMap[l.memberId] = { name: "", sessions: 0, totalPrice: 0, svcSessions: 0, svcTotalPrice: 0 };
+          const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
+          if (isSvc) {
+            memberMap[l.memberId].svcSessions++;
+            memberMap[l.memberId].svcTotalPrice += calcPrice(l);
+          } else {
+            memberMap[l.memberId].sessions++;
+            memberMap[l.memberId].totalPrice += calcPrice(l);
+          }
         }
         const memberIds = Object.keys(memberMap).map(Number);
         // 회원별 패키지 정보 (활성/누적 분리)
@@ -4134,6 +4140,9 @@ const adminRouter = t.router({
               sessions: v.sessions,
               avgPrice: v.sessions > 0 ? Math.round(v.totalPrice / v.sessions) : 0,
               totalPrice: v.totalPrice,
+              svcSessions: v.svcSessions,
+              svcAvgPrice: v.svcSessions > 0 ? Math.round(v.svcTotalPrice / v.svcSessions) : 0,
+              svcTotalPrice: v.svcTotalPrice,
               activeTotal: pkg?.activeTotal ?? 0,
               activeUsed: pkg?.activeUsed ?? 0,
               activeService: pkg?.activeService ?? 0,
