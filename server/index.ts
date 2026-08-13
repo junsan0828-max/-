@@ -1914,6 +1914,43 @@ async function initDatabase() {
     console.warn("⚠️ 헬스 만료일 보정 실패:", e);
   }
 
+  // ── PT 매출의 서비스 헬스 기간 → membershipEnd 보정 ───────────────────────
+  // PT 등록 시 serviceItems에 헬스(N일/개월)이 포함된 경우 membershipEnd가 반영되지 않던 버그 수정.
+  // 기존 값보다 뒤 날짜일 때만 갱신하여 안전.
+  try {
+    const ptHealthRows = await pool.query<{
+      memberId: number; startDate: string; serviceItems: string;
+    }>(
+      `SELECT "memberId", "startDate", "serviceItems"
+       FROM revenue_entries
+       WHERE type = 'PT' AND "memberId" IS NOT NULL AND "startDate" IS NOT NULL
+         AND "serviceItems" LIKE '%헬스%'`
+    );
+    let ptFixed = 0;
+    for (const r of ptHealthRows.rows) {
+      const [yr, mo, dy] = r.startDate.split("-").map(Number);
+      const d = new Date(yr, mo - 1, dy);
+      let hasHealth = false;
+      for (const part of r.serviceItems.split(",").map((s: string) => s.trim())) {
+        const moM = /^헬스\((\d+)개월\)$/.exec(part);
+        if (moM) { d.setMonth(d.getMonth() + parseInt(moM[1])); hasHealth = true; continue; }
+        const dyM = /^헬스\((\d+)일\)$/.exec(part);
+        if (dyM) { d.setDate(d.getDate() + parseInt(dyM[1])); hasHealth = true; }
+      }
+      if (!hasHealth) continue;
+      const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const res = await pool.query(
+        `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
+         WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
+        [newEnd, r.memberId]
+      );
+      ptFixed += res.rowCount ?? 0;
+    }
+    if (ptFixed > 0) console.log(`✅ PT 서비스 헬스 만료일 보정: ${ptFixed}건`);
+  } catch (e) {
+    console.warn("⚠️ PT 서비스 헬스 만료일 보정 실패:", e);
+  }
+
   // ── (비활성화) PT 없는 회원 담당 트레이너 자동 해제 ─────────────────────────
   // 매 재시작마다 실행되어, PT 패키지가 아직 없는 회원에게 "일부러" 배정한 담당
   // 트레이너까지 지워버리는 문제가 있었다(서나연→김나연 배정이 사라짐).

@@ -548,9 +548,26 @@ const revenueRouter = t.router({
         return null;
       };
 
+      // serviceItems에서 헬스 서비스 기간 계산 헬퍼
+      const calcServiceHealthEnd = (startDate: string | undefined, serviceItems: string | undefined): string | undefined => {
+        if (!startDate || !serviceItems) return undefined;
+        const [yr, mo, dy] = startDate.split("-").map(Number);
+        const end = new Date(yr, mo - 1, dy);
+        let hasHealth = false;
+        for (const part of serviceItems.split(",").map((s: string) => s.trim())) {
+          const moM = /^헬스\((\d+)개월\)$/.exec(part);
+          if (moM) { end.setMonth(end.getMonth() + parseInt(moM[1])); hasHealth = true; continue; }
+          const dyM = /^헬스\((\d+)일\)$/.exec(part);
+          if (dyM) { end.setDate(end.getDate() + parseInt(dyM[1])); hasHealth = true; }
+        }
+        if (!hasHealth) return undefined;
+        return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+      };
+
       // PT 등록 시 회원 자동 생성 + ptPackage 생성 (담당 트레이너 미지정도 허용 — 회원관리에서 배정)
       if (input.type === "PT" && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
-        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId ?? null, membershipStart: input.startDate ?? undefined });
+        const svcHealthEnd = calcServiceHealthEnd(input.startDate, input.serviceItems);
+        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId ?? null, membershipStart: input.startDate ?? undefined, ...(svcHealthEnd ? { membershipEnd: svcHealthEnd } : {}) });
         if (newId) {
           row.memberId = newId;
           const sessionCount = input.sessions ?? 0;
@@ -572,10 +589,6 @@ const revenueRouter = t.router({
           }
         }
       } else if (input.type === "PT" && input.memberId && (input.sessions ?? 0) > 0 && input.subType !== "이전" && input.subType !== "환불") {
-        // 이미 존재하는 회원(상담관리 등에서 memberId를 알고 등록하는 경우)의 PT 매출은
-        // 위 분기를 타지 않아 ptPackages가 전혀 안 만들어지던 사각지대였다.
-        // → 연결 누락 시 트레이닝 일지 자동연결이 회원의 다른 잡항목 패키지를 잘못 골라
-        //   정산 단가가 완전히 틀어지는 사고로 이어지므로, 여기서도 동일하게 패키지를 만든다.
         const sessionCount = input.sessions ?? 0;
         const svcSessions = input.serviceSessions ?? 0;
         const [existingPkg] = await db.select({ id: ptPackages.id }).from(ptPackages)
@@ -600,6 +613,13 @@ const revenueRouter = t.router({
             paymentDate: input.paymentDate ?? undefined,
             paymentMemo: input.memo ?? undefined,
           });
+        }
+        const svcHealthEnd = calcServiceHealthEnd(input.startDate, input.serviceItems);
+        if (svcHealthEnd) {
+          await pool.query(
+            `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
+            [svcHealthEnd, input.memberId]
+          );
         }
       }
 
