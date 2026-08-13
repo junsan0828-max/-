@@ -117,18 +117,16 @@ const leadsRouter = t.router({
         .set({ status: "consulted", updatedAt: new Date().toISOString() })
         .where(and(eq(leads.status, "followup"), lte(leads.consultationDate, cutoff)));
 
-      const consultantAlias = db.select({ id: users.id, username: users.username }).from(users).as("consultant");
       const rows = await db.select({
         lead: leads,
         channelName: channels.name,
         trainerName: trainers.trainerName,
-        consultantName: consultantAlias.username,
+        consultantName: sql<string | null>`(SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${leads.assignedConsultantId} LIMIT 1)`,
         serviceItems: sql<string | null>`(SELECT "serviceItems" FROM revenue_entries WHERE "leadId" = ${leads.id} ORDER BY id DESC LIMIT 1)`,
       })
         .from(leads)
         .leftJoin(channels, eq(leads.channelId, channels.id))
         .leftJoin(trainers, eq(leads.assignedTrainerId, trainers.id))
-        .leftJoin(consultantAlias, eq(leads.assignedConsultantId, consultantAlias.id))
         .orderBy(desc(leads.createdAt));
 
       let result = rows;
@@ -381,14 +379,17 @@ const revenueRouter = t.router({
         memberName: members.name,
         channelName: channels.name,
         branchName: branches.name,
-        consultantName: sql<string | null>`COALESCE(${users.username}, (SELECT "username" FROM users WHERE id = ${members.consultantId}))`,
+        consultantName: sql<string | null>`COALESCE(
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${revenueEntries.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${members.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t.id = (SELECT l."assignedTrainerId" FROM leads l WHERE l."registeredMemberId" = ${revenueEntries.memberId} LIMIT 1) LIMIT 1)
+        )`,
       })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
         .leftJoin(branches, eq(revenueEntries.branchId, branches.id))
-        .leftJoin(users, eq(revenueEntries.consultantId, users.id))
         .orderBy(desc(revenueEntries.paymentDate));
 
       let result = rows;
@@ -1394,11 +1395,14 @@ const revenueRouter = t.router({
 
       const allRows = await db.select({
         entry: revenueEntries,
-        consultantName: sql<string | null>`COALESCE(${users.username}, (SELECT "username" FROM users WHERE id = ${members.consultantId}))`,
+        consultantName: sql<string | null>`COALESCE(
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${revenueEntries.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${members.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t.id = (SELECT l."assignedTrainerId" FROM leads l WHERE l."registeredMemberId" = ${revenueEntries.memberId} LIMIT 1) LIMIT 1)
+        )`,
         memberConsultantId: members.consultantId,
       })
         .from(revenueEntries)
-        .leftJoin(users, eq(revenueEntries.consultantId, users.id))
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
 
@@ -1445,10 +1449,10 @@ const revenueRouter = t.router({
       for (const lead of monthLeads) {
         const cid = lead.assignedConsultantId ?? 0;
         if (!byConsultant[cid]) {
-          const consultant = cid ? await db.select({ username: users.username }).from(users).where(eq(users.id, cid)).limit(1) : [];
+          const consultant = cid ? await db.select({ trainerName: trainers.trainerName }).from(trainers).where(eq(trainers.userId, cid)).limit(1) : [];
           byConsultant[cid] = {
             consultantId: cid,
-            consultantName: consultant[0]?.username ?? "미배정",
+            consultantName: consultant[0]?.trainerName ?? "미배정",
             total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
             leadCount: 0, registeredCount: 0, conversionRate: 0,
           };

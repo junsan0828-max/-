@@ -428,11 +428,11 @@ const membersRouter = t.router({
         }
       }
 
-      // 상담 담당자 이름 조회
+      // 상담 담당자 이름 조회 (trainers.trainerName 우선)
       let consultantName: string | null = null;
       if (result[0].consultantId) {
-        const [c] = await db.select({ username: users.username }).from(users).where(eq(users.id, result[0].consultantId)).limit(1);
-        consultantName = c?.username ?? null;
+        const [c] = await db.select({ trainerName: trainers.trainerName }).from(trainers).where(eq(trainers.userId, result[0].consultantId)).limit(1);
+        consultantName = c?.trainerName ?? null;
       }
 
       return { ...result[0], lockerNumber, hasUniform, consultantName };
