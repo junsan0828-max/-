@@ -18,6 +18,8 @@
     "ifk": "tsx src/ifk-cli.ts",
     "blog-event": "tsx src/blog-event-cli.ts",
     "point-claims": "tsx src/point-claim-cli.ts",
+    "auto-message": "tsx src/auto-message-cli.ts",
+    "verify": "tsx src/verify-cli.ts",
     "kakao-auth": "tsx src/kakao-auth-cli.ts",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",

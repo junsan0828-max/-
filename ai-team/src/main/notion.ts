@@ -10,6 +10,7 @@ import { RepoResult } from "./repo";
 import { JournalEntry } from "./journal";
 import { GymContext } from "./data";
 import { ShortVideo } from "./youtube/shorts";
+import { VerificationResult } from "./verify";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -605,4 +606,122 @@ export async function markTrainingLogSynced(url: string, synced: boolean): Promi
 
 export function isNotionEnabled(): boolean {
   return isConfigured();
+}
+
+// ─── 온라인 지부장 2차 검증(DB 실대조) → 자이언트짐 협의실 ────────────────────
+// "협의실 확인" 클라우드 루틴이 하루 4번(00·02·04·13시 KST) 이 함수를 호출해, 그날의
+// "제이 교류｜YYYY-MM-DD 자정 인계" 페이지에 실DB 대조 결과를 남긴다. 페이지가 없으면 새로 만든다.
+const CONSULT_ROOM_DATABASE_ID = "14175314d008427b8fba48c6c62f4da7";
+
+function signed(n: number): string {
+  return n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString();
+}
+
+function branchLabel(branchId: number | null): string {
+  return branchId === 1 ? "1호점" : branchId === 2 ? "2호점" : "지점미상";
+}
+
+function buildVerificationBlocks(result: VerificationResult): Block[] {
+  const kstTime = new Date(result.asOfTimestamp).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+  const blocks: Block[] = [
+    heading(`🔍 온라인 지부장 실대조 검증 · ${result.asOfDate} ${kstTime} KST`),
+    paragraph(
+      "출처: Neon Postgres 실조회(gatherContext + revenue_entries + members), 실행: verify.ts runVerification(). 사람이 쓴 서술이 아니라 매 실행마다 DB에서 직접 계산한 값입니다."
+    ),
+  ];
+
+  for (const s of result.scopes) {
+    blocks.push(
+      bullet(
+        `[${s.scope}] 활성 ${s.activeNow}명(정확값, 대표 화면과 동일 정의) · 계약액 ${s.contractAmount.toLocaleString()}원(${signed(s.contractAmountDelta)}) · 실입금 ${s.monthRevenue.toLocaleString()}원(${signed(s.monthRevenueDelta)}) · 환불 ${s.refundAmount.toLocaleString()}원(${signed(s.refundAmountDelta)}) · 신규 ${s.newCount}건(${signed(s.newCountDelta)}) · 재등록 ${s.reRegisterCount}건(${signed(s.reRegisterCountDelta)}) [전일 대비]`
+      )
+    );
+    blocks.push(
+      bullet(`　└ 활성회원 추세참고(근사): 어제 ${s.activeTrendYesterday}명 → 오늘 방향 ${signed(s.activeTrendDelta)} (정의가 달라 activeNow와 다를 수 있음, 방향성만 참고)`)
+    );
+  }
+
+  blocks.push(paragraph(result.activeMethodNote));
+
+  blocks.push(heading(`오늘(${result.asOfDate}) 실제 거래 내역 (revenue_entries 직접 조회)`));
+  if (result.todayTransactions.length === 0) {
+    blocks.push(paragraph("오늘 거래 없음"));
+  } else {
+    for (const t of result.todayTransactions) {
+      blocks.push(
+        bullet(
+          `${t.subType} · ${branchLabel(t.branchId)} · ${t.customerName ?? "이름없음"} · 계약 ${t.amount.toLocaleString()}원 / 실입금 ${t.paidAmount.toLocaleString()}원${t.refundAmount ? ` / 환불 ${t.refundAmount.toLocaleString()}원` : ""}${t.unpaidAmount ? ` / 미수 ${t.unpaidAmount.toLocaleString()}원` : ""}`
+        )
+      );
+    }
+  }
+
+  blocks.push(heading(`헬스권 만료 10일 이내 (${result.expiringWithin10.length}명, 실명단)`));
+  if (result.expiringWithin10.length === 0) {
+    blocks.push(paragraph("대상 없음"));
+  } else {
+    for (const m of result.expiringWithin10) {
+      blocks.push(bullet(`${m.name} · ${branchLabel(m.branchId)} · 만료 ${m.membershipEnd} (D-${m.daysLeft}) · ${m.phone ?? "연락처 누락"}`));
+    }
+  }
+
+  blocks.push(heading(`현재 미수금 (${result.unpaidMembersNow.length}명)`));
+  if (result.unpaidMembersNow.length === 0) {
+    blocks.push(paragraph("미수금 없음"));
+  } else {
+    for (const u of result.unpaidMembersNow) {
+      blocks.push(bullet(`${u.name} · ${branchLabel(u.branchId)} · ${u.unpaid.toLocaleString()}원 · ${u.phone ?? "연락처 누락"}`));
+    }
+  }
+
+  return blocks;
+}
+
+/** 협의실 DB에서 오늘자 "제이 교류｜YYYY-MM-DD 자정 인계" 페이지를 찾아 검증 블록을 이어붙이고,
+ * 없으면 새로 만든다. 상태는 "확인 중"(대표 확인 전)으로 시작한다. */
+export async function pushVerificationToConsultRoom(result: VerificationResult): Promise<NotionPushResult> {
+  if (!process.env.NOTION_API_KEY) {
+    return { ok: false, error: "Notion 미설정 (.env에 NOTION_API_KEY 필요)" };
+  }
+  const databaseId = process.env.NOTION_CONSULT_ROOM_DATABASE_ID || CONSULT_ROOM_DATABASE_ID;
+  const title = `제이 교류｜${result.asOfDate} 자정 인계`;
+
+  try {
+    const query = await notionFetch(`/databases/${databaseId}/query`, {
+      method: "POST",
+      body: JSON.stringify({
+        filter: { property: "협의 안건", title: { starts_with: title } },
+        page_size: 1,
+      }),
+    });
+
+    const verifyBlocks = buildVerificationBlocks(result);
+
+    if (query.results?.length > 0) {
+      const pageId = query.results[0].id;
+      await appendRemainingBlocks(pageId, verifyBlocks);
+      return { ok: true, url: query.results[0].url };
+    }
+
+    const page = await notionFetch("/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        parent: { database_id: databaseId },
+        properties: {
+          "협의 안건": { title: [{ text: { content: title } }] },
+          "지점": { select: { name: "전체" } },
+          "구분": { select: { name: "오류·검증" } },
+          "담당": { select: { name: "온라인 지부장" } },
+          "상태": { select: { name: "확인 중" } },
+          "우선순위": { select: { name: "보통" } },
+          "등록일": { date: { start: result.asOfDate } },
+        },
+        children: verifyBlocks.slice(0, 100),
+      }),
+    });
+    if (verifyBlocks.length > 100) await appendRemainingBlocks(page.id, verifyBlocks.slice(100));
+    return { ok: true, url: page.url };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }

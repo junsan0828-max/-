@@ -21,6 +21,7 @@ export interface BranchSummary {
   active: number;
   contractAmount: number; // 이번달 계약액(할인 전, amount) 합계
   monthRevenue: number; // 이번달 실입금(paidAmount) 합계
+  refundAmount: number; // 이번달 환불·취소액 합계
   unpaidTotal: number; // 전체 미수금(전 기간)
   expiringSoonCount: number;
   recentlyExpiredCount: number;
@@ -134,8 +135,8 @@ function sampleContext(): GymContext {
       { channel: "당근", leads: 4, registered: 1, rate: 25 },
     ],
     byBranch: [
-      { branchId: 1, branchName: "1호점", active: 130, contractAmount: 13800000, monthRevenue: 13000000, unpaidTotal: 1350000, expiringSoonCount: 2, recentlyExpiredCount: 1, newCount: 7, reRegisterCount: 4 },
-      { branchId: 2, branchName: "2호점", active: 38, contractAmount: 5600000, monthRevenue: 5400000, unpaidTotal: 0, expiringSoonCount: 1, recentlyExpiredCount: 0, newCount: 4, reRegisterCount: 3 },
+      { branchId: 1, branchName: "1호점", active: 130, contractAmount: 13800000, monthRevenue: 13000000, refundAmount: 0, unpaidTotal: 1350000, expiringSoonCount: 2, recentlyExpiredCount: 1, newCount: 7, reRegisterCount: 4 },
+      { branchId: 2, branchName: "2호점", active: 38, contractAmount: 5600000, monthRevenue: 5400000, refundAmount: 0, unpaidTotal: 0, expiringSoonCount: 1, recentlyExpiredCount: 0, newCount: 4, reRegisterCount: 3 },
     ],
   };
 }
@@ -307,6 +308,7 @@ export async function gatherContext(): Promise<GymContext> {
     active: activeByBranch.get(branchId) ?? 0,
     contractAmount: monthRev.filter((r) => r.branchId === branchId).reduce((s, r) => s + Number(r.amount || 0), 0),
     monthRevenue: monthRev.filter((r) => r.branchId === branchId).reduce((s, r) => s + Number(r.paidAmount || 0), 0),
+    refundAmount: monthRev.filter((r) => r.branchId === branchId).reduce((s, r) => s + Number(r.refundAmount || 0), 0),
     unpaidTotal: unpaidRows
       .filter((r) => r.branchId === branchId)
       .reduce((s, r) => s + Number(r.unpaidAmount || 0), 0),
