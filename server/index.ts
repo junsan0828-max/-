@@ -1952,16 +1952,21 @@ async function initDatabase() {
   }
 
   // ── 서비스세션 패키지 totalSessions 이중계산 보정 ────────────────────────
-  // 서비스세션 생성 시 totalSessions = sessionCount + svcSessions 로 2배 기록된 버그 수정.
-  // serviceSessions > 0 이고 totalSessions = serviceSessions * 2 인 패키지만 대상.
+  // 2026-08-13 이전 버그: totalSessions = sessionCount + svcSessions 로 2배 기록.
+  // 이후 기존 마이그레이션이 serviceSessions = totalSessions 으로 맞춰 둘 다 2배.
+  // 조건: 서비스세션 패키지, 둘 다 같고, 짝수이며, 2 초과, 미사용, 버그 기간 생성분만.
   try {
     const svcFixRes = await pool.query(
       `UPDATE pt_packages
-       SET "totalSessions" = "serviceSessions",
+       SET "totalSessions" = "totalSessions" / 2,
+           "serviceSessions" = "serviceSessions" / 2,
            "updatedAt" = now()::text
-       WHERE "serviceSessions" > 0
-         AND "totalSessions" = "serviceSessions" * 2
-         AND ("packageName" = '서비스세션' OR "isServiceSession" = 1)`
+       WHERE "packageName" = '서비스세션'
+         AND "totalSessions" = "serviceSessions"
+         AND "totalSessions" % 2 = 0
+         AND "totalSessions" > 2
+         AND "usedSessions" = 0
+         AND "createdAt"::timestamp < '2026-08-14 00:00:00'`
     );
     if ((svcFixRes.rowCount ?? 0) > 0)
       console.log(`✅ 서비스세션 totalSessions 이중계산 보정: ${svcFixRes.rowCount}건`);
