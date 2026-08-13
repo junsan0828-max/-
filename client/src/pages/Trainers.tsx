@@ -161,8 +161,10 @@ function TrainerList() {
                       <p className="font-medium text-foreground">{trainer.trainerName}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Users className="h-3 w-3" />{trainer.memberCount}명
+                          <Users className="h-3 w-3" />누적 {trainer.memberCount}명
                         </span>
+                        <span className="text-xs text-green-400">활성 {trainer.activeCount}명</span>
+                        {trainer.expiredCount > 0 && <span className="text-xs text-red-400">만료 {trainer.expiredCount}명</span>}
                         <span className="text-xs text-primary">정산 {trainer.settlementRate}%</span>
                       </div>
                       {hasExpiring && (

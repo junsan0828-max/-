@@ -3015,19 +3015,32 @@ const adminRouter = t.router({
       .leftJoin(branches, eq(trainers.branchId, branches.id))
       .orderBy(trainers.trainerName);
 
+    const kstToday = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    const kstDateStr = `${kstToday.getFullYear()}-${String(kstToday.getMonth() + 1).padStart(2, "0")}-${String(kstToday.getDate()).padStart(2, "0")}`;
+
     const result = await Promise.all(
       trainerList.map(async (trainer) => {
-        const [memberCount, settings, trainerBranchList] = await Promise.all([
-          db.select({ count: sql`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
+        const [trainerMembers, settings, trainerBranchList] = await Promise.all([
+          db.select({ status: members.status, membershipEnd: members.membershipEnd }).from(members).where(eq(members.trainerId, trainer.id)),
           db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainer.id)).limit(1),
           db.select({ branchId: trainerBranches.branchId, branchName: branches.name })
             .from(trainerBranches)
             .leftJoin(branches, eq(trainerBranches.branchId, branches.id))
             .where(eq(trainerBranches.trainerId, trainer.id)),
         ]);
+        const totalCount = trainerMembers.filter(m => m.status !== "ended").length;
+        const activeCount = trainerMembers.filter(m => m.status === "active" && (!m.membershipEnd || m.membershipEnd >= kstDateStr)).length;
+        const expiredCount = trainerMembers.filter(m => {
+          if (m.status === "ended") return false;
+          if (m.status === "paused") return false;
+          if (m.status === "inactive") return true;
+          return m.membershipEnd != null && m.membershipEnd < kstDateStr;
+        }).length;
         return {
           ...trainer,
-          memberCount: Number((memberCount[0] as any)?.count ?? 0),
+          memberCount: totalCount,
+          activeCount,
+          expiredCount,
           settlementRate: settings[0]?.settlementRate ?? 50,
           assignedBranches: trainerBranchList.map((b) => ({ branchId: b.branchId, branchName: b.branchName ?? "" })),
         };
