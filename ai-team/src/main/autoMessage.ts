@@ -9,6 +9,14 @@ type Category = "expiry_d10" | "expiry_d5" | "consult_followup";
 const BRANCH_NAMES: Record<number, string> = { 1: "1호점", 2: "2호점" };
 const GYM_PLUS_URL = "https://ziantgym.com/gym-plus";
 
+// 대표 확인용 — 자동 문자를 실제로 발송할 때마다 몇 명·누구에게 보냈는지 대표 번호로 요약 보고.
+const ADMIN_PHONE = "01075593111";
+const CATEGORY_LABEL: Record<Category, string> = {
+  expiry_d10: "헬스권 만료 D-10",
+  expiry_d5: "헬스권 만료 D-5",
+  consult_followup: "관리상담 D+1",
+};
+
 export interface AutoMessageResult {
   ok: boolean;
   error?: string;
@@ -308,5 +316,38 @@ export async function runAutoMessageJob(): Promise<AutoMessageResult> {
     summary.push({ category, targeted: candidates.length, sent, failed, skippedInvalidPhone });
   }
 
+  await notifyAdmin(today, summary, details);
+
   return { ok: true, summary, details };
+}
+
+/** 실제로 발송(성공 또는 실패)이 하나라도 있었을 때만 대표 번호로 요약 문자를 보낸다.
+ * 대상이 하루종일 0명인 날까지 매번 보내면 소음이 되므로 조용히 건너뛴다.
+ * 이 요약 발송 자체가 실패해도 본 작업 결과(ok)에는 영향을 주지 않는다 — 로그만 남긴다. */
+async function notifyAdmin(
+  referenceDate: string,
+  summary: NonNullable<AutoMessageResult["summary"]>,
+  details: NonNullable<AutoMessageResult["details"]>
+) {
+  const totalAttempted = summary.reduce((s, c) => s + c.sent + c.failed, 0);
+  if (totalAttempted === 0) return;
+
+  const lines = summary.map((s) => {
+    const names = details
+      .filter((d) => d.category === s.category && d.result === "sent")
+      .map((d) => d.name ?? "이름없음");
+    const nameList =
+      names.length === 0
+        ? ""
+        : names.length <= 10
+          ? ` (${names.join(", ")})`
+          : ` (${names.slice(0, 10).join(", ")} 외 ${names.length - 10}명)`;
+    return `${CATEGORY_LABEL[s.category]}: 대상 ${s.targeted}·발송 ${s.sent}·실패 ${s.failed}·연락처확인 ${s.skippedInvalidPhone}${nameList}`;
+  });
+
+  const text = `[자동문자 발송 요약 ${referenceDate}]\n${lines.join("\n")}`;
+  const result = await sendSms(ADMIN_PHONE, text);
+  if (!result.ok) {
+    console.error("관리자 요약 문자 발송 실패:", result.error);
+  }
 }
