@@ -18,6 +18,7 @@ import { runRepo, saveRepoResult, loadRepoResult, previousYearMonth } from "./re
 import { runJournal } from "./journal";
 import { runIfkJob } from "./ifk";
 import { runBlogEventJob } from "./blogEvent";
+import { runAutoMessageJob } from "./autoMessage";
 import { processPendingPointClaims } from "./pointClaims";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
@@ -247,6 +248,23 @@ async function runBlogEventJobWrapper(reason: string) {
   }
 }
 
+async function runAutoMessageJobWrapper(reason: string) {
+  send("log", `자동 문자(만료 D-10/D-5·관리상담 D+1) 발송을 시작했어요 (${reason})`);
+  try {
+    const result = await runAutoMessageJob();
+    if (!result.ok) {
+      send("log", `자동 문자 발송 실패: ${result.error}`);
+      return;
+    }
+    const line = (result.summary ?? [])
+      .map((s) => `${s.category} 대상${s.targeted}/발송${s.sent}/실패${s.failed}`)
+      .join(", ");
+    send("log", `자동 문자 발송 완료 — ${line}`);
+  } catch (err: any) {
+    send("log", `자동 문자 발송 오류: ${err?.message ?? err}`);
+  }
+}
+
 async function runPointClaimsJobWrapper() {
   try {
     const results = await processPendingPointClaims();
@@ -386,6 +404,14 @@ app.whenReady().then(() => {
   const blogEventSpec = process.env.BLOG_EVENT_CRON || "0 */3 * * *";
   if (cron.validate(blogEventSpec)) {
     cron.schedule(blogEventSpec, () => runBlogEventJobWrapper("3시간마다 예약"));
+  }
+
+  // 자동 문자: 매일 13시(기본값) — 헬스권 만료 D-10/D-5 안내 + 관리상담 D+1 후속 안내.
+  // 실제 예약발송은 13시 클라우드 루틴이 담당하고, 이건 데스크톱 앱이 열려 있을 때의 보조 실행이다.
+  // auto_message_log(카테고리·대상·기준일 단위 성공기록)로 중복발송을 막기 때문에 둘 다 돌아도 안전하다.
+  const autoMessageSpec = process.env.AUTO_MESSAGE_CRON || "0 13 * * *";
+  if (cron.validate(autoMessageSpec)) {
+    cron.schedule(autoMessageSpec, () => runAutoMessageJobWrapper("매일 13시 예약"));
   }
 
   // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
