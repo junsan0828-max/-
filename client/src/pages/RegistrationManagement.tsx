@@ -219,6 +219,7 @@ export default function RegistrationManagement() {
   const [editServiceItems, setEditServiceItems] = useState<string[]>([]);
   const [editServiceHealthDays, setEditServiceHealthDays] = useState<number | undefined>(undefined);
   const [editServiceHealthCustom, setEditServiceHealthCustom] = useState("");
+  const [editServicePtCount, setEditServicePtCount] = useState<number | undefined>(undefined);
   const [editServiceLockerId, setEditServiceLockerId] = useState<string>("");
   const [editServiceLockerNum, setEditServiceLockerNum] = useState<string>("");
   const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
@@ -488,10 +489,12 @@ export default function RegistrationManagement() {
       s.startsWith("PT") ? "PT" : s.startsWith("헬스") ? "헬스" : s.startsWith("락커") ? "락커" : s.startsWith("운동복") ? "운동복" : s
     );
     const healthMatch = siParts.find((s: string) => s.startsWith("헬스("))?.match(/헬스\((\d+)일\)/);
+    const ptMatch = siParts.find((s: string) => s.startsWith("PT("))?.match(/PT\((\d+)회\)/);
     const lockerMatch = siParts.find((s: string) => s.startsWith("락커("))?.match(/락커\(([^)]+)\)/);
     setEditServiceItems(siCategories);
     setEditServiceHealthDays(healthMatch ? parseInt(healthMatch[1]) : undefined);
     setEditServiceHealthCustom("");
+    setEditServicePtCount(ptMatch ? parseInt(ptMatch[1]) : undefined);
     setEditServiceLockerId("");
     setEditServiceLockerNum(lockerMatch ? lockerMatch[1] : "");
   }
@@ -1025,12 +1028,32 @@ export default function RegistrationManagement() {
                           )}
                         </div>
                         {/* PT */}
-                        <button type="button"
-                          onClick={() => setEditServiceItems(s => s.includes("PT") ? s.filter(x => x !== "PT") : [...s, "PT"])}
-                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${editServiceItems.includes("PT") ? "border-blue-500/60 bg-blue-500/5 text-blue-400" : "border-border text-muted-foreground"}`}>
-                          PT
-                          {editServiceItems.includes("PT") && <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
-                        </button>
+                        <div className={`rounded-xl border transition-colors ${editServiceItems.includes("PT") ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
+                          <button type="button"
+                            onClick={() => { setEditServiceItems(s => s.includes("PT") ? s.filter(x => x !== "PT") : [...s, "PT"]); setEditServicePtCount(undefined); }}
+                            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                            <span className={editServiceItems.includes("PT") ? "text-blue-400" : "text-muted-foreground"}>PT</span>
+                            {editServiceItems.includes("PT") && <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                          </button>
+                          {editServiceItems.includes("PT") && (
+                            <div className="px-4 pb-4 border-t border-blue-500/20 pt-3 space-y-2">
+                              <label className="text-xs text-muted-foreground">제공 횟수</label>
+                              <div className="flex gap-2">
+                                {[1, 2, 3].map(n => (
+                                  <button key={n} type="button"
+                                    onClick={() => setEditServicePtCount(v => v === n ? undefined : n)}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${editServicePtCount === n ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
+                                    +{n}회
+                                  </button>
+                                ))}
+                              </div>
+                              <input type="number" min={1}
+                                value={editServicePtCount && ![1,2,3].includes(editServicePtCount) ? editServicePtCount : ""}
+                                onChange={e => setEditServicePtCount(e.target.value ? parseInt(e.target.value) : undefined)}
+                                placeholder="직접 입력 (회)" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                          )}
+                        </div>
                         {/* 락커 */}
                         {(() => {
                           const selLocker = editServiceItems.includes("락커");
@@ -1080,6 +1103,7 @@ export default function RegistrationManagement() {
                           {editServiceItems.map(item => {
                             const d = editServiceHealthDays ?? (editServiceHealthCustom ? parseInt(editServiceHealthCustom) : 0);
                             const label = item === "헬스" && d ? `🎁 헬스 +${d}일`
+                              : item === "PT" && editServicePtCount ? `🎁 PT +${editServicePtCount}회`
                               : item === "락커" && editServiceLockerNum ? `🎁 락커 ${editServiceLockerNum}`
                               : `🎁 서비스 ${item}`;
                             const style = item === "PT" ? "bg-blue-500/20 text-blue-400" : item === "헬스" ? "bg-emerald-500/20 text-emerald-400" : item === "락커" ? "bg-amber-500/20 text-amber-400" : "bg-purple-500/20 text-purple-400";
@@ -1136,6 +1160,9 @@ export default function RegistrationManagement() {
                             if (item === "헬스") {
                               const d = editServiceHealthDays ?? (editServiceHealthCustom ? parseInt(editServiceHealthCustom) : undefined);
                               return d ? `헬스(${d}일)` : "헬스";
+                            }
+                            if (item === "PT") {
+                              return editServicePtCount ? `PT(${editServicePtCount}회)` : "PT";
                             }
                             if (item === "락커") {
                               return editServiceLockerNum ? `락커(${editServiceLockerNum})` : "락커";
