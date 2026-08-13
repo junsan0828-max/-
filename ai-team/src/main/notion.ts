@@ -613,10 +613,6 @@ export function isNotionEnabled(): boolean {
 // "제이 교류｜YYYY-MM-DD 자정 인계" 페이지에 실DB 대조 결과를 남긴다. 페이지가 없으면 새로 만든다.
 const CONSULT_ROOM_DATABASE_ID = "14175314d008427b8fba48c6c62f4da7";
 
-function signed(n: number): string {
-  return n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString();
-}
-
 function branchLabel(branchId: number | null): string {
   return branchId === 1 ? "1호점" : branchId === 2 ? "2호점" : "지점미상";
 }
@@ -626,18 +622,15 @@ function buildVerificationBlocks(result: VerificationResult): Block[] {
   const blocks: Block[] = [
     heading(`🔍 온라인 지부장 실대조 검증 · ${result.asOfDate} ${kstTime} KST`),
     paragraph(
-      "출처: Neon Postgres 실조회(gatherContext + revenue_entries + members), 실행: verify.ts runVerification(). 사람이 쓴 서술이 아니라 매 실행마다 DB에서 직접 계산한 값입니다."
+      "출처: Neon Postgres 실조회(gatherContext + revenue_entries + members), 실행: verify.ts runVerification(). 사람이 쓴 서술이 아니라 매 실행마다 DB에서 직접 계산한 원본 데이터입니다(증감 계산 없음)."
     ),
   ];
 
   for (const s of result.scopes) {
     blocks.push(
       bullet(
-        `[${s.scope}] 활성 ${s.activeNow}명(정확값, 대표 화면과 동일 정의) · 계약액 ${s.contractAmount.toLocaleString()}원(${signed(s.contractAmountDelta)}) · 실입금 ${s.monthRevenue.toLocaleString()}원(${signed(s.monthRevenueDelta)}) · 환불 ${s.refundAmount.toLocaleString()}원(${signed(s.refundAmountDelta)}) · 신규 ${s.newCount}건(${signed(s.newCountDelta)}) · 재등록 ${s.reRegisterCount}건(${signed(s.reRegisterCountDelta)}) [전일 대비]`
+        `[${s.scope}] 활성 ${s.activeNow}명 · 계약액 ${s.contractAmount.toLocaleString()}원 · 실입금 ${s.monthRevenue.toLocaleString()}원 · 환불 ${s.refundAmount.toLocaleString()}원 · 신규 ${s.newCount}건 · 재등록 ${s.reRegisterCount}건 (이번달 누계)`
       )
-    );
-    blocks.push(
-      bullet(`　└ 활성회원 추세참고(근사): 어제 ${s.activeTrendYesterday}명 → 오늘 방향 ${signed(s.activeTrendDelta)} (정의가 달라 activeNow와 다를 수 있음, 방향성만 참고)`)
     );
   }
 

@@ -17,7 +17,7 @@ async function main() {
   console.log(`기준일 ${result.asOfDate} · 기준시각 ${result.asOfTimestamp}`);
   for (const s of result.scopes) {
     console.log(
-      `[${s.scope}] 활성(정확) ${s.activeNow} · 계약액 ${s.contractAmount.toLocaleString()}원(전일대비 ${s.contractAmountDelta >= 0 ? "+" : ""}${s.contractAmountDelta.toLocaleString()}) · 실입금 ${s.monthRevenue.toLocaleString()}원 · 신규 ${s.newCount}건 · 재등록 ${s.reRegisterCount}건`
+      `[${s.scope}] 활성 ${s.activeNow} · 계약액 ${s.contractAmount.toLocaleString()}원 · 실입금 ${s.monthRevenue.toLocaleString()}원 · 신규 ${s.newCount}건 · 재등록 ${s.reRegisterCount}건`
     );
   }
   console.log(`오늘 거래 ${result.todayTransactions.length}건 · 만료10일이내 ${result.expiringWithin10.length}명 · 미수금 ${result.unpaidMembersNow.length}명`);
