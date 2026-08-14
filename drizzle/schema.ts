@@ -363,6 +363,7 @@ export const expenseEntries = pgTable("expense_entries", {
   vendor: text("vendor"),
   expenseDate: text("expenseDate").notNull(),
   memo: text("memo"),
+  isRecurring: integer("isRecurring").default(0), // 매월 반복 여부 (1=반복)
   createdAt: text("createdAt").default(now).notNull(),
 });
 

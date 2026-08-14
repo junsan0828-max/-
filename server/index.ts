@@ -706,6 +706,7 @@ async function initDatabase() {
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
     `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "subCategory" TEXT`,
     `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
+    `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "isRecurring" INTEGER DEFAULT 0`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationType" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationSubTypes" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "assignedConsultantId" INTEGER`,

@@ -1779,11 +1779,13 @@ const expenseRouter = t.router({
       branchId: z.number().optional(),
       category: z.string(),
       subCategory: z.string().optional(),
+      subCategories: z.array(z.string()).optional(),
       amount: z.number().min(0),
       paymentMethod: z.string().optional(),
       vendor: z.string().optional(),
       expenseDate: z.string(),
       memo: z.string().optional(),
+      isRecurring: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
@@ -1791,8 +1793,14 @@ const expenseRouter = t.router({
       }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [row] = await db.insert(expenseEntries).values(input).returning();
-      return row;
+      const subs = input.subCategories?.length ? input.subCategories : (input.subCategory ? [input.subCategory] : [""]);
+      const { subCategories: _sc, subCategory: _s, ...rest } = input;
+      const created = [];
+      for (const sub of subs) {
+        const [row] = await db.insert(expenseEntries).values({ ...rest, subCategory: sub }).returning();
+        created.push(row);
+      }
+      return created[0];
     }),
 
   update: protectedProcedure
@@ -1805,6 +1813,7 @@ const expenseRouter = t.router({
       vendor: z.string().optional(),
       expenseDate: z.string().optional(),
       memo: z.string().optional(),
+      isRecurring: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
@@ -1827,6 +1836,37 @@ const expenseRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(expenseEntries).where(eq(expenseEntries.id, input.id));
       return { success: true };
+    }),
+
+  copyRecurring: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const prevMonth = input.month === 1 ? 12 : input.month - 1;
+      const prevYear = input.month === 1 ? input.year - 1 : input.year;
+      const prevPrefix = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+      const curPrefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const prevRows = await db.select().from(expenseEntries)
+        .where(and(like(expenseEntries.expenseDate, `${prevPrefix}%`), eq(expenseEntries.isRecurring, 1)));
+      const existRows = await db.select().from(expenseEntries)
+        .where(like(expenseEntries.expenseDate, `${curPrefix}%`));
+      const existKey = new Set(existRows.map(r => `${r.category}|${r.subCategory}|${r.amount}`));
+      let count = 0;
+      for (const r of prevRows) {
+        const key = `${r.category}|${r.subCategory}|${r.amount}`;
+        if (existKey.has(key)) continue;
+        const newDate = r.expenseDate.replace(prevPrefix, curPrefix);
+        await db.insert(expenseEntries).values({
+          branchId: r.branchId, category: r.category, subCategory: r.subCategory,
+          amount: r.amount, paymentMethod: r.paymentMethod, vendor: r.vendor,
+          expenseDate: newDate, memo: r.memo, isRecurring: 1,
+        });
+        count++;
+      }
+      return { copied: count };
     }),
 
   categorySummary: protectedProcedure
