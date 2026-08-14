@@ -98,9 +98,12 @@ export default function ExpensesPage() {
     } else {
       createMutation.mutate(payload);
       if (form.recurring && form.category === "고정관리비") {
-        const d = new Date(form.expenseDate);
-        d.setMonth(d.getMonth() + 1);
-        const nextDate = d.toISOString().substring(0, 10);
+        const [y, m, dayStr] = form.expenseDate.split("-").map(Number);
+        const nextMonth = m === 12 ? 1 : m + 1;
+        const nextYear = m === 12 ? y + 1 : y;
+        const lastDay = new Date(nextYear, nextMonth, 0).getDate();
+        const day = Math.min(dayStr, lastDay);
+        const nextDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         createMutation.mutate({ ...payload, expenseDate: nextDate });
       }
     }
@@ -339,9 +342,10 @@ export default function ExpensesPage() {
                       <p className="text-xs font-semibold text-foreground">다음달도 동일하게 등록</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         {(() => {
-                          const d = new Date(form.expenseDate);
-                          d.setMonth(d.getMonth() + 1);
-                          return `${d.getFullYear()}년 ${d.getMonth() + 1}월에도 같은 항목이 자동 등록됩니다`;
+                          const [y, m] = form.expenseDate.split("-").map(Number);
+                          const nm = m === 12 ? 1 : m + 1;
+                          const ny = m === 12 ? y + 1 : y;
+                          return `${ny}년 ${nm}월에도 같은 항목이 자동 등록됩니다`;
                         })()}
                       </p>
                     </div>

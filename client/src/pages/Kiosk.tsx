@@ -12,6 +12,10 @@ function NoticeCarousel({ notices }: { notices: string[] }) {
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
+    setIdx(i => (notices.length > 0 ? Math.min(i, notices.length - 1) : 0));
+  }, [notices.length]);
+
+  useEffect(() => {
     if (notices.length <= 1) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % notices.length), 4000);
     return () => clearInterval(t);

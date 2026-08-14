@@ -279,6 +279,7 @@ export default function GymPlusProfile() {
   const requestPurchase = trpc.gymPlus.requestPurchase.useMutation({
     onSuccess: (res) => {
       utils.gymPlus.memberMe.invalidate();
+      utils.gymPlus.getPointTransactions.invalidate();
       setShowPurchaseDone({ status: res.status, productName: selectedProduct?.name ?? "" });
       setSelectedProduct(null);
       setPurchaseNote("");
@@ -292,6 +293,7 @@ export default function GymPlusProfile() {
   const requestPointExtension = trpc.gymPlus.requestPointExtension.useMutation({
     onSuccess: () => {
       utils.gymPlus.memberMe.invalidate();
+      utils.gymPlus.getPointTransactions.invalidate();
       setExtendDone(true);
     },
     onError: (e) => toast.error(e.message),
@@ -675,10 +677,7 @@ export default function GymPlusProfile() {
                 onClick={() => {
                   setSelectedProduct(p);
                   setPaymentMethod("cash");
-                  const balance = member?.points ?? 0;
-                  const canUsePoints = (p.pointPrice != null || p.price >= MIN_POINTS_TO_USE);
-                  const maxUsable = Math.floor(Math.min(balance, p.price) / POINT_USE_STEP) * POINT_USE_STEP;
-                  setPointsToUse(canUsePoints && maxUsable >= MIN_POINTS_TO_USE ? maxUsable : 0);
+                  setPointsToUse(0);
                   setPurchaseNote("");
                 }}
                 className="w-full border border-border rounded-2xl overflow-hidden bg-card text-left hover:border-primary/40 hover:shadow-md transition-all"
@@ -762,10 +761,11 @@ export default function GymPlusProfile() {
                 const price = selectedProduct.price;
                 const fullPointCost = selectedProduct.pointPrice ?? (price >= MIN_POINTS_TO_USE ? price : null);
                 const canUsePoints = fullPointCost != null;
-                const maxUsable = Math.floor(Math.min(balance, price) / POINT_USE_STEP) * POINT_USE_STEP;
+                const pointCap = fullPointCost ?? price;
+                const maxUsable = Math.floor(Math.min(balance, pointCap) / POINT_USE_STEP) * POINT_USE_STEP;
                 const canApplyPoints = canUsePoints && maxUsable >= MIN_POINTS_TO_USE;
                 const usingPoints = pointsToUse > 0;
-                const remainder = usingPoints ? Math.max(0, price - pointsToUse) : price;
+                const remainder = usingPoints ? Math.max(0, pointCap - pointsToUse) : price;
 
                 return (
                   <>

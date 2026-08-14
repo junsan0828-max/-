@@ -4254,13 +4254,22 @@ ${dataContext}
     if (!db) return [];
     const [gm] = await db.select({ memberId: gymPlusMembers.memberId })
       .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
-    if (!gm?.memberId) return [];
+
     const res = await pool.query(
-      `SELECT id, type, amount, description, "createdAt" FROM point_transactions
-       WHERE "memberId" = $1 ORDER BY "createdAt" DESC LIMIT 50`,
-      [gm.memberId]
+      `(SELECT id, type, amount, reason AS description, "createdAt"
+        FROM gym_plus_point_logs WHERE "gymPlusMemberId" = $1)
+       UNION ALL
+       (SELECT id + 1000000, type, amount, description, "createdAt"
+        FROM point_transactions WHERE "memberId" = $2)
+       ORDER BY "createdAt" DESC LIMIT 50`,
+      [ctx.gymPlusMemberId, gm?.memberId ?? -1]
     );
-    return res.rows as { id: number; type: string; amount: number; description: string | null; createdAt: string }[];
+    return (res.rows as { id: number; type: string; amount: number; description: string | null; createdAt: string }[])
+      .map(r => ({
+        ...r,
+        type: r.type === "charge" || r.type === "earn" || r.type === "refund" ? "earn" : "use",
+        amount: Math.abs(r.amount),
+      }));
   }),
 
   admin_chargePoints: adminOnlyGymPlus
