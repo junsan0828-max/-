@@ -3030,6 +3030,7 @@ const adminRouter = t.router({
         ]);
         const totalCount = trainerMembers.filter(m => m.status !== "ended").length;
         const activeCount = trainerMembers.filter(m => m.status === "active" && (!m.membershipEnd || m.membershipEnd >= kstDateStr)).length;
+        const pausedCount = trainerMembers.filter(m => m.status === "paused").length;
         const expiredCount = trainerMembers.filter(m => {
           if (m.status === "ended") return false;
           if (m.status === "paused") return false;
@@ -3040,6 +3041,7 @@ const adminRouter = t.router({
           ...trainer,
           memberCount: totalCount,
           activeCount,
+          pausedCount,
           expiredCount,
           settlementRate: settings[0]?.settlementRate ?? 50,
           assignedBranches: trainerBranchList.map((b) => ({ branchId: b.branchId, branchName: b.branchName ?? "" })),
