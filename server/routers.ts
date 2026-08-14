@@ -351,6 +351,7 @@ const membersRouter = t.router({
         packageName: ptPackages.packageName,
         totalSessions: ptPackages.totalSessions,
         usedSessions: ptPackages.usedSessions,
+        trainerId: ptPackages.trainerId,
       }).from(ptPackages),
       db.select({ memberId: revenueEntries.memberId }).from(revenueEntries)
         .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`)),
@@ -361,9 +362,11 @@ const membersRouter = t.router({
     ]);
 
     const pkgMap = new Map<number, { id: number; packageName: string; totalSessions: number; usedSessions: number }[]>();
+    const pkgTrainerMap = new Map<number, number>();
     for (const p of pkgs) {
       if (!pkgMap.has(p.memberId)) pkgMap.set(p.memberId, []);
       pkgMap.get(p.memberId)!.push({ id: p.id, packageName: p.packageName ?? "", totalSessions: p.totalSessions, usedSessions: p.usedSessions });
+      if (p.trainerId && !pkgTrainerMap.has(p.memberId)) pkgTrainerMap.set(p.memberId, p.trainerId);
     }
     const ptRevSet = new Set(ptRevs.map((r) => r.memberId).filter(Boolean) as number[]);
 
@@ -388,13 +391,27 @@ const membersRouter = t.router({
       }
     }
 
-    return rows.map((r) => ({
-      ...r,
-      packages: pkgMap.get(r.id) ?? [],
-      hasPtRevenue: ptRevSet.has(r.id),
-      lockerNumber: lockerMap.get(r.id) ?? null,
-      hasUniform: uniformSet.has(r.id),
-    }));
+    // PT 패키지 트레이너 ID → 이름 변환
+    const ptTrainerIds = Array.from(new Set(pkgTrainerMap.values()));
+    const ptTrainerNameMap = new Map<number, string>();
+    if (ptTrainerIds.length > 0) {
+      const ptTrainerRows = await db.select({ id: trainers.id, trainerName: trainers.trainerName })
+        .from(trainers).where(sql`${trainers.id} = ANY(ARRAY[${sql.join(ptTrainerIds.map(id => sql`${id}`), sql`, `)}]::int[])`);
+      for (const t of ptTrainerRows) ptTrainerNameMap.set(t.id, t.trainerName);
+    }
+
+    return rows.map((r) => {
+      const ptTid = pkgTrainerMap.get(r.id);
+      const ptTrainerName = ptTid ? (ptTrainerNameMap.get(ptTid) ?? null) : null;
+      return {
+        ...r,
+        trainerName: ptTrainerName ?? r.trainerName,
+        packages: pkgMap.get(r.id) ?? [],
+        hasPtRevenue: ptRevSet.has(r.id),
+        lockerNumber: lockerMap.get(r.id) ?? null,
+        hasUniform: uniformSet.has(r.id),
+      };
+    });
   }),
 
   getById: protectedProcedure

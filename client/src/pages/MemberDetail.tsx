@@ -1219,9 +1219,6 @@ export default function MemberDetail({ memberId }: Props) {
                     </div>
                   </div>
                 </div>
-                {(member as any).consultantName && (
-                  <InfoRow icon={<User className="h-4 w-4" />} label="상담 담당자" value={(member as any).consultantName} />
-                )}
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"

@@ -94,7 +94,6 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       extras.push(r.branchName ?? "⚠︎지점미배정");
     }
     if (r.trainerName) extras.push(r.trainerName);
-    else if (r.consultantName) extras.push(r.consultantName);
     return [...parts, ...extras].filter(Boolean).join(" · ");
   }
 
