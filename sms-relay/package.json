@@ -1,0 +1,13 @@
+{
+  "name": "sms-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "알리고 SMS 발송을 고정 아웃바운드 IP로 중계하는 최소 서버",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
