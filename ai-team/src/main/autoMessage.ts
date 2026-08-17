@@ -3,6 +3,7 @@
 // 클라우드 예약실행에서도 동작해야 해서 pg Pool이 아니라 neon() HTTP 방식을 쓴다(다른 잡들과 동일).
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { sendSms } from "./aligo";
+import { pushKakaoText } from "./kakao";
 
 type Category = "expiry_d10" | "expiry_d5" | "consult_followup";
 
@@ -316,15 +317,31 @@ export async function runAutoMessageJob(): Promise<AutoMessageResult> {
     summary.push({ category, targeted: candidates.length, sent, failed, skippedInvalidPhone });
   }
 
-  await notifyAdmin(today, summary, details);
+  await notifyAdmin(sql, today, summary, details);
 
   return { ok: true, summary, details };
 }
 
-/** 실제로 발송(성공 또는 실패)이 하나라도 있었을 때만 대표 번호로 요약 문자를 보낸다.
+/** 현재 미수금이 있는 회원 요약 한 줄. 미수금 없으면 빈 문자열(줄 자체를 생략). */
+async function unpaidSummaryLine(sql: NeonQueryFunction<false, false>): Promise<string> {
+  const rows = (await sql.query(
+    `SELECT "customerName", "unpaidAmount" FROM revenue_entries WHERE "unpaidAmount" > 0`
+  )) as { customerName: string | null; unpaidAmount: string }[];
+  if (rows.length === 0) return "";
+
+  const total = rows.reduce((s, r) => s + Number(r.unpaidAmount || 0), 0);
+  const names = rows.map((r) => r.customerName ?? "이름없음");
+  const nameList = names.length <= 10 ? names.join(", ") : `${names.slice(0, 10).join(", ")} 외 ${names.length - 10}명`;
+  return `\n\n💰 미수금 ${rows.length}건 총 ${total.toLocaleString()}원 (${nameList})`;
+}
+
+/** 실제로 발송(성공 또는 실패)이 하나라도 있었을 때만 대표 본인에게 요약을 보낸다.
  * 대상이 하루종일 0명인 날까지 매번 보내면 소음이 되므로 조용히 건너뛴다.
+ * 카카오톡("나에게 보내기")을 우선 시도하고, 실패하면(미설정 포함) 기존 SMS로 대체한다 —
+ * 대표 본인에게 가는 알림이라 굳이 SMS 비용을 낼 이유가 없어 2026-08-17 전환.
  * 이 요약 발송 자체가 실패해도 본 작업 결과(ok)에는 영향을 주지 않는다 — 로그만 남긴다. */
 async function notifyAdmin(
+  sql: NeonQueryFunction<false, false>,
   referenceDate: string,
   summary: NonNullable<AutoMessageResult["summary"]>,
   details: NonNullable<AutoMessageResult["details"]>
@@ -345,7 +362,13 @@ async function notifyAdmin(
     return `${CATEGORY_LABEL[s.category]}: 대상 ${s.targeted}·발송 ${s.sent}·실패 ${s.failed}·연락처확인 ${s.skippedInvalidPhone}${nameList}`;
   });
 
-  const text = `[자동문자 발송 요약 ${referenceDate}]\n${lines.join("\n")}`;
+  const unpaidLine = await unpaidSummaryLine(sql).catch(() => "");
+  const text = `[자동문자 발송 요약 ${referenceDate}]\n${lines.join("\n")}${unpaidLine}`;
+
+  const kakao = await pushKakaoText(text);
+  if (kakao.ok) return;
+
+  console.error("카카오 발송 안 됨, SMS로 대체:", kakao.error);
   const result = await sendSms(ADMIN_PHONE, text);
   if (!result.ok) {
     console.error("관리자 요약 문자 발송 실패:", result.error);

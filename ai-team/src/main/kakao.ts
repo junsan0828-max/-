@@ -78,12 +78,18 @@ export async function pushDailyBriefingKakao(
   funnel?: FunnelResult,
   _content?: ContentResult
 ): Promise<KakaoPushResult> {
+  return pushKakaoText(buildBriefText(result, mina, funnel));
+}
+
+/** 임의의 텍스트를 대표 본인의 카카오톡으로 보낸다 — 급여 정산 완료, 자동문자 발송 요약,
+ * 협의실 미해결 안건 등 다른 자동화에서도 재사용하는 범용 발송 함수. */
+export async function pushKakaoText(text: string): Promise<KakaoPushResult> {
   if (!isConfigured()) {
     return { ok: false, error: "카카오 미설정 (.env에 KAKAO_REST_API_KEY/KAKAO_REFRESH_TOKEN 필요)" };
   }
   try {
     const accessToken = await refreshAccessToken();
-    await sendToMe(accessToken, buildBriefText(result, mina, funnel));
+    await sendToMe(accessToken, text);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

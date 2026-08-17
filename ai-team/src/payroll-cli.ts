@@ -5,6 +5,7 @@
 import "dotenv/config";
 import { runPayroll, writePayrollSheet } from "./main/payroll";
 import { pushPayrollReport } from "./main/notion";
+import { pushKakaoText } from "./main/kakao";
 
 async function main() {
   const [yearMonthArg] = process.argv.slice(2);
@@ -21,6 +22,12 @@ async function main() {
     for (const u of result.uncheckable) console.log(`- ${u}`);
     const notion = await pushPayrollReport(result);
     console.log(notion.ok ? `\n노션 보고 완료: ${notion.url}` : `\n노션 보고 안 함: ${notion.error}`);
+
+    const kakao = await pushKakaoText(
+      `🚨 ${result.yearMonth} 급여 정산 오류 ${result.issues.length}건 발견 — 정산 중단됨\n노션에서 확인 필요` +
+        (notion.ok ? `\n${notion.url}` : "")
+    );
+    console.log(kakao.ok ? "카카오톡 알림 발송 완료" : `카카오톡 알림 안 함: ${kakao.error}`);
     return;
   }
 
@@ -52,6 +59,11 @@ async function main() {
 
   const notion = await pushPayrollReport(result, url);
   console.log(notion.ok ? `노션 보고 완료: ${notion.url}` : `노션 보고 안 함: ${notion.error}`);
+
+  const kakao = await pushKakaoText(
+    `✅ ${result.yearMonth} 급여 정산 완료\n전체 이체 필요액: ${result.totalTransferAmount.toLocaleString()}원\n시트: ${url}`
+  );
+  console.log(kakao.ok ? "카카오톡 알림 발송 완료" : `카카오톡 알림 안 함: ${kakao.error}`);
 }
 
 main().catch((err) => {
