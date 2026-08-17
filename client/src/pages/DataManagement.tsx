@@ -272,7 +272,7 @@ function CustomerTab() {
           <p className="text-xs text-muted-foreground text-center py-4">해당 회원이 없습니다</p>
         ) : (
           <div className="space-y-1.5">
-            {lowSession.slice(0, 10).map((p: any) => {
+            {lowSession.map((p: any) => {
               const remaining = p.totalSessions - p.usedSessions;
               return (
                 <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
