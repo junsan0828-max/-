@@ -7,7 +7,7 @@ import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { sendSms } from "./aligo";
 import { pushKakaoText } from "./kakao";
 
-type Category = "expiry_d10" | "expiry_d5" | "consult_followup" | "lapsed_recover";
+export type Category = "expiry_d10" | "expiry_d5" | "consult_followup" | "lapsed_recover" | "gymplus_launch";
 
 const BRANCH_NAMES: Record<number, string> = { 1: "1호점", 2: "2호점" };
 const GYM_PLUS_URL = "https://ziantgym.com/gym-plus";
@@ -19,6 +19,7 @@ const CATEGORY_LABEL: Record<Category, string> = {
   expiry_d5: "헬스권 만료 D-5",
   consult_followup: "관리상담 D+1",
   lapsed_recover: "만료 후 재등록 유도(D+3~14)",
+  gymplus_launch: "자이언트짐+ 오픈 안내",
 };
 
 export interface AutoMessageResult {
@@ -55,13 +56,13 @@ function branchGreeting(branchId: number | null): string {
 }
 
 // 알리고 발송 가능한 한국 휴대폰 번호인지 확인 (연락처 누락·형식 오류는 발송하지 않고 기록만 남긴다).
-function normalizePhone(phone: string | null): string | null {
+export function normalizePhone(phone: string | null): string | null {
   if (!phone) return null;
   const digits = phone.replace(/[^0-9]/g, "");
   return /^01[016789]\d{7,8}$/.test(digits) ? digits : null;
 }
 
-async function ensureLogTable(sql: NeonQueryFunction<false, false>) {
+export async function ensureLogTable(sql: NeonQueryFunction<false, false>) {
   await sql.query(`
     CREATE TABLE IF NOT EXISTS auto_message_log (
       id SERIAL PRIMARY KEY,
@@ -79,7 +80,7 @@ async function ensureLogTable(sql: NeonQueryFunction<false, false>) {
   `);
 }
 
-async function alreadySent(
+export async function alreadySent(
   sql: NeonQueryFunction<false, false>,
   category: Category,
   idCol: "member_id" | "lead_id",
@@ -93,7 +94,7 @@ async function alreadySent(
   return rows.length > 0;
 }
 
-async function logAttempt(
+export async function logAttempt(
   sql: NeonQueryFunction<false, false>,
   row: {
     category: Category;

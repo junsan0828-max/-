@@ -20,6 +20,7 @@
     "point-claims": "tsx src/point-claim-cli.ts",
     "auto-message": "tsx src/auto-message-cli.ts",
     "verify": "tsx src/verify-cli.ts",
+    "announce-gymplus": "tsx src/announce-gymplus-cli.ts",
     "kakao-auth": "tsx src/kakao-auth-cli.ts",
     "kakao-notify": "tsx src/kakao-notify-cli.ts",
     "build": "tsc -p tsconfig.json",
