@@ -5,6 +5,7 @@ import { generateMemberMessages } from "./main/mina";
 import { analyzeFunnel } from "./main/dataAgent";
 import { generateContentIdeas } from "./main/luna";
 import { pushDailyReport, createTaskRecords, logTaskExecution, isNotionEnabled } from "./main/notion";
+import { pushDailyBriefingKakao, isKakaoEnabled } from "./main/kakao";
 
 const dry = process.argv.includes("--dry");
 
@@ -72,6 +73,10 @@ runOrchestrator({ dry })
         if (!log.ok) console.log(`⚠️  업무 로그 저장도 실패: ${log.error}`);
       }
     }
+
+    console.log(`\n💬 카카오톡 연동 — ${isKakaoEnabled() ? "설정됨" : "꺼짐 (.env에 KAKAO_REST_API_KEY/KAKAO_REFRESH_TOKEN 필요)"}`);
+    const kakao = await pushDailyBriefingKakao(r, mina, funnel, content);
+    console.log(kakao.ok ? "✅ 카카오톡으로 브리핑 발송 완료" : `⏭️  카카오톡 발송 건너뜀: ${kakao.error}`);
   })
   .catch((err) => {
     console.error("❌ 실패:", err.message);
