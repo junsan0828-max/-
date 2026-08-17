@@ -66,6 +66,33 @@ app.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-
 // MCP: 온라인 지부장/제이용 읽기 전용 운영 조회
 app.use("/mcp/branch-manager", createBranchManagerMcpRouter());
 
+// REST: 만료 임박 회원 목록 (tRPC 우회)
+app.get("/api/expiring-members", async (req, res) => {
+  if (!(req.session as any)?.user) return res.status(401).json({ error: "unauthorized" });
+  try {
+    const now = Date.now() + 9 * 3600000;
+    const today = new Date(now).toISOString().substring(0, 10);
+    const future = new Date(now + 30 * 86400000).toISOString().substring(0, 10);
+    const result = await pool.query(
+      `SELECT m.id, m.name, m.phone, m."membershipEnd",
+              t."trainerName",
+              (m."membershipEnd"::date - $1::date)::int AS days_left
+       FROM members m
+       LEFT JOIN trainers t ON t.id = m."trainerId"
+       WHERE m.status = 'active'
+         AND m."membershipEnd" IS NOT NULL
+         AND m."membershipEnd" >= $1
+         AND m."membershipEnd" <= $2
+       ORDER BY m."membershipEnd" ASC`,
+      [today, future]
+    );
+    res.json({ today, future, count: result.rows.length, members: result.rows });
+  } catch (err: any) {
+    console.error("[/api/expiring-members]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // tRPC API
 app.use(
   "/trpc",
