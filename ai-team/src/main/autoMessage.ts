@@ -216,8 +216,7 @@ ${GYM_PLUS_URL}
 // 90바이트(SMS) 제한을 지키기 위해 "자이언트짐 OO입니다" 같은 긴 인사말 대신 지점명만 짧게 붙인다
 // — 실제 대상자 중 가장 긴 이름("김주디참미", 5자) 기준으로도 여유 있게 SMS로 발송된다.
 export function lapsedRecoverMessage(name: string, branchId: number | null): string {
-  const branch = branchId != null ? (BRANCH_NAMES[branchId] ?? "자이언트짐") : "자이언트짐";
-  return `${branch} ${name}님, 재등록하시면 1개월 서비스로 드려요. 문의는 답장 주세요.`;
+  return `자이언트짐 ${name}님, 재등록하시면 1개월 서비스로 드려요. 문의는 답장 주세요.`;
 }
 
 export function consultFollowupMessage(name: string | null, branchId: number | null): string {
