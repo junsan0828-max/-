@@ -1075,25 +1075,30 @@ export const accessRouter = t.router({
   getAdminExpiringMembers: protectedProcedure
     .input(z.object({ days: z.number().default(30) }))
     .query(async ({ input }) => {
-      const today = kstDate();
-      const future = kstDate(input.days);
-      const result = await pool.query(
-        `SELECT m.id, m.name, m.phone, m."membershipEnd",
-                t."trainerName",
-                (m."membershipEnd"::date - $1::date)::int AS days_left
-         FROM members m
-         LEFT JOIN trainers t ON t.id = m."trainerId"
-         WHERE m.status = 'active'
-           AND m."membershipEnd" IS NOT NULL
-           AND m."membershipEnd" >= $1
-           AND m."membershipEnd" <= $2
-         ORDER BY m."membershipEnd" ASC`,
-        [today, future]
-      );
-      return result.rows as Array<{
-        id: number; name: string; phone: string | null; membershipEnd: string;
-        trainerName: string | null; days_left: number;
-      }>;
+      try {
+        const today = kstDate();
+        const future = kstDate(input.days);
+        const result = await pool.query(
+          `SELECT m.id, m.name, m.phone, m."membershipEnd",
+                  t."trainerName",
+                  (m."membershipEnd"::date - $1::date)::int AS days_left
+           FROM members m
+           LEFT JOIN trainers t ON t.id = m."trainerId"
+           WHERE m.status = 'active'
+             AND m."membershipEnd" IS NOT NULL
+             AND m."membershipEnd" >= $1
+             AND m."membershipEnd" <= $2
+           ORDER BY m."membershipEnd" ASC`,
+          [today, future]
+        );
+        return result.rows as Array<{
+          id: number; name: string; phone: string | null; membershipEnd: string;
+          trainerName: string | null; days_left: number;
+        }>;
+      } catch (err) {
+        console.error("[getAdminExpiringMembers] error:", err);
+        throw err;
+      }
     }),
 
   // 시간대별 방문 통계 (이번달 access_logs 기준)
