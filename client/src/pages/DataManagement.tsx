@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Database, TrendingUp, Users, Megaphone, Building2,
@@ -193,18 +193,9 @@ function FinanceTab() {
 // ── 고객 탭 ──────────────────────────────────────────────────────────────────
 function CustomerTab() {
   const { data: stats } = trpc.access.getAdminMemberStats.useQuery();
+  const { data: expiring, isLoading: expiringLoading } = trpc.access.getAdminExpiringMembers.useQuery({ days: 30 });
   const { data: unpaid } = trpc.pt.listUnpaid.useQuery();
   const { data: activePt } = trpc.access.getActivePtPackages.useQuery();
-
-  const [expiring, setExpiring] = useState<any[] | null>(null);
-  const [expiringLoading, setExpiringLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/expiring-members", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { setExpiring(d.members ?? []); setExpiringLoading(false); })
-      .catch(() => { setExpiring([]); setExpiringLoading(false); });
-  }, []);
 
   const totalUnpaid = (unpaid ?? []).reduce((s, p) => s + (p.unpaidAmount ?? 0), 0);
   const lowSession = (activePt ?? []).filter((p: any) => (p.totalSessions - p.usedSessions) <= 5);

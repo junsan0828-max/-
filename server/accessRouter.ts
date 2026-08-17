@@ -1094,7 +1094,7 @@ export const accessRouter = t.router({
         const result = await pool.query(
           `SELECT m.id, m.name, m.phone, m."membershipEnd",
                   t."trainerName",
-                  (m."membershipEnd"::date - $1::date)::int AS days_left
+                  (m."membershipEnd"::date - $3::date)::int AS days_left
            FROM members m
            LEFT JOIN trainers t ON t.id = m."trainerId"
            WHERE m.status = 'active'
@@ -1102,7 +1102,7 @@ export const accessRouter = t.router({
              AND m."membershipEnd" >= $1
              AND m."membershipEnd" <= $2
            ORDER BY m."membershipEnd" ASC`,
-          [today, future]
+          [today, future, today]
         );
         return result.rows as Array<{
           id: number; name: string; phone: string | null; membershipEnd: string;

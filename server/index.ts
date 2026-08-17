@@ -76,7 +76,7 @@ app.get("/api/expiring-members", async (req, res) => {
     const result = await pool.query(
       `SELECT m.id, m.name, m.phone, m."membershipEnd",
               t."trainerName",
-              (m."membershipEnd"::date - $1::date)::int AS days_left
+              (m."membershipEnd"::date - $3::date)::int AS days_left
        FROM members m
        LEFT JOIN trainers t ON t.id = m."trainerId"
        WHERE m.status = 'active'
@@ -84,7 +84,7 @@ app.get("/api/expiring-members", async (req, res) => {
          AND m."membershipEnd" >= $1
          AND m."membershipEnd" <= $2
        ORDER BY m."membershipEnd" ASC`,
-      [today, future]
+      [today, future, today]
     );
     res.json({ today, future, count: result.rows.length, members: result.rows });
   } catch (err: any) {
