@@ -925,6 +925,10 @@ function OperationsTab() {
   const allUniforms = (uniforms ?? []) as any[];
 
   const maxHour = (hourStats ?? []).reduce((m, h) => Math.max(m, h.count), 0);
+  const totalVisits = (hourStats ?? []).reduce((s, h) => s + h.count, 0);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const todayDay = month === now.getMonth() + 1 && year === now.getFullYear() ? now.getDate() : daysInMonth;
+  const avgDaily = todayDay > 0 ? Math.round(totalVisits / todayDay) : 0;
 
   return (
     <div className="space-y-5">
@@ -1008,40 +1012,59 @@ function OperationsTab() {
         )}
       </div>
 
-      {/* 시간대별 방문 분포 */}
+      {/* 센터 방문 현황 */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Clock className="h-4 w-4 text-amber-400" /> 이번달 시간대별 방문
+          <Clock className="h-4 w-4 text-amber-400" /> 이번달 센터 방문
         </h3>
         {!hourStats?.length ? (
           <p className="text-xs text-muted-foreground text-center py-4">출입 데이터가 없습니다</p>
         ) : (
-          <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-end gap-1 h-20">
-              {Array.from({ length: 24 }, (_, i) => {
-                const h = hourStats.find(s => s.hour === i);
-                const count = h?.count ?? 0;
-                const height = maxHour > 0 ? Math.max((count / maxHour) * 100, count > 0 ? 8 : 0) : 0;
-                const isPeak = count === maxHour && count > 0;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-                    <div
-                      className={`w-full rounded-sm transition-all ${isPeak ? "bg-amber-400" : "bg-amber-400/40"}`}
-                      style={{ height: `${height}%` }}
-                      title={`${i}시: ${count}회`}
-                    />
-                  </div>
-                );
-              })}
+          <div className="space-y-2">
+            {/* 총 방문 요약 */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-card border border-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-muted-foreground">총 방문</p>
+                <p className="text-lg font-bold text-amber-400">{totalVisits.toLocaleString()}회</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-muted-foreground">일 평균</p>
+                <p className="text-lg font-bold text-foreground">{avgDaily}회</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-muted-foreground">피크 시간</p>
+                <p className="text-lg font-bold text-amber-400">{hourStats.find(h => h.count === maxHour)?.hour ?? "-"}시</p>
+              </div>
             </div>
-            <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
-              <span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>23시</span>
+
+            {/* 시간별 방문자 수 */}
+            <div className="bg-card border border-border rounded-xl p-4">
+              <p className="text-xs text-muted-foreground mb-2">시간별 방문자 수</p>
+              <div className="flex items-end gap-[2px] h-24">
+                {Array.from({ length: 24 }, (_, i) => {
+                  const h = hourStats.find(s => s.hour === i);
+                  const count = h?.count ?? 0;
+                  const height = maxHour > 0 ? Math.max((count / maxHour) * 100, count > 0 ? 8 : 0) : 0;
+                  const isPeak = count === maxHour && count > 0;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center">
+                      {count > 0 && (
+                        <span className={`text-[8px] mb-0.5 ${isPeak ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>{count}</span>
+                      )}
+                      <div
+                        className={`w-full rounded-sm transition-all ${isPeak ? "bg-amber-400" : count > 0 ? "bg-amber-400/40" : "bg-border/30"}`}
+                        style={{ height: `${height}%`, minHeight: count === 0 ? "2px" : undefined }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex mt-1">
+                {Array.from({ length: 24 }, (_, i) => (
+                  <span key={i} className={`flex-1 text-center text-[7px] ${i % 3 === 0 ? "text-muted-foreground" : "text-transparent"}`}>{i}</span>
+                ))}
+              </div>
             </div>
-            {maxHour > 0 && (
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                피크 시간: <span className="text-amber-400 font-semibold">{hourStats.find(h => h.count === maxHour)?.hour}시</span> ({maxHour}회)
-              </p>
-            )}
           </div>
         )}
       </div>
