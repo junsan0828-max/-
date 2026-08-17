@@ -1059,28 +1059,49 @@ export const accessRouter = t.router({
       }>;
     }),
 
-  // 관리자용 전체 회원 통계
+  // 관리자용 전체 회원 통계 + 만료 임박 목록
   getAdminMemberStats: protectedProcedure
     .query(async () => {
       const today = kstDate();
       const in30 = kstDate(30);
-      const result = await pool.query(`
-        SELECT
-          COUNT(*)::int AS total,
-          COUNT(*) FILTER (WHERE status = 'active')::int AS active,
-          COUNT(*) FILTER (WHERE status != 'active')::int AS inactive,
-          COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2)::int AS expiring30,
-          COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" < $1)::int AS expired_but_active,
-          (SELECT COUNT(*)::int FROM pt_packages WHERE status = 'active') AS active_pt_packages,
-          (SELECT COALESCE(SUM("unpaidAmount"),0)::int FROM pt_packages WHERE "unpaidAmount" > 0) AS total_unpaid,
-          COUNT(*) FILTER (WHERE gender = '남')::int AS male,
-          COUNT(*) FILTER (WHERE gender = '여')::int AS female
-        FROM members
-      `, [today, in30]);
-      return result.rows[0] as {
-        total: number; active: number; inactive: number; expiring30: number;
-        expired_but_active: number; active_pt_packages: number; total_unpaid: number;
-        male: number; female: number;
+      const [statsRes, expiringRes] = await Promise.all([
+        pool.query(`
+          SELECT
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+            COUNT(*) FILTER (WHERE status != 'active')::int AS inactive,
+            COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2)::int AS expiring30,
+            COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" < $1)::int AS expired_but_active,
+            (SELECT COUNT(*)::int FROM pt_packages WHERE status = 'active') AS active_pt_packages,
+            (SELECT COALESCE(SUM("unpaidAmount"),0)::int FROM pt_packages WHERE "unpaidAmount" > 0) AS total_unpaid,
+            COUNT(*) FILTER (WHERE gender = '남')::int AS male,
+            COUNT(*) FILTER (WHERE gender = '여')::int AS female
+          FROM members
+        `, [today, in30]),
+        pool.query(
+          `SELECT m.id, m.name, m.phone, m."membershipEnd",
+                  t."trainerName",
+                  (m."membershipEnd"::date - $1::date)::int AS days_left
+           FROM members m
+           LEFT JOIN trainers t ON t.id = m."trainerId"
+           WHERE m.status = 'active'
+             AND m."membershipEnd" IS NOT NULL
+             AND m."membershipEnd" >= $1
+             AND m."membershipEnd" <= $2
+           ORDER BY m."membershipEnd" ASC`,
+          [today, in30]
+        ),
+      ]);
+      return {
+        ...(statsRes.rows[0] as {
+          total: number; active: number; inactive: number; expiring30: number;
+          expired_but_active: number; active_pt_packages: number; total_unpaid: number;
+          male: number; female: number;
+        }),
+        expiringMembers: expiringRes.rows as Array<{
+          id: number; name: string; phone: string | null; membershipEnd: string;
+          trainerName: string | null; days_left: number;
+        }>,
       };
     }),
 

@@ -192,11 +192,11 @@ function FinanceTab() {
 
 // ── 고객 탭 ──────────────────────────────────────────────────────────────────
 function CustomerTab() {
-  const { data: stats } = trpc.access.getAdminMemberStats.useQuery();
-  const { data: expiring, isLoading: expiringLoading, isError: expiringError, refetch: refetchExpiring } = trpc.access.getAdminExpiringMembers.useQuery({ days: 30 });
+  const { data: stats, isLoading: statsLoading } = trpc.access.getAdminMemberStats.useQuery();
   const { data: unpaid } = trpc.pt.listUnpaid.useQuery();
   const { data: activePt } = trpc.access.getActivePtPackages.useQuery();
 
+  const expiring = stats?.expiringMembers;
   const totalUnpaid = (unpaid ?? []).reduce((s, p) => s + (p.unpaidAmount ?? 0), 0);
   const lowSession = (activePt ?? []).filter((p: any) => (p.totalSessions - p.usedSessions) <= 5);
 
@@ -243,13 +243,8 @@ function CustomerTab() {
           <AlertCircle className="h-4 w-4 text-amber-400" /> 만료 임박 회원 (30일 이내)
           <span className="text-xs text-muted-foreground font-normal">({expiring?.length ?? 0}명)</span>
         </h3>
-        {expiringLoading ? (
+        {statsLoading ? (
           <p className="text-xs text-muted-foreground text-center py-4">로딩 중...</p>
-        ) : expiringError ? (
-          <div className="text-center py-4">
-            <p className="text-xs text-red-400 mb-2">데이터 로드 실패</p>
-            <button onClick={() => refetchExpiring()} className="text-xs text-primary underline">다시 시도</button>
-          </div>
         ) : !expiring?.length ? (
           <p className="text-xs text-muted-foreground text-center py-4">만료 임박 회원이 없습니다</p>
         ) : (
