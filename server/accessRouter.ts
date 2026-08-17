@@ -97,6 +97,19 @@ async function findMemberByAttendanceNumber(attendanceNumber: string) {
 }
 
 export const accessRouter = t.router({
+  // 만료 임박 진단 (인증 불필요 — 개인정보 미포함)
+  debugExpiring: publicProcedure.query(async () => {
+    const today = kstDate();
+    const future = kstDate(30);
+    const result = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM members
+       WHERE status = 'active' AND "membershipEnd" IS NOT NULL
+         AND "membershipEnd" >= $1 AND "membershipEnd" <= $2`,
+      [today, future]
+    );
+    return { today, future, count: result.rows[0]?.cnt ?? 0, serverTime: new Date().toISOString() };
+  }),
+
   // 키오스크 체크인 (인증 불필요)
   checkIn: publicProcedure
     .input(z.object({
