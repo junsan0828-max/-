@@ -1,11 +1,13 @@
-// 13시 자동 문자 발송 — 헬스권 만료 D-10/D-5 안내, 관리상담(전날 상담) D+1 후속 안내.
+// 13시 자동 문자 발송 — 헬스권 만료 D-10/D-5 안내, 관리상담(전날 상담) D+1 후속 안내,
+// 만료 후 재등록 유도(D+3~14).
 // 문구·대상·중복방지 규칙은 노션 협의실에서 대표가 2026-08-11 확정한 스펙을 그대로 따른다.
+// 재등록 유도 문구·타이밍(D+3~14, 1개월 서비스 혜택)은 2026-08-17 대표 확정.
 // 클라우드 예약실행에서도 동작해야 해서 pg Pool이 아니라 neon() HTTP 방식을 쓴다(다른 잡들과 동일).
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { sendSms } from "./aligo";
 import { pushKakaoText } from "./kakao";
 
-type Category = "expiry_d10" | "expiry_d5" | "consult_followup";
+type Category = "expiry_d10" | "expiry_d5" | "consult_followup" | "lapsed_recover";
 
 const BRANCH_NAMES: Record<number, string> = { 1: "1호점", 2: "2호점" };
 const GYM_PLUS_URL = "https://ziantgym.com/gym-plus";
@@ -16,6 +18,7 @@ const CATEGORY_LABEL: Record<Category, string> = {
   expiry_d10: "헬스권 만료 D-10",
   expiry_d5: "헬스권 만료 D-5",
   consult_followup: "관리상담 D+1",
+  lapsed_recover: "만료 후 재등록 유도(D+3~14)",
 };
 
 export interface AutoMessageResult {
@@ -143,6 +146,31 @@ async function findExpiryCandidates(sql: NeonQueryFunction<false, false>, target
   )) as MemberRow[];
 }
 
+// 만료 후 재등록 유도 대상: status만 'active'로 남아있고 실제로는 membershipEnd가 지난 회원 중
+// 경과일이 fromDate~toDate(경과 3~14일, 세그먼트 A) 사이인 회원. D-10/D-5와 동일하게 환불·양도
+// 진행 이력 있는 회원은 제외한다. 창구 방식(정확한 하루가 아니라 기간)이라 alreadySent를
+// membershipEnd 기준으로 체크해야 창 안에서 매일 중복 발송되지 않는다.
+async function findLapsedCandidates(
+  sql: NeonQueryFunction<false, false>,
+  fromDate: string,
+  toDate: string
+): Promise<MemberRow[]> {
+  return (await sql.query(
+    `SELECT m.id, m.name, m.phone, m."branchId" AS "branchId", m."membershipEnd" AS "membershipEnd"
+     FROM members m
+     WHERE m.status = 'active'
+       AND m."membershipEnd" >= $1 AND m."membershipEnd" <= $2
+       AND NOT EXISTS (
+         SELECT 1 FROM refund_contracts r WHERE r."memberId" = m.id AND r.status IN ('completed', 'pending')
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM transfer_contracts t
+         WHERE t."transferorMemberId" = m.id OR t."transfereeMemberId" = m.id
+       )`,
+    [fromDate, toDate]
+  )) as MemberRow[];
+}
+
 type LeadRow = { id: number; name: string | null; phone: string | null; branchId: number | null };
 
 // 관리상담 D+1: 어제 상담완료(consulted) 상태로 남아있고 아직 등록하지 않은 리드.
@@ -183,6 +211,13 @@ ${GYM_PLUS_URL}
 (아이디: 휴대폰번호 / 비밀번호: 휴대폰번호 뒷자리 4자리)
 
 감사합니다.`;
+}
+
+// 90바이트(SMS) 제한을 지키기 위해 "자이언트짐 OO입니다" 같은 긴 인사말 대신 지점명만 짧게 붙인다
+// — 실제 대상자 중 가장 긴 이름("김주디참미", 5자) 기준으로도 여유 있게 SMS로 발송된다.
+export function lapsedRecoverMessage(name: string, branchId: number | null): string {
+  const branch = branchId != null ? (BRANCH_NAMES[branchId] ?? "자이언트짐") : "자이언트짐";
+  return `${branch} ${name}님, 재등록하시면 1개월 서비스로 드려요. 문의는 답장 주세요.`;
 }
 
 export function consultFollowupMessage(name: string | null, branchId: number | null): string {
@@ -257,6 +292,57 @@ export async function runAutoMessageJob(): Promise<AutoMessageResult> {
         category,
         memberId: m.id,
         referenceDate: targetDate,
+        name: m.name,
+        phone,
+        branchId: m.branchId,
+        success: result.ok,
+        error: result.error,
+      });
+      details.push({ category, name: m.name, phone, result: result.ok ? "sent" : "failed", error: result.error });
+    }
+
+    summary.push({ category, targeted: candidates.length, sent, failed, skippedInvalidPhone });
+  }
+
+  // --- 만료 후 재등록 유도 (경과 3~14일, 세그먼트 A) ---
+  {
+    const category: Category = "lapsed_recover";
+    const lapsedFrom = addDays(today, -14);
+    const lapsedTo = addDays(today, -3);
+    const candidates = await findLapsedCandidates(sql, lapsedFrom, lapsedTo);
+    let sent = 0;
+    let failed = 0;
+    let skippedInvalidPhone = 0;
+
+    for (const m of candidates) {
+      // 창 방식(하루가 아니라 기간)이라 membershipEnd를 기준일로 써서 창 안에서 중복 발송을 막는다.
+      if (await alreadySent(sql, category, "member_id", m.id, m.membershipEnd)) continue;
+
+      const phone = normalizePhone(m.phone);
+      if (!phone) {
+        skippedInvalidPhone++;
+        await logAttempt(sql, {
+          category,
+          memberId: m.id,
+          referenceDate: m.membershipEnd,
+          name: m.name,
+          phone: m.phone,
+          branchId: m.branchId,
+          success: false,
+          error: "연락처 누락·확인 필요",
+        });
+        details.push({ category, name: m.name, phone: m.phone, result: "skipped", error: "연락처 누락·확인 필요" });
+        continue;
+      }
+
+      const message = lapsedRecoverMessage(m.name, m.branchId);
+      const result = await sendSms(phone, message);
+      if (result.ok) sent++;
+      else failed++;
+      await logAttempt(sql, {
+        category,
+        memberId: m.id,
+        referenceDate: m.membershipEnd,
         name: m.name,
         phone,
         branchId: m.branchId,
