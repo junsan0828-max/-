@@ -1129,7 +1129,7 @@ function OperationsTab() {
                   labelFormatter={(v: string) => `${currentMonth}-${v}`}
                   formatter={(v: number) => [`${v}회`, "방문"]}
                 />
-                <Line type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2, fill: "#f59e0b" }} label={{ fontSize: 9, fill: "#f59e0b", position: "top", offset: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -1229,8 +1229,8 @@ function OperationsTab() {
                     ]}
                   />
                   <Legend formatter={(v: string) => v === "avg" ? "일 평균" : "최대"} />
-                  <Bar dataKey="avg" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="max" fill="rgba(245,158,11,0.3)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="avg" fill="#f59e0b" radius={[4, 4, 0, 0]} label={{ position: "top", fontSize: 10, fill: "#f59e0b" }} />
+                  <Bar dataKey="max" fill="rgba(245,158,11,0.3)" radius={[4, 4, 0, 0]} label={{ position: "top", fontSize: 10, fill: "#9ca3af" }} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1283,7 +1283,7 @@ function OperationsTab() {
                 contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
                 formatter={(v: number) => [`${v}회`, "총 방문"]}
               />
-              <Bar dataKey="total" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="total" fill="#f59e0b" radius={[4, 4, 0, 0]} label={{ position: "top", fontSize: 10, fill: "#f59e0b" }} />
             </BarChart>
           </ResponsiveContainer>
         </div>
