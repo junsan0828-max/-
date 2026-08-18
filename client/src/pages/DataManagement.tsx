@@ -194,8 +194,18 @@ function FinanceTab() {
 // ── 고객 탭 ──────────────────────────────────────────────────────────────────
 function CustomerTab() {
   const [, setLocation] = useLocation();
+  const kstNow = new Date(Date.now() + 9 * 3600000);
+  const [selYear, setSelYear] = useState(kstNow.getUTCFullYear());
+  const [selMonth, setSelMonth] = useState(kstNow.getUTCMonth() + 1);
+  const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
+  const isCurrentMonth = selPrefix === `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}`;
+  const goPrev = () => { if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); } else setSelMonth(m => m - 1); };
+  const goNext = () => { if (isCurrentMonth) return; if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); } else setSelMonth(m => m + 1); };
+
   const { data: stats } = trpc.access.getAdminMemberStats.useQuery();
-  const { data: expiring, isLoading: expiringLoading } = trpc.access.getAdminExpiringMembers.useQuery({ days: 30 });
+  const { data: expiring, isLoading: expiringLoading } = trpc.access.getAdminExpiringMembers.useQuery(
+    isCurrentMonth ? { days: 30 } : { days: 30, month: selPrefix }
+  );
   const { data: unpaid } = trpc.pt.listUnpaid.useQuery();
   const { data: activePt } = trpc.access.getActivePtPackages.useQuery();
 
@@ -205,14 +215,26 @@ function CustomerTab() {
   type CustCat = "expiring" | "lowPt" | "unpaid";
   const [custCat, setCustCat] = useState<CustCat>("expiring");
 
+  const expiringLabel = isCurrentMonth ? "만료 임박" : `${selMonth}월 만료`;
   const CUST_CATS: { key: CustCat; label: string; count: number; icon: React.ReactNode; color: string; activeClass: string }[] = [
-    { key: "expiring", label: "만료 임박", count: expiring?.length ?? 0, icon: <AlertCircle className="h-3.5 w-3.5" />, color: "text-amber-400", activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+    { key: "expiring", label: expiringLabel, count: expiring?.length ?? 0, icon: <AlertCircle className="h-3.5 w-3.5" />, color: "text-amber-400", activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
     { key: "lowPt", label: "PT 잔여 5↓", count: lowSession.length, icon: <Dumbbell className="h-3.5 w-3.5" />, color: "text-blue-400", activeClass: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
     { key: "unpaid", label: "미수금", count: unpaid?.length ?? 0, icon: <DollarSign className="h-3.5 w-3.5" />, color: "text-red-400", activeClass: "bg-red-500/15 text-red-400 border-red-500/30" },
   ];
 
   return (
     <div className="space-y-4">
+      {/* 월 선택 */}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{selYear}년 {selMonth}월</span>
+        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 gap-2">
         {[

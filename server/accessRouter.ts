@@ -1084,13 +1084,20 @@ export const accessRouter = t.router({
       };
     }),
 
-  // 관리자용 만료 임박 회원 목록 (N일 이내)
+  // 관리자용 만료 임박 회원 목록 (N일 이내 또는 특정 월)
   getAdminExpiringMembers: protectedProcedure
-    .input(z.object({ days: z.number().default(30) }))
+    .input(z.object({ days: z.number().default(30), month: z.string().optional() }))
     .query(async ({ input }) => {
       try {
-        const today = kstDate();
-        const future = kstDate(input.days);
+        let today: string, future: string;
+        if (input.month) {
+          const [y, m] = input.month.split("-").map(Number);
+          today = `${input.month}-01`;
+          future = `${input.month}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+        } else {
+          today = kstDate();
+          future = kstDate(input.days);
+        }
         const result = await pool.query(
           `SELECT m.id, m.name, m.phone, m."membershipEnd",
                   t."trainerName",
