@@ -18,7 +18,15 @@ function byteLength(text: string): number {
   return len;
 }
 
+// 알리고는 발신 서버 IP를 고정 1개만 화이트리스트로 허용한다(대역/CIDR 등록 불가 — 2026-08-18
+// 알리고 고객센터 확인). 클라우드 루틴은 실행마다 발신 IP가 로테이팅돼 절대 화이트리스트를 통과할
+// 수 없으므로, 클라우드 .env에만 ALIGO_CLOUD_DISABLED=true를 심어 API 호출 자체를 건너뛴다 —
+// 로컬 PC 상주 앱은 이 값이 없어 그대로 실제 발송한다. 실패로 기록되므로(success=false) PC가
+// 켜지면 다음 13시 실행 때 자동으로 재시도된다.
 export async function sendSms(receiver: string, message: string): Promise<SendSmsResult> {
+  if (process.env.ALIGO_CLOUD_DISABLED === "true") {
+    return { ok: false, error: "클라우드에서는 발송 안 함 — 로컬 PC 상주 시 자동 재시도 대기 중" };
+  }
   if (!isConfigured()) {
     return { ok: false, error: "알리고 미설정 (.env에 ALIGO_USER_ID/ALIGO_API_KEY/ALIGO_SENDER 필요)" };
   }
