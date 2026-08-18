@@ -968,49 +968,347 @@ function OperationsTab() {
   const now = new Date();
   const [year] = useState(now.getFullYear());
   const [month] = useState(now.getMonth() + 1);
-  const { data: trainerList } = trpc.trainers.list.useQuery();
+  const [branchFilter, setBranchFilter] = useState<number | undefined>(undefined);
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const { data: dashboard, isLoading: dashLoading } = trpc.access.getOpsVisitDashboard.useQuery(
+    branchFilter ? { branchId: branchFilter } : {}
+  );
   const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
-  const { data: hourStats } = trpc.access.getAccessHourStats.useQuery();
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
 
   const allLockers = (lockers ?? []) as any[];
   const occupied = allLockers.filter(l => l.isOccupied === 1);
   const allUniforms = (uniforms ?? []) as any[];
 
-  const maxHour = (hourStats ?? []).reduce((m, h) => Math.max(m, h.count), 0);
-  const totalVisits = (hourStats ?? []).reduce((s, h) => s + h.count, 0);
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const todayDay = month === now.getMonth() + 1 && year === now.getFullYear() ? now.getDate() : daysInMonth;
-  const avgDaily = todayDay > 0 ? Math.round(totalVisits / todayDay) : 0;
+  if (dashLoading || !dashboard) {
+    return <p className="text-sm text-muted-foreground text-center py-8">로딩 중...</p>;
+  }
+
+  const {
+    dailyVisits, prevMonthTotal, hourlyVisits, dailyHourly, dowVisits,
+    activeCount, visited7, visited14, visited30, memberFrequency,
+    currentMonth, today,
+  } = dashboard;
+
+  const totalVisits = dailyVisits.reduce((s: number, d: any) => s + d.count, 0);
+  const [cy, cm] = currentMonth.split("-").map(Number);
+  const daysInMonth = new Date(cy, cm, 0).getDate();
+  const todayDate = parseInt(today.substring(8, 10), 10);
+  const elapsedDays = Math.min(todayDate, daysInMonth);
+  const avgDaily = elapsedDays > 0 ? Math.round(totalVisits / elapsedDays) : 0;
+  const prevMonth = cm === 1 ? 12 : cm - 1;
+  const prevYear = cm === 1 ? cy - 1 : cy;
+  const prevDaysInMonth = new Date(prevYear, prevMonth, 0).getDate();
+  const prevAvgDaily = prevDaysInMonth > 0 ? prevMonthTotal / prevDaysInMonth : 0;
+  const changeRate = prevAvgDaily > 0 ? Math.round((avgDaily - prevAvgDaily) / prevAvgDaily * 100) : null;
+
+  const TIME_BLOCKS = [
+    { label: "08~10", hours: [8, 9] },
+    { label: "10~12", hours: [10, 11] },
+    { label: "12~14", hours: [12, 13] },
+    { label: "14~16", hours: [14, 15] },
+    { label: "16~18", hours: [16, 17] },
+    { label: "18~20", hours: [18, 19] },
+    { label: "20~23", hours: [20, 21, 22] },
+  ];
+  const uniqueDays = new Set(dailyHourly.map((d: any) => d.day)).size || 1;
+  const blockStats = TIME_BLOCKS.map(block => {
+    const dayTotals: Record<string, number> = {};
+    dailyHourly.forEach((d: any) => {
+      if (block.hours.includes(d.hour)) {
+        dayTotals[d.day] = (dayTotals[d.day] ?? 0) + d.count;
+      }
+    });
+    const vals = Object.values(dayTotals);
+    const total = vals.reduce((s, v) => s + v, 0);
+    return { label: block.label, total, avg: Math.round(total / uniqueDays * 10) / 10, max: vals.length > 0 ? Math.max(...vals) : 0, pct: 0 };
+  });
+  const totalBlockVisits = blockStats.reduce((s, b) => s + b.total, 0) || 1;
+  blockStats.forEach(b => { b.pct = Math.round(b.total / totalBlockVisits * 100); });
+  const peakBlock = blockStats.reduce((a, b) => (b.total > a.total ? b : a), blockStats[0]);
+
+  const DOW_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
+  const dowOccurrences: Record<number, number> = {};
+  for (let d = 1; d <= elapsedDays; d++) {
+    const dt = new Date(cy, cm - 1, d);
+    const jsDay = dt.getDay();
+    const isodow = jsDay === 0 ? 7 : jsDay;
+    dowOccurrences[isodow] = (dowOccurrences[isodow] ?? 0) + 1;
+  }
+  const dowData = [1, 2, 3, 4, 5, 6, 7].map(dow => {
+    const found = dowVisits.find((d: any) => d.dow === dow);
+    const total = found?.count ?? 0;
+    const occ = dowOccurrences[dow] ?? 1;
+    return { label: DOW_LABELS[dow - 1], total, avg: Math.round(total / occ * 10) / 10, pct: 0 };
+  });
+  const totalDowVisits = dowData.reduce((s, d) => s + d.total, 0) || 1;
+  dowData.forEach(d => { d.pct = Math.round(d.total / totalDowVisits * 100); });
+  const busiestDow = dowData.reduce((a, b) => (b.total > a.total ? b : a), dowData[0]);
+  const quietestDow = dowData.filter(d => d.total > 0).reduce((a, b) => (b.total < a.total ? b : a), dowData[0]);
+
+  const WEEKS_IN_30 = 30 / 7;
+  const freqBuckets = [
+    { label: "주 1회 미만", min: 0, max: 0.99 },
+    { label: "주 1회", min: 1, max: 1.99 },
+    { label: "주 2회", min: 2, max: 2.99 },
+    { label: "주 3회", min: 3, max: 3.99 },
+    { label: "주 4회+", min: 4, max: Infinity },
+  ];
+  const bucketCounts = freqBuckets.map(b => {
+    const count = memberFrequency.filter((m: any) => {
+      const rate = m.visits / WEEKS_IN_30;
+      return rate >= b.min && rate <= b.max;
+    }).length;
+    return { ...b, count };
+  });
+  const totalMembersFreq = memberFrequency.length || 1;
+  const totalVisitsFreq = memberFrequency.reduce((s: number, m: any) => s + m.visits, 0);
+  const avgWeekly = memberFrequency.length > 0
+    ? (totalVisitsFreq / memberFrequency.length / WEEKS_IN_30).toFixed(1) : "0";
+  const maxBucketCount = Math.max(...bucketCounts.map(b => b.count), 1);
+
+  const notVisited14 = Math.max(0, activeCount - visited14);
+  const notVisited30 = Math.max(0, activeCount - visited30);
 
   return (
-    <div className="space-y-5">
-      {/* 트레이너별 현황 */}
+    <div className="space-y-6">
+      {/* 호점 필터 */}
+      {branchList && branchList.length > 1 && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setBranchFilter(undefined)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!branchFilter ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-card border-border text-muted-foreground"}`}
+          >전체</button>
+          {(branchList as any[]).map((b: any) => (
+            <button
+              key={b.id}
+              onClick={() => setBranchFilter(b.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-card border-border text-muted-foreground"}`}
+            >{b.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* 1. 센터 방문 요약 */}
       <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <UserCog className="h-4 w-4 text-amber-400" /> 트레이너별 회원 현황
+        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
+          <Activity className="h-4 w-4 text-amber-400" /> 센터 방문 요약
+          <span className="text-xs text-muted-foreground font-normal">({currentMonth})</span>
         </h3>
-        {!trainerList?.length ? (
-          <p className="text-xs text-muted-foreground text-center py-4">트레이너 정보가 없습니다</p>
-        ) : (
-          <div className="space-y-1.5">
-            {(trainerList as any[]).map(t => (
-              <div key={t.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{t.trainerName}</p>
-                  <p className="text-xs text-muted-foreground">정산 {t.settlementRate}%</p>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-[10px] text-muted-foreground">월 총 방문</p>
+            <p className="text-lg font-bold text-amber-400">{totalVisits.toLocaleString()}회</p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-[10px] text-muted-foreground">일 평균</p>
+            <p className="text-lg font-bold text-foreground">{avgDaily}회</p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-[10px] text-muted-foreground">전월 대비</p>
+            {changeRate !== null ? (
+              <p className={`text-lg font-bold ${changeRate >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {changeRate >= 0 ? "+" : ""}{changeRate}%
+              </p>
+            ) : (
+              <p className="text-lg font-bold text-muted-foreground">-</p>
+            )}
+          </div>
+        </div>
+        {dailyVisits.length > 0 && (
+          <div className="bg-card border border-border rounded-xl p-4">
+            <p className="text-xs text-muted-foreground mb-2">일별 방문 추이</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={dailyVisits.map((d: any) => ({ name: d.day.substring(8), count: d.count }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" />
+                <YAxis tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" width={30} />
+                <Tooltip
+                  contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                  labelFormatter={(v: string) => `${currentMonth}-${v}`}
+                  formatter={(v: number) => [`${v}회`, "방문"]}
+                />
+                <Line type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* 2. 회원 이용률 */}
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
+          <Users className="h-4 w-4 text-amber-400" /> 회원 이용률
+        </h3>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {[
+            { label: "활성 회원", value: activeCount, color: "text-foreground" },
+            { label: "7일내 방문", value: visited7, color: "text-emerald-400" },
+            { label: "14일내 방문", value: visited14, color: "text-blue-400" },
+            { label: "30일내 방문", value: visited30, color: "text-violet-400" },
+          ].map(c => (
+            <div key={c.label} className="bg-card border border-border rounded-xl p-3 text-center">
+              <p className="text-[10px] text-muted-foreground">{c.label}</p>
+              <p className={`text-lg font-bold ${c.color}`}>{c.value}명</p>
+            </div>
+          ))}
+        </div>
+        {(notVisited14 > 0 || notVisited30 > 0) && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center">
+              <p className="text-[10px] text-yellow-400 flex items-center justify-center gap-1">
+                <AlertCircle className="h-3 w-3" /> 14일 미방문
+              </p>
+              <p className="text-lg font-bold text-yellow-400">{notVisited14}명</p>
+              <p className="text-[10px] text-muted-foreground">이탈 주의</p>
+            </div>
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+              <p className="text-[10px] text-red-400 flex items-center justify-center gap-1">
+                <UserX className="h-3 w-3" /> 30일 미방문
+              </p>
+              <p className="text-lg font-bold text-red-400">{notVisited30}명</p>
+              <p className="text-[10px] text-muted-foreground">이탈 위험</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. 평균 방문 빈도 */}
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
+          <Target className="h-4 w-4 text-amber-400" /> 평균 방문 빈도
+          <span className="text-xs text-muted-foreground font-normal">(최근 30일)</span>
+        </h3>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">전체 평균</span>
+            <span className="text-lg font-bold text-amber-400">주 {avgWeekly}회</span>
+          </div>
+          <div className="space-y-2">
+            {bucketCounts.map(b => (
+              <div key={b.label}>
+                <div className="flex items-center justify-between text-xs mb-0.5">
+                  <span className="text-muted-foreground">{b.label}</span>
+                  <span className="text-foreground font-medium">
+                    {b.count}명 ({Math.round(b.count / totalMembersFreq * 100)}%)
+                  </span>
                 </div>
-                <div className="flex items-center gap-3 text-right">
-                  <div>
-                    <p className="text-xs text-muted-foreground">담당 회원</p>
-                    <p className="text-sm font-semibold text-amber-400">{t.memberCount}명</p>
-                  </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(b.count / maxBucketCount) * 100}%` }} />
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* 4. 시간대별 혼잡도 */}
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
+          <Clock className="h-4 w-4 text-amber-400" /> 시간대별 혼잡도
+        </h3>
+        {blockStats.length > 0 && (
+          <>
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-3 text-center">
+              <span className="text-xs text-amber-400 font-medium flex items-center justify-center gap-1">
+                <Clock className="h-3 w-3" /> 피크타임: {peakBlock.label}시 (평균 {peakBlock.avg}회/일)
+              </span>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4 mb-2">
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={blockStats}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" width={30} />
+                  <Tooltip
+                    contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                    formatter={(v: number, name: string) => [
+                      `${v}회`,
+                      name === "avg" ? "일 평균" : "최대",
+                    ]}
+                  />
+                  <Legend formatter={(v: string) => v === "avg" ? "일 평균" : "최대"} />
+                  <Bar dataKey="avg" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="max" fill="rgba(245,158,11,0.3)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">시간대</th>
+                    <th className="text-right py-2 px-3 text-muted-foreground font-medium">평균</th>
+                    <th className="text-right py-2 px-3 text-muted-foreground font-medium">최대</th>
+                    <th className="text-right py-2 px-3 text-muted-foreground font-medium">비율</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blockStats.map(b => (
+                    <tr key={b.label} className={`border-b border-border/50 ${b === peakBlock ? "bg-amber-500/5" : ""}`}>
+                      <td className={`py-2 px-3 font-medium ${b === peakBlock ? "text-amber-400" : "text-foreground"}`}>{b.label}시</td>
+                      <td className="text-right py-2 px-3 text-foreground">{b.avg}회</td>
+                      <td className="text-right py-2 px-3 text-foreground">{b.max}회</td>
+                      <td className="text-right py-2 px-3 text-amber-400 font-medium">{b.pct}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
+      </div>
+
+      {/* 5. 요일별 혼잡도 */}
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
+          <Dumbbell className="h-4 w-4 text-amber-400" /> 요일별 혼잡도
+        </h3>
+        <div className="flex gap-2 mb-3 justify-center flex-wrap">
+          <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+            가장 많은 요일: {busiestDow.label}요일
+          </span>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">
+            한산한 요일: {quietestDow.label}요일
+          </span>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 mb-2">
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={dowData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <YAxis tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" width={30} />
+              <Tooltip
+                contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                formatter={(v: number) => [`${v}회`, "총 방문"]}
+              />
+              <Bar dataKey="total" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left py-2 px-3 text-muted-foreground font-medium">요일</th>
+                <th className="text-right py-2 px-3 text-muted-foreground font-medium">총 방문</th>
+                <th className="text-right py-2 px-3 text-muted-foreground font-medium">일 평균</th>
+                <th className="text-right py-2 px-3 text-muted-foreground font-medium">비율</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dowData.map(d => (
+                <tr key={d.label} className={`border-b border-border/50 ${d === busiestDow ? "bg-emerald-500/5" : d === quietestDow ? "bg-blue-500/5" : ""}`}>
+                  <td className={`py-2 px-3 font-medium ${d === busiestDow ? "text-emerald-400" : d === quietestDow ? "text-blue-400" : "text-foreground"}`}>{d.label}요일</td>
+                  <td className="text-right py-2 px-3 text-foreground">{d.total}회</td>
+                  <td className="text-right py-2 px-3 text-foreground">{d.avg}회</td>
+                  <td className="text-right py-2 px-3 text-amber-400 font-medium">{d.pct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* 락커 현황 */}
@@ -1034,10 +1332,10 @@ function OperationsTab() {
           <div className="bg-card border border-border rounded-xl p-3">
             <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
               <span>점유율</span>
-              <span>{allLockers.length > 0 ? Math.round((occupied.length / allLockers.length) * 100) : 0}%</span>
+              <span>{Math.round((occupied.length / allLockers.length) * 100)}%</span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${allLockers.length > 0 ? (occupied.length / allLockers.length) * 100 : 0}%` }} />
+              <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(occupied.length / allLockers.length) * 100}%` }} />
             </div>
           </div>
         )}
@@ -1066,64 +1364,7 @@ function OperationsTab() {
         )}
       </div>
 
-      {/* 센터 방문 현황 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Clock className="h-4 w-4 text-amber-400" /> 이번달 센터 방문
-        </h3>
-        {!hourStats?.length ? (
-          <p className="text-xs text-muted-foreground text-center py-4">출입 데이터가 없습니다</p>
-        ) : (
-          <div className="space-y-2">
-            {/* 총 방문 요약 */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-card border border-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-muted-foreground">총 방문</p>
-                <p className="text-lg font-bold text-amber-400">{totalVisits.toLocaleString()}회</p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-muted-foreground">일 평균</p>
-                <p className="text-lg font-bold text-foreground">{avgDaily}회</p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-muted-foreground">피크 시간</p>
-                <p className="text-lg font-bold text-amber-400">{hourStats.find(h => h.count === maxHour)?.hour ?? "-"}시</p>
-              </div>
-            </div>
-
-            {/* 시간별 방문자 수 */}
-            <div className="bg-card border border-border rounded-xl p-4">
-              <p className="text-xs text-muted-foreground mb-2">시간별 방문자 수</p>
-              <div className="flex items-end gap-[2px] h-24">
-                {Array.from({ length: 24 }, (_, i) => {
-                  const h = hourStats.find(s => s.hour === i);
-                  const count = h?.count ?? 0;
-                  const height = maxHour > 0 ? Math.max((count / maxHour) * 100, count > 0 ? 8 : 0) : 0;
-                  const isPeak = count === maxHour && count > 0;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center">
-                      {count > 0 && (
-                        <span className={`text-[8px] mb-0.5 ${isPeak ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>{count}</span>
-                      )}
-                      <div
-                        className={`w-full rounded-sm transition-all ${isPeak ? "bg-amber-400" : count > 0 ? "bg-amber-400/40" : "bg-border/30"}`}
-                        style={{ height: `${height}%`, minHeight: count === 0 ? "2px" : undefined }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex mt-1">
-                {Array.from({ length: 24 }, (_, i) => (
-                  <span key={i} className={`flex-1 text-center text-[7px] ${i % 3 === 0 ? "text-muted-foreground" : "text-transparent"}`}>{i}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 컨설턴트 기록: 해지 현황 */}
+      {/* 해지 현황 */}
       {consultantData && consultantData.length > 0 && (() => {
         const totalChurn = consultantData.reduce((s: number, r: any) => s + (r.churnCount ?? 0), 0);
         const allReasons = consultantData.flatMap((r: any) => r.churnReasons ?? []);
@@ -1147,7 +1388,7 @@ function OperationsTab() {
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]).map(([r, c]) => (
                       <span key={r} className="text-xs px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">
-                        {r} {c > 1 ? `×${c}` : ""}
+                        {r} {c > 1 ? `x${c}` : ""}
                       </span>
                     ))}
                   </div>
@@ -1156,7 +1397,7 @@ function OperationsTab() {
             )}
             {memos.map((m: any, i: number) => (
               <div key={i} className="bg-card border border-border rounded-xl px-4 py-3">
-                <p className="text-xs text-muted-foreground mb-1">{m.name} · 메모</p>
+                <p className="text-xs text-muted-foreground mb-1">{m.name} - 메모</p>
                 <p className="text-sm text-foreground whitespace-pre-wrap">{m.memo}</p>
               </div>
             ))}

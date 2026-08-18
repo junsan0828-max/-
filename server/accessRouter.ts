@@ -1146,4 +1146,103 @@ export const accessRouter = t.router({
       );
       return result.rows as Array<{ hour: number; count: number }>;
     }),
+
+  getOpsVisitDashboard: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const branchId = input?.branchId ?? null;
+      const curPrefix = kstMonthPrefix();
+      const today = kstDate();
+      const d7 = kstDate(-7);
+      const d14 = kstDate(-14);
+      const d30 = kstDate(-30);
+
+      const [cy, cm] = curPrefix.split("-").map(Number);
+      const prevPrefix = cm === 1 ? `${cy - 1}-12` : `${cy}-${String(cm - 1).padStart(2, "0")}`;
+
+      const bCond = branchId ? `AND "branchId" = ${Number(branchId)}` : "";
+      const mBCond = branchId ? `AND m."branchId" = ${Number(branchId)}` : "";
+
+      const [
+        dailyRes, prevRes, hourlyRes, dailyHourlyRes, dowRes,
+        activeRes, v7Res, v14Res, v30Res, freqRes,
+      ] = await Promise.all([
+        pool.query(
+          `SELECT TO_CHAR("accessedAt"::timestamptz AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD') AS day,
+                  COUNT(*)::int AS count
+           FROM access_logs WHERE "accessedAt" LIKE $1 AND "accessResult"='allowed' ${bCond}
+           GROUP BY day ORDER BY day`,
+          [`${curPrefix}%`]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS count FROM access_logs
+           WHERE "accessedAt" LIKE $1 AND "accessResult"='allowed' ${bCond}`,
+          [`${prevPrefix}%`]
+        ),
+        pool.query(
+          `SELECT EXTRACT(HOUR FROM ("accessedAt"::timestamptz AT TIME ZONE 'Asia/Seoul'))::int AS hour,
+                  COUNT(*)::int AS count
+           FROM access_logs WHERE "accessedAt" LIKE $1 AND "accessResult"='allowed' ${bCond}
+           GROUP BY hour ORDER BY hour`,
+          [`${curPrefix}%`]
+        ),
+        pool.query(
+          `SELECT TO_CHAR("accessedAt"::timestamptz AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD') AS day,
+                  EXTRACT(HOUR FROM ("accessedAt"::timestamptz AT TIME ZONE 'Asia/Seoul'))::int AS hour,
+                  COUNT(*)::int AS count
+           FROM access_logs WHERE "accessedAt" LIKE $1 AND "accessResult"='allowed' ${bCond}
+           GROUP BY day, hour`,
+          [`${curPrefix}%`]
+        ),
+        pool.query(
+          `SELECT EXTRACT(ISODOW FROM ("accessedAt"::timestamptz AT TIME ZONE 'Asia/Seoul'))::int AS dow,
+                  COUNT(*)::int AS count
+           FROM access_logs WHERE "accessedAt" LIKE $1 AND "accessResult"='allowed' ${bCond}
+           GROUP BY dow ORDER BY dow`,
+          [`${curPrefix}%`]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS count FROM members WHERE status='active' ${branchId ? `AND "branchId"=${Number(branchId)}` : ""}`
+        ),
+        pool.query(
+          `SELECT COUNT(DISTINCT "memberId")::int AS count FROM access_logs
+           WHERE "accessedAt">=$1 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
+          [d7]
+        ),
+        pool.query(
+          `SELECT COUNT(DISTINCT "memberId")::int AS count FROM access_logs
+           WHERE "accessedAt">=$1 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
+          [d14]
+        ),
+        pool.query(
+          `SELECT COUNT(DISTINCT "memberId")::int AS count FROM access_logs
+           WHERE "accessedAt">=$1 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
+          [d30]
+        ),
+        pool.query(
+          `SELECT COUNT(a.id)::int AS visits
+           FROM members m
+           LEFT JOIN access_logs a ON a."memberId"=m.id
+             AND a."accessedAt">=$1 AND a."accessResult"='allowed' ${bCond.replace(/"branchId"/, 'a."branchId"')}
+           WHERE m.status='active' ${branchId ? `AND m."branchId"=${Number(branchId)}` : ""}
+           GROUP BY m.id`,
+          [d30]
+        ),
+      ]);
+
+      return {
+        dailyVisits: dailyRes.rows as Array<{ day: string; count: number }>,
+        prevMonthTotal: (prevRes.rows[0]?.count ?? 0) as number,
+        hourlyVisits: hourlyRes.rows as Array<{ hour: number; count: number }>,
+        dailyHourly: dailyHourlyRes.rows as Array<{ day: string; hour: number; count: number }>,
+        dowVisits: dowRes.rows as Array<{ dow: number; count: number }>,
+        activeCount: (activeRes.rows[0]?.count ?? 0) as number,
+        visited7: (v7Res.rows[0]?.count ?? 0) as number,
+        visited14: (v14Res.rows[0]?.count ?? 0) as number,
+        visited30: (v30Res.rows[0]?.count ?? 0) as number,
+        memberFrequency: freqRes.rows as Array<{ visits: number }>,
+        currentMonth: curPrefix,
+        today,
+      };
+    }),
 });
