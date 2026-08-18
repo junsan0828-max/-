@@ -966,16 +966,21 @@ function MarketingTab() {
 // ── 센터 운영 탭 ──────────────────────────────────────────────────────────────
 function OperationsTab() {
   const now = new Date();
-  const [year] = useState(now.getFullYear());
-  const [month] = useState(now.getMonth() + 1);
+  const kstNow = new Date(now.getTime() + 9 * 3600000);
+  const [selYear, setSelYear] = useState(kstNow.getUTCFullYear());
+  const [selMonth, setSelMonth] = useState(kstNow.getUTCMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | undefined>(undefined);
+  const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
+  const isCurrentMonth = selPrefix === `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}`;
+  const goPrev = () => { if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); } else setSelMonth(m => m - 1); };
+  const goNext = () => { if (isCurrentMonth) return; if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); } else setSelMonth(m => m + 1); };
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: dashboard, isLoading: dashLoading } = trpc.access.getOpsVisitDashboard.useQuery(
-    branchFilter ? { branchId: branchFilter } : {}
+    { ...(branchFilter ? { branchId: branchFilter } : {}), month: selPrefix }
   );
   const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
-  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
+  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
 
   const allLockers = (lockers ?? []) as any[];
   const occupied = allLockers.filter(l => l.isOccupied === 1);
@@ -1090,11 +1095,21 @@ function OperationsTab() {
         </div>
       )}
 
+      {/* 월 선택 */}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{selYear}년 {selMonth}월</span>
+        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
       {/* 1. 센터 방문 요약 */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
           <Activity className="h-4 w-4 text-amber-400" /> 센터 방문 요약
-          <span className="text-xs text-muted-foreground font-normal">({currentMonth})</span>
         </h3>
         <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="bg-card border border-border rounded-xl p-3 text-center">

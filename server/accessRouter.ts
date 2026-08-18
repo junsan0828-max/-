@@ -1148,16 +1148,22 @@ export const accessRouter = t.router({
     }),
 
   getOpsVisitDashboard: protectedProcedure
-    .input(z.object({ branchId: z.number().optional() }).optional())
+    .input(z.object({ branchId: z.number().optional(), month: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const branchId = input?.branchId ?? null;
-      const curPrefix = kstMonthPrefix();
+      const curPrefix = input?.month ?? kstMonthPrefix();
       const today = kstDate();
-      const d7 = kstDate(-7);
-      const d14 = kstDate(-14);
-      const d30 = kstDate(-30);
-
       const [cy, cm] = curPrefix.split("-").map(Number);
+      const daysInMonth = new Date(cy, cm, 0).getDate();
+      const monthStart = `${curPrefix}-01`;
+      const monthEnd = `${curPrefix}-${String(daysInMonth).padStart(2, "0")}T23:59:59`;
+      const isCurrentMonth = curPrefix === kstMonthPrefix();
+      const elapsedDays = isCurrentMonth ? parseInt(today.substring(8, 10), 10) : daysInMonth;
+      const refEnd = isCurrentMonth ? `${today}T23:59:59` : monthEnd;
+      const d7Start = new Date(cy, cm - 1, elapsedDays - 6).toISOString().substring(0, 10);
+      const d14Start = new Date(cy, cm - 1, elapsedDays - 13).toISOString().substring(0, 10);
+      const d30Start = new Date(cy, cm - 1, elapsedDays - 29).toISOString().substring(0, 10);
+
       const prevPrefix = cm === 1 ? `${cy - 1}-12` : `${cy}-${String(cm - 1).padStart(2, "0")}`;
 
       const bCond = branchId ? `AND "branchId" = ${Number(branchId)}` : "";
@@ -1206,27 +1212,27 @@ export const accessRouter = t.router({
         ),
         pool.query(
           `SELECT COUNT(DISTINCT "memberId")::int AS count FROM access_logs
-           WHERE "accessedAt">=$1 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
-          [d7]
+           WHERE "accessedAt">=$1 AND "accessedAt"<=$2 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
+          [d7Start, refEnd]
         ),
         pool.query(
           `SELECT COUNT(DISTINCT "memberId")::int AS count FROM access_logs
-           WHERE "accessedAt">=$1 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
-          [d14]
+           WHERE "accessedAt">=$1 AND "accessedAt"<=$2 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
+          [d14Start, refEnd]
         ),
         pool.query(
           `SELECT COUNT(DISTINCT "memberId")::int AS count FROM access_logs
-           WHERE "accessedAt">=$1 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
-          [d30]
+           WHERE "accessedAt">=$1 AND "accessedAt"<=$2 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}`,
+          [d30Start, refEnd]
         ),
         pool.query(
           `SELECT COUNT(a.id)::int AS visits
            FROM members m
            LEFT JOIN access_logs a ON a."memberId"=m.id
-             AND a."accessedAt">=$1 AND a."accessResult"='allowed' ${bCond.replace(/"branchId"/, 'a."branchId"')}
+             AND a."accessedAt">=$1 AND a."accessedAt"<=$2 AND a."accessResult"='allowed' ${bCond.replace(/"branchId"/, 'a."branchId"')}
            WHERE m.status='active' ${branchId ? `AND m."branchId"=${Number(branchId)}` : ""}
            GROUP BY m.id`,
-          [d30]
+          [d30Start, refEnd]
         ),
       ]);
 
