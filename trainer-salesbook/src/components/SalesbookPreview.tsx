@@ -4,20 +4,22 @@ import {
   Clock, CheckCircle, AlertTriangle, ArrowRight, Star
 } from "lucide-react";
 import type { SalesbookData } from "../types";
-import { jobTypeLabels, jobTypeColors } from "../data/templates";
+import { jobTypeLabels } from "../data/templates";
+import { designConcepts, type DesignConcept } from "../data/designConcepts";
 
 interface Props {
   data: SalesbookData;
 }
 
 export default function SalesbookPreview({ data }: Props) {
-  const colors = jobTypeColors[data.jobType];
+  const concept = designConcepts.find(c => c.id === data.designConceptId) || designConcepts[0];
+  const c = concept.colors;
   const jobLabel = data.jobType === "custom" ? (data.customJobTitle || "전문 트레이너") : jobTypeLabels[data.jobType];
 
   return (
     <div className="salesbook-preview max-w-4xl mx-auto">
       {/* Cover Page */}
-      <div className={`salesbook-page bg-gradient-to-br ${colors.gradient} text-white rounded-2xl p-8 sm:p-12 mb-8 shadow-2xl relative overflow-hidden`}>
+      <div className="salesbook-page text-white rounded-2xl p-8 sm:p-12 mb-8 shadow-2xl relative overflow-hidden" style={{ background: concept.coverGradient }}>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
         <div className="relative z-10">
@@ -47,7 +49,7 @@ export default function SalesbookPreview({ data }: Props) {
       </div>
 
       {/* Section 1: Opening */}
-      <SectionCard icon={<User className="w-5 h-5" />} number={1} title="상담을 시작하며" accentColor={colors.accent}>
+      <SectionCard icon={<User className="w-5 h-5" />} number={1} title="상담을 시작하며" accentColor={c.primary}>
         {data.profilePhotoUrl && (
           <div className="mb-4 flex justify-center">
             <img src={data.profilePhotoUrl} alt="프로필" className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg" />
@@ -68,11 +70,11 @@ export default function SalesbookPreview({ data }: Props) {
       </SectionCard>
 
       {/* Section 2: Body Composition */}
-      <SectionCard icon={<Activity className="w-5 h-5" />} number={2} title="체성분 분석 해설" accentColor={colors.accent}>
+      <SectionCard icon={<Activity className="w-5 h-5" />} number={2} title="체성분 분석 해설" accentColor={c.primary}>
         <div className="grid gap-4">
           {data.bodyCompItems.filter(b => b.name).map(item => (
             <div key={item.id} className="bg-gray-50 rounded-xl p-5">
-              <h4 className={`font-bold text-lg mb-2 ${colors.accent}`}>{item.name}</h4>
+              <h4 className="font-bold text-lg mb-2" style={{ color: c.primary }}>{item.name}</h4>
               {item.description && <p className="text-gray-700 text-sm leading-relaxed mb-3">{item.description}</p>}
               <div className="flex flex-wrap gap-3">
                 {item.normalRange && (
@@ -92,11 +94,11 @@ export default function SalesbookPreview({ data }: Props) {
       </SectionCard>
 
       {/* Section 3: Musculoskeletal */}
-      <SectionCard icon={<Bone className="w-5 h-5" />} number={3} title="근골격 분석 해설" accentColor={colors.accent}>
+      <SectionCard icon={<Bone className="w-5 h-5" />} number={3} title="근골격 분석 해설" accentColor={c.primary}>
         <div className="grid gap-4">
           {data.musculoskeletalItems.filter(m => m.area).map(item => (
             <div key={item.id} className="bg-gray-50 rounded-xl p-5">
-              <h4 className={`font-bold text-lg mb-2 ${colors.accent}`}>{item.area}</h4>
+              <h4 className="font-bold text-lg mb-2" style={{ color: c.primary }}>{item.area}</h4>
               {item.analysisPoint && (
                 <div className="mb-2">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">분석 포인트</span>
@@ -115,9 +117,9 @@ export default function SalesbookPreview({ data }: Props) {
       </SectionCard>
 
       {/* Section 4: Comprehensive */}
-      <SectionCard icon={<FileText className="w-5 h-5" />} number={4} title="종합 소견" accentColor={colors.accent}>
+      <SectionCard icon={<FileText className="w-5 h-5" />} number={4} title="종합 소견" accentColor={c.primary}>
         {data.comprehensiveMent && (
-          <div className={`${colors.bg} rounded-xl p-5 mb-4 border-l-4`} style={{ borderColor: colors.primary }}>
+          <div className="rounded-xl p-5 mb-4 border-l-4" style={{ borderColor: c.primary, backgroundColor: c.bgLight }}>
             <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{data.comprehensiveMent}</p>
           </div>
         )}
@@ -139,7 +141,7 @@ export default function SalesbookPreview({ data }: Props) {
       </SectionCard>
 
       {/* Section 5: Necessity */}
-      <SectionCard icon={<Dumbbell className="w-5 h-5" />} number={5} title="전문 지도의 필요성" accentColor={colors.accent}>
+      <SectionCard icon={<Dumbbell className="w-5 h-5" />} number={5} title="전문 지도의 필요성" accentColor={c.primary}>
         {data.exerciseNeedMent && (
           <div className="bg-gray-50 rounded-xl p-5 mb-4">
             <p className="font-semibold text-gray-700 text-sm mb-2">왜 운동이 필요한가?</p>
@@ -152,8 +154,8 @@ export default function SalesbookPreview({ data }: Props) {
               <p className="font-semibold text-gray-500 text-sm mb-2">혼자 운동하면...</p>
               <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{data.soloVsProMent}</p>
             </div>
-            <div className={`${colors.bg} rounded-xl p-5 border-2`} style={{ borderColor: colors.primary }}>
-              <p className={`font-semibold text-sm mb-2 ${colors.accent}`}>전문가와 함께하면!</p>
+            <div className="rounded-xl p-5 border-2" style={{ borderColor: c.primary, backgroundColor: c.bgLight }}>
+              <p className="font-semibold text-sm mb-2" style={{ color: c.primary }}>전문가와 함께하면!</p>
               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{data.proAdvantagesMent}</p>
             </div>
           </div>
@@ -161,12 +163,12 @@ export default function SalesbookPreview({ data }: Props) {
       </SectionCard>
 
       {/* Section 6: Programs */}
-      <SectionCard icon={<Package className="w-5 h-5" />} number={6} title="맞춤 프로그램 제안" accentColor={colors.accent}>
+      <SectionCard icon={<Package className="w-5 h-5" />} number={6} title="맞춤 프로그램 제안" accentColor={c.primary}>
         <div className="grid gap-4">
           {data.programs.filter(p => p.name).map((prog, idx) => (
-            <div key={prog.id} className={`rounded-xl p-5 border-2 ${idx === 0 ? "border-2 shadow-md" : "border-gray-100"}`} style={idx === 0 ? { borderColor: colors.primary } : {}}>
+            <div key={prog.id} className={`rounded-xl p-5 border-2 ${idx === 0 ? "border-2 shadow-md" : "border-gray-100"}`} style={idx === 0 ? { borderColor: c.primary } : {}}>
               {idx === 0 && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-white px-2 py-0.5 rounded-full mb-3" style={{ backgroundColor: colors.primary }}>
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-white px-2 py-0.5 rounded-full mb-3" style={{ backgroundColor: c.primary }}>
                   <Star className="w-3 h-3" /> 추천
                 </span>
               )}
@@ -194,7 +196,7 @@ export default function SalesbookPreview({ data }: Props) {
       </SectionCard>
 
       {/* Section 7: Pricing */}
-      <SectionCard icon={<DollarSign className="w-5 h-5" />} number={7} title="가격 안내" accentColor={colors.accent}>
+      <SectionCard icon={<DollarSign className="w-5 h-5" />} number={7} title="가격 안내" accentColor={c.primary}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -211,14 +213,14 @@ export default function SalesbookPreview({ data }: Props) {
                   <td className="py-3 px-2 font-medium text-gray-800">{pkg.name}</td>
                   <td className="py-3 px-2 text-gray-600">{pkg.sessions}</td>
                   <td className="py-3 px-2 text-right text-gray-400 line-through">{pkg.originalPrice}</td>
-                  <td className="py-3 px-2 text-right font-bold" style={{ color: colors.primary }}>{pkg.discountedPrice}</td>
+                  <td className="py-3 px-2 text-right font-bold" style={{ color: c.primary }}>{pkg.discountedPrice}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         {data.anchoringMent && (
-          <div className={`${colors.bg} rounded-xl p-5 mt-4`}>
+          <div className="rounded-xl p-5 mt-4" style={{ backgroundColor: c.bgLight }}>
             <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{data.anchoringMent}</p>
           </div>
         )}
@@ -232,7 +234,7 @@ export default function SalesbookPreview({ data }: Props) {
 
       {/* Section 8: Objection Handling (Trainer Guide) */}
       <div className="trainer-guide-section">
-        <SectionCard icon={<ShieldAlert className="w-5 h-5" />} number={8} title="거절 대응 가이드" accentColor={colors.accent} trainerOnly>
+        <SectionCard icon={<ShieldAlert className="w-5 h-5" />} number={8} title="거절 대응 가이드" accentColor={c.primary} trainerOnly>
           <div className="grid gap-4">
             {data.objections.filter(o => o.customerSays).map((obj, idx) => (
               <div key={obj.id} className="bg-gray-50 rounded-xl p-5">
@@ -256,18 +258,18 @@ export default function SalesbookPreview({ data }: Props) {
       </div>
 
       {/* Section 9: Follow-up */}
-      <SectionCard icon={<PhoneCall className="w-5 h-5" />} number={9} title="후속 관리" accentColor={colors.accent}>
+      <SectionCard icon={<PhoneCall className="w-5 h-5" />} number={9} title="후속 관리" accentColor={c.primary}>
         <p className="text-sm font-semibold text-gray-700 mb-3">미등록 고객 후속 연락 시나리오</p>
         <div className="relative">
           <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
           <div className="space-y-4">
             {data.followUpScenarios.filter(f => f.timing).map((f, idx) => (
               <div key={f.id} className="relative pl-10">
-                <div className="absolute left-2 w-5 h-5 rounded-full bg-white border-2 flex items-center justify-center text-[10px] font-bold" style={{ borderColor: colors.primary, color: colors.primary }}>
+                <div className="absolute left-2 w-5 h-5 rounded-full bg-white border-2 flex items-center justify-center text-[10px] font-bold" style={{ borderColor: c.primary, color: c.primary }}>
                   {idx + 1}
                 </div>
                 <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: colors.primary }}>{f.timing}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: c.primary }}>{f.timing}</p>
                   <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{f.message}</p>
                 </div>
               </div>
@@ -307,7 +309,7 @@ function SectionCard({ icon, number, title, accentColor, trainerOnly, children }
         </div>
       )}
       <div className="flex items-center gap-3 mb-6">
-        <div className={`w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center ${accentColor}`}>
+        <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center" style={{ color: accentColor }}>
           {icon}
         </div>
         <div>

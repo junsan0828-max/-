@@ -52,6 +52,7 @@ export interface FollowUpScenario {
 export interface SalesbookData {
   jobType: JobType;
   customJobTitle: string;
+  designConceptId: string;
 
   // Section 1
   trainerName: string;

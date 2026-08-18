@@ -4,7 +4,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-const ptTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
+const ptTemplate: Omit<SalesbookData, "jobType" | "customJobTitle" | "designConceptId"> = {
   trainerName: "",
   centerName: "",
   experienceYears: "",
@@ -66,7 +66,7 @@ const ptTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
   firstSessionGuideMent: "첫 수업 전 안내 사항:\n1. 편한 운동복과 실내화를 준비해주세요\n2. 수업 1시간 전에는 가벼운 식사를 마쳐주세요\n3. 개인 수건과 물은 준비해주시면 좋습니다\n4. 첫 수업은 기초 체력 테스트와 운동 자세 교정 위주로 진행됩니다\n5. 수업 시간 10분 전에 도착해주시면 여유있게 준비할 수 있습니다",
 };
 
-const pilatesTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
+const pilatesTemplate: Omit<SalesbookData, "jobType" | "customJobTitle" | "designConceptId"> = {
   trainerName: "",
   centerName: "",
   experienceYears: "",
@@ -128,7 +128,7 @@ const pilatesTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
   firstSessionGuideMent: "첫 수업 전 안내 사항:\n1. 몸에 밀착되는 편한 운동복을 준비해주세요 (기구 레슨 시 헐렁한 옷은 위험합니다)\n2. 양말을 꼭 착용해주세요 (미끄럼 방지 양말 권장)\n3. 수업 2시간 전에는 식사를 마쳐주세요\n4. 첫 수업은 호흡법과 코어 활성화 위주로 부드럽게 진행됩니다\n5. 수업 시간 10분 전에 도착해주시면 좋습니다",
 };
 
-const yogaTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
+const yogaTemplate: Omit<SalesbookData, "jobType" | "customJobTitle" | "designConceptId"> = {
   ...pilatesTemplate,
   certificates: [{ id: uid(), name: "요가 지도자 자격증 (RYT-200)" }],
   openingMent: "안녕하세요! 오늘 방문해주셔서 감사합니다. 저는 이곳에서 회원님들의 심신 균형과 유연한 몸을 도와드리는 요가 강사입니다. 오늘은 간단한 체형 확인을 통해 현재 몸 상태를 살펴보고, 회원님에게 맞는 요가 프로그램을 안내해드리겠습니다.",
@@ -142,7 +142,7 @@ const yogaTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
   ],
 };
 
-const crossfitTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
+const crossfitTemplate: Omit<SalesbookData, "jobType" | "customJobTitle" | "designConceptId"> = {
   ...ptTemplate,
   certificates: [{ id: uid(), name: "CrossFit Level 1 Trainer" }],
   openingMent: "반갑습니다! 오늘 상담 오신 걸 환영합니다. 저는 이곳에서 크로스핏 프로그램을 이끌고 있는 코치입니다. 오늘 체성분 측정 결과를 바탕으로 현재 체력 수준을 파악하고, 회원님에게 맞는 트레이닝 프로그램을 제안해드리겠습니다.",
@@ -156,7 +156,7 @@ const crossfitTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
   ],
 };
 
-const groupTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
+const groupTemplate: Omit<SalesbookData, "jobType" | "customJobTitle" | "designConceptId"> = {
   ...ptTemplate,
   certificates: [{ id: uid(), name: "그룹운동 지도자 자격증" }],
   openingMent: "안녕하세요! 오늘 방문해주셔서 감사합니다. 저는 이곳에서 다양한 그룹 운동 프로그램을 진행하고 있는 강사입니다. 오늘은 회원님의 체력 수준과 운동 목표를 파악하고, 가장 적합한 클래스를 안내해드리겠습니다.",
@@ -169,7 +169,7 @@ const groupTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
   ],
 };
 
-const emptyTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
+const emptyTemplate: Omit<SalesbookData, "jobType" | "customJobTitle" | "designConceptId"> = {
   trainerName: "",
   centerName: "",
   experienceYears: "",
@@ -207,7 +207,7 @@ const emptyTemplate: Omit<SalesbookData, "jobType" | "customJobTitle"> = {
   firstSessionGuideMent: "",
 };
 
-export const templates: Record<JobType, Omit<SalesbookData, "jobType" | "customJobTitle">> = {
+export const templates: Record<JobType, Omit<SalesbookData, "jobType" | "customJobTitle" | "designConceptId">> = {
   pt: ptTemplate,
   pilates: pilatesTemplate,
   yoga: yogaTemplate,

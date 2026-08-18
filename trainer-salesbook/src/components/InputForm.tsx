@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import type { SalesbookData, JobType, Certificate, BodyCompItem, MusculoskeletalItem, Program, PricePackage, Objection, FollowUpScenario } from "../types";
 import { templates, jobTypeLabels, jobTypeColors } from "../data/templates";
+import ConceptSelector from "./ConceptSelector";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -89,6 +90,7 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
 export default function InputForm({ onGenerate }: Props) {
   const [jobType, setJobType] = useState<JobType>("pt");
   const [customJobTitle, setCustomJobTitle] = useState("");
+  const [designConceptId, setDesignConceptId] = useState("powerful-red");
   const [data, setData] = useState(() => ({ ...templates.pt }));
   const [openSections, setOpenSections] = useState<Record<number, boolean>>({ 1: true });
 
@@ -182,7 +184,7 @@ export default function InputForm({ onGenerate }: Props) {
   }
 
   function handleSubmit() {
-    onGenerate({ jobType, customJobTitle, ...data });
+    onGenerate({ ...data, jobType, customJobTitle, designConceptId });
   }
 
   const colors = jobTypeColors[jobType];
@@ -219,6 +221,9 @@ export default function InputForm({ onGenerate }: Props) {
           </div>
         )}
       </div>
+
+      {/* Design Concept Selection */}
+      <ConceptSelector selectedId={designConceptId} onChange={setDesignConceptId} />
 
       {/* Section 1 */}
       <div className="mb-3">
