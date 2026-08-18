@@ -1094,9 +1094,21 @@ export const accessRouter = t.router({
         const result = await pool.query(
           `SELECT m.id, m.name, m.phone, m."membershipEnd",
                   t."trainerName",
-                  (m."membershipEnd"::date - $3::date)::int AS days_left
+                  (m."membershipEnd"::date - $3::date)::int AS days_left,
+                  r.type AS rev_type,
+                  r.duration AS rev_duration,
+                  r."paidAmount" AS rev_paid,
+                  r."programDetail" AS rev_program,
+                  r."serviceHealthDuration" AS rev_svc_health
            FROM members m
            LEFT JOIN trainers t ON t.id = m."trainerId"
+           LEFT JOIN LATERAL (
+             SELECT type, duration, "paidAmount", "programDetail", "serviceHealthDuration"
+             FROM revenue_entries
+             WHERE "memberId" = m.id
+             ORDER BY "paymentDate" DESC, id DESC
+             LIMIT 1
+           ) r ON true
            WHERE m.status = 'active'
              AND m."membershipEnd" IS NOT NULL
              AND m."membershipEnd" >= $1
@@ -1107,6 +1119,9 @@ export const accessRouter = t.router({
         return result.rows as Array<{
           id: number; name: string; phone: string | null; membershipEnd: string;
           trainerName: string | null; days_left: number;
+          rev_type: string | null; rev_duration: number | null;
+          rev_paid: number | null; rev_program: string | null;
+          rev_svc_health: number | null;
         }>;
       } catch (err) {
         console.error("[getAdminExpiringMembers] error:", err);

@@ -879,7 +879,7 @@ export default function MemberDetail({ memberId }: Props) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setLocation("/members")}
+            onClick={() => window.history.length > 1 ? window.history.back() : setLocation("/members")}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />

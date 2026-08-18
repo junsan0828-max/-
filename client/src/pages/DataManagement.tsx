@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
   Database, TrendingUp, Users, Megaphone, Building2,
@@ -192,6 +193,7 @@ function FinanceTab() {
 
 // ── 고객 탭 ──────────────────────────────────────────────────────────────────
 function CustomerTab() {
+  const [, setLocation] = useLocation();
   const { data: stats } = trpc.access.getAdminMemberStats.useQuery();
   const { data: expiring, isLoading: expiringLoading } = trpc.access.getAdminExpiringMembers.useQuery({ days: 30 });
   const { data: unpaid } = trpc.pt.listUnpaid.useQuery();
@@ -277,17 +279,36 @@ function CustomerTab() {
             <p className="text-xs text-muted-foreground text-center py-4">만료 임박 회원이 없습니다</p>
           ) : (
             <div className="space-y-1.5">
-              {expiring.map(m => (
-                <div key={m.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.trainerName ?? "담당 없음"} · 만료 {m.membershipEnd}</p>
+              {expiring.map(m => {
+                const isService = m.rev_paid === 0 || (m.rev_type === "PT" && (m.rev_svc_health ?? 0) > 0);
+                const program = m.rev_type === "헬스" && m.rev_duration
+                  ? `헬스 ${m.rev_duration}개월`
+                  : m.rev_type === "PT"
+                    ? `PT${m.rev_svc_health ? ` + 서비스헬스 ${m.rev_svc_health}개월` : ""}`
+                    : m.rev_program ?? m.rev_type ?? "정보 없음";
+                return (
+                  <div
+                    key={m.id}
+                    onClick={() => setLocation(`/members/${m.id}`)}
+                    className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 cursor-pointer active:bg-accent hover:border-primary/30 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-foreground">{m.name}</p>
+                        {isService && <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 font-medium">서비스</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {program}
+                        {m.rev_paid != null && m.rev_paid > 0 && <> · {m.rev_paid.toLocaleString()}원</>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{m.trainerName ?? "담당 없음"} · 만료 {m.membershipEnd}</p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${m.days_left <= 7 ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"}`}>
+                      D-{m.days_left}
+                    </span>
                   </div>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${m.days_left <= 7 ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"}`}>
-                    D-{m.days_left}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
