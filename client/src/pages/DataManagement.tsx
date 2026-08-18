@@ -200,8 +200,17 @@ function CustomerTab() {
   const totalUnpaid = (unpaid ?? []).reduce((s, p) => s + (p.unpaidAmount ?? 0), 0);
   const lowSession = (activePt ?? []).filter((p: any) => (p.totalSessions - p.usedSessions) <= 5);
 
+  type CustCat = "expiring" | "lowPt" | "unpaid";
+  const [custCat, setCustCat] = useState<CustCat>("expiring");
+
+  const CUST_CATS: { key: CustCat; label: string; count: number; icon: React.ReactNode; color: string; activeClass: string }[] = [
+    { key: "expiring", label: "만료 임박", count: expiring?.length ?? 0, icon: <AlertCircle className="h-3.5 w-3.5" />, color: "text-amber-400", activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+    { key: "lowPt", label: "PT 잔여 5↓", count: lowSession.length, icon: <Dumbbell className="h-3.5 w-3.5" />, color: "text-blue-400", activeClass: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+    { key: "unpaid", label: "미수금", count: unpaid?.length ?? 0, icon: <DollarSign className="h-3.5 w-3.5" />, color: "text-red-400", activeClass: "bg-red-500/15 text-red-400 border-red-500/30" },
+  ];
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 gap-2">
         {[
@@ -237,87 +246,109 @@ function CustomerTab() {
         </div>
       )}
 
-      {/* 만료 임박 회원 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <AlertCircle className="h-4 w-4 text-amber-400" /> 만료 임박 회원 (30일 이내)
-          <span className="text-xs text-muted-foreground font-normal">({expiring?.length ?? 0}명)</span>
-        </h3>
-        {expiringLoading ? (
-          <p className="text-xs text-muted-foreground text-center py-4">로딩 중...</p>
-        ) : !expiring?.length ? (
-          <p className="text-xs text-muted-foreground text-center py-4">만료 임박 회원이 없습니다</p>
-        ) : (
-          <div className="space-y-1.5">
-            {expiring.map(m => (
-              <div key={m.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{m.name}</p>
-                  <p className="text-xs text-muted-foreground">{m.trainerName ?? "담당 없음"} · 만료 {m.membershipEnd}</p>
-                </div>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${m.days_left <= 7 ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"}`}>
-                  D-{m.days_left}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* 카테고리 탭 */}
+      <div className="flex gap-1.5">
+        {CUST_CATS.map(c => {
+          const isActive = custCat === c.key;
+          return (
+            <button
+              key={c.key}
+              onClick={() => setCustCat(c.key)}
+              className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-medium border transition-colors ${isActive ? c.activeClass : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
+            >
+              {c.icon}
+              {c.label}
+              <span className={`ml-0.5 text-[10px] font-bold ${isActive ? "" : "opacity-60"}`}>{c.count}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* 잔여 세션 5회 이하 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Dumbbell className="h-4 w-4 text-blue-400" /> PT 잔여 5회 이하
-          <span className="text-xs text-muted-foreground font-normal">({lowSession.length}명)</span>
-        </h3>
-        {!lowSession.length ? (
-          <p className="text-xs text-muted-foreground text-center py-4">해당 회원이 없습니다</p>
-        ) : (
-          <div className="space-y-1.5">
-            {lowSession.map((p: any) => {
-              const remaining = p.totalSessions - p.usedSessions;
-              return (
+      {/* 카테고리별 컨텐츠 */}
+      {custCat === "expiring" && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <AlertCircle className="h-4 w-4 text-amber-400" /> 만료 임박 회원 (30일 이내)
+            <span className="text-xs text-muted-foreground font-normal">({expiring?.length ?? 0}명)</span>
+          </h3>
+          {expiringLoading ? (
+            <p className="text-xs text-muted-foreground text-center py-4">로딩 중...</p>
+          ) : !expiring?.length ? (
+            <p className="text-xs text-muted-foreground text-center py-4">만료 임박 회원이 없습니다</p>
+          ) : (
+            <div className="space-y-1.5">
+              {expiring.map(m => (
+                <div key={m.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.trainerName ?? "담당 없음"} · 만료 {m.membershipEnd}</p>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${m.days_left <= 7 ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"}`}>
+                    D-{m.days_left}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {custCat === "lowPt" && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <Dumbbell className="h-4 w-4 text-blue-400" /> PT 잔여 5회 이하
+            <span className="text-xs text-muted-foreground font-normal">({lowSession.length}명)</span>
+          </h3>
+          {!lowSession.length ? (
+            <p className="text-xs text-muted-foreground text-center py-4">해당 회원이 없습니다</p>
+          ) : (
+            <div className="space-y-1.5">
+              {lowSession.map((p: any) => {
+                const remaining = p.totalSessions - p.usedSessions;
+                return (
+                  <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">{p.memberName}</p>
+                      <p className="text-xs text-muted-foreground">{p.packageName} · {p.usedSessions}/{p.totalSessions}회 사용</p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${remaining === 0 ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400"}`}>
+                      잔여 {remaining}회
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {custCat === "unpaid" && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <DollarSign className="h-4 w-4 text-red-400" /> 미수금 현황
+            <span className="text-xs text-muted-foreground font-normal">({unpaid?.length ?? 0}건)</span>
+          </h3>
+          {!unpaid?.length ? (
+            <p className="text-xs text-muted-foreground text-center py-4">미수금이 없습니다</p>
+          ) : (
+            <div className="space-y-1.5">
+              {unpaid.map(p => (
                 <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">{p.memberName}</p>
-                    <p className="text-xs text-muted-foreground">{p.packageName} · {p.usedSessions}/{p.totalSessions}회 사용</p>
+                    <p className="text-xs text-muted-foreground">{p.packageName} · {p.trainerName ?? "담당 없음"}</p>
                   </div>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${remaining === 0 ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400"}`}>
-                    잔여 {remaining}회
-                  </span>
+                  <span className="text-xs font-semibold text-red-400">{(p.unpaidAmount ?? 0).toLocaleString()}원</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 미수금 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <UserX className="h-4 w-4 text-red-400" /> 미수금 현황
-          <span className="text-xs text-muted-foreground font-normal">({unpaid?.length ?? 0}건)</span>
-        </h3>
-        {!unpaid?.length ? (
-          <p className="text-xs text-muted-foreground text-center py-4">미수금이 없습니다</p>
-        ) : (
-          <div className="space-y-1.5">
-            {unpaid.map(p => (
-              <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{p.memberName}</p>
-                  <p className="text-xs text-muted-foreground">{p.packageName} · {p.trainerName ?? "담당 없음"}</p>
-                </div>
-                <span className="text-xs font-semibold text-red-400">{(p.unpaidAmount ?? 0).toLocaleString()}원</span>
+              ))}
+              <div className="flex justify-between px-3 py-2 border-t border-border mt-1 pt-2">
+                <span className="text-xs text-muted-foreground font-medium">총 미수금</span>
+                <span className="text-sm font-bold text-red-400">{totalUnpaid.toLocaleString()}원</span>
               </div>
-            ))}
-            <div className="flex justify-between px-3 py-2 border-t border-border mt-1 pt-2">
-              <span className="text-xs text-muted-foreground font-medium">총 미수금</span>
-              <span className="text-sm font-bold text-red-400">{totalUnpaid.toLocaleString()}원</span>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
