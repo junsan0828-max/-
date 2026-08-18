@@ -1258,4 +1258,57 @@ export const accessRouter = t.router({
         today,
       };
     }),
+
+  getUtilizationMembers: protectedProcedure
+    .input(z.object({
+      type: z.enum(["visited7", "visited14", "visited30", "notVisited14", "notVisited30"]),
+      branchId: z.number().optional(),
+      month: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const curPrefix = input.month ?? kstMonthPrefix();
+      const today = kstDate();
+      const [cy, cm] = curPrefix.split("-").map(Number);
+      const daysInMonth = new Date(cy, cm, 0).getDate();
+      const isCurrentMonth = curPrefix === kstMonthPrefix();
+      const elapsedDays = isCurrentMonth ? parseInt(today.substring(8, 10), 10) : daysInMonth;
+      const refEnd = isCurrentMonth ? `${today}T23:59:59` : `${curPrefix}-${String(daysInMonth).padStart(2, "0")}T23:59:59`;
+
+      const daysMap: Record<string, number> = { visited7: 7, visited14: 14, visited30: 30, notVisited14: 14, notVisited30: 30 };
+      const n = daysMap[input.type];
+      const startDate = new Date(cy, cm - 1, elapsedDays - (n - 1)).toISOString().substring(0, 10);
+
+      const branchId = input.branchId ?? null;
+      const bCond = branchId ? `AND a."branchId" = ${Number(branchId)}` : "";
+      const mBCond = branchId ? `AND m."branchId" = ${Number(branchId)}` : "";
+
+      if (input.type.startsWith("visited")) {
+        const result = await pool.query(
+          `SELECT m.id, m.name, m.phone, MAX(a."accessedAt") AS last_visit
+           FROM access_logs a
+           JOIN members m ON m.id = a."memberId"
+           WHERE a."accessedAt">=$1 AND a."accessedAt"<=$2
+             AND a."accessResult"='allowed' AND m.status='active' ${mBCond} ${bCond}
+           GROUP BY m.id, m.name, m.phone
+           ORDER BY m.name`,
+          [startDate, refEnd]
+        );
+        return result.rows as Array<{ id: number; name: string; phone: string | null; last_visit: string | null }>;
+      } else {
+        const result = await pool.query(
+          `SELECT m.id, m.name, m.phone,
+             (SELECT MAX("accessedAt") FROM access_logs WHERE "memberId"=m.id AND "accessResult"='allowed') AS last_visit
+           FROM members m
+           WHERE m.status='active' ${mBCond}
+             AND m.id NOT IN (
+               SELECT DISTINCT "memberId" FROM access_logs
+               WHERE "accessedAt">=$1 AND "accessedAt"<=$2
+                 AND "accessResult"='allowed' AND "memberId" IS NOT NULL ${bCond}
+             )
+           ORDER BY last_visit ASC NULLS FIRST`,
+          [startDate, refEnd]
+        );
+        return result.rows as Array<{ id: number; name: string; phone: string | null; last_visit: string | null }>;
+      }
+    }),
 });

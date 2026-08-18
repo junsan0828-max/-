@@ -5,7 +5,7 @@ import {
   Database, TrendingUp, Users, Megaphone, Building2,
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
   Dumbbell, Lock, Shirt, UserCog, Activity, Target,
-  DollarSign, Percent,
+  DollarSign, Percent, X,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
 
@@ -1000,6 +1000,12 @@ function OperationsTab() {
   const { data: dashboard, isLoading: dashLoading } = trpc.access.getOpsVisitDashboard.useQuery(
     { ...(branchFilter ? { branchId: branchFilter } : {}), month: selPrefix }
   );
+  const [, setLocation] = useLocation();
+  const [utilModal, setUtilModal] = useState<{ type: string; title: string } | null>(null);
+  const { data: utilMembers, isLoading: utilLoading } = trpc.access.getUtilizationMembers.useQuery(
+    { type: utilModal?.type as any, branchId: branchFilter, month: selPrefix },
+    { enabled: !!utilModal }
+  );
   const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
@@ -1180,12 +1186,14 @@ function OperationsTab() {
         </h3>
         <div className="grid grid-cols-2 gap-2 mb-2">
           {[
-            { label: "활성 회원", value: activeCount, color: "text-foreground" },
-            { label: "7일내 방문", value: visited7, color: "text-emerald-400" },
-            { label: "14일내 방문", value: visited14, color: "text-blue-400" },
-            { label: "30일내 방문", value: visited30, color: "text-violet-400" },
+            { label: "활성 회원", value: activeCount, color: "text-foreground", type: "" },
+            { label: "7일내 방문", value: visited7, color: "text-emerald-400", type: "visited7" },
+            { label: "14일내 방문", value: visited14, color: "text-blue-400", type: "visited14" },
+            { label: "30일내 방문", value: visited30, color: "text-violet-400", type: "visited30" },
           ].map(c => (
-            <div key={c.label} className="bg-card border border-border rounded-xl p-3 text-center">
+            <div key={c.label}
+              onClick={() => c.type && setUtilModal({ type: c.type, title: c.label })}
+              className={`bg-card border border-border rounded-xl p-3 text-center ${c.type ? "cursor-pointer hover:border-amber-500/30 active:scale-[0.98] transition-all" : ""}`}>
               <p className="text-[10px] text-muted-foreground">{c.label}</p>
               <p className={`text-lg font-bold ${c.color}`}>{c.value}명</p>
             </div>
@@ -1193,14 +1201,16 @@ function OperationsTab() {
         </div>
         {(notVisited14 > 0 || notVisited30 > 0) && (
           <div className="grid grid-cols-2 gap-2">
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center">
+            <div onClick={() => setUtilModal({ type: "notVisited14", title: "14일 미방문 (이탈 주의)" })}
+              className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center cursor-pointer hover:border-yellow-500/40 active:scale-[0.98] transition-all">
               <p className="text-[10px] text-yellow-400 flex items-center justify-center gap-1">
                 <AlertCircle className="h-3 w-3" /> 14일 미방문
               </p>
               <p className="text-lg font-bold text-yellow-400">{notVisited14}명</p>
               <p className="text-[10px] text-muted-foreground">이탈 주의</p>
             </div>
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+            <div onClick={() => setUtilModal({ type: "notVisited30", title: "30일 미방문 (이탈 위험)" })}
+              className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center cursor-pointer hover:border-red-500/40 active:scale-[0.98] transition-all">
               <p className="text-[10px] text-red-400 flex items-center justify-center gap-1">
                 <UserX className="h-3 w-3" /> 30일 미방문
               </p>
@@ -1441,6 +1451,46 @@ function OperationsTab() {
           </div>
         );
       })()}
+
+      {/* 이용률 회원 명단 모달 */}
+      {utilModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={() => setUtilModal(null)}>
+          <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[75vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <h3 className="text-sm font-semibold text-foreground">{utilModal.title}</h3>
+              <button onClick={() => setUtilModal(null)} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-3">
+              {utilLoading ? (
+                <p className="text-sm text-muted-foreground text-center py-8">로딩 중...</p>
+              ) : !utilMembers?.length ? (
+                <p className="text-sm text-muted-foreground text-center py-8">해당 회원이 없습니다</p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground mb-2 px-1">총 {utilMembers.length}명</p>
+                  <div className="space-y-1.5">
+                    {utilMembers.map((m: any) => (
+                      <div key={m.id}
+                        onClick={() => { setUtilModal(null); setLocation(`/members/${m.id}`); }}
+                        className="flex items-center justify-between bg-background border border-border rounded-xl px-3 py-2.5 cursor-pointer hover:border-amber-500/30 active:scale-[0.99] transition-all">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">{m.name}</p>
+                          {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground shrink-0 ml-2">
+                          {m.last_visit ? m.last_visit.substring(0, 10) : "방문 기록 없음"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
