@@ -62,7 +62,7 @@ interface RawData {
   nullBranchRevenueCount: number;
 }
 
-async function gatherRawData(yearMonth: string): Promise<RawData> {
+export async function gatherRawData(yearMonth: string): Promise<RawData> {
   const sql = neon(process.env.DATABASE_URL!);
   {
     const [y, m] = yearMonth.split("-").map(Number);
@@ -381,4 +381,120 @@ export function loadRepoResult(yearMonth: string): RepoResult | null {
   } catch {
     return null;
   }
+}
+
+// 월간 총 데이터 리포트 (2026-08-18 대표 지시) — 지점별 전략 에세이 대신, 전월 대비 매출부터
+// 전체 핵심 지표를 숫자로 보여준다. AI 전략 작성(analyzeBranch)은 쓰지 않고 순수 집계만 한다.
+export interface MonthlyOverviewResult {
+  yearMonth: string;
+  prevYearMonth: string;
+  generatedAt: string;
+  revenue: { thisMonth: number; prevMonth: number; diff: number; diffPct: number | null };
+  expense: { thisMonth: number; prevMonth: number };
+  netProfit: { thisMonth: number; prevMonth: number };
+  membership: { newCount: number; renewCount: number };
+  pt: { newCount: number; renewCount: number };
+  byBranchRevenue: { branchId: number | null; branchName: string; amount: number }[];
+  expiringSoonCount: number;
+  recentlyExpiredCount: number;
+  ptEndingSoonCount: number;
+  attendance: { thisMonth: number; prevMonth: number };
+  activeMembers: number;
+  unpaidTotal: number;
+  dataNotes: string[];
+}
+
+function sumWhere<T extends { ym: string; amount: number }>(rows: T[], ym: string): number {
+  return rows.filter((r) => r.ym === ym).reduce((s, r) => s + r.amount, 0);
+}
+
+export async function runMonthlyOverview(yearMonth: string = previousYearMonth()): Promise<MonthlyOverviewResult> {
+  const prevYearMonth = monthsBack(yearMonth, 1).slice(0, 7);
+  const raw = await gatherRawData(yearMonth);
+
+  const sql = neon(process.env.DATABASE_URL!);
+  const [activeRows, unpaidRows] = (await Promise.all([
+    sql.query(`SELECT COUNT(*) c FROM members WHERE status = 'active'`),
+    sql.query(`SELECT COALESCE(SUM("unpaidAmount"),0) s FROM revenue_entries WHERE "unpaidAmount" > 0`),
+  ])) as [{ c: string }[], { s: string }[]];
+
+  const revenueThisMonth = sumWhere(raw.revenueByMonth, yearMonth);
+  const revenuePrevMonth = sumWhere(raw.revenueByMonth, prevYearMonth);
+  const expenseThisMonth = sumWhere(raw.expenseByMonth, yearMonth);
+  const expensePrevMonth = sumWhere(raw.expenseByMonth, prevYearMonth);
+
+  const revThisRows = raw.revenueByMonth.filter((r) => r.ym === yearMonth);
+  const countBy = (type: string, subType: string) =>
+    revThisRows.filter((r) => r.type === type && r.subType === subType).reduce((s, r) => s + r.count, 0);
+
+  const byBranchMap = new Map<number | null, number>();
+  for (const r of revThisRows) byBranchMap.set(r.branchId, (byBranchMap.get(r.branchId) ?? 0) + r.amount);
+  const byBranchRevenue = Array.from(byBranchMap.entries())
+    .map(([branchId, amount]) => ({ branchId, branchName: branchLabel(branchId), amount }))
+    .sort((a, b) => (a.branchId ?? 99) - (b.branchId ?? 99));
+
+  const dataNotes: string[] = [];
+  if (raw.nullBranchRevenueCount > 0)
+    dataNotes.push(`이번 달 매출 중 ${raw.nullBranchRevenueCount}건은 지점 정보가 없어 전체 합계에만 포함됨.`);
+  const hasExpenseThisMonth = raw.expenseByMonth.some((r) => r.ym === yearMonth);
+  if (!hasExpenseThisMonth) dataNotes.push(`${yearMonth} 지출(expense_entries) 기록이 없어 순이익은 참고용입니다.`);
+
+  return {
+    yearMonth,
+    prevYearMonth,
+    generatedAt: new Date().toISOString(),
+    revenue: {
+      thisMonth: revenueThisMonth,
+      prevMonth: revenuePrevMonth,
+      diff: revenueThisMonth - revenuePrevMonth,
+      diffPct: revenuePrevMonth > 0 ? Math.round(((revenueThisMonth - revenuePrevMonth) / revenuePrevMonth) * 1000) / 10 : null,
+    },
+    expense: { thisMonth: expenseThisMonth, prevMonth: expensePrevMonth },
+    netProfit: { thisMonth: revenueThisMonth - expenseThisMonth, prevMonth: revenuePrevMonth - expensePrevMonth },
+    membership: { newCount: countBy("헬스", "신규"), renewCount: countBy("헬스", "재등록") },
+    pt: { newCount: countBy("PT", "신규"), renewCount: countBy("PT", "재등록") },
+    byBranchRevenue,
+    expiringSoonCount: raw.expiringSoon.length,
+    recentlyExpiredCount: raw.recentlyExpired.length,
+    ptEndingSoonCount: raw.ptEndingSoon.length,
+    attendance: { thisMonth: sumWhere(raw.attendanceByMonth.map((r) => ({ ym: r.ym, amount: r.count })), yearMonth), prevMonth: sumWhere(raw.attendanceByMonth.map((r) => ({ ym: r.ym, amount: r.count })), prevYearMonth) },
+    activeMembers: Number(activeRows[0]?.c ?? 0),
+    unpaidTotal: Number(unpaidRows[0]?.s ?? 0),
+    dataNotes,
+  };
+}
+
+export function saveMonthlyOverview(result: MonthlyOverviewResult): string {
+  const outDir = join(__dirname, "..", "..", "output", "monthly-report");
+  mkdirSync(outDir, { recursive: true });
+  const path = join(outDir, `${result.yearMonth}.json`);
+  writeFileSync(path, JSON.stringify(result, null, 2), "utf-8");
+  return path;
+}
+
+/** 이번 달에 이미 만든 월간 보고가 있으면 돌려준다 (앱 재시작해도 같은 달엔 쿼리를 다시 하지 않기 위함). */
+export function loadMonthlyOverview(yearMonth: string): MonthlyOverviewResult | null {
+  try {
+    const path = join(__dirname, "..", "..", "output", "monthly-report", `${yearMonth}.json`);
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+const man = (n: number) => `${Math.round(n / 10000).toLocaleString()}만`;
+
+/** 카카오 "나에게 보내기" 텍스트(200자 제한, sendToMe에서 190자로 컷)용 월간 보고 요약. */
+export function buildMonthlyKakaoText(r: MonthlyOverviewResult): string {
+  const sign = r.revenue.diff >= 0 ? "+" : "";
+  const pctText = r.revenue.diffPct === null ? "" : ` ${r.revenue.diffPct >= 0 ? "+" : ""}${r.revenue.diffPct}%`;
+  const lines = [
+    `🧑‍💼 제이 - ${r.yearMonth} 월간 보고`,
+    `매출 ${man(r.revenue.thisMonth)} (전월대비 ${sign}${man(r.revenue.diff)}${pctText})`,
+    `순이익 ${man(r.netProfit.thisMonth)} · 활성 ${r.activeMembers}명 · 미수 ${man(r.unpaidTotal)}`,
+    `신규 헬스${r.membership.newCount}·PT${r.pt.newCount} / 재등록 헬스${r.membership.renewCount}·PT${r.pt.renewCount}`,
+    `만료임박${r.expiringSoonCount} 이탈위험${r.recentlyExpiredCount}`,
+    "(자세한 내용은 노션에서 확인)",
+  ];
+  return lines.join("\n");
 }

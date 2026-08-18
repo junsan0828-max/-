@@ -10,11 +10,11 @@ import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
 import { sendSms } from "./aligo";
 import { runCommand } from "./commander";
-import { pushDailyReport, pushPayrollReport, pushRepoReport, pushJournalEntry, createTaskRecords, logTaskExecution } from "./notion";
-import { pushDailyBriefingKakao } from "./kakao";
+import { pushDailyReport, pushPayrollReport, pushMonthlyReport, pushJournalEntry } from "./notion";
+import { pushDailyBriefingKakao, pushKakaoText } from "./kakao";
 import { buildIndex, backupSpreadsheets } from "./drive/archive";
 import { runPayroll, writePayrollSheet } from "./payroll";
-import { runRepo, saveRepoResult, loadRepoResult, previousYearMonth } from "./repo";
+import { runMonthlyOverview, saveMonthlyOverview, loadMonthlyOverview, buildMonthlyKakaoText, previousYearMonth } from "./repo";
 import { runJournal } from "./journal";
 import { runIfkJob } from "./ifk";
 import { runBlogEventJob } from "./blogEvent";
@@ -97,30 +97,8 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     const notion = await pushDailyReport(result, mina, funnel, content);
     send("log", notion.ok ? "노션에 브리핑 저장 완료" : `노션 저장 안 함: ${notion.error}`);
 
-    // 보고서 본문에 업무를 나열한 것만으론 완료로 치지 않는다 — 상위 업무를 "업무관리"에
-    // 개별 업무로 만들고, "업무 로그"에 실행 결과를 남겨야 전체 완료다.
-    if (!notion.ok) {
-      send("log", "⚠️ 전체 작업 미완료 — 보고서가 저장되지 않아 업무 생성을 진행하지 않음");
-    } else {
-      const taskResult = await createTaskRecords(result.tasks, result.context, notion.url ?? null);
-      if (taskResult.ok) {
-        send("log", `업무관리에 업무 ${taskResult.createdUrls.length}건 생성됨`);
-        const log = await logTaskExecution({
-          performedBy: "제이(총괄 AI) - 데스크톱 앱",
-          createdTaskUrls: taskResult.createdUrls,
-          outcome: "전체 성공",
-        });
-        send("log", log.ok ? "업무 로그 기록됨" : `⚠️ 전체 작업 미완료 — 업무 로그 저장 실패: ${log.error}`);
-      } else {
-        send("log", `⚠️ 전체 작업 미완료 — 보고서만 생성됨, 업무관리 생성 실패: ${taskResult.error}`);
-        await logTaskExecution({
-          performedBy: "제이(총괄 AI) - 데스크톱 앱",
-          createdTaskUrls: [],
-          outcome: "보고서만 생성",
-          incompleteReason: taskResult.error,
-        });
-      }
-    }
+    // 업무관리/업무 로그 기록 제외 (2026-08-18 대표 지시) — 보고서 저장까지만 하고
+    // "업무관리"/"업무 로그" 데이터베이스에는 더 이상 쓰지 않는다.
 
     // 카카오톡 브리핑 발송 (2026-08-17 재개: 자이언트짐 AI 알림 앱으로 "나에게 보내기" 연동 완료)
     const kakao = await pushDailyBriefingKakao(result, mina, funnel, content);
@@ -168,28 +146,31 @@ async function runPayrollJob(reason: string) {
   }
 }
 
-// 리포 AI: 매달 1일, 전월 지점별(1호점/2호점) + 통합 전략 리포트를 만들어 노션에 보고.
+// 리포 AI: 매달 1일, 전월 월간 총 데이터(전월 대비 매출 등 핵심 지표)를 노션 "월간 보고"에
+// 기록하고 카카오톡으로 요약을 보낸다 (2026-08-18 대표 지시 — 지점별 전략 에세이는 더 이상 안 씀).
 async function runRepoJob(reason: string) {
-  send("log", `리포가 월간 전략 리포트 작성을 시작했어요 (${reason})`);
+  send("log", `리포가 월간 보고 작성을 시작했어요 (${reason})`);
   agentState("repo", "working");
   try {
-    const result = await runRepo();
-    saveRepoResult(result);
+    const result = await runMonthlyOverview();
+    saveMonthlyOverview(result);
     send("repo", result);
-    send("log", `리포 작성 완료 (${result.yearMonth})`);
-    agentState("repo", "done", `${result.yearMonth} 전략 리포트 완료!`);
-    if (result.expenseMissing) {
+    send("log", `월간 보고 작성 완료 (${result.yearMonth})`);
+    agentState("repo", "done", `${result.yearMonth} 월간 보고 완료!`);
+    if (result.dataNotes.some((n) => n.includes("지출"))) {
       addManualTask({
         title: `${result.yearMonth} 지출 입력 필요 (운영 시스템)`,
         assigneeRole: "대표",
         priority: "high",
-        reason: "지출 미입력 상태라 리포 AI의 순이익 분석이 부정확함. 운영 시스템에 해당 월 지출을 입력해야 함.",
+        reason: "지출 미입력 상태라 순이익 수치가 부정확함. 운영 시스템에 해당 월 지출을 입력해야 함.",
         mode: "manual",
       });
       send("task-progress", getTaskProgress());
     }
-    const notion = await pushRepoReport(result);
-    send("log", notion.ok ? "노션에 전략 리포트 저장 완료" : `노션 저장 안 함: ${notion.error}`);
+    const notion = await pushMonthlyReport(result);
+    send("log", notion.ok ? "노션에 월간 보고 저장 완료" : `노션 저장 안 함: ${notion.error}`);
+    const kakao = await pushKakaoText(buildMonthlyKakaoText(result));
+    send("log", kakao.ok ? "카카오톡으로 월간 보고 발송 완료" : `카카오톡 발송 안 함: ${kakao.error}`);
   } catch (err: any) {
     send("log", `리포 오류: ${err?.message ?? err}`);
     agentState("repo", "done", "오류 발생");
@@ -287,7 +268,7 @@ function setupTray() {
         { label: "창 열기", click: () => (win ? win.show() : createWindow()) },
         { label: "지금 분석", click: () => runJay("트레이 수동") },
         { label: "급여 정산 지금 실행", click: () => runPayrollJob("트레이 수동") },
-        { label: "전략 리포트 지금 실행", click: () => runRepoJob("트레이 수동") },
+        { label: "월간 보고 지금 실행", click: () => runRepoJob("트레이 수동") },
         { label: "사업 일지 지금 작성", click: () => runJournalJob("트레이 수동") },
         { type: "separator" },
         { label: "종료", click: () => app.quit() },
@@ -317,7 +298,7 @@ app.whenReady().then(() => {
     }
   );
   ipcMain.handle("get-command-history", (_e, agentId: string) => getRecentCommands(agentId, 20));
-  ipcMain.handle("get-repo-report", () => loadRepoResult(previousYearMonth()));
+  ipcMain.handle("get-repo-report", () => loadMonthlyOverview(previousYearMonth()));
   ipcMain.handle("run-repo-now", () => runRepoJob("수동 실행"));
   ipcMain.handle("run-journal-now", () => runJournalJob("수동 실행"));
   ipcMain.handle("get-task-progress", () => getTaskProgress());
@@ -344,16 +325,16 @@ app.whenReady().then(() => {
   // 시작 시 자동 분석 — 오늘 이미 분석한 결과가 있으면(같은 날 앱을 여러 번 켜도) API를 다시 부르지 않고
   // 저장된 결과만 화면에 띄운다. 크레딧 절약을 위함 (매일 예약 분석은 아래 cron이 그대로 처리한다).
   win?.webContents.once("did-finish-load", () => {
-    const cachedRepo = loadRepoResult(previousYearMonth());
+    const cachedRepo = loadMonthlyOverview(previousYearMonth());
     if (cachedRepo) {
       send("repo", cachedRepo);
       // 지출 미입력이 해결 안 된 채로 남아있으면 고쳐질 때까지 매일 다시 오늘의 업무에 띄운다.
-      if (cachedRepo.expenseMissing) {
+      if (cachedRepo.dataNotes.some((n) => n.includes("지출"))) {
         addManualTask({
           title: `${cachedRepo.yearMonth} 지출 입력 필요 (운영 시스템)`,
           assigneeRole: "대표",
           priority: "high",
-          reason: "지출 미입력 상태라 리포 AI의 순이익 분석이 부정확함. 운영 시스템에 해당 월 지출을 입력해야 함.",
+          reason: "지출 미입력 상태라 순이익 수치가 부정확함. 운영 시스템에 해당 월 지출을 입력해야 함.",
           mode: "manual",
         });
       }

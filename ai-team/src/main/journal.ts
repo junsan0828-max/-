@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { buildDataSummary, loadTodaysResult } from "./orchestrator";
 import { getTaskProgress } from "./taskProgress";
 import { getTodaysCommands } from "./commandLog";
-import { loadRepoResult, previousYearMonth } from "./repo";
+import { loadMonthlyOverview, previousYearMonth } from "./repo";
 
 const MODEL = process.env.AI_TEAM_MODEL || "claude-sonnet-4-6";
 const CONFIG_DIR = join(__dirname, "..", "..", "config");
@@ -40,7 +40,7 @@ function scheduledTomorrow(): string[] {
   const day = tomorrow.getDate();
   const items: string[] = [];
   if (day === 9) items.push("지영이 트레이너 급여 정산을 자동 실행함");
-  if (day === 1) items.push("리포가 전월 지점별 월간 전략 리포트를 자동 실행함");
+  if (day === 1) items.push("리포가 전월 월간 보고(매출·회원 핵심 지표)를 자동 실행함");
   return items;
 }
 
@@ -49,7 +49,7 @@ function buildRawMaterial() {
   const commands = getTodaysCommands();
   const progress = getTaskProgress();
   const jay = loadTodaysResult();
-  const repo = loadRepoResult(previousYearMonth());
+  const repo = loadMonthlyOverview(previousYearMonth());
   const repoGeneratedToday = !!repo && repo.generatedAt.slice(0, 10) === todayStr();
 
   const commandLines = commands.map(
@@ -66,7 +66,7 @@ function buildRawMaterial() {
     jayHeadline: jay?.headline ?? null,
     jayDataSummary: jay ? buildDataSummary(jay.context) : null,
     repoGeneratedToday,
-    repoExpenseMissing: repo?.expenseMissing ?? false,
+    repoExpenseMissing: repo?.dataNotes.some((n) => n.includes("지출")) ?? false,
     repoYearMonth: repo?.yearMonth ?? null,
     scheduled: scheduledTomorrow(),
   };
@@ -133,7 +133,7 @@ ${raw.jayHeadline ?? "없음"}
 ${raw.jayDataSummary ?? ""}
 
 [리포 AI 관련]
-${raw.repoGeneratedToday ? `오늘 ${raw.repoYearMonth} 월간 전략 리포트 생성됨. 지출 미입력: ${raw.repoExpenseMissing ? "예" : "아니오"}` : "오늘은 리포 실행 없음"}
+${raw.repoGeneratedToday ? `오늘 ${raw.repoYearMonth} 월간 보고 생성됨. 지출 미입력: ${raw.repoExpenseMissing ? "예" : "아니오"}` : "오늘은 리포 실행 없음"}
 
 [내일 예정된 자동 작업]
 ${raw.scheduled.join("\n") || "없음"}

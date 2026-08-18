@@ -6,7 +6,7 @@ import { MinaResult } from "./mina";
 import { FunnelResult } from "./dataAgent";
 import { ContentResult } from "./luna";
 import { PayrollResult } from "./payroll";
-import { RepoResult } from "./repo";
+import { RepoResult, MonthlyOverviewResult } from "./repo";
 import { JournalEntry } from "./journal";
 import { GymContext } from "./data";
 import { ShortVideo } from "./youtube/shorts";
@@ -303,6 +303,59 @@ export async function pushRepoReport(result: RepoResult): Promise<NotionPushResu
         parent: { database_id: databaseId },
         properties: {
           [titleProp]: { title: [{ text: { content: `월간 전략 리포트 - ${result.yearMonth}` } }] },
+        },
+        children: children.slice(0, 100),
+      }),
+    });
+    if (children.length > 100) await appendRemainingBlocks(page.id, children.slice(100));
+
+    return { ok: true, url: page.url };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+const won = (n: number) => `${n.toLocaleString()}원`;
+
+/** 월간 총 데이터 리포트(2026-08-18 대표 지시 — 지점별 전략 대신 전월 대비 매출부터 전체 핵심
+ * 지표를 숫자로) 를 노션 "업무보고" DB에 "월간 보고"로 기록한다. */
+export async function pushMonthlyReport(result: MonthlyOverviewResult): Promise<NotionPushResult> {
+  if (!isConfigured()) {
+    return { ok: false, error: "Notion 미설정 (.env에 NOTION_API_KEY/NOTION_DATABASE_ID 필요)" };
+  }
+
+  try {
+    const databaseId = process.env.NOTION_DATABASE_ID!;
+    const titleProp = await findTitleProperty(databaseId);
+    const r = result;
+    const pctText = r.revenue.diffPct === null ? "(전월 데이터 없음)" : `(${r.revenue.diffPct >= 0 ? "+" : ""}${r.revenue.diffPct}%)`;
+
+    const children: Block[] = [
+      heading(`🗒️ ${r.yearMonth} 월간 보고`),
+      heading("매출·손익"),
+      bullet(`이번 달 매출 ${won(r.revenue.thisMonth)} / 전월 ${won(r.revenue.prevMonth)} / 증감 ${r.revenue.diff >= 0 ? "+" : ""}${won(r.revenue.diff)} ${pctText}`),
+      bullet(`이번 달 지출 ${won(r.expense.thisMonth)} / 전월 ${won(r.expense.prevMonth)}`),
+      bullet(`순이익 ${won(r.netProfit.thisMonth)} / 전월 ${won(r.netProfit.prevMonth)} (단순 현금 기준)`),
+      bullet(`지점별 이번 달 매출: ${r.byBranchRevenue.map((b) => `${b.branchName} ${won(b.amount)}`).join(", ") || "데이터 없음"}`),
+      heading("신규·재등록"),
+      bullet(`헬스(회원권): 신규 ${r.membership.newCount}건, 재등록 ${r.membership.renewCount}건`),
+      bullet(`PT: 신규 ${r.pt.newCount}건, 재등록 ${r.pt.renewCount}건`),
+      heading("회원 현황"),
+      bullet(`활성 회원 ${r.activeMembers}명`),
+      bullet(`30일 내 만료 예정 ${r.expiringSoonCount}명, 최근 14일 내 만료(이탈위험) ${r.recentlyExpiredCount}명`),
+      bullet(`PT 패키지 소진 임박(잔여 2회 이하 또는 30일 내 만료) ${r.ptEndingSoonCount}명`),
+      bullet(`전체 누적 미수금 ${won(r.unpaidTotal)}`),
+      heading("출석"),
+      bullet(`이번 달 총 방문 ${r.attendance.thisMonth}회 / 전월 ${r.attendance.prevMonth}회`),
+      ...(r.dataNotes.length > 0 ? [heading("데이터 참고사항"), ...r.dataNotes.map((n) => bullet(n))] : []),
+    ];
+
+    const page = await notionFetch("/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        parent: { database_id: databaseId },
+        properties: {
+          [titleProp]: { title: [{ text: { content: `월간 보고 - ${r.yearMonth}` } }] },
         },
         children: children.slice(0, 100),
       }),

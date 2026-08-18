@@ -4,7 +4,7 @@ import { runOrchestrator, saveResult } from "./main/orchestrator";
 import { generateMemberMessages } from "./main/mina";
 import { analyzeFunnel } from "./main/dataAgent";
 import { generateContentIdeas } from "./main/luna";
-import { pushDailyReport, createTaskRecords, logTaskExecution, isNotionEnabled } from "./main/notion";
+import { pushDailyReport, isNotionEnabled } from "./main/notion";
 import { pushDailyBriefingKakao, isKakaoEnabled } from "./main/kakao";
 
 const dry = process.argv.includes("--dry");
@@ -48,31 +48,8 @@ runOrchestrator({ dry })
     const notion = await pushDailyReport(r, mina, funnel, content);
     console.log(notion.ok ? `✅ 브리핑 노션에 저장됨: ${notion.url}` : `⏭️  브리핑 저장 건너뜀: ${notion.error}`);
 
-    // 보고서 본문에 업무를 나열한 것만으론 완료로 치지 않는다 — 상위 업무를 "업무관리"에
-    // 개별 업무로 만들고, "업무 로그"에 실행 결과를 남겨야 전체 완료다.
-    if (!notion.ok) {
-      console.log("\n⚠️  전체 작업 미완료: 보고서 자체가 저장되지 않아 업무 생성을 진행하지 않음.");
-    } else {
-      const taskResult = await createTaskRecords(r.tasks, r.context, notion.url ?? null);
-      if (taskResult.ok) {
-        console.log(`✅ 업무관리에 업무 ${taskResult.createdUrls.length}건 생성됨`);
-        const log = await logTaskExecution({
-          performedBy: "제이(총괄 AI) - npm run brain",
-          createdTaskUrls: taskResult.createdUrls,
-          outcome: "전체 성공",
-        });
-        console.log(log.ok ? `✅ 업무 로그 기록됨: ${log.url}` : `⚠️  전체 작업 미완료: 업무 로그 저장 실패 (${log.error})`);
-      } else {
-        console.log(`⚠️  전체 작업 미완료: 보고서만 생성됨, 업무관리 생성 실패 (${taskResult.error})`);
-        const log = await logTaskExecution({
-          performedBy: "제이(총괄 AI) - npm run brain",
-          createdTaskUrls: [],
-          outcome: "보고서만 생성",
-          incompleteReason: taskResult.error,
-        });
-        if (!log.ok) console.log(`⚠️  업무 로그 저장도 실패: ${log.error}`);
-      }
-    }
+    // 업무관리/업무 로그 기록 제외 (2026-08-18 대표 지시) — 보고서 저장까지만 하고
+    // "업무관리"/"업무 로그" 데이터베이스에는 더 이상 쓰지 않는다.
 
     console.log(`\n💬 카카오톡 연동 — ${isKakaoEnabled() ? "설정됨" : "꺼짐 (.env에 KAKAO_REST_API_KEY/KAKAO_REFRESH_TOKEN 필요)"}`);
     const kakao = await pushDailyBriefingKakao(r, mina, funnel, content);
