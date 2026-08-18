@@ -1036,7 +1036,7 @@ function OperationsTab() {
     const isodow = jsDay === 0 ? 7 : jsDay;
     dowOccurrences[isodow] = (dowOccurrences[isodow] ?? 0) + 1;
   }
-  const dowData = [1, 2, 3, 4, 5, 6, 7].map(dow => {
+  const dowData = [1, 2, 3, 4, 5, 6].map(dow => {
     const found = dowVisits.find((d: any) => d.dow === dow);
     const total = found?.count ?? 0;
     const occ = dowOccurrences[dow] ?? 1;
