@@ -1721,17 +1721,16 @@ export default function MemberDetail({ memberId }: Props) {
                           ))}
                           {healthRevs.map(r => {
                             const isService = r.paidAmount === 0;
-                            const svcHealthMonths = (r as any).serviceHealthDuration ?? 0;
-                            const svcHealthMatch = (r.serviceItems ?? "").match(/헬스\((\d+)일\)/);
-                            const svcDays = svcHealthMatch ? parseInt(svcHealthMatch[1]) : 0;
-                            const hasSvcHealth = svcHealthMonths > 0 || svcDays > 0;
-                            const svcLabel = svcHealthMonths > 0 ? `${svcHealthMonths}개월` : `${svcDays}일`;
+                            const svcFromSi = siHealth.find(item => item.fromEntry === r.id);
+                            const svcDaysMatch = svcFromSi?.detail.match(/(\d+)일/);
+                            const svcDays = svcDaysMatch ? parseInt(svcDaysMatch[1]) : 0;
+                            const hasSvcHealth = svcFromSi != null;
+                            const svcLabel = svcDays > 0 ? `${svcDays}일` : svcFromSi?.detail ?? "";
                             const svcStartDate = r.endDate;
-                            const svcEndDate = r.endDate && hasSvcHealth
+                            const svcEndDate = r.endDate && svcDays > 0
                               ? (() => {
                                   const d = new Date(r.endDate);
-                                  if (svcHealthMonths > 0) d.setMonth(d.getMonth() + svcHealthMonths);
-                                  else d.setDate(d.getDate() + svcDays);
+                                  d.setDate(d.getDate() + svcDays);
                                   return d.toISOString().split("T")[0];
                                 })()
                               : null;
