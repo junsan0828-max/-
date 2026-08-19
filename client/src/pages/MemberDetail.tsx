@@ -1721,33 +1721,50 @@ export default function MemberDetail({ memberId }: Props) {
                           ))}
                           {healthRevs.map(r => {
                             const isService = r.paidAmount === 0;
+                            const svcHealthMonths = (r as any).serviceHealthDuration ?? 0;
                             const svcHealthMatch = (r.serviceItems ?? "").match(/헬스\((\d+)일\)/);
                             const svcDays = svcHealthMatch ? parseInt(svcHealthMatch[1]) : 0;
-                            const displayEndDate = r.endDate && svcDays > 0
-                              ? new Date(new Date(r.endDate).getTime() + svcDays * 86400000).toISOString().split("T")[0]
-                              : r.endDate;
+                            const hasSvcHealth = svcHealthMonths > 0 || svcDays > 0;
+                            const svcLabel = svcHealthMonths > 0 ? `${svcHealthMonths}개월` : `${svcDays}일`;
+                            const svcStartDate = r.endDate;
+                            const svcEndDate = r.endDate && hasSvcHealth
+                              ? (() => {
+                                  const d = new Date(r.endDate);
+                                  if (svcHealthMonths > 0) d.setMonth(d.getMonth() + svcHealthMonths);
+                                  else d.setDate(d.getDate() + svcDays);
+                                  return d.toISOString().split("T")[0];
+                                })()
+                              : null;
                             return (
-                              <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="font-medium text-sm text-foreground">
-                                    헬스권{(r as any).duration ? ` ${(r as any).duration}개월` : ""}
-                                  </p>
-                                  {r.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>}
-                                  {memberIsPaused && <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>}
-                                  {isService && !memberIsPaused && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>}
-                                  {svcHealthMatch && (
-                                    <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>
-                                      +서비스 {svcHealthMatch[1]}일
-                                    </span>
-                                  )}
+                              <div key={r.id} className="space-y-2">
+                                <div className="p-3 rounded-lg bg-accent/20 border border-border">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-medium text-sm text-foreground">
+                                      헬스권{(r as any).duration ? ` ${(r as any).duration}개월` : ""}
+                                    </p>
+                                    {r.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>}
+                                    {memberIsPaused && <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>}
+                                    {isService && !memberIsPaused && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>}
+                                  </div>
+                                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                    {(r.startDate || r.endDate) && !isSamePeriod(r.startDate, r.endDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>}
+                                    <div>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></div>
+                                    {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
+                                    {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
+                                    {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
+                                  </div>
                                 </div>
-                                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                  {(r.startDate || displayEndDate) && !isSamePeriod(r.startDate, displayEndDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {displayEndDate ?? "-"}</div>}
-                                  <div>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></div>
-                                  {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
-                                  {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
-                                  {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
-                                </div>
+                                {hasSvcHealth && (
+                                  <div className={`p-3 rounded-lg ${SERVICE_COLORS.헬스.faint} border ${SERVICE_COLORS.헬스.border}`}>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="font-medium text-sm text-foreground">헬스권 {svcLabel}</p>
+                                      <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>
+                                    </div>
+                                    {svcStartDate && svcEndDate && (
+                                      <p className="mt-1 text-xs text-muted-foreground">{svcStartDate} ~ {svcEndDate}</p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
