@@ -13,6 +13,7 @@
     "drive": "tsx src/drive-cli.ts",
     "payroll": "tsx src/payroll-cli.ts",
     "repo": "tsx src/repo-cli.ts",
+    "weekly-report": "tsx src/weekly-report-cli.ts",
     "command": "tsx src/command-cli.ts",
     "attach-log": "tsx src/attach-log-cli.ts",
     "ifk": "tsx src/ifk-cli.ts",
