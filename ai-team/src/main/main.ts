@@ -101,7 +101,7 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     // "업무관리"/"업무 로그" 데이터베이스에는 더 이상 쓰지 않는다.
 
     // 카카오톡 브리핑 발송 (2026-08-17 재개: 자이언트짐 AI 알림 앱으로 "나에게 보내기" 연동 완료)
-    const kakao = await pushDailyBriefingKakao(result, mina, funnel, content);
+    const kakao = await pushDailyBriefingKakao();
     send("log", kakao.ok ? "카카오톡으로 브리핑 발송 완료" : `카카오톡 발송 안 함: ${kakao.error}`);
 
     // 드라이브: 재무·회원 스프레드시트를 로컬에 백업 (인증 안 돼 있으면 조용히 건너뜀)

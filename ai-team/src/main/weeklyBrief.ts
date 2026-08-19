@@ -1,379 +1,539 @@
-// 주간 운영 보고 (2026-08-24 대표 지시로 신설) — 매주 월요일 아침 9시, 카카오톡("나에게 보내기")으로 발송.
-// 집계 기간은 항상 "직전 월~토 6일"(일요일은 휴관일이라 제외)이고, 비교 기준(전주)도 동일한 방식의
-// 그 이전 월~토 6일이다. 기존 오전 9시 일일 브리핑(orchestrator.ts)은 화~토만 나가고 월요일엔 이
-// 주간 보고로 대체된다.
-// 클라우드 예약실행 환경에서도 동작해야 해서 pg Pool이 아니라 neon() HTTP 방식을 쓴다(다른 잡들과 동일).
+// 매주 월요일 오전 카카오 주간 운영 보고 (2026-08-24 대표 지시). 집계 기간은 항상 직전
+// 월~토 6일(일요일 휴관일 제외), 비교 기준도 동일하게 그 이전 월~토 6일이다.
+// 일일 브리핑(dailyBrief.ts)과 "이탈위험" 정의·미수금 집계 로직을 gymShared.ts로 공유한다.
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { todayStr, addDays } from "./autoMessage";
+import { BRANCH_IDS, REVENUE_SUBTYPES, branchLabel, computeChurnRisk, gatherUnpaid } from "./gymShared";
 
-const BRANCH_NAMES: Record<number, string> = { 1: "1호점", 2: "2호점" };
+const AUTO_MESSAGE_CATEGORIES = ["expiry_d10", "expiry_d5", "consult_followup", "lapsed_recover"] as const;
+const CATEGORY_LABEL: Record<(typeof AUTO_MESSAGE_CATEGORIES)[number], string> = {
+  expiry_d10: "만료 D-10",
+  expiry_d5: "만료 D-5",
+  consult_followup: "상담 후속",
+  lapsed_recover: "재등록 유도",
+};
 
-function todayStr(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+interface RevenueRow {
+  branchId: number | null;
+  customerName: string | null;
+  type: string;
+  subType: string;
+  paidAmount: number;
+  programDetail: string | null;
+  sessions: number | null;
 }
 
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00+09:00`);
-  d.setDate(d.getDate() + days);
-  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+function dayOfWeek(ymd: string): number {
+  return new Date(ymd + "T00:00:00Z").getUTCDay(); // 0=일 ... 6=토
 }
 
-/** 대표가 매주 월요일 아침에 실행한다고 가정하고, 직전 월~토(6일)를 이번 주 집계 기간으로,
- * 그 이전 월~토(6일)를 전주 비교 기간으로 잡는다.
- * 예: referenceDate=2026-08-24(월) → 이번주 2026-08-17~2026-08-22, 전주 2026-08-10~2026-08-15. */
-export function getWeeklyPeriod(referenceDate: string = todayStr()) {
-  const weekStart = addDays(referenceDate, -7);
-  const weekEnd = addDays(referenceDate, -2);
-  const prevWeekStart = addDays(referenceDate, -14);
-  const prevWeekEnd = addDays(referenceDate, -9);
+/** 오늘(보통 월요일) 기준으로 "직전 월~토 6일"과 "그 이전 월~토 6일"을 계산한다.
+ * 월요일이 아닌 날 수동 실행해도 항상 어제 이전의 가장 최근 토요일을 기준으로 역산해
+ * 동일한 규칙(월~토)이 적용되도록 한다. */
+function computeWeekRanges(today: string) {
+  let cursor = addDays(today, -1);
+  while (dayOfWeek(cursor) !== 6) cursor = addDays(cursor, -1);
+  const weekEnd = cursor;
+  const weekStart = addDays(weekEnd, -5);
+  const prevWeekEnd = addDays(weekStart, -2);
+  const prevWeekStart = addDays(prevWeekEnd, -5);
   return { weekStart, weekEnd, prevWeekStart, prevWeekEnd };
 }
 
-function branchLabel(branchId: number | null): string {
-  return branchId === null ? "지점미지정" : BRANCH_NAMES[branchId] ?? `지점${branchId}`;
+function pct(diff: number, base: number): number | null {
+  if (base === 0) return null;
+  return Math.round((diff / base) * 1000) / 10;
 }
 
-export interface WeeklyBriefResult {
-  weekStart: string;
-  weekEnd: string;
-  prevWeekStart: string;
-  prevWeekEnd: string;
-  generatedAt: string;
-  revenue: {
-    total: number; // 순매출(실입금 - 환불)
-    paidAmount: number;
-    refundAmount: number;
-    prevTotal: number;
-    diff: number;
-    diffPct: number | null;
-    byBranch: { branchId: number | null; branchName: string; amount: number }[];
-    byType: { type: string; amount: number }[];
-  };
-  visits: { total: number; uniqueMembers: number; prevTotal: number };
-  registration: { newCount: number; reRegisterCount: number; prevNewCount: number; prevReRegisterCount: number };
-  funnel: { newLeads: number; consulted: number; registered: number; consultRate: number; registerRate: number };
-  expiringSoon: { count: number; names: string[] };
-  attendanceRisk: { count: number; members: { name: string; phone: string | null; branchId: number | null; lastAttendDate: string | null }[] };
-  unpaid: {
-    total: number;
-    memberCount: number;
-    longOverdue: { name: string; phone: string | null; unpaid: number; daysOverdue: number }[];
-  };
-  autoMessage: {
-    category: string;
-    label: string;
-    targeted: number;
-    sent: number;
-    failed: number;
-    skippedInvalidPhone: number;
-    converted: number; // 상담연결/재등록연결 (카테고리별 정의는 아래 CATEGORY_LABEL 주석 참고)
-  }[];
-  dataNotes: string[];
+function productLabel(r: RevenueRow): string {
+  if (r.type === "PT") return `PT ${r.sessions ?? "?"}회`;
+  return r.programDetail ?? r.type;
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  expiry_d10: "헬스권 만료 D-10",
-  expiry_d5: "헬스권 만료 D-5",
-  consult_followup: "관리상담 D+1",
-  lapsed_recover: "만료 후 재등록 유도",
-  gymplus_launch: "자이언트짐+ 오픈 안내",
-};
+async function fetchRevenue(sql: NeonQueryFunction<false, false>, from: string, to: string): Promise<RevenueRow[]> {
+  return (await sql.query(
+    `SELECT "branchId", "customerName", type, "subType", "paidAmount", "programDetail", sessions
+     FROM revenue_entries
+     WHERE "paymentDate" >= $1 AND "paymentDate" <= $2 AND "subType" = ANY($3)`,
+    [from, to, REVENUE_SUBTYPES]
+  )) as RevenueRow[];
+}
 
-// member_id 기준 카테고리(만료 안내·재등록 유도)는 "재등록 연결" — 메시지 발송 후 오늘까지
-// 해당 회원의 재등록(subType='재등록') 매출 기록이 생겼는지로 판단한다.
-const MEMBER_CATEGORIES = new Set(["expiry_d10", "expiry_d5", "lapsed_recover"]);
-// lead_id 기준 카테고리(관리상담 후속)는 "등록 연결" — 리드가 실제 회원으로 등록됐는지로 판단한다.
-const LEAD_CATEGORIES = new Set(["consult_followup"]);
+interface RegistrationCounts {
+  newGym: number;
+  newPt: number;
+  reRegisterGym: number;
+  reRegisterPt: number;
+}
 
-async function gatherWeeklyData(sql: NeonQueryFunction<false, false>, weekStart: string, weekEnd: string, prevWeekStart: string, prevWeekEnd: string) {
-  const today = todayStr();
-  const in30 = addDays(today, 30);
-  const ago14 = addDays(today, -14);
-  const ago30 = addDays(today, -30);
-  const weekEndExclusive = addDays(weekEnd, 1);
+function countRegistrations(rows: RevenueRow[]): RegistrationCounts {
+  return {
+    newGym: rows.filter((r) => r.type === "헬스" && r.subType === "신규").length,
+    newPt: rows.filter((r) => r.type === "PT" && r.subType === "신규").length,
+    reRegisterGym: rows.filter((r) => r.type === "헬스" && r.subType === "재등록").length,
+    reRegisterPt: rows.filter((r) => r.type === "PT" && r.subType === "재등록").length,
+  };
+}
 
-  const [
-    revRows,
-    prevRevRows,
-    visitRows,
-    prevVisitRows,
-    leadsRows,
-    expiring,
-    attendanceRiskRows,
-    unpaidRows,
-    autoMsgRows,
-  ] = (await Promise.all([
+async function gatherVisits(sql: NeonQueryFunction<false, false>, from: string, to: string) {
+  const rows = (await sql.query(
+    `SELECT a."memberId" AS "memberId", m."branchId" AS "branchId", a."attendDate" AS "attendDate"
+     FROM attendances a JOIN members m ON a."memberId" = m.id
+     WHERE a."attendDate" >= $1 AND a."attendDate" <= $2`,
+    [from, to]
+  )) as { memberId: number; branchId: number | null; attendDate: string }[];
+
+  const byBranch = new Map<number, number>();
+  for (const r of rows) if (r.branchId != null) byBranch.set(r.branchId, (byBranch.get(r.branchId) ?? 0) + 1);
+
+  return {
+    total: rows.length,
+    uniqueMembers: new Set(rows.map((r) => r.memberId)).size,
+    byBranch: BRANCH_IDS.map((id) => ({ branchId: id, branchName: branchLabel(id), count: byBranch.get(id) ?? 0 })),
+  };
+}
+
+async function gatherConsulting(sql: NeonQueryFunction<false, false>, from: string, to: string) {
+  const rows = (await sql.query(`SELECT status FROM leads WHERE "consultationDate" >= $1 AND "consultationDate" <= $2`, [
+    from,
+    to,
+  ])) as { status: string }[];
+  const consulted = rows.length;
+  const registered = rows.filter((r) => r.status === "registered").length;
+  const rate = consulted > 0 ? Math.round((registered / consulted) * 1000) / 10 : 0;
+  return { consulted, registered, notRegistered: consulted - registered, rate };
+}
+
+async function gatherRisk(sql: NeonQueryFunction<false, false>, today: string) {
+  const [expiringRows, activeMembers, attendances] = (await Promise.all([
     sql.query(
-      `SELECT "branchId", type, "subType", "paidAmount", "refundAmount" FROM revenue_entries
-       WHERE "paymentDate" >= $1 AND "paymentDate" <= $2`,
-      [weekStart, weekEnd]
+      `SELECT id, "branchId" FROM members WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2`,
+      [today, addDays(today, 30)]
     ),
+    sql.query(`SELECT id, "branchId", "membershipStart" FROM members WHERE status = 'active'`),
     sql.query(
-      `SELECT "subType", "paidAmount", "refundAmount" FROM revenue_entries WHERE "paymentDate" >= $1 AND "paymentDate" <= $2`,
-      [prevWeekStart, prevWeekEnd]
-    ),
-    sql.query(
-      `SELECT COUNT(*) total, COUNT(DISTINCT "memberId") uniq FROM attendances WHERE "attendDate" >= $1 AND "attendDate" <= $2`,
-      [weekStart, weekEnd]
-    ),
-    sql.query(
-      `SELECT COUNT(*) total FROM attendances WHERE "attendDate" >= $1 AND "attendDate" <= $2`,
-      [prevWeekStart, prevWeekEnd]
-    ),
-    sql.query(
-      `SELECT status FROM leads WHERE "createdAt" >= $1 AND "createdAt" < $2`,
-      [weekStart, weekEndExclusive]
-    ),
-    sql.query(
-      `SELECT "branchId", name FROM members
-       WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" <= $2`,
-      [today, in30]
-    ),
-    sql.query(
-      `SELECT m.name, m.phone, m."branchId" AS "branchId", MAX(a."attendDate") AS "lastAttendDate"
-       FROM members m
-       LEFT JOIN attendances a ON a."memberId" = m.id
-       WHERE m.status = 'active' AND m."membershipStart" IS NOT NULL AND m."membershipStart" <= $1
-       GROUP BY m.id, m.name, m.phone, m."branchId"
-       HAVING MAX(a."attendDate") IS NULL OR MAX(a."attendDate") < $1
-       ORDER BY "lastAttendDate" ASC NULLS FIRST
-       LIMIT 100`,
-      [ago14]
-    ),
-    sql.query(`SELECT "customerName", phone, "unpaidAmount", "paymentDate" FROM revenue_entries WHERE "unpaidAmount" > 0`),
-    sql.query(
-      `SELECT category, member_id, lead_id, success, error FROM auto_message_log
-       WHERE sent_at >= $1 AND sent_at < $2`,
-      [weekStart, weekEndExclusive]
+      `SELECT a."memberId" AS "memberId", a."attendDate" AS "attendDate"
+       FROM attendances a JOIN members m ON a."memberId" = m.id
+       WHERE m.status = 'active' AND a."attendDate" >= $1`,
+      [addDays(today, -60)]
     ),
   ])) as [
-    { branchId: number | null; type: string; subType: string; paidAmount: number; refundAmount: number }[],
-    { subType: string; paidAmount: number; refundAmount: number }[],
-    { total: string; uniq: string }[],
-    { total: string }[],
-    { status: string }[],
-    { branchId: number | null; name: string }[],
-    { name: string; phone: string | null; branchId: number | null; lastAttendDate: string | null }[],
-    { customerName: string | null; phone: string | null; unpaidAmount: number; paymentDate: string }[],
-    { category: string; member_id: number | null; lead_id: number | null; success: boolean; error: string | null }[]
+    { id: number; branchId: number | null }[],
+    { id: number; branchId: number | null; membershipStart: string }[],
+    { memberId: number; attendDate: string }[]
   ];
 
-  return {
-    revRows,
-    prevRevRows,
-    visitRows,
-    prevVisitRows,
-    leadsRows,
-    expiring,
-    attendanceRiskRows,
-    unpaidRows: unpaidRows.map((r) => ({ ...r, unpaidAmount: Number(r.unpaidAmount) })),
-    autoMsgRows,
-    ago30,
-    today,
-  };
-}
-
-/** 이번 주 발송된 자동문자 대상자 중 오늘까지 재등록/등록으로 이어진 인원을 센다. */
-async function computeConversions(
-  sql: NeonQueryFunction<false, false>,
-  category: string,
-  memberIds: number[],
-  leadIds: number[],
-  weekStart: string,
-  today: string
-): Promise<number> {
-  if (MEMBER_CATEGORIES.has(category)) {
-    if (memberIds.length === 0) return 0;
-    const rows = (await sql.query(
-      `SELECT DISTINCT "memberId" FROM revenue_entries
-       WHERE "subType" = '재등록' AND "memberId" = ANY($1::int[]) AND "paymentDate" >= $2 AND "paymentDate" <= $3`,
-      [memberIds, weekStart, today]
-    )) as { memberId: number }[];
-    return rows.length;
-  }
-  if (LEAD_CATEGORIES.has(category)) {
-    if (leadIds.length === 0) return 0;
-    const rows = (await sql.query(
-      `SELECT id FROM leads WHERE id = ANY($1::int[]) AND status = 'registered'`,
-      [leadIds]
-    )) as { id: number }[];
-    return rows.length;
-  }
-  return 0;
-}
-
-export async function runWeeklyBrief(referenceDate: string = todayStr()): Promise<WeeklyBriefResult> {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL이 설정되어 있지 않습니다.");
-  const sql = neon(url);
-  const { weekStart, weekEnd, prevWeekStart, prevWeekEnd } = getWeeklyPeriod(referenceDate);
-
-  const d = await gatherWeeklyData(sql, weekStart, weekEnd, prevWeekStart, prevWeekEnd);
-
-  // 매출
-  const paidAmount = d.revRows.reduce((s, r) => s + Number(r.paidAmount || 0), 0);
-  const refundAmount = d.revRows.reduce((s, r) => s + Number(r.refundAmount || 0), 0);
-  const total = paidAmount - refundAmount;
-  const prevTotal = d.prevRevRows.reduce((s, r) => s + Number(r.paidAmount || 0) - Number(r.refundAmount || 0), 0);
-  const diff = total - prevTotal;
-  const diffPct = prevTotal > 0 ? Math.round((diff / prevTotal) * 1000) / 10 : null;
-
-  const byBranchMap = new Map<number | null, number>();
-  for (const r of d.revRows) byBranchMap.set(r.branchId, (byBranchMap.get(r.branchId) ?? 0) + Number(r.paidAmount || 0) - Number(r.refundAmount || 0));
-  const byBranch = Array.from(byBranchMap.entries())
-    .map(([branchId, amount]) => ({ branchId, branchName: branchLabel(branchId), amount }))
-    .sort((a, b) => (a.branchId ?? 99) - (b.branchId ?? 99));
-
-  const byTypeMap = new Map<string, number>();
-  for (const r of d.revRows) byTypeMap.set(r.type, (byTypeMap.get(r.type) ?? 0) + Number(r.paidAmount || 0) - Number(r.refundAmount || 0));
-  const byType = Array.from(byTypeMap.entries()).map(([type, amount]) => ({ type, amount }));
-
-  // 방문
-  const visitTotal = Number(d.visitRows[0]?.total ?? 0);
-  const visitUnique = Number(d.visitRows[0]?.uniq ?? 0);
-  const prevVisitTotal = Number(d.prevVisitRows[0]?.total ?? 0);
-
-  // 신규·재등록
-  const newCount = d.revRows.filter((r) => r.subType === "신규").length;
-  const reRegisterCount = d.revRows.filter((r) => r.subType === "재등록").length;
-  const prevNewCount = d.prevRevRows.filter((r) => r.subType === "신규").length;
-  const prevReRegisterCount = d.prevRevRows.filter((r) => r.subType === "재등록").length;
-
-  // 상담·등록전환율 (이번 주 신규 유입 리드 기준)
-  const newLeads = d.leadsRows.length;
-  const consulted = d.leadsRows.filter((r) => r.status === "consulted" || r.status === "registered").length;
-  const registered = d.leadsRows.filter((r) => r.status === "registered").length;
-  const consultRate = newLeads > 0 ? Math.round((consulted / newLeads) * 100) : 0;
-  const registerRate = consulted > 0 ? Math.round((registered / consulted) * 100) : 0;
-
-  // 만료임박 (만료일 기준, 기존 로직과 동일)
-  const expiringSoon = { count: d.expiring.length, names: d.expiring.slice(0, 15).map((m) => m.name) };
-
-  // 이탈위험 (실제 출석 패턴 기준 — 최근 14일 미방문 활성회원)
-  const attendanceRisk = {
-    count: d.attendanceRiskRows.length,
-    members: d.attendanceRiskRows.slice(0, 15),
-  };
-
-  // 미수금
-  const unpaidTotal = d.unpaidRows.reduce((s, r) => s + r.unpaidAmount, 0);
-  const longOverdue = d.unpaidRows
-    .filter((r) => r.paymentDate <= d.ago30)
-    .map((r) => ({
-      name: r.customerName ?? "이름없음",
-      phone: r.phone,
-      unpaid: r.unpaidAmount,
-      daysOverdue: Math.round((new Date(d.today).getTime() - new Date(r.paymentDate).getTime()) / 864e5),
-    }))
-    .sort((a, b) => b.unpaid - a.unpaid);
-
-  // 13시 자동문자 성과
-  const categories = Array.from(new Set(d.autoMsgRows.map((r) => r.category)));
-  const autoMessage: WeeklyBriefResult["autoMessage"] = [];
-  for (const category of categories) {
-    const rows = d.autoMsgRows.filter((r) => r.category === category);
-    const sent = rows.filter((r) => r.success).length;
-    const skippedInvalidPhone = rows.filter((r) => !r.success && r.error === "연락처 누락·확인 필요").length;
-    const failed = rows.filter((r) => !r.success && r.error !== "연락처 누락·확인 필요").length;
-    const memberIds = Array.from(new Set(rows.filter((r) => r.success && r.member_id != null).map((r) => r.member_id!)));
-    const leadIds = Array.from(new Set(rows.filter((r) => r.success && r.lead_id != null).map((r) => r.lead_id!)));
-    const converted = await computeConversions(sql, category, memberIds, leadIds, weekStart, d.today);
-    autoMessage.push({
-      category,
-      label: CATEGORY_LABEL[category] ?? category,
-      targeted: rows.length,
-      sent,
-      failed,
-      skippedInvalidPhone,
-      converted,
-    });
-  }
-
-  const dataNotes: string[] = [
-    "이탈위험(출석 패턴 기준)은 '활성회원 중 가입 14일 이상 경과 + 최근 14일간 출석기록 없음'으로 정의합니다 — 만료일 기준 만료임박과는 별개 지표입니다.",
-    "장기미수는 결제일로부터 30일 이상 경과했고 아직 미수금이 남아있는 건입니다.",
-    "13시 자동문자 '연결'은 만료안내·재등록유도는 발송 후 오늘까지의 재등록 매출 발생 여부, 관리상담 후속은 리드의 등록 전환 여부로 판단합니다.",
-  ];
+  const { risky: churnRisk, noAttendanceLogCount } = computeChurnRisk(activeMembers, attendances, today);
+  const expiringIds = new Set(expiringRows.map((r) => r.id));
+  let overlap = 0;
+  for (const id of expiringIds) if (churnRisk.has(id)) overlap++;
 
   return {
-    weekStart,
-    weekEnd,
-    prevWeekStart,
-    prevWeekEnd,
-    generatedAt: new Date().toISOString(),
-    revenue: { total, paidAmount, refundAmount, prevTotal, diff, diffPct, byBranch, byType },
-    visits: { total: visitTotal, uniqueMembers: visitUnique, prevTotal: prevVisitTotal },
-    registration: { newCount, reRegisterCount, prevNewCount, prevReRegisterCount },
-    funnel: { newLeads, consulted, registered, consultRate, registerRate },
-    expiringSoon,
-    attendanceRisk,
-    unpaid: { total: unpaidTotal, memberCount: d.unpaidRows.length, longOverdue },
-    autoMessage,
-    dataNotes,
+    expiringSoon: expiringRows.length,
+    churnRisk: churnRisk.size,
+    overlap,
+    noAttendanceLogCount,
   };
 }
 
-export function saveWeeklyBrief(result: WeeklyBriefResult): string {
-  const outDir = join(__dirname, "..", "..", "output", "weekly-brief");
-  mkdirSync(outDir, { recursive: true });
-  const path = join(outDir, `${result.weekStart}_${result.weekEnd}.json`);
-  writeFileSync(path, JSON.stringify(result, null, 2), "utf-8");
-  return path;
+interface AutomationCategoryStat {
+  category: string;
+  label: string;
+  targeted: number;
+  succeeded: number;
 }
 
-export function loadWeeklyBrief(weekStart: string, weekEnd: string): WeeklyBriefResult | null {
+async function gatherAutomation(sql: NeonQueryFunction<false, false>, weekStart: string, weekEnd: string) {
+  const from = `${weekStart}T00:00:00+09:00`;
+  const to = `${addDays(weekEnd, 1)}T00:00:00+09:00`;
+
+  const byCategory = (await sql.query(
+    `SELECT category,
+       COUNT(DISTINCT COALESCE(member_id, lead_id)) AS targeted,
+       COUNT(DISTINCT COALESCE(member_id, lead_id)) FILTER (WHERE success) AS succeeded
+     FROM auto_message_log
+     WHERE category = ANY($1) AND sent_at >= $2 AND sent_at < $3
+     GROUP BY category`,
+    [AUTO_MESSAGE_CATEGORIES, from, to]
+  )) as { category: string; targeted: string; succeeded: string }[];
+
+  const [consultConnectedRows, reRegisterConnectedRows] = (await Promise.all([
+    sql.query(
+      `SELECT COUNT(DISTINCT aml.lead_id) c
+       FROM auto_message_log aml JOIN leads l ON l.id = aml.lead_id
+       WHERE aml.category = 'consult_followup' AND aml.success = true
+         AND aml.sent_at >= $1 AND aml.sent_at < $2 AND l.status = 'registered'`,
+      [from, to]
+    ),
+    sql.query(
+      `SELECT COUNT(DISTINCT aml.member_id) c
+       FROM auto_message_log aml
+       WHERE aml.category IN ('expiry_d10','expiry_d5','lapsed_recover') AND aml.success = true
+         AND aml.sent_at >= $1 AND aml.sent_at < $2 AND aml.member_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM revenue_entries re
+           WHERE re."memberId" = aml.member_id AND re."subType" = '재등록'
+             AND re."paymentDate" >= to_char(aml.sent_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD')
+         )`,
+      [from, to]
+    ),
+  ])) as [{ c: string }[], { c: string }[]];
+
+  const statMap = new Map(byCategory.map((r) => [r.category, r]));
+  const stats: AutomationCategoryStat[] = AUTO_MESSAGE_CATEGORIES.map((cat) => {
+    const row = statMap.get(cat);
+    return {
+      category: cat,
+      label: CATEGORY_LABEL[cat],
+      targeted: row ? Number(row.targeted) : 0,
+      succeeded: row ? Number(row.succeeded) : 0,
+    };
+  });
+
+  return {
+    byCategory: stats,
+    totalTargeted: stats.reduce((s, c) => s + c.targeted, 0),
+    totalSucceeded: stats.reduce((s, c) => s + c.succeeded, 0),
+    totalFailed: stats.reduce((s, c) => s + (c.targeted - c.succeeded), 0),
+    consultConnected: Number(consultConnectedRows[0]?.c ?? 0),
+    reRegisterConnected: Number(reRegisterConnectedRows[0]?.c ?? 0),
+  };
+}
+
+interface Snapshot {
+  weekStart: string;
+  expiringSoon: number;
+  churnRisk: number;
+  unpaidTotal: number;
+  unpaidCount: number;
+}
+
+function snapshotPath(weekStart: string): string {
+  const dir = join(__dirname, "..", "..", "output", "weekly-brief");
+  mkdirSync(dir, { recursive: true });
+  return join(dir, `${weekStart}.json`);
+}
+
+function loadSnapshot(weekStart: string): Snapshot | null {
   try {
-    const path = join(__dirname, "..", "..", "output", "weekly-brief", `${weekStart}_${weekEnd}.json`);
-    return JSON.parse(readFileSync(path, "utf-8"));
+    return JSON.parse(readFileSync(snapshotPath(weekStart), "utf-8"));
   } catch {
     return null;
   }
 }
 
-const man = (n: number) => `${Math.round(n / 10000).toLocaleString()}만`;
-
-function namesList(names: string[], max = 8): string {
-  if (names.length === 0) return "없음";
-  return names.length <= max ? names.join(", ") : `${names.slice(0, max).join(", ")} 외 ${names.length - max}명`;
+function saveSnapshot(snapshot: Snapshot) {
+  writeFileSync(snapshotPath(snapshot.weekStart), JSON.stringify(snapshot, null, 2), "utf-8");
 }
 
-/** 확인이 필요한 항목만 규칙 기반으로 1~3개 뽑는다 — 대표가 실행 여부를 판단할 항목. */
-function buildActionItems(r: WeeklyBriefResult): string[] {
+export interface WeeklyBrief {
+  weekStart: string;
+  weekEnd: string;
+  prevWeekStart: string;
+  prevWeekEnd: string;
+  hasPrevSnapshot: boolean;
+  revenue: {
+    thisWeek: number;
+    prevWeek: number;
+    diff: number;
+    diffPct: number | null;
+    byBranch: { branchId: number; branchName: string; amount: number }[];
+    byProduct: { label: string; count: number; amount: number }[];
+  };
+  visits: {
+    totalThisWeek: number;
+    totalPrevWeek: number;
+    diff: number;
+    diffPct: number | null;
+    uniqueMembersThisWeek: number;
+    uniqueMembersPrevWeek: number;
+    diffMembers: number;
+    dailyAvgThisWeek: number;
+    dailyAvgPrevWeek: number;
+    byBranch: { branchId: number; branchName: string; count: number }[];
+  };
+  registrations: {
+    newThisWeek: number;
+    newPrevWeek: number;
+    reRegisterThisWeek: number;
+    reRegisterPrevWeek: number;
+    newGym: number;
+    newPt: number;
+    reRegisterGym: number;
+    reRegisterPt: number;
+  };
+  consulting: { consulted: number; registered: number; notRegistered: number; rate: number; prevRate: number; ratePointDiff: number };
+  risk: {
+    expiringSoon: number;
+    expiringSoonPrev: number | null;
+    churnRisk: number;
+    churnRiskPrev: number | null;
+    overlap: number;
+    noAttendanceLogCount: number;
+  };
+  unpaid: {
+    total: number;
+    count: number;
+    prevTotal: number | null;
+    prevCount: number | null;
+    longOverdue: { customerName: string; unpaid: number; program: string; daysElapsed: number }[];
+  };
+  automation: Awaited<ReturnType<typeof gatherAutomation>>;
+  attentionItems: string[];
+}
+
+function buildAttentionItems(brief: Omit<WeeklyBrief, "attentionItems">): string[] {
   const items: string[] = [];
-  if (r.unpaid.longOverdue.length > 0)
-    items.push(`장기미수(30일+) ${r.unpaid.longOverdue.length}명 · ${man(r.unpaid.longOverdue.reduce((s, m) => s + m.unpaid, 0))} — 수금 연락 필요`);
-  if (r.attendanceRisk.count > 0)
-    items.push(`최근14일 미방문 활성회원 ${r.attendanceRisk.count}명 — 이탈 전 연락 검토`);
-  const failedAuto = r.autoMessage.reduce((s, c) => s + c.failed, 0);
-  if (failedAuto > 0) items.push(`13시 자동문자 발송 실패 ${failedAuto}건 — 원인 확인 필요`);
-  if (items.length < 3 && r.funnel.registerRate < 40 && r.funnel.consulted > 0)
-    items.push(`상담→등록 전환율 ${r.funnel.registerRate}%로 낮음 — 팔로업 점검`);
+
+  if (brief.revenue.diffPct !== null && brief.revenue.diffPct <= -10) {
+    items.push(`주간 매출 ${brief.revenue.prevWeek.toLocaleString()}원 → ${brief.revenue.thisWeek.toLocaleString()}원 (${brief.revenue.diffPct}%)`);
+  }
+  if (brief.registrations.reRegisterThisWeek < brief.registrations.reRegisterPrevWeek) {
+    items.push(`재등록 ${brief.registrations.reRegisterPrevWeek}명 → ${brief.registrations.reRegisterThisWeek}명으로 감소`);
+  }
+  if (brief.risk.churnRiskPrev !== null && brief.risk.churnRisk > brief.risk.churnRiskPrev) {
+    items.push(`이탈위험 회원 ${brief.risk.churnRiskPrev}명 → ${brief.risk.churnRisk}명으로 증가`);
+  }
+  if (brief.unpaid.longOverdue.length > 0) {
+    items.push(`장기 미수 회원 ${brief.unpaid.longOverdue.length}명 확인 필요`);
+  }
+
   return items.slice(0, 3);
 }
 
-export function buildWeeklyKakaoText(r: WeeklyBriefResult): string {
-  const sign = r.revenue.diff >= 0 ? "+" : "";
-  const pctText = r.revenue.diffPct === null ? "" : ` ${r.revenue.diffPct >= 0 ? "+" : ""}${r.revenue.diffPct}%`;
-  const branchLine = r.revenue.byBranch.map((b) => `${b.branchName} ${man(b.amount)}`).join(" · ");
-  const typeLine = r.revenue.byType.map((t) => `${t.type} ${man(t.amount)}`).join(" · ");
+export async function gatherWeeklyBrief(): Promise<WeeklyBrief> {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL 미설정");
 
-  const lines = [
-    `🧑‍💼 주간 운영 보고 (${r.weekStart}~${r.weekEnd})`,
-    `[매출] ${man(r.revenue.total)} (전주대비 ${sign}${man(r.revenue.diff)}${pctText})`,
-    branchLine ? `지점별: ${branchLine}` : "",
-    typeLine ? `상품별: ${typeLine}` : "",
-    `[방문] 총 ${r.visits.total}회 · 실제방문회원 ${r.visits.uniqueMembers}명 (전주 ${r.visits.prevTotal}회)`,
-    `[신규·재등록] 신규 ${r.registration.newCount}건 · 재등록 ${r.registration.reRegisterCount}건 (전주 신규${r.registration.prevNewCount}·재등록${r.registration.prevReRegisterCount})`,
-    `[상담전환] 신규리드 ${r.funnel.newLeads} · 상담 ${r.funnel.consulted} · 등록 ${r.funnel.registered} / 상담전환율 ${r.funnel.consultRate}% · 등록전환율 ${r.funnel.registerRate}%`,
-    `[만료임박] 30일내 ${r.expiringSoon.count}명`,
-    `[이탈위험·출석기준] ${r.attendanceRisk.count}명: ${namesList(r.attendanceRisk.members.map((m) => m.name))}`,
-    `[미수금] 총 ${man(r.unpaid.total)}(${r.unpaid.memberCount}명) · 장기미수(30일+) ${r.unpaid.longOverdue.length}명: ${namesList(r.unpaid.longOverdue.map((m) => m.name))}`,
-    `[13시자동문자] ${r.autoMessage.map((c) => `${c.label} 대상${c.targeted}·성공${c.sent}·실패${c.failed}·연결${c.converted}`).join(" / ") || "이번 주 발송 없음"}`,
-  ];
+  const sql = neon(url);
+  const today = todayStr();
+  const { weekStart, weekEnd, prevWeekStart, prevWeekEnd } = computeWeekRanges(today);
 
-  const actionItems = buildActionItems(r);
-  lines.push(`[확인 필요] ${actionItems.length > 0 ? actionItems.map((a, i) => `${i + 1}) ${a}`).join(" / ") : "특이사항 없음"}`);
+  const [thisWeekRevRows, prevWeekRevRows, visitsThis, visitsPrev, consultingThis, consultingPrev, risk, unpaid, automation] =
+    await Promise.all([
+      fetchRevenue(sql, weekStart, weekEnd),
+      fetchRevenue(sql, prevWeekStart, prevWeekEnd),
+      gatherVisits(sql, weekStart, weekEnd),
+      gatherVisits(sql, prevWeekStart, prevWeekEnd),
+      gatherConsulting(sql, weekStart, weekEnd),
+      gatherConsulting(sql, prevWeekStart, prevWeekEnd),
+      gatherRisk(sql, today),
+      gatherUnpaid(sql, today),
+      gatherAutomation(sql, weekStart, weekEnd),
+    ]);
 
-  return lines.filter(Boolean).join("\n");
+  const thisWeekTotal = thisWeekRevRows.reduce((s, r) => s + Number(r.paidAmount ?? 0), 0);
+  const prevWeekTotal = prevWeekRevRows.reduce((s, r) => s + Number(r.paidAmount ?? 0), 0);
+
+  const byBranchMap = new Map<number, number>();
+  for (const r of thisWeekRevRows) if (r.branchId != null) byBranchMap.set(r.branchId, (byBranchMap.get(r.branchId) ?? 0) + Number(r.paidAmount ?? 0));
+
+  const byProductMap = new Map<string, { count: number; amount: number }>();
+  for (const r of thisWeekRevRows) {
+    if (r.type !== "헬스" && r.type !== "PT") continue; // 상품별 집계는 핵심 매출원(헬스/PT)만
+    const label = productLabel(r);
+    const cur = byProductMap.get(label) ?? { count: 0, amount: 0 };
+    cur.count++;
+    cur.amount += Number(r.paidAmount ?? 0);
+    byProductMap.set(label, cur);
+  }
+
+  const thisReg = countRegistrations(thisWeekRevRows);
+  const prevReg = countRegistrations(prevWeekRevRows);
+
+  const prevSnapshot = loadSnapshot(prevWeekStart);
+  saveSnapshot({
+    weekStart,
+    expiringSoon: risk.expiringSoon,
+    churnRisk: risk.churnRisk,
+    unpaidTotal: unpaid.total,
+    unpaidCount: unpaid.memberCount,
+  });
+
+  const brief: Omit<WeeklyBrief, "attentionItems"> = {
+    weekStart,
+    weekEnd,
+    prevWeekStart,
+    prevWeekEnd,
+    hasPrevSnapshot: prevSnapshot !== null,
+    revenue: {
+      thisWeek: thisWeekTotal,
+      prevWeek: prevWeekTotal,
+      diff: thisWeekTotal - prevWeekTotal,
+      diffPct: pct(thisWeekTotal - prevWeekTotal, prevWeekTotal),
+      byBranch: BRANCH_IDS.map((id) => ({ branchId: id, branchName: branchLabel(id), amount: byBranchMap.get(id) ?? 0 })),
+      byProduct: Array.from(byProductMap.entries())
+        .map(([label, v]) => ({ label, count: v.count, amount: v.amount }))
+        .sort((a, b) => b.amount - a.amount),
+    },
+    visits: {
+      totalThisWeek: visitsThis.total,
+      totalPrevWeek: visitsPrev.total,
+      diff: visitsThis.total - visitsPrev.total,
+      diffPct: pct(visitsThis.total - visitsPrev.total, visitsPrev.total),
+      uniqueMembersThisWeek: visitsThis.uniqueMembers,
+      uniqueMembersPrevWeek: visitsPrev.uniqueMembers,
+      diffMembers: visitsThis.uniqueMembers - visitsPrev.uniqueMembers,
+      dailyAvgThisWeek: Math.round((visitsThis.total / 6) * 10) / 10,
+      dailyAvgPrevWeek: Math.round((visitsPrev.total / 6) * 10) / 10,
+      byBranch: visitsThis.byBranch,
+    },
+    registrations: {
+      newThisWeek: thisReg.newGym + thisReg.newPt,
+      newPrevWeek: prevReg.newGym + prevReg.newPt,
+      reRegisterThisWeek: thisReg.reRegisterGym + thisReg.reRegisterPt,
+      reRegisterPrevWeek: prevReg.reRegisterGym + prevReg.reRegisterPt,
+      newGym: thisReg.newGym,
+      newPt: thisReg.newPt,
+      reRegisterGym: thisReg.reRegisterGym,
+      reRegisterPt: thisReg.reRegisterPt,
+    },
+    consulting: {
+      consulted: consultingThis.consulted,
+      registered: consultingThis.registered,
+      notRegistered: consultingThis.notRegistered,
+      rate: consultingThis.rate,
+      prevRate: consultingPrev.rate,
+      ratePointDiff: Math.round((consultingThis.rate - consultingPrev.rate) * 10) / 10,
+    },
+    risk: {
+      expiringSoon: risk.expiringSoon,
+      expiringSoonPrev: prevSnapshot?.expiringSoon ?? null,
+      churnRisk: risk.churnRisk,
+      churnRiskPrev: prevSnapshot?.churnRisk ?? null,
+      overlap: risk.overlap,
+      noAttendanceLogCount: risk.noAttendanceLogCount,
+    },
+    unpaid: {
+      total: unpaid.total,
+      count: unpaid.memberCount,
+      prevTotal: prevSnapshot?.unpaidTotal ?? null,
+      prevCount: prevSnapshot?.unpaidCount ?? null,
+      longOverdue: unpaid.lines.filter((l) => l.daysElapsed >= 10),
+    },
+    automation,
+  };
+
+  return { ...brief, attentionItems: buildAttentionItems(brief) };
+}
+
+function formatWeekTitle(weekStart: string, weekEnd: string): string {
+  const [, m1, d1] = weekStart.split("-").map(Number);
+  const [, m2, d2] = weekEnd.split("-").map(Number);
+  return m1 === m2 ? `${m1}월 ${d1}일~${d2}일` : `${m1}월 ${d1}일~${m2}월 ${d2}일`;
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString();
+}
+
+function signed(n: number): string {
+  return n > 0 ? `+${fmt(n)}` : fmt(n);
+}
+
+function signedPct(n: number | null): string {
+  if (n === null) return "";
+  return ` / ${n > 0 ? "+" : ""}${n}%`;
+}
+
+export function buildWeeklyBriefKakaoText(b: WeeklyBrief): string {
+  const lines: string[] = [];
+  lines.push(`[${formatWeekTitle(b.weekStart, b.weekEnd)} 주간 운영 보고]`);
+  if (!b.hasPrevSnapshot) lines.push("(첫 주간보고라 이탈위험·만료임박·미수금은 전주 비교 없음)");
+  lines.push("");
+
+  // 1. 주간 매출
+  lines.push("주간 매출");
+  lines.push(`${fmt(b.revenue.thisWeek)}원`);
+  lines.push(`전주 ${fmt(b.revenue.prevWeek)}원 → ${signed(b.revenue.diff)}원${signedPct(b.revenue.diffPct)}`);
+  lines.push("");
+  for (const br of b.revenue.byBranch) lines.push(`${br.branchName} ${fmt(br.amount)}원`);
+  if (b.revenue.byProduct.length > 0) {
+    lines.push("");
+    lines.push("상품별");
+    for (const p of b.revenue.byProduct) lines.push(`${p.label} ${p.count}건 / ${fmt(p.amount)}원`);
+  }
+  lines.push("");
+
+  // 2. 방문
+  lines.push("방문");
+  lines.push(`총 방문 ${b.visits.totalThisWeek}회 / 전주 ${b.visits.totalPrevWeek}회 → ${signed(b.visits.diff)}회${signedPct(b.visits.diffPct)}`);
+  lines.push(`실제 방문회원 ${b.visits.uniqueMembersThisWeek}명 / 전주 ${b.visits.uniqueMembersPrevWeek}명 → ${signed(b.visits.diffMembers)}명`);
+  lines.push(`일평균 방문 ${b.visits.dailyAvgThisWeek}회 / 전주 ${b.visits.dailyAvgPrevWeek}회`);
+  for (const br of b.visits.byBranch) lines.push(`${br.branchName} ${br.count}회`);
+  lines.push("");
+
+  // 3. 신규·재등록
+  lines.push("신규·재등록");
+  lines.push(
+    `신규 ${b.registrations.newThisWeek}명 / 전주 ${b.registrations.newPrevWeek}명 → ${signed(
+      b.registrations.newThisWeek - b.registrations.newPrevWeek
+    )}명${signedPct(pct(b.registrations.newThisWeek - b.registrations.newPrevWeek, b.registrations.newPrevWeek))}`
+  );
+  lines.push(
+    `재등록 ${b.registrations.reRegisterThisWeek}명 / 전주 ${b.registrations.reRegisterPrevWeek}명 → ${signed(
+      b.registrations.reRegisterThisWeek - b.registrations.reRegisterPrevWeek
+    )}명${signedPct(pct(b.registrations.reRegisterThisWeek - b.registrations.reRegisterPrevWeek, b.registrations.reRegisterPrevWeek))}`
+  );
+  lines.push("");
+  lines.push(`신규 헬스 ${b.registrations.newGym}명 · 신규 PT ${b.registrations.newPt}명`);
+  lines.push(`헬스 재등록 ${b.registrations.reRegisterGym}명 · PT 재등록 ${b.registrations.reRegisterPt}명`);
+  lines.push("");
+
+  // 4. 상담 및 등록전환
+  lines.push("상담");
+  lines.push(`상담 ${b.consulting.consulted}건`);
+  lines.push(`등록 ${b.consulting.registered}건 · 미등록 ${b.consulting.notRegistered}건`);
+  lines.push(
+    `등록률 ${b.consulting.rate}% / 전주 ${b.consulting.prevRate}% → ${b.consulting.ratePointDiff > 0 ? "+" : ""}${b.consulting.ratePointDiff}%p`
+  );
+  lines.push("");
+
+  // 5. 만료임박·이탈위험
+  lines.push("회원 위험");
+  lines.push(
+    `만료임박 ${b.risk.expiringSoon}명${b.risk.expiringSoonPrev !== null ? ` / 전주 ${b.risk.expiringSoonPrev}명 → ${signed(b.risk.expiringSoon - b.risk.expiringSoonPrev)}명` : ""}`
+  );
+  lines.push(
+    `이탈위험 ${b.risk.churnRisk}명${b.risk.churnRiskPrev !== null ? ` / 전주 ${b.risk.churnRiskPrev}명 → ${signed(b.risk.churnRisk - b.risk.churnRiskPrev)}명` : ""}`
+  );
+  lines.push(`만료임박+이탈위험 중복 ${b.risk.overlap}명`);
+  if (b.risk.noAttendanceLogCount > 0) lines.push(`(출석기록 없는 회원 ${b.risk.noAttendanceLogCount}명은 이탈위험 판단 제외)`);
+  lines.push("");
+
+  // 6. 미수금
+  lines.push("미수금");
+  lines.push(`${fmt(b.unpaid.total)}원 / ${b.unpaid.count}명`);
+  if (b.unpaid.prevTotal !== null && b.unpaid.prevCount !== null) {
+    lines.push(
+      `전주 ${fmt(b.unpaid.prevTotal)}원 / ${b.unpaid.prevCount}명 → ${signed(b.unpaid.total - b.unpaid.prevTotal)}원 / ${signed(b.unpaid.count - b.unpaid.prevCount)}명`
+    );
+  }
+  if (b.unpaid.longOverdue.length > 0) {
+    lines.push("");
+    lines.push("장기 미수");
+    for (const u of b.unpaid.longOverdue) lines.push(`${u.customerName} / ${fmt(u.unpaid)}원 / ${u.program} / ${u.daysElapsed}일 경과`);
+  }
+  lines.push("");
+
+  // 7. 자동화 성과
+  lines.push("자동화 성과");
+  lines.push(`대상 ${b.automation.totalTargeted}명 · 성공 ${b.automation.totalSucceeded}명 · 실패 ${b.automation.totalFailed}명`);
+  for (const c of b.automation.byCategory) {
+    if (c.targeted === 0) continue;
+    lines.push(`${c.label} 대상 ${c.targeted} · 성공 ${c.succeeded}`);
+  }
+  lines.push(`상담 연결 ${b.automation.consultConnected}명 · 재등록 연결 ${b.automation.reRegisterConnected}명`);
+  // 회원 응답(수신 확인)은 별도 응답 수집 체계가 없어 추적 불가 — 지어내지 않고 생략.
+
+  // 8. 이번 주 확인 필요 (없으면 생략)
+  if (b.attentionItems.length > 0) {
+    lines.push("");
+    lines.push("이번 주 확인 필요");
+    for (const item of b.attentionItems) lines.push(item);
+  }
+
+  return lines.join("\n");
 }

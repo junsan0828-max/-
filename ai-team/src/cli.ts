@@ -52,7 +52,7 @@ runOrchestrator({ dry })
     // "업무관리"/"업무 로그" 데이터베이스에는 더 이상 쓰지 않는다.
 
     console.log(`\n💬 카카오톡 연동 — ${isKakaoEnabled() ? "설정됨" : "꺼짐 (.env에 KAKAO_REST_API_KEY/KAKAO_REFRESH_TOKEN 필요)"}`);
-    const kakao = await pushDailyBriefingKakao(r, mina, funnel, content);
+    const kakao = await pushDailyBriefingKakao();
     console.log(kakao.ok ? "✅ 카카오톡으로 브리핑 발송 완료" : `⏭️  카카오톡 발송 건너뜀: ${kakao.error}`);
   })
   .catch((err) => {

@@ -13,7 +13,7 @@ const BRANCH_NAMES: Record<number, string> = { 1: "1호점", 2: "2호점" };
 const GYM_PLUS_URL = "https://ziantgym.com/gym-plus";
 
 // 대표 확인용 — 자동 문자를 실제로 발송할 때마다 몇 명·누구에게 보냈는지 대표 번호로 요약 보고.
-const ADMIN_PHONE = "01075593111";
+export const ADMIN_PHONE = "01075593111";
 const CATEGORY_LABEL: Record<Category, string> = {
   expiry_d10: "헬스권 만료 D-10",
   expiry_d5: "헬스권 만료 D-5",
@@ -35,11 +35,11 @@ export interface AutoMessageResult {
   details?: { category: Category; name: string | null; phone: string | null; result: "sent" | "failed" | "skipped"; error?: string }[];
 }
 
-function todayStr(): string {
+export function todayStr(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
 }
 
-function addDays(dateStr: string, days: number): string {
+export function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00+09:00`);
   d.setDate(d.getDate() + days);
   return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
@@ -130,7 +130,7 @@ type MemberRow = { id: number; name: string; phone: string | null; branchId: num
 // D-10 / D-5 만료 대상: 활성회원 + 정확히 해당 D일 만료 + 환불·양도 진행 이력 없는 회원.
 // "재등록해서 만료일이 밀린 회원"은 오늘 시점 membershipEnd가 더 이상 이 날짜와 일치하지 않으므로
 // 매일 13시에 다시 조회하는 것만으로 자연히 제외된다(별도 재등록 여부 추적 불필요).
-async function findExpiryCandidates(sql: NeonQueryFunction<false, false>, targetDate: string): Promise<MemberRow[]> {
+export async function findExpiryCandidates(sql: NeonQueryFunction<false, false>, targetDate: string): Promise<MemberRow[]> {
   return (await sql.query(
     `SELECT m.id, m.name, m.phone, m."branchId" AS "branchId", m."membershipEnd" AS "membershipEnd"
      FROM members m
@@ -151,7 +151,7 @@ async function findExpiryCandidates(sql: NeonQueryFunction<false, false>, target
 // 경과일이 fromDate~toDate(경과 3~14일, 세그먼트 A) 사이인 회원. D-10/D-5와 동일하게 환불·양도
 // 진행 이력 있는 회원은 제외한다. 창구 방식(정확한 하루가 아니라 기간)이라 alreadySent를
 // membershipEnd 기준으로 체크해야 창 안에서 매일 중복 발송되지 않는다.
-async function findLapsedCandidates(
+export async function findLapsedCandidates(
   sql: NeonQueryFunction<false, false>,
   fromDate: string,
   toDate: string
@@ -176,7 +176,7 @@ type LeadRow = { id: number; name: string | null; phone: string | null; branchId
 
 // 관리상담 D+1: 어제 상담완료(consulted) 상태로 남아있고 아직 등록하지 않은 리드.
 // status='registered'/'dropped'는 쿼리에서 자동 제외(= 이미 등록했거나 상담 취소된 건 제외).
-async function findConsultFollowupCandidates(sql: NeonQueryFunction<false, false>, consultDate: string): Promise<LeadRow[]> {
+export async function findConsultFollowupCandidates(sql: NeonQueryFunction<false, false>, consultDate: string): Promise<LeadRow[]> {
   return (await sql.query(
     `SELECT id, name, phone, "branchId" AS "branchId"
      FROM leads

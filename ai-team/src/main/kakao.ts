@@ -1,10 +1,10 @@
 // 카카오톡 연동 — "나에게 보내기" API로 제이의 일일 브리핑을 내 카톡으로 직접 보낸다.
 // 사업자 등록/알림톡 승인 없이 개인 계정 로그인만으로 쓸 수 있는 공식 기능.
 // 최초 1회 `npm run kakao-auth`로 로그인해 refresh token을 받아 .env에 저장해야 동작한다.
-import { OrchestratorResult } from "./orchestrator";
-import { MinaResult } from "./mina";
-import { FunnelResult } from "./dataAgent";
-import { ContentResult } from "./luna";
+import { sendSms } from "./aligo";
+import { ADMIN_PHONE } from "./autoMessage";
+import { gatherDailyBrief, buildDailyBriefKakaoText } from "./dailyBrief";
+import { gatherWeeklyBrief, buildWeeklyBriefKakaoText } from "./weeklyBrief";
 
 export interface KakaoPushResult {
   ok: boolean;
@@ -71,33 +71,44 @@ function splitForKakao(text: string, maxLen = 190): string[] {
   return chunks;
 }
 
-function buildBriefText(
-  result: OrchestratorResult,
-  mina?: MinaResult,
-  funnel?: FunnelResult
-): string {
-  // 카카오 "나에게 보내기" 텍스트 템플릿은 200자 제한(sendToMe에서 190자로 컷) — 지점별
-  // 구분이 잘리지 않도록 헤드라인/할일 목록보다 지점별 숫자를 우선한다.
-  const lines = [`🧑‍💼 제이 - 오늘의 브리핑`];
-  for (const b of result.context.byBranch) {
-    lines.push(
-      `${b.branchName}: 활성${b.active} 신규${b.newCount} 재등록${b.reRegisterCount} 만료임박${b.expiringSoonCount} 이탈위험${b.recentlyExpiredCount} 미수${Math.round(b.unpaidTotal / 10000)}만`
-    );
+/** 오전 9시 브리핑 — "오늘 현황"이 아니라 "어제 하루 운영 결과"를 집계해서 보낸다
+ * (2026-08-19 대표 지시, 상세 로직은 dailyBrief.ts). 카카오 발송 실패 시 다른 자동화와
+ * 동일하게 대표 번호로 SMS 대체 발송한다. */
+export async function pushDailyBriefingKakao(): Promise<KakaoPushResult> {
+  let text: string;
+  try {
+    const brief = await gatherDailyBrief();
+    text = buildDailyBriefKakaoText(brief);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
-  // result.tasks는 대표/직원이 검토·실행해야 할 제안 목록(mode: semi/manual 위주)이라
-  // "AI가 오늘 할 일" 자리에 넣으면 안 됨 — 여긴 AI가 사람 개입 없이 실제로 자동 실행하는 것만 적는다.
-  lines.push("▶ 13시 자동문자 발송(만료 D-10/D-5·상담후속 D+1·재등록유도 D+3~14) — AI 자동실행");
-  lines.push("(자세한 내용은 앱/노션에서 확인)");
-  return lines.join("\n");
+
+  const kakao = await pushKakaoText(text);
+  if (kakao.ok) return kakao;
+
+  const sms = await sendSms(ADMIN_PHONE, text);
+  if (sms.ok) return { ok: true };
+  return { ok: false, error: `카카오 실패(${kakao.error}) / SMS 대체도 실패(${sms.error})` };
 }
 
-export async function pushDailyBriefingKakao(
-  result: OrchestratorResult,
-  mina?: MinaResult,
-  funnel?: FunnelResult,
-  _content?: ContentResult
-): Promise<KakaoPushResult> {
-  return pushKakaoText(buildBriefText(result, mina, funnel));
+/** 매주 월요일 오전 주간 운영 보고 — 직전 월~토 6일 실적을 전주와 비교해서 보낸다
+ * (2026-08-24 대표 지시, 상세 로직은 weeklyBrief.ts). 일일 브리핑과 동일하게 카카오 실패 시
+ * SMS로 대체 발송한다. */
+export async function pushWeeklyBriefingKakao(): Promise<KakaoPushResult> {
+  let text: string;
+  try {
+    const brief = await gatherWeeklyBrief();
+    text = buildWeeklyBriefKakaoText(brief);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  const kakao = await pushKakaoText(text);
+  if (kakao.ok) return kakao;
+
+  const sms = await sendSms(ADMIN_PHONE, text);
+  if (sms.ok) return { ok: true };
+  return { ok: false, error: `카카오 실패(${kakao.error}) / SMS 대체도 실패(${sms.error})` };
 }
 
 /** 임의의 텍스트를 대표 본인의 카카오톡으로 보낸다 — 급여 정산 완료, 자동문자 발송 요약,
