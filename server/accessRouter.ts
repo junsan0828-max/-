@@ -353,6 +353,17 @@ export const accessRouter = t.router({
         .offset((input.page - 1) * input.limit);
     }),
 
+  // ── 회원별 키오스크 출석 횟수 ─────────────────────────────────────────────
+  getMemberAccessCount: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const result = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM access_logs WHERE "memberId" = $1 AND "accessResult" = 'allowed'`,
+        [input.memberId]
+      );
+      return result.rows[0]?.count ?? 0;
+    }),
+
   // ── 락커 카테고리 ───────────────────────────────────────────────────────────
 
   getLockerCategories: protectedProcedure.query(async () => {

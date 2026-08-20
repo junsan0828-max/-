@@ -413,6 +413,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
+  const { data: accessCount } = trpc.access.getMemberAccessCount.useQuery({ memberId });
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
   const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
@@ -870,7 +871,7 @@ export default function MemberDetail({ memberId }: Props) {
   const remainingPt = ptPackages
     ?.filter(p => p.status === "active")
     .reduce((sum, p) => sum + (p.totalSessions - p.usedSessions), 0) ?? 0;
-  const totalAttendance = attendanceList?.filter(a => a.status === "attended").length ?? 0;
+  const totalAttendance = (accessCount ?? 0);
   const memoCount = memoList?.length ?? 0;
 
   return (
