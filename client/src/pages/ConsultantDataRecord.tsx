@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ClipboardList, ChevronLeft, ChevronRight, Save, Calendar, BarChart2 } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronRight, Save, Calendar, BarChart2, Megaphone } from "lucide-react";
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 function toDateStr(d: Date) { return d.toISOString().substring(0, 10); }
@@ -39,20 +39,24 @@ function getWeekdayGrid(year: number, month: number): { weekKey: string; weekLab
 const TODAY = toDateStr(new Date());
 const DOW_LABELS = ["월", "화", "수", "목", "금"];
 
+const AD_CHANNELS = ["검색광고", "파워링크", "플레이스", "당근", "블로그"] as const;
+const CHANNELS_WITH_INQUIRY = new Set(["플레이스", "당근", "블로그"]);
+
+type AdValues = Record<string, { impressions: number; clicks: number; visits: number; inquiries: number; notes: string }>;
+
 // ── 메인 페이지 ───────────────────────────────────────────────────────────────
 export default function ConsultantDataRecordPage() {
   const now = new Date();
-  const [mode, setMode] = useState<"daily" | "weekly">("daily");
+  const [mode, setMode] = useState<"daily" | "weekly" | "ads">("daily");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [selectedDate, setSelectedDate] = useState(TODAY); // daily
-  const [selectedWeek, setSelectedWeek] = useState(""); // weekly key
+  const [selectedDate, setSelectedDate] = useState(TODAY);
+  const [selectedWeek, setSelectedWeek] = useState("");
 
   const grid = getWeekdayGrid(year, month);
 
-  // 현재 달에 선택 날짜가 없으면 오늘 또는 첫 번째 날짜로 초기화
   useEffect(() => {
-    if (mode === "daily") {
+    if (mode === "daily" || mode === "ads") {
       const allDays = grid.flatMap(w => w.days).filter(Boolean) as string[];
       if (!allDays.includes(selectedDate)) {
         const todayInMonth = allDays.find(d => d === TODAY);
@@ -75,7 +79,7 @@ export default function ConsultantDataRecordPage() {
     else setMonth(m => m + 1);
   }
 
-  const activeDate = mode === "daily" ? selectedDate : selectedWeek;
+  const activeDate = mode === "weekly" ? selectedWeek : selectedDate;
 
   return (
     <div className="space-y-4">
@@ -84,15 +88,16 @@ export default function ConsultantDataRecordPage() {
       </h1>
 
       {/* 모드 탭 */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {([
           { key: "daily" as const, label: "일일 데이터", icon: Calendar },
           { key: "weekly" as const, label: "주간 데이터", icon: BarChart2 },
+          { key: "ads" as const, label: "광고 관리", icon: Megaphone },
         ]).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setMode(key)}
-            className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border transition-colors ${
+            className={`flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-medium border transition-colors ${
               mode === key
                 ? "bg-primary/20 text-primary border-primary/40"
                 : "bg-card border-border text-muted-foreground hover:bg-accent"
@@ -114,10 +119,11 @@ export default function ConsultantDataRecordPage() {
         </button>
       </div>
 
-      {mode === "daily" ? (
+      {mode === "daily" || mode === "ads" ? (
         <DailyView
           year={year} month={month} grid={grid}
           selectedDate={selectedDate} onSelectDate={setSelectedDate}
+          section={mode === "ads" ? "ads" : "daily"}
         />
       ) : (
         <WeeklyView
@@ -126,8 +132,12 @@ export default function ConsultantDataRecordPage() {
         />
       )}
 
-      {activeDate && (
+      {activeDate && mode !== "ads" && (
         <EntryForm date={activeDate} section={mode} />
+      )}
+
+      {activeDate && mode === "ads" && (
+        <AdEntryForm date={selectedDate} />
       )}
     </div>
   );
@@ -135,27 +145,31 @@ export default function ConsultantDataRecordPage() {
 
 // ── 일일 달력 ──────────────────────────────────────────────────────────────────
 function DailyView({
-  year, month, grid, selectedDate, onSelectDate
+  year, month, grid, selectedDate, onSelectDate, section
 }: {
   year: number; month: number;
   grid: ReturnType<typeof getWeekdayGrid>;
   selectedDate: string;
   onSelectDate: (d: string) => void;
+  section: "daily" | "ads";
 }) {
   const { data: datesWithData } = trpc.consultantData.getDatesWithData.useQuery(
-    { year, month, section: "daily" }
+    { year, month, section: "daily" },
+    { enabled: section === "daily" }
   );
-  const dateDotSet = new Set(datesWithData ?? []);
+  const { data: adDatesWithData } = trpc.consultantData.getAdDatesWithData.useQuery(
+    { year, month },
+    { enabled: section === "ads" }
+  );
+  const dateDotSet = new Set(section === "ads" ? (adDatesWithData ?? []) : (datesWithData ?? []));
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
-      {/* 요일 헤더 */}
       <div className="grid grid-cols-5 border-b border-border">
         {DOW_LABELS.map(d => (
           <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
         ))}
       </div>
-      {/* 날짜 그리드 */}
       {grid.map((week, wi) => (
         <div key={wi} className="grid grid-cols-5 border-b border-border last:border-b-0">
           {week.days.map((date, di) => {
@@ -243,7 +257,6 @@ function EntryForm({ date, section }: { date: string; section: "daily" | "weekly
   const [values, setValues] = useState<Record<number, string>>({});
   const [dirty, setDirty] = useState(false);
 
-  // 기존 데이터 로드
   useEffect(() => {
     if (existing) {
       const map: Record<number, string> = {};
@@ -346,6 +359,197 @@ function EntryForm({ date, section }: { date: string; section: "daily" | "weekly
                   className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
                 >+</button>
               </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saveMutation.isPending || !dirty}
+        className="w-full py-3 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Save className="h-4 w-4 inline mr-1.5" />
+        {saveMutation.isPending ? "저장 중..." : dirty ? "저장하기" : "저장됨"}
+      </button>
+    </div>
+  );
+}
+
+// ── 광고 데이터 입력 폼 ────────────────────────────────────────────────────────
+function AdEntryForm({ date }: { date: string }) {
+  const utils = trpc.useUtils();
+  const { data: existing, isLoading } = trpc.consultantData.getAdEntries.useQuery({ date });
+
+  const emptyValues = (): AdValues => {
+    const v: AdValues = {};
+    for (const ch of AD_CHANNELS) {
+      v[ch] = { impressions: 0, clicks: 0, visits: 0, inquiries: 0, notes: "" };
+    }
+    return v;
+  };
+
+  const [values, setValues] = useState<AdValues>(emptyValues);
+  const [dirty, setDirty] = useState(false);
+  const [openChannel, setOpenChannel] = useState<string | null>(null);
+
+  useEffect(() => {
+    const v = emptyValues();
+    if (existing) {
+      for (const e of existing) {
+        v[e.channel] = {
+          impressions: e.impressions ?? 0,
+          clicks: e.clicks ?? 0,
+          visits: e.visits ?? 0,
+          inquiries: e.inquiries ?? 0,
+          notes: e.notes ?? "",
+        };
+      }
+    }
+    setValues(v);
+    setDirty(false);
+  }, [existing, date]);
+
+  const saveMutation = trpc.consultantData.saveAdEntries.useMutation({
+    onSuccess: () => {
+      toast.success("광고 데이터 저장됨");
+      setDirty(false);
+      utils.consultantData.invalidate();
+    },
+    onError: () => toast.error("저장 실패"),
+  });
+
+  function updateField(channel: string, field: keyof AdValues[string], val: number | string) {
+    setValues(prev => ({
+      ...prev,
+      [channel]: { ...prev[channel], [field]: val },
+    }));
+    setDirty(true);
+  }
+
+  function handleSave() {
+    const entries = AD_CHANNELS.map(ch => ({
+      channel: ch,
+      impressions: values[ch]?.impressions ?? 0,
+      clicks: values[ch]?.clicks ?? 0,
+      visits: values[ch]?.visits ?? 0,
+      inquiries: values[ch]?.inquiries ?? 0,
+      notes: values[ch]?.notes || undefined,
+    }));
+    saveMutation.mutate({ date, entries });
+  }
+
+  if (isLoading) {
+    return <div className="text-center text-muted-foreground py-8 text-sm">불러오는 중...</div>;
+  }
+
+  const dateLabel = (() => {
+    const d = new Date(date + "T00:00:00");
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  })();
+
+  const CHANNEL_COLORS: Record<string, string> = {
+    "검색광고": "border-blue-500/40 bg-blue-500/5",
+    "파워링크": "border-sky-500/40 bg-sky-500/5",
+    "플레이스": "border-emerald-500/40 bg-emerald-500/5",
+    "당근": "border-orange-500/40 bg-orange-500/5",
+    "블로그": "border-green-500/40 bg-green-500/5",
+  };
+
+  const CHANNEL_TEXT: Record<string, string> = {
+    "검색광고": "text-blue-400",
+    "파워링크": "text-sky-400",
+    "플레이스": "text-emerald-400",
+    "당근": "text-orange-400",
+    "블로그": "text-green-400",
+  };
+
+  const NUM_FIELDS: { key: "impressions" | "clicks" | "visits" | "inquiries"; label: string; requiresInquiry?: boolean }[] = [
+    { key: "impressions", label: "노출 수" },
+    { key: "clicks", label: "클릭 수" },
+    { key: "visits", label: "방문/유입 수" },
+    { key: "inquiries", label: "문의 수", requiresInquiry: true },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-foreground">{dateLabel} 광고 데이터</p>
+        {dirty && (
+          <button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {saveMutation.isPending ? "저장 중..." : "저장"}
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {AD_CHANNELS.map(ch => {
+          const isOpen = openChannel === ch;
+          const v = values[ch] ?? { impressions: 0, clicks: 0, visits: 0, inquiries: 0, notes: "" };
+          const hasData = v.impressions > 0 || v.clicks > 0 || v.visits > 0 || v.inquiries > 0 || (v.notes?.length ?? 0) > 0;
+          const hasInquiry = CHANNELS_WITH_INQUIRY.has(ch);
+
+          return (
+            <div key={ch} className={`rounded-xl border overflow-hidden transition-colors ${isOpen ? CHANNEL_COLORS[ch] : "border-border bg-card"}`}>
+              <button
+                onClick={() => setOpenChannel(isOpen ? null : ch)}
+                className="w-full flex items-center justify-between px-4 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-semibold ${isOpen ? CHANNEL_TEXT[ch] : "text-foreground"}`}>{ch}</span>
+                  {hasData && !isOpen && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  )}
+                </div>
+                <span className={`text-xs transition-transform ${isOpen ? "rotate-180" : ""}`}>▼</span>
+              </button>
+
+              {isOpen && (
+                <div className="px-4 pb-4 space-y-2.5">
+                  {NUM_FIELDS.map(({ key, label, requiresInquiry }) => {
+                    if (requiresInquiry && !hasInquiry) return null;
+                    const val = (v as any)[key] ?? 0;
+                    return (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">{label}</span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => { if (val > 0) updateField(ch, key, val - 1); }}
+                            className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
+                          >−</button>
+                          <input
+                            type="number"
+                            min={0}
+                            value={val || ""}
+                            onChange={e => updateField(ch, key, Math.max(0, parseInt(e.target.value) || 0))}
+                            placeholder="0"
+                            className="w-20 text-center text-sm font-semibold tabular-nums bg-background border border-border rounded-lg py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <button
+                            onClick={() => updateField(ch, key, val + 1)}
+                            className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
+                          >+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="pt-1">
+                    <span className="text-xs text-muted-foreground">특이사항</span>
+                    <textarea
+                      value={v.notes ?? ""}
+                      onChange={e => updateField(ch, "notes", e.target.value)}
+                      placeholder="메모 입력..."
+                      rows={2}
+                      className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

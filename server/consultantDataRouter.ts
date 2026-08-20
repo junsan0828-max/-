@@ -10,6 +10,9 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+const AD_CHANNELS = ["검색광고", "파워링크", "플레이스", "당근", "블로그"] as const;
+const AD_CHANNELS_WITH_INQUIRY = ["플레이스", "당근", "블로그"] as const;
+
 let _tablesReady = false;
 async function ensureTables() {
   if (_tablesReady) return;
@@ -32,6 +35,20 @@ async function ensureTables() {
       "createdAt" TEXT NOT NULL,
       "updatedAt" TEXT NOT NULL,
       CONSTRAINT cde_unique_field_date_user UNIQUE ("fieldId", date, "createdBy")
+    );
+    CREATE TABLE IF NOT EXISTS ad_data_entries (
+      id SERIAL PRIMARY KEY,
+      date TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      impressions INTEGER DEFAULT 0,
+      clicks INTEGER DEFAULT 0,
+      visits INTEGER DEFAULT 0,
+      inquiries INTEGER DEFAULT 0,
+      notes TEXT,
+      "createdBy" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL,
+      CONSTRAINT ad_unique_date_channel_user UNIQUE (date, channel, "createdBy")
     );
   `);
   _tablesReady = true;
@@ -178,6 +195,63 @@ export const consultantDataRouter = t.router({
          JOIN consultant_data_fields f ON f.id = e."fieldId"
          WHERE e."createdBy" = $1 AND e.date LIKE $2 AND f.section = $3`,
         [ctx.user.id, `${prefix}%`, input.section]
+      );
+      return result.rows.map((r: any) => r.date as string);
+    }),
+
+  // ── 광고 데이터: 특정 날짜 조회 ─────────────────────────────────────────
+  getAdEntries: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await ensureTables();
+      const result = await pool.query(
+        `SELECT * FROM ad_data_entries WHERE date = $1 AND "createdBy" = $2 ORDER BY channel ASC`,
+        [input.date, ctx.user.id]
+      );
+      return result.rows as Array<{
+        id: number; date: string; channel: string;
+        impressions: number; clicks: number; visits: number; inquiries: number;
+        notes: string | null; createdBy: number;
+      }>;
+    }),
+
+  // ── 광고 데이터: 저장 (배치 upsert) ──────────────────────────────────────
+  saveAdEntries: protectedProcedure
+    .input(z.object({
+      date: z.string(),
+      entries: z.array(z.object({
+        channel: z.string(),
+        impressions: z.number().min(0),
+        clicks: z.number().min(0),
+        visits: z.number().min(0),
+        inquiries: z.number().min(0),
+        notes: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await ensureTables();
+      const now = new Date().toISOString();
+      for (const e of input.entries) {
+        await pool.query(
+          `INSERT INTO ad_data_entries (date, channel, impressions, clicks, visits, inquiries, notes, "createdBy", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+           ON CONFLICT ON CONSTRAINT ad_unique_date_channel_user
+           DO UPDATE SET impressions = $3, clicks = $4, visits = $5, inquiries = $6, notes = $7, "updatedAt" = $9`,
+          [input.date, e.channel, e.impressions, e.clicks, e.visits, e.inquiries, e.notes ?? null, ctx.user.id, now]
+        );
+      }
+      return { ok: true };
+    }),
+
+  // ── 광고 데이터: 월별 기록 있는 날짜 목록 ────────────────────────────────
+  getAdDatesWithData: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ ctx, input }) => {
+      await ensureTables();
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const result = await pool.query(
+        `SELECT DISTINCT date FROM ad_data_entries WHERE "createdBy" = $1 AND date LIKE $2`,
+        [ctx.user.id, `${prefix}%`]
       );
       return result.rows.map((r: any) => r.date as string);
     }),
