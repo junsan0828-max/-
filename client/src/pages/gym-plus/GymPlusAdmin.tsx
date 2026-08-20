@@ -1391,6 +1391,202 @@ export function GymPlusProductsAdmin() {
   );
 }
 
+// ─── 포인트 관리 ──────────────────────────────────────────────────────────────
+export function GymPlusPointsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: memberList, isLoading } = trpc.gymPlus.admin_listMembersWithPoints.useQuery();
+  const [search, setSearch] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [chargeAmount, setChargeAmount] = useState("");
+  const [chargeReason, setChargeReason] = useState("");
+
+  const { data: pointLogs, isLoading: logsLoading } = trpc.gymPlus.admin_getMemberPointLogs.useQuery(
+    { gymPlusMemberId: selectedMemberId! },
+    { enabled: selectedMemberId !== null },
+  );
+
+  const chargeMutation = trpc.gymPlus.admin_chargePoints.useMutation({
+    onSuccess: (r) => {
+      utils.gymPlus.admin_listMembersWithPoints.invalidate();
+      utils.gymPlus.admin_getMemberPointLogs.invalidate();
+      toast.success(`완료! 잔액: ${r.balance.toLocaleString("ko-KR")}P`);
+      setChargeAmount("");
+      setChargeReason("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const members = memberList ?? [];
+  const filtered = search
+    ? members.filter((m) => m.name?.includes(search) || m.phone?.includes(search))
+    : members;
+
+  const totalPoints = members.reduce((sum, m) => sum + (m.points ?? 0), 0);
+  const activeCount = members.filter((m) => (m.points ?? 0) > 0).length;
+
+  const selectedMember = members.find((m) => m.id === selectedMemberId);
+
+  function handleCharge() {
+    if (!selectedMemberId) return;
+    const val = parseInt(chargeAmount, 10);
+    if (isNaN(val) || val === 0) { toast.error("적립/차감할 포인트를 입력해주세요."); return; }
+    chargeMutation.mutate({
+      gymPlusMemberId: selectedMemberId,
+      amount: val,
+      reason: chargeReason || undefined,
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-xs text-muted-foreground">전체 회원</p>
+          <p className="text-2xl font-bold mt-1">{members.length}<span className="text-sm font-normal text-muted-foreground">명</span></p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-xs text-muted-foreground">포인트 보유 회원</p>
+          <p className="text-2xl font-bold mt-1 text-primary">{activeCount}<span className="text-sm font-normal text-muted-foreground">명</span></p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 col-span-2 md:col-span-1">
+          <p className="text-xs text-muted-foreground">총 포인트 잔액</p>
+          <p className="text-2xl font-bold mt-1">{totalPoints.toLocaleString("ko-KR")}<span className="text-sm font-normal text-muted-foreground">P</span></p>
+        </div>
+      </div>
+
+      {/* 검색 */}
+      <Input
+        placeholder="이름 또는 전화번호로 검색..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="h-9 text-sm max-w-xs"
+      />
+
+      {/* 회원 목록 */}
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground py-8 text-center">로딩 중...</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          {search ? "검색 결과가 없습니다." : "등록된 회원이 없습니다."}
+        </p>
+      ) : (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">이름</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">전화번호</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">보유 포인트</th>
+                  <th className="text-center px-4 py-2.5 font-medium text-muted-foreground">상세</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((m) => (
+                  <tr
+                    key={m.id}
+                    className={`border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer ${
+                      selectedMemberId === m.id ? "bg-primary/5" : ""
+                    }`}
+                    onClick={() => setSelectedMemberId(selectedMemberId === m.id ? null : m.id)}
+                  >
+                    <td className="px-4 py-3 font-medium">{m.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{m.phone ?? "-"}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-semibold ${(m.points ?? 0) > 0 ? "text-primary" : "text-muted-foreground"}`}>
+                        {(m.points ?? 0).toLocaleString("ko-KR")}P
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedMemberId(selectedMemberId === m.id ? null : m.id); }}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {selectedMemberId === m.id ? "닫기" : "보기"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 선택된 회원 상세 */}
+      <Dialog open={selectedMemberId !== null} onOpenChange={(o) => { if (!o) setSelectedMemberId(null); }}>
+        <DialogContent className="max-w-sm md:max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{selectedMember?.name ?? ""} — 포인트 관리</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center gap-3 py-2">
+            <div className="bg-primary/10 rounded-xl px-4 py-2 text-center">
+              <p className="text-xs text-muted-foreground">현재 잔액</p>
+              <p className="text-xl font-bold text-primary">{(selectedMember?.points ?? 0).toLocaleString("ko-KR")}P</p>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <p>{selectedMember?.phone ?? "-"}</p>
+            </div>
+          </div>
+
+          {/* 수동 적립/차감 */}
+          <div className="bg-muted/30 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold">수동 적립 / 차감</p>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder="포인트 (음수=차감)"
+                value={chargeAmount}
+                onChange={(e) => setChargeAmount(e.target.value)}
+                className="h-9 text-sm flex-1"
+              />
+              <span className="text-sm text-muted-foreground self-center">P</span>
+            </div>
+            <Input
+              placeholder="사유 (선택)"
+              value={chargeReason}
+              onChange={(e) => setChargeReason(e.target.value)}
+              className="h-9 text-sm"
+            />
+            <Button size="sm" onClick={handleCharge} disabled={chargeMutation.isPending} className="w-full h-9">
+              {chargeMutation.isPending ? "처리 중..." : "적용"}
+            </Button>
+          </div>
+
+          {/* 포인트 로그 */}
+          <div className="flex-1 overflow-y-auto space-y-1 mt-2">
+            <p className="text-sm font-semibold">적립/사용 내역</p>
+            {logsLoading ? (
+              <p className="text-xs text-muted-foreground py-4 text-center">로딩 중...</p>
+            ) : !pointLogs || pointLogs.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4 text-center">내역이 없습니다.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                {pointLogs.map((log: any) => (
+                  <div key={log.id} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs truncate">{log.reason || log.type}</p>
+                      <p className="text-[10px] text-muted-foreground">{log.createdAt ? new Date(log.createdAt).toLocaleString("ko-KR") : "-"}</p>
+                    </div>
+                    <div className="text-right ml-3 flex-shrink-0">
+                      <p className={`text-sm font-semibold ${log.amount > 0 ? "text-blue-500" : "text-red-500"}`}>
+                        {log.amount > 0 ? "+" : ""}{Number(log.amount).toLocaleString("ko-KR")}P
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{Number(log.balanceAfter).toLocaleString("ko-KR")}P</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export function GymPlusSettingsAdmin() {
   const utils = trpc.useUtils();
   const { data: setting, isLoading } = trpc.gymPlus.getCheckinPointSetting.useQuery();

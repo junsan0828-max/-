@@ -4240,6 +4240,31 @@ ${dataContext}
 
   // ─── 포인트 ────────────────────────────────────────────────────────────────
 
+  admin_listMembersWithPoints: adminOnlyGymPlus.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select({
+      id: gymPlusMembers.id,
+      name: gymPlusMembers.name,
+      phone: gymPlusMembers.phone,
+      points: gymPlusMembers.points,
+      membershipType: gymPlusMembers.membershipType,
+      membershipEnd: gymPlusMembers.membershipEnd,
+      memberId: gymPlusMembers.memberId,
+    }).from(gymPlusMembers).orderBy(desc(gymPlusMembers.points));
+  }),
+
+  admin_getMemberPointLogs: adminOnlyGymPlus
+    .input(z.object({ gymPlusMemberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(gymPlusPointLogs)
+        .where(eq(gymPlusPointLogs.gymPlusMemberId, input.gymPlusMemberId))
+        .orderBy(desc(gymPlusPointLogs.createdAt))
+        .limit(100);
+    }),
+
   getPointLogs: gymPlusProtected.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];

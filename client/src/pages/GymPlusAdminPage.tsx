@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusSettingsAdmin } from "./gym-plus/GymPlusAdmin";
+import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusPointsAdmin, GymPlusSettingsAdmin } from "./gym-plus/GymPlusAdmin";
 import AdminRenewalRequestsModal from "@/components/AdminRenewalRequestsModal";
 
-type Tab = "members" | "videos" | "events" | "logs" | "products" | "settings";
+type Tab = "members" | "videos" | "events" | "logs" | "products" | "points" | "settings";
 
 const tabs: { key: Tab; label: string; icon: string; desc: string }[] = [
   { key: "members", label: "회원관리", icon: "◎", desc: "짐+ 회원 목록 및 동기화" },
@@ -10,6 +10,7 @@ const tabs: { key: Tab; label: string; icon: string; desc: string }[] = [
   { key: "events", label: "공지 / 이벤트", icon: "★", desc: "이벤트 및 공지 관리" },
   { key: "logs", label: "운동기록", icon: "≡", desc: "회원 운동기록 열람 / 영상 연결" },
   { key: "products", label: "상품관리", icon: "◈", desc: "판매 상품 등록 및 관리" },
+  { key: "points", label: "포인트관리", icon: "◇", desc: "회원 포인트 현황 및 적립/차감" },
   { key: "settings", label: "설정", icon: "⚙", desc: "포인트 및 출입 설정" },
 ];
 
@@ -69,6 +70,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "events" && <GymPlusEventsAdmin />}
             {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
             {activeTab === "products" && <GymPlusProductsAdmin />}
+            {activeTab === "points" && <GymPlusPointsAdmin />}
             {activeTab === "settings" && <GymPlusSettingsAdmin />}
           </div>
         </main>
@@ -83,6 +85,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "events" && <GymPlusEventsAdmin />}
             {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
             {activeTab === "products" && <GymPlusProductsAdmin />}
+            {activeTab === "points" && <GymPlusPointsAdmin />}
             {activeTab === "settings" && <GymPlusSettingsAdmin />}
           </div>
         </main>
