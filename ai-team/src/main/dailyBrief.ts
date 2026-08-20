@@ -310,16 +310,11 @@ export function buildDailyBriefKakaoText(brief: DailyBrief): string {
   } else {
     lines.push(`총 ${brief.unpaid.total.toLocaleString()}원 / ${brief.unpaid.memberCount}명`);
     lines.push("");
+    // 14일 이상 경과 건은 같은 줄에 "⚠️ 장기 미수" 표시만 붙인다 — 별도 섹션으로 다시
+    // 나열하면 같은 사람이 두 번 보여서 중복처럼 읽힌다는 지적(2026-08-20)을 반영.
     for (const u of brief.unpaid.lines) {
-      lines.push(`${u.customerName} / ${u.unpaid.toLocaleString()}원 / ${u.program} / ${u.daysElapsed}일 경과`);
-    }
-    const overdue = brief.unpaid.lines.filter((u) => u.daysElapsed >= 14);
-    if (overdue.length > 0) {
-      lines.push("");
-      lines.push("미수금 주의 (14일 이상 경과)");
-      for (const u of overdue) {
-        lines.push(`${u.customerName} / ${u.unpaid.toLocaleString()}원 / ${u.daysElapsed}일 경과`);
-      }
+      const flag = u.daysElapsed >= 14 ? " ⚠️ 장기 미수" : "";
+      lines.push(`${u.customerName} / ${u.unpaid.toLocaleString()}원 / ${u.program} / ${u.daysElapsed}일 경과${flag}`);
     }
   }
 
