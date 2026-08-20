@@ -364,6 +364,20 @@ export const accessRouter = t.router({
       return result.rows[0]?.count ?? 0;
     }),
 
+  // ── 회원별 키오스크 출석 날짜 목록 (월별) ────────────────────────────────────
+  getMemberAccessDates: protectedProcedure
+    .input(z.object({ memberId: z.number(), yearMonth: z.string() }))
+    .query(async ({ input }) => {
+      const result = await pool.query(
+        `SELECT DISTINCT LEFT("accessedAt", 10) AS date
+         FROM access_logs
+         WHERE "memberId" = $1 AND "accessResult" = 'allowed' AND "accessedAt" LIKE $2
+         ORDER BY date ASC`,
+        [input.memberId, `${input.yearMonth}%`]
+      );
+      return result.rows.map((r: any) => r.date as string);
+    }),
+
   // ── 락커 카테고리 ───────────────────────────────────────────────────────────
 
   getLockerCategories: protectedProcedure.query(async () => {

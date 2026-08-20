@@ -62,7 +62,6 @@ import {
   X,
   Dumbbell,
   Trash2,
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   Share2,
@@ -414,6 +413,8 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
   const { data: accessCount } = trpc.access.getMemberAccessCount.useQuery({ memberId });
+  const calYearMonth = `${calendarDate.year}-${String(calendarDate.month + 1).padStart(2, "0")}`;
+  const { data: accessDates } = trpc.access.getMemberAccessDates.useQuery({ memberId, yearMonth: calYearMonth });
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
   const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
@@ -797,6 +798,8 @@ export default function MemberDetail({ memberId }: Props) {
     return map;
   }, [attendanceList]);
 
+  const accessDateSet = useMemo(() => new Set(accessDates ?? []), [accessDates]);
+
   const calendarDays = useMemo(() => {
     const { year, month } = calendarDate;
     const firstDay = new Date(year, month, 1).getDay();
@@ -872,6 +875,7 @@ export default function MemberDetail({ memberId }: Props) {
     ?.filter(p => p.status === "active")
     .reduce((sum, p) => sum + (p.totalSessions - p.usedSessions), 0) ?? 0;
   const totalAttendance = (accessCount ?? 0);
+  const totalPtDone = attendanceList?.filter(a => a.status === "attended").length ?? 0;
   const memoCount = memoList?.length ?? 0;
 
   return (
@@ -957,7 +961,7 @@ export default function MemberDetail({ memberId }: Props) {
         {[
           { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 PT 횟수" },
           { icon: <CheckCircle className="h-5 w-5 text-green-400" />, value: totalAttendance, label: "총 출석 횟수" },
-          { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: memoCount, label: "운동 메모" },
+          { icon: <Dumbbell className="h-5 w-5 text-blue-400" />, value: totalPtDone, label: "총 PT 횟수" },
         ].map((item) => (
           <Card key={item.label} className="bg-card border-border">
             <CardContent className="p-3 flex flex-col items-start gap-1">
@@ -2369,35 +2373,42 @@ export default function MemberDetail({ memberId }: Props) {
                 {calendarDays.map((day, i) => {
                   if (!day) return <div key={i} />;
                   const dateStr = `${calendarDate.year}-${String(calendarDate.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                  const status = attendanceMap[dateStr];
+                  const ptStatus = attendanceMap[dateStr];
+                  const hasKiosk = accessDateSet.has(dateStr);
                   const isToday = dateStr === todayStr;
+                  const hasPt = !!ptStatus;
+
+                  let bgClass = "";
+                  if (ptStatus === "attended") bgClass = "bg-green-500 text-white";
+                  else if (ptStatus === "noshow") bgClass = "bg-red-500/80 text-white";
+                  else if (ptStatus === "absent") bgClass = "bg-yellow-500/60 text-white";
+                  else if (hasKiosk) bgClass = "bg-blue-500 text-white";
+                  else if (isToday) bgClass = "border border-primary text-primary";
+                  else bgClass = "text-foreground";
+
                   return (
                     <button
                       key={i}
                       onClick={() => setLocation(`/attendance/${memberId}?date=${dateStr}`)}
-                      className={`aspect-square flex items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 ${
-                        status === "attended"
-                          ? "bg-green-500 text-white"
-                          : status === "noshow"
-                          ? "bg-red-500/80 text-white"
-                          : status === "absent"
-                          ? "bg-yellow-500/60 text-white"
-                          : isToday
-                          ? "border border-primary text-primary"
-                          : "text-foreground"
-                      }`}
+                      className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 relative ${bgClass}`}
                     >
                       {day}
+                      {hasPt && hasKiosk && ptStatus === "attended" && (
+                        <div className="absolute -bottom-0.5 flex gap-0.5">
+                          <div className="w-1 h-1 rounded-full bg-blue-300" />
+                        </div>
+                      )}
                     </button>
                   );
                 })}
               </div>
               {/* 범례 */}
-              <div className="flex items-center gap-3 mt-3 justify-center">
+              <div className="flex items-center gap-3 mt-3 justify-center flex-wrap">
                 {[
-                  { color: "bg-green-500", label: "출석" },
-                  { color: "bg-red-500/80", label: "노쇼" },
-                  { color: "bg-yellow-500/60", label: "결석" },
+                  { color: "bg-blue-500", label: "헬스" },
+                  { color: "bg-green-500", label: "PT 출석" },
+                  { color: "bg-red-500/80", label: "PT 노쇼" },
+                  { color: "bg-yellow-500/60", label: "PT 결석" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-1">
                     <div className={`w-3 h-3 rounded-full ${item.color}`} />
@@ -2405,11 +2416,10 @@ export default function MemberDetail({ memberId }: Props) {
                   </div>
                 ))}
               </div>
-              {attendanceList && (
-                <p className="text-xs text-muted-foreground text-center mt-2">
-                  총 출석 {attendanceList.filter(a => a.status === "attended").length}회
-                </p>
-              )}
+              <div className="text-xs text-muted-foreground text-center mt-2 space-x-3">
+                <span>헬스 출석 {accessDates?.length ?? 0}회</span>
+                <span>PT 출석 {attendanceList?.filter(a => a.status === "attended").length ?? 0}회</span>
+              </div>
             </CardContent>
           </Card>
 
