@@ -1540,29 +1540,26 @@ export default function MemberDetail({ memberId }: Props) {
                   paymentDate: r.paymentDate,
                   subType: r.subType,
                   fromEntry: r.id,
+                  isService: true,
                 }))
               );
             const siHealth = parseItems("헬스");
             const siLocker = parseItems("락커");
             const siUniform = parseItems("운동복");
 
-            // serviceItems가 없지만 programDetail에 해당 카테고리가 있는 항목
-            // + serviceItems 있지만 parseItems에서 못 잡은 경우 fallback
             const siEntryIds = new Set(siEntries.map(r => r.id));
-            // serviceItems에 운동복이 있지만 parseItems에서 못 잡은 항목 보완 (pdUniform보다 먼저 정의)
             const siUniformFallback = siEntries
               .filter(r => /운동복|유니폼|uniform/i.test(r.serviceItems ?? "") && !siUniform.some(u => u.fromEntry === r.id))
-              .map(r => ({ key: `si-fb-${r.id}`, detail: "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
-            // programDetail에 운동복이 있고 siUniform/siUniformFallback에 포함되지 않은 항목
+              .map(r => ({ key: `si-fb-${r.id}`, detail: "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id, isService: true }));
             const pdUniform = allRevs.filter(r =>
               /운동복|유니폼|uniform/i.test(r.programDetail ?? "") &&
               !siUniform.some(u => u.fromEntry === r.id) &&
               !siUniformFallback.some(u => u.fromEntry === r.id)
-            ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
+            ).map(r => ({ key: `pd-${r.id}`, detail: "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id, isService: false }));
 
             const pdLocker = allRevs.filter(r =>
               !siEntryIds.has(r.id) && /락커/i.test(r.programDetail ?? "")
-            ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "락커", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
+            ).map(r => ({ key: `pd-${r.id}`, detail: "락커", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id, isService: false }));
 
             const allUniformItems = [...siUniform, ...siUniformFallback, ...pdUniform];
             const allLockerItems = [...siLocker, ...pdLocker];
@@ -1846,10 +1843,10 @@ export default function MemberDetail({ memberId }: Props) {
                       ) : (
                         <div className="space-y-2">
                           {(memberPrograms?.lockers.length ?? 0) === 0 && allLockerItems.map(item => (
-                            <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.락커.faint} border ${SERVICE_COLORS.락커.border}`}>
+                            <div key={item.key} className={`p-3 rounded-lg ${item.isService ? SERVICE_COLORS.락커.faint : "bg-accent/20"} border ${item.isService ? SERVICE_COLORS.락커.border : "border-border"}`}>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.락커.bg} ${SERVICE_COLORS.락커.text} ${SERVICE_COLORS.락커.border}`}>서비스</span>
+                                {item.isService && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.락커.bg} ${SERVICE_COLORS.락커.text} ${SERVICE_COLORS.락커.border}`}>서비스</span>}
                                 {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
                               </div>
                               <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
@@ -1937,10 +1934,10 @@ export default function MemberDetail({ memberId }: Props) {
                       ) : (
                         <div className="space-y-2">
                           {allUniformItems.map(item => (
-                            <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.운동복.faint} border ${SERVICE_COLORS.운동복.border}`}>
+                            <div key={item.key} className={`p-3 rounded-lg ${item.isService ? SERVICE_COLORS.운동복.faint : "bg-accent/20"} border ${item.isService ? SERVICE_COLORS.운동복.border : "border-border"}`}>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.운동복.bg} ${SERVICE_COLORS.운동복.text} ${SERVICE_COLORS.운동복.border}`}>서비스</span>
+                                {item.isService && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.운동복.bg} ${SERVICE_COLORS.운동복.text} ${SERVICE_COLORS.운동복.border}`}>서비스</span>}
                                 {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
                               </div>
                               <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
