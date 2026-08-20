@@ -95,7 +95,13 @@ export async function pushDailyReport(
     const titleProp = await findTitleProperty(databaseId);
     const dateStr = new Date(result.generatedAt).toLocaleDateString("ko-KR");
     const periodLabel = result.periodLabel || "어제";
-    const OWNER_KO: Record<string, string> = { auto: "AI 처리", semi: "AI 처리(확인 필요)", manual: "사장님 처리" };
+    // 2026-08-20 대표 지시: 단순 회원 연락·상담·수납 확인(assigneeRole="회원관리")은 mode가
+    // "manual"이어도 대표가 아니라 직원 처리 — 가격·정책·결제·인사·대외발송만 대표 처리로 표시한다.
+    const ownerLabel = (t: TeamTask): string => {
+      if (t.mode === "auto") return "AI 처리";
+      if (t.mode === "semi") return "AI 처리(확인 필요)";
+      return t.assigneeRole === "회원관리" ? "직원 처리" : "사장님 처리";
+    };
 
     // "업무보고" 테이블(제목/오늘 업무/분석 리포트)에 표에서 바로 보이도록 요약을 채운다.
     // 전체 상세 내용은 아래 children 블록으로 페이지 본문에 그대로 남긴다.
@@ -113,7 +119,7 @@ export async function pushDailyReport(
       heading("📡 데이터 기준"),
       paragraph(
         c.meta.dbConnected
-          ? `실데이터 · ZIANTGYM+ DB(Neon) · 조회시각 ${c.meta.asOfTimestamp}`
+          ? `실데이터 · 원천: members/revenue_entries/attendances 등(ZIANTGYM+ DB, Neon) · 조회시각 ${new Date(c.meta.asOfTimestamp).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} (Asia/Seoul)`
           : `⚠️ 샘플 데이터 사용 중 — DB 연결 실패 (${c.meta.queryError ?? "사유 미상"})`
       ),
       heading("🏢 지점별 요약 (전체 / 1호점 / 2호점)"),
@@ -122,24 +128,22 @@ export async function pushDailyReport(
       ),
       ...c.byBranch.map((b) =>
         bullet(
-          `${b.branchName} — 활성 ${b.active} · 계약액 ${b.contractAmount.toLocaleString()}원 · 실입금 ${b.monthRevenue.toLocaleString()}원 · 미수금 ${b.unpaidTotal.toLocaleString()}원 · 만료예정 ${b.expiringSoonCount}명 · 이탈위험 ${b.recentlyExpiredCount}명 · 신규 ${b.newCount}건 · 재등록 ${b.reRegisterCount}건`
+          `${b.branchName} — 활성 ${b.active} · 계약액 ${b.contractAmount.toLocaleString()}원 · 실입금 ${b.monthRevenue.toLocaleString()}원 · 미수금 ${b.unpaidTotal.toLocaleString()}원 · 만료예정 ${b.expiringSoonCount}명 · 신규 ${b.newCount}건 · 재등록 ${b.reRegisterCount}건`
         )
       ),
-      heading("💰 매출·비용 상세 (이번달)"),
+      heading("💰 매출·비용 상세 (이번달 누계 — 전일 실적과는 별개)"),
       bullet(`계약액(할인전) ${c.money.contractAmount.toLocaleString()}원`),
       bullet(`실제 입금액 ${c.money.monthRevenue.toLocaleString()}원`),
       bullet(`환불·취소액 ${c.money.refundAmount.toLocaleString()}원`),
       bullet(`최종 실현 매출(입금-환불) ${c.money.netRevenueThisMonth.toLocaleString()}원`),
       bullet(`이번달 미수금 ${c.money.unpaidThisMonth.toLocaleString()}원 (전체 누적 미수금 ${c.money.unpaidTotal.toLocaleString()}원)`),
-      bullet(`이번달 지출 ${c.expense.thisMonthTotal.toLocaleString()}원 / 순이익(단순 현금기준) ${c.expense.netProfitThisMonth.toLocaleString()}원`),
-      heading("📅 만료예정 회원 우선순위 (오늘 연락 대상은 7일 이내부터)"),
-      bullet(`7일 이내 만료: ${c.members.expiringBuckets.within7}명 (최우선 연락)`),
-      bullet(`8~14일 이내: ${c.members.expiringBuckets.within14}명 (다음 순번)`),
-      bullet(`15~30일 이내: ${c.members.expiringBuckets.within30}명 (대기)`),
-      heading("오늘 처리해야 할 업무 (AI 처리 / 사장님 처리 구분)"),
-      ...result.tasks.map((t) =>
-        bullet(`[${t.priority}] ${t.title} — ${t.reason} (담당: ${t.assigneeRole} · ${OWNER_KO[t.mode] ?? t.mode})`)
+      bullet(
+        `이번달 지출입력액 ${c.expense.thisMonthTotal.toLocaleString()}원 / 확인된 현금흐름(실입금-지출입력액) ${c.expense.netProfitThisMonth.toLocaleString()}원 — 인건비·임대료 등 비용이 다 입력됐는지 확인 안 됨, "순이익" 아님`
       ),
+      heading("📅 만료 관리 — D-10·D-5 자동 문자로만 운영 (별도 일괄 연락 없음)"),
+      bullet(`30일 내 만료 예정 ${c.members.expiringSoon.length}명 (참고용 — 실제 문자는 D-10·D-5 시점에 자동 발송)`),
+      heading("오늘 처리해야 할 업무 (AI 처리 / 직원 처리 / 사장님 처리 구분)"),
+      ...result.tasks.map((t) => bullet(`[${t.priority}] ${t.title} — ${t.reason} (담당: ${t.assigneeRole} · ${ownerLabel(t)})`)),
       heading(`${periodLabel} 분석`),
       ...reportToBlocks(result.report),
     ];
@@ -164,23 +168,53 @@ export async function pushDailyReport(
       children.push(...content.ideas.map((i) => bullet(`[${i.platform}] ${i.title}`)));
     }
 
+    const pageProps = {
+      [titleProp]: { title: [{ text: { content: `자이언트짐 AI 브리핑 - ${dateStr} (${periodLabel})` } }] },
+      "오늘 업무": { rich_text: [{ text: { content: todayTasksSummary } }] },
+      "분석 리포트": { rich_text: [{ text: { content: analysisReportSummary } }] },
+    };
+    const childBatch = children.slice(0, 100); // Notion API 한 번 요청당 최대 100 블록
+
+    // 같은 날짜 브리핑은 1개만 유지한다(2026-08-20 대표 지시) — 오늘 실행이 이미 있으면 새 페이지를
+    // 만들지 않고 기존 페이지의 속성·본문을 통째로 갱신한다(중복 페이지가 쌓이던 문제 수정).
+    const existingId = await findTodaysBriefingPageId(databaseId, titleProp, dateStr);
+    if (existingId) {
+      const existingChildren = await notionFetch(`/blocks/${existingId}/children?page_size=100`, { method: "GET" });
+      for (const block of existingChildren.results ?? []) {
+        await notionFetch(`/blocks/${block.id}`, { method: "DELETE" }).catch(() => {});
+      }
+      await notionFetch(`/pages/${existingId}`, { method: "PATCH", body: JSON.stringify({ properties: pageProps }) });
+      await notionFetch(`/blocks/${existingId}/children`, { method: "PATCH", body: JSON.stringify({ children: childBatch }) });
+      return { ok: true, url: `https://app.notion.com/p/${existingId.replace(/-/g, "")}` };
+    }
+
     const page = await notionFetch("/pages", {
       method: "POST",
-      body: JSON.stringify({
-        parent: { database_id: databaseId },
-        properties: {
-          [titleProp]: { title: [{ text: { content: `자이언트짐 AI 브리핑 - ${dateStr} (${periodLabel})` } }] },
-          "오늘 업무": { rich_text: [{ text: { content: todayTasksSummary } }] },
-          "분석 리포트": { rich_text: [{ text: { content: analysisReportSummary } }] },
-        },
-        children: children.slice(0, 100), // Notion API 한 번 요청당 최대 100 블록
-      }),
+      body: JSON.stringify({ parent: { database_id: databaseId }, properties: pageProps, children: childBatch }),
     });
 
     return { ok: true, url: page.url };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/** 오늘 날짜가 제목에 들어간 브리핑 페이지가 이미 있으면 그 페이지 id를 돌려준다(같은 날 재실행 시
+ * 새 페이지를 또 만들지 않기 위함, 2026-08-20 대표 지시). */
+async function findTodaysBriefingPageId(databaseId: string, titleProp: string, dateStr: string): Promise<string | null> {
+  const data = await notionFetch(`/databases/${databaseId}/query`, {
+    method: "POST",
+    body: JSON.stringify({
+      filter: { property: titleProp, title: { contains: dateStr } },
+      page_size: 10,
+    }),
+  });
+  for (const page of data.results ?? []) {
+    const richTitle = page.properties?.[titleProp]?.title as { plain_text: string }[] | undefined;
+    const title = richTitle?.map((t) => t.plain_text).join("") ?? "";
+    if (title.includes(`자이언트짐 AI 브리핑 - ${dateStr}`)) return page.id;
+  }
+  return null;
 }
 
 /** 급여 정산 AI의 결과를 보고한다. 오류가 있으면 정산 중단 보고, 없으면 완료 보고. */
@@ -404,9 +438,13 @@ export async function pushJournalEntry(entry: JournalEntry): Promise<NotionPushR
 // 실데이터 기반 상위 업무를 노션 "업무관리" DB에 개별 업무로 만들고, 실행 결과를 "업무 로그"에 남긴다.
 // mode(auto/semi/manual)에 따라 담당구분·진행상태를 정한다 — 실행하지 않은 업무는 절대 "완료"로 기록하지 않는다
 // (auto=이미 자동 실행됨=완료, semi/manual=AI가 초안/제안만 한 상태이고 실제 처리는 사람 몫=시작 전).
-function taskModeToCategory(mode: TeamTask["mode"]): { assigneeCategory: string; status: string } {
+// 2026-08-20 대표 지시: 단순 회원 연락·상담·수납 확인(assigneeRole="회원관리")은 mode가 "manual"로
+// 잘못 와도 대표 업무로 배정하지 않는다 — 그런 실무는 직원 몫이라 "운영팀 업무"로 보낸다. 가격·정책·
+// 결제·인사·대외발송처럼 대표만 결정할 수 있는 업무만 "대표 업무"로 남긴다.
+function taskModeToCategory(mode: TeamTask["mode"], assigneeRole: string): { assigneeCategory: string; status: string } {
   if (mode === "auto") return { assigneeCategory: "자동화 업무", status: "완료" };
   if (mode === "semi") return { assigneeCategory: "AI 업무", status: "시작 전" };
+  if (assigneeRole === "회원관리") return { assigneeCategory: "운영팀 업무", status: "시작 전" };
   return { assigneeCategory: "대표 업무", status: "시작 전" };
 }
 
@@ -419,7 +457,6 @@ function buildTargetSummary(task: TeamTask, context: GymContext): string {
   if (task.assigneeRole === "회원관리") {
     const parts: string[] = [];
     if (context.members.expiringSoon.length > 0) parts.push(`만료예정 ${context.members.expiringSoon.length}명`);
-    if (context.members.recentlyExpired.length > 0) parts.push(`이탈위험 ${context.members.recentlyExpired.length}명`);
     if (context.money.unpaidMembers.length > 0) parts.push(`미수금 ${context.money.unpaidMembers.length}명`);
     return parts.length > 0 ? `${parts.join(" / ")} (개인정보 보호를 위해 명단은 앱 내에서 확인)` : "대상자 없음";
   }
@@ -477,7 +514,7 @@ export async function createTaskRecords(
   const createdUrls: string[] = [];
   try {
     for (const t of top) {
-      const { assigneeCategory, status } = taskModeToCategory(t.mode);
+      const { assigneeCategory, status } = taskModeToCategory(t.mode, t.assigneeRole);
       const normalized = normalizeTaskKey(t.title);
       const existingId = await findOpenTaskPageId(databaseId, normalized);
 

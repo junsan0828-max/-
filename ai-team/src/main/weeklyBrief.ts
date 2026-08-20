@@ -112,7 +112,12 @@ async function gatherRisk(sql: NeonQueryFunction<false, false>, today: string) {
       `SELECT id, "branchId" FROM members WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2`,
       [today, addDays(today, 30)]
     ),
-    sql.query(`SELECT id, "branchId", "membershipStart" FROM members WHERE status = 'active'`),
+    // "활성"은 AdminMembers.tsx·verify.ts와 동일 정의 — status='active'만으로는 만료일이 지났는데
+    // 아직 status가 안 바뀐 회원까지 잡힌다(2026-08-20 대표 확인).
+    sql.query(
+      `SELECT id, "branchId", "membershipStart" FROM members WHERE status = 'active' AND ("membershipEnd" IS NULL OR "membershipEnd" >= $1)`,
+      [today]
+    ),
     sql.query(
       `SELECT a."memberId" AS "memberId", a."attendDate" AS "attendDate"
        FROM attendances a JOIN members m ON a."memberId" = m.id

@@ -1,11 +1,12 @@
 // 오전 9시 카카오 브리핑 — "오늘 현황 스냅샷"이 아니라 "어제 하루 운영 결과"를 집계해서 보낸다
-// (2026-08-19 대표 지시). 매출은 어제 발생분만, 회원 현황은 오늘 아침 기준 스냅샷,
-// 이탈위험은 만료일이 아니라 실제 출석 패턴(attendances)으로 판단한다.
+// (2026-08-19 대표 지시). 매출은 어제 발생분만, 회원 현황은 오늘 아침 기준 스냅샷.
+// 이탈위험 항목은 일일 브리핑에서 제외한다(2026-08-20 대표 지시) — 만료 관리는 D-10·D-5
+// 규칙으로만 운영하고, 출석 기반 이탈위험 판단은 주간 보고(weeklyBrief.ts)에서만 다룬다.
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { todayStr, addDays, findExpiryCandidates, findLapsedCandidates, findConsultFollowupCandidates } from "./autoMessage";
-import { BRANCH_IDS, REVENUE_SUBTYPES, branchLabel, daysBetween, computeChurnRisk, gatherUnpaid, type UnpaidLine } from "./gymShared";
+import { BRANCH_IDS, REVENUE_SUBTYPES, branchLabel, gatherUnpaid, type UnpaidLine } from "./gymShared";
 
 interface RevenueLine {
   branchId: number | null;
@@ -23,8 +24,6 @@ interface MemberStatus {
   reRegisterCount: number; // 어제 헬스 재등록
   expiringD10: number;
   expiringD5: number;
-  churnRisk: number;
-  churnRiskAndExpiring: number; // 만료임박(D-10 또는 D-5) 이면서 이탈위험에도 해당
 }
 
 interface AutoMessagePreview {
@@ -43,7 +42,6 @@ export interface DailyBrief {
   unpaid: { lines: UnpaidLine[]; total: number; memberCount: number };
   changes: string[]; // 전일 브리핑 대비 변화 (없으면 빈 배열)
   autoMessagePreview: AutoMessagePreview;
-  noAttendanceLogCount: number; // 출석기록이 아예 없어 이탈위험 판단에서 제외된 활성회원 수
 }
 
 async function gatherRevenue(sql: NeonQueryFunction<false, false>, yesterday: string) {
@@ -88,14 +86,12 @@ async function gatherRevenue(sql: NeonQueryFunction<false, false>, yesterday: st
 }
 
 async function gatherMemberStatus(sql: NeonQueryFunction<false, false>, yesterday: string, today: string) {
-  const [activeByBranch, activeMembers, attendances, d10Candidates, d5Candidates, yesterdayGymRows] = (await Promise.all([
-    sql.query(`SELECT "branchId", COUNT(*) c FROM members WHERE status = 'active' GROUP BY "branchId"`),
-    sql.query(`SELECT id, "branchId", "membershipStart" FROM members WHERE status = 'active'`),
+  // "활성"은 AdminMembers.tsx·verify.ts와 동일 정의 — status='active'만으로는 만료일이 지났는데
+  // 아직 status가 안 바뀐 회원까지 잡힌다(2026-08-20 대표 확인, 21명 차이 원인).
+  const [activeByBranch, d10Candidates, d5Candidates, yesterdayGymRows] = (await Promise.all([
     sql.query(
-      `SELECT a."memberId" AS "memberId", a."attendDate" AS "attendDate"
-       FROM attendances a JOIN members m ON a."memberId" = m.id
-       WHERE m.status = 'active' AND a."attendDate" >= $1`,
-      [addDays(today, -60)]
+      `SELECT "branchId", COUNT(*) c FROM members WHERE status = 'active' AND ("membershipEnd" IS NULL OR "membershipEnd" >= $1) GROUP BY "branchId"`,
+      [today]
     ),
     findExpiryCandidates(sql, addDays(today, 10)),
     findExpiryCandidates(sql, addDays(today, 5)),
@@ -105,34 +101,12 @@ async function gatherMemberStatus(sql: NeonQueryFunction<false, false>, yesterda
     ),
   ])) as [
     { branchId: number | null; c: string }[],
-    { id: number; branchId: number | null; membershipStart: string }[],
-    { memberId: number; attendDate: string }[],
     Awaited<ReturnType<typeof findExpiryCandidates>>,
     Awaited<ReturnType<typeof findExpiryCandidates>>,
     { branchId: number | null; subType: string }[]
   ];
 
   const activeMap = new Map(activeByBranch.map((r) => [r.branchId, Number(r.c)]));
-  const { risky: churnRisk, noAttendanceLogCount } = computeChurnRisk(
-    activeMembers.map((m) => ({ id: m.id, branchId: m.branchId, membershipStart: m.membershipStart })),
-    attendances,
-    today
-  );
-  const churnByBranch = new Map<number, number>();
-  const churnAndExpiringByBranch = new Map<number, number>();
-  const expiringMemberIdsByBranch = new Map<number, Set<number>>();
-  for (const c of [...d10Candidates, ...d5Candidates]) {
-    if (c.branchId == null) continue;
-    if (!expiringMemberIdsByBranch.has(c.branchId)) expiringMemberIdsByBranch.set(c.branchId, new Set());
-    expiringMemberIdsByBranch.get(c.branchId)!.add(c.id);
-  }
-  for (const m of activeMembers) {
-    if (m.branchId == null || !churnRisk.has(m.id)) continue;
-    churnByBranch.set(m.branchId, (churnByBranch.get(m.branchId) ?? 0) + 1);
-    if (expiringMemberIdsByBranch.get(m.branchId)?.has(m.id)) {
-      churnAndExpiringByBranch.set(m.branchId, (churnAndExpiringByBranch.get(m.branchId) ?? 0) + 1);
-    }
-  }
 
   const d10ByBranch = new Map<number, number>();
   for (const c of d10Candidates) if (c.branchId != null) d10ByBranch.set(c.branchId, (d10ByBranch.get(c.branchId) ?? 0) + 1);
@@ -155,11 +129,9 @@ async function gatherMemberStatus(sql: NeonQueryFunction<false, false>, yesterda
     reRegisterCount: reRegisterByBranch.get(id) ?? 0,
     expiringD10: d10ByBranch.get(id) ?? 0,
     expiringD5: d5ByBranch.get(id) ?? 0,
-    churnRisk: churnByBranch.get(id) ?? 0,
-    churnRiskAndExpiring: churnAndExpiringByBranch.get(id) ?? 0,
   }));
 
-  return { status, churnRiskTotal: churnRisk.size, noAttendanceLogCount };
+  return { status };
 }
 
 async function gatherAutoMessagePreview(sql: NeonQueryFunction<false, false>, today: string, yesterday: string): Promise<AutoMessagePreview> {
@@ -180,7 +152,6 @@ async function gatherAutoMessagePreview(sql: NeonQueryFunction<false, false>, to
 
 interface Snapshot {
   date: string;
-  churnRiskTotal: number;
   unpaidMemberCount: number;
   expiringTotal: number;
   reRegisterCount: number;
@@ -212,9 +183,6 @@ function computeChanges(today: string, current: Omit<Snapshot, "date">): string[
   if (!prev) return [];
 
   const changes: string[] = [];
-  const churnDiff = current.churnRiskTotal - prev.churnRiskTotal;
-  if (churnDiff !== 0) changes.push(`이탈위험 ${churnDiff > 0 ? "+" : ""}${churnDiff}명`);
-
   const unpaidDiff = current.unpaidMemberCount - prev.unpaidMemberCount;
   if (unpaidDiff !== 0) changes.push(`미수금 ${unpaidDiff > 0 ? "+" : ""}${unpaidDiff}건`);
 
@@ -244,7 +212,6 @@ export async function gatherDailyBrief(): Promise<DailyBrief> {
   const expiringTotal = memberStatusResult.status.reduce((s, b) => s + b.expiringD10 + b.expiringD5, 0);
   const reRegisterCount = memberStatusResult.status.reduce((s, b) => s + b.reRegisterCount, 0);
   const changes = computeChanges(today, {
-    churnRiskTotal: memberStatusResult.churnRiskTotal,
     unpaidMemberCount: unpaid.memberCount,
     expiringTotal,
     reRegisterCount,
@@ -258,7 +225,6 @@ export async function gatherDailyBrief(): Promise<DailyBrief> {
     unpaid,
     changes,
     autoMessagePreview,
-    noAttendanceLogCount: memberStatusResult.noAttendanceLogCount,
   };
 }
 
@@ -295,11 +261,6 @@ export function buildDailyBriefKakaoText(brief: DailyBrief): string {
     lines.push(s.branchName);
     lines.push(`활성 ${s.active}명 · 신규 ${s.newCount} · 재등록 ${s.reRegisterCount}`);
     lines.push(`만료임박 D-10 ${s.expiringD10}명 · D-5 ${s.expiringD5}명`);
-    lines.push(`이탈위험 ${s.churnRisk}명 (만료임박 중 ${s.churnRiskAndExpiring}명)`);
-  }
-  if (brief.noAttendanceLogCount > 0) {
-    lines.push("");
-    lines.push(`(출석기록 없는 회원 ${brief.noAttendanceLogCount}명은 이탈위험 판단에서 제외)`);
   }
   lines.push("");
 

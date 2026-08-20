@@ -413,8 +413,11 @@ export async function runMonthlyOverview(yearMonth: string = previousYearMonth()
   const raw = await gatherRawData(yearMonth);
 
   const sql = neon(process.env.DATABASE_URL!);
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+  // "활성"은 AdminMembers.tsx·verify.ts와 동일 정의 — status='active'만으로는 만료일이 지났는데
+  // 아직 status가 안 바뀐 회원까지 잡힌다(2026-08-20 대표 확인).
   const [activeRows, unpaidRows] = (await Promise.all([
-    sql.query(`SELECT COUNT(*) c FROM members WHERE status = 'active'`),
+    sql.query(`SELECT COUNT(*) c FROM members WHERE status = 'active' AND ("membershipEnd" IS NULL OR "membershipEnd" >= $1)`, [today]),
     sql.query(`SELECT COALESCE(SUM("unpaidAmount"),0) s FROM revenue_entries WHERE "unpaidAmount" > 0`),
   ])) as [{ c: string }[], { s: string }[]];
 

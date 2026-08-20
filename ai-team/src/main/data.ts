@@ -199,8 +199,13 @@ export async function gatherContext(): Promise<GymContext> {
       expenseRows,
     ] = (await Promise.all([
       sql.query(`SELECT COUNT(*) c FROM members`),
-      sql.query(`SELECT COUNT(*) c FROM members WHERE status = 'active'`),
-      sql.query(`SELECT "branchId", COUNT(*) c FROM members WHERE status = 'active' GROUP BY "branchId"`),
+      // "활성"은 통합운영시스템 AdminMembers.tsx·verify.ts와 동일 정의: status='active'만으로는
+      // 만료일이 지났는데 아직 status가 안 바뀐 회원까지 잡힌다(2026-08-20 대표 확인, 21명 차이 원인).
+      sql.query(`SELECT COUNT(*) c FROM members WHERE status = 'active' AND ("membershipEnd" IS NULL OR "membershipEnd" >= $1)`, [today]),
+      sql.query(
+        `SELECT "branchId", COUNT(*) c FROM members WHERE status = 'active' AND ("membershipEnd" IS NULL OR "membershipEnd" >= $1) GROUP BY "branchId"`,
+        [today]
+      ),
       sql.query(
         `SELECT "branchId", name, phone, "membershipEnd" FROM members
          WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" <= $2
