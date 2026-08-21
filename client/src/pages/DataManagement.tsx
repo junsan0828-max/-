@@ -11,6 +11,49 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4", "#6b7280", "#f97316"];
 
+type ViewMode = "monthly" | "annual";
+
+function PeriodSelector({ viewMode, setViewMode, year, setYear, month, setMonth, isCurrentMonth }: {
+  viewMode: ViewMode; setViewMode: (v: ViewMode) => void;
+  year: number; setYear: (fn: (y: number) => number) => void;
+  month: number; setMonth: (fn: (m: number) => number) => void;
+  isCurrentMonth: boolean;
+}) {
+  const goPrev = () => {
+    if (viewMode === "annual") { setYear(y => y - 1); }
+    else { if (month === 1) { setYear(y => y - 1); setMonth(() => 12); } else setMonth(m => m - 1); }
+  };
+  const goNext = () => {
+    if (viewMode === "annual") {
+      const now = new Date();
+      if (year < now.getFullYear()) setYear(y => y + 1);
+    } else {
+      if (!isCurrentMonth) { if (month === 12) { setYear(y => y + 1); setMonth(() => 1); } else setMonth(m => m + 1); }
+    }
+  };
+  const atMax = viewMode === "annual" ? year >= new Date().getFullYear() : isCurrentMonth;
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex gap-1">
+        <button onClick={() => setViewMode("monthly")} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${viewMode === "monthly" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>월간</button>
+        <button onClick={() => setViewMode("annual")} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${viewMode === "annual" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>연간</button>
+      </div>
+      <div className="flex items-center gap-3">
+        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">
+          {viewMode === "annual" ? `${year}년` : `${year}년 ${month}월`}
+        </span>
+        <button onClick={goNext} disabled={atMax} className={`p-1.5 rounded-lg bg-card border border-border ${atMax ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function fmtWon(v: number) {
   if (v >= 100000000) return `${(v / 100000000).toFixed(1)}억`;
   if (v >= 10000000) return `${(v / 10000000).toFixed(1)}천만`;
@@ -203,10 +246,9 @@ function CustomerTab() {
   const [selYear, setSelYear] = useState(kstNow.getUTCFullYear());
   const [selMonth, setSelMonth] = useState(kstNow.getUTCMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
   const isCurrentMonth = selPrefix === `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}`;
-  const goPrev = () => { if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); } else setSelMonth(m => m - 1); };
-  const goNext = () => { if (isCurrentMonth) return; if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); } else setSelMonth(m => m + 1); };
 
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const bParam = branchFilter ? { branchId: branchFilter } : {};
@@ -243,16 +285,7 @@ function CustomerTab() {
         </div>
       )}
 
-      {/* 월 선택 */}
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{selYear}년 {selMonth}월</span>
-        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
+      <PeriodSelector viewMode={viewMode} setViewMode={setViewMode} year={selYear} setYear={setSelYear} month={selMonth} setMonth={setSelMonth} isCurrentMonth={isCurrentMonth} />
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 gap-2">
@@ -483,9 +516,8 @@ function MarketingTab() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [lpMode, setLpMode] = useState<"weekly" | "monthly">("monthly");
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
-  const goPrev = () => { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); };
-  const goNext = () => { if (!isCurrentMonth) { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); } };
   const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
   const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
   const bParam = branchFilter ? { branchId: branchFilter } : {};
@@ -557,16 +589,7 @@ function MarketingTab() {
         </div>
       )}
 
-      {/* 월 선택 */}
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{year}년 {month}월</span>
-        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
+      <PeriodSelector viewMode={viewMode} setViewMode={setViewMode} year={year} setYear={setYear} month={month} setMonth={setMonth} isCurrentMonth={isCurrentMonth} />
 
       {/* 랜딩페이지 방문자 통계 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -898,10 +921,9 @@ function OperationsTab() {
   const [selYear, setSelYear] = useState(now.getFullYear());
   const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | undefined>(undefined);
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
   const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth() + 1;
-  const goPrev = () => { if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); } else setSelMonth(m => m - 1); };
-  const goNext = () => { if (!isCurrentMonth) { if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); } else setSelMonth(m => m + 1); } };
   const monthStart = `${selPrefix}-01`;
   const monthEnd = `${selPrefix}-${String(new Date(selYear, selMonth, 0).getDate()).padStart(2, "0")}`;
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
@@ -1031,16 +1053,7 @@ function OperationsTab() {
         </div>
       )}
 
-      {/* 월 선택 */}
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{selYear}년 {selMonth}월</span>
-        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
+      <PeriodSelector viewMode={viewMode} setViewMode={setViewMode} year={selYear} setYear={setSelYear} month={selMonth} setMonth={setSelMonth} isCurrentMonth={isCurrentMonth} />
 
       {/* ── 미조치 항목 경고 ── */}
       {inspectionPending && inspectionPending.length > 0 && (
