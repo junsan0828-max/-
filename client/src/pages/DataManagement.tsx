@@ -514,6 +514,7 @@ function MarketingTab() {
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month, ...bParam });
   const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
   const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
+  const { data: consultTimeStats } = trpc.gym.leads.consultationTimeStats.useQuery({ year, month });
 
   const channelData = (channels ?? []).map((ch, i) => {
     const leadStat = monthStats?.byChannel[ch.id];
@@ -758,6 +759,44 @@ function MarketingTab() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* 상담 시간 분석 */}
+          {consultTimeStats && consultTimeStats.total > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-blue-400" /> 상담 시간 분석
+                <span className="text-xs text-muted-foreground font-normal ml-1">{month}월 총 {consultTimeStats.total}건</span>
+              </h2>
+
+              {/* 요일별 */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">요일별 상담 건수</p>
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={consultTimeStats.byDow} barSize={24}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
+                    <Bar dataKey="count" name="건수" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* 시간대별 */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">시간대별 상담 건수</p>
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={consultTimeStats.byHour} barSize={14}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#9ca3af" }} tickFormatter={(h: number) => `${h}시`} />
+                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} labelFormatter={(h: number) => `${h}시`} />
+                    <Bar dataKey="count" name="건수" fill="#8b5cf6" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           )}

@@ -322,6 +322,40 @@ const leadsRouter = t.router({
       return { total, consulted, followup, registered, conversionRate, byChannel };
     }),
 
+  consultationTimeStats: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ input }) => {
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const result = await pool.query(`
+        SELECT
+          "consultationDate",
+          "createdAt"
+        FROM leads
+        WHERE "consultationDate" LIKE $1
+      `, [`${prefix}%`]);
+
+      const DOW_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+      const byDow: number[] = [0, 0, 0, 0, 0, 0, 0];
+      const byHour: number[] = new Array(24).fill(0);
+
+      for (const row of result.rows) {
+        if (row.consultationDate) {
+          const d = new Date(row.consultationDate + "T00:00:00");
+          byDow[d.getDay()]++;
+        }
+        if (row.createdAt) {
+          const kst = new Date(new Date(row.createdAt).getTime() + 9 * 3600000);
+          byHour[kst.getUTCHours()]++;
+        }
+      }
+
+      return {
+        byDow: DOW_LABELS.map((label, i) => ({ day: label, count: byDow[i] })),
+        byHour: byHour.map((count, h) => ({ hour: h, count })).filter(h => h.count > 0 || (h.hour >= 8 && h.hour <= 22)),
+        total: result.rows.length,
+      };
+    }),
+
   backfillMemberData: protectedProcedure.mutation(async ({ ctx }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
