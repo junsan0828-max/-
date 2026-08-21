@@ -1121,10 +1121,13 @@ export const accessRouter = t.router({
     .query(async ({ input }) => {
       try {
         let today: string, future: string;
-        if (input.month) {
+        if (input.month && input.month.includes("-")) {
           const [y, m] = input.month.split("-").map(Number);
           today = `${input.month}-01`;
           future = `${input.month}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+        } else if (input.month) {
+          today = `${input.month}-01-01`;
+          future = `${input.month}-12-31`;
         } else {
           today = kstDate();
           future = kstDate(input.days);
@@ -1205,18 +1208,27 @@ export const accessRouter = t.router({
       const branchId = input?.branchId ?? null;
       const curPrefix = input?.month ?? kstMonthPrefix();
       const today = kstDate();
-      const [cy, cm] = curPrefix.split("-").map(Number);
-      const daysInMonth = new Date(cy, cm, 0).getDate();
-      const monthStart = `${curPrefix}-01`;
-      const monthEnd = `${curPrefix}-${String(daysInMonth).padStart(2, "0")}T23:59:59`;
-      const isCurrentMonth = curPrefix === kstMonthPrefix();
-      const elapsedDays = isCurrentMonth ? parseInt(today.substring(8, 10), 10) : daysInMonth;
-      const refEnd = isCurrentMonth ? `${today}T23:59:59` : monthEnd;
-      const d7Start = new Date(cy, cm - 1, elapsedDays - 6).toISOString().substring(0, 10);
-      const d14Start = new Date(cy, cm - 1, elapsedDays - 13).toISOString().substring(0, 10);
-      const d30Start = new Date(cy, cm - 1, elapsedDays - 29).toISOString().substring(0, 10);
+      const isAnnual = !curPrefix.includes("-");
+      const [cy, cm] = isAnnual ? [Number(curPrefix), 12] : curPrefix.split("-").map(Number);
+      const daysInMonth = isAnnual ? 365 : new Date(cy, cm, 0).getDate();
+      const monthStart = isAnnual ? `${cy}-01-01` : `${curPrefix}-01`;
+      const monthEnd = isAnnual ? `${cy}-12-31T23:59:59` : `${curPrefix}-${String(new Date(cy, cm, 0).getDate()).padStart(2, "0")}T23:59:59`;
+      const isCurrentMonth = !isAnnual && curPrefix === kstMonthPrefix();
+      const isCurrentYear = isAnnual && cy === Number(kstDate().substring(0, 4));
+      const isCurrent = isCurrentMonth || isCurrentYear;
+      const elapsedDays = isCurrent ? parseInt(today.substring(8, 10), 10) : daysInMonth;
+      const refEnd = isCurrent ? `${today}T23:59:59` : monthEnd;
+      const d7Start = isAnnual
+        ? new Date(new Date(today).getTime() - 6 * 86400000).toISOString().substring(0, 10)
+        : new Date(cy, cm - 1, elapsedDays - 6).toISOString().substring(0, 10);
+      const d14Start = isAnnual
+        ? new Date(new Date(today).getTime() - 13 * 86400000).toISOString().substring(0, 10)
+        : new Date(cy, cm - 1, elapsedDays - 13).toISOString().substring(0, 10);
+      const d30Start = isAnnual
+        ? new Date(new Date(today).getTime() - 29 * 86400000).toISOString().substring(0, 10)
+        : new Date(cy, cm - 1, elapsedDays - 29).toISOString().substring(0, 10);
 
-      const prevPrefix = cm === 1 ? `${cy - 1}-12` : `${cy}-${String(cm - 1).padStart(2, "0")}`;
+      const prevPrefix = isAnnual ? `${cy - 1}` : (cm === 1 ? `${cy - 1}-12` : `${cy}-${String(cm - 1).padStart(2, "0")}`);
 
       const bCond = branchId ? `AND "branchId" = ${Number(branchId)}` : "";
       const mBCond = branchId ? `AND m."branchId" = ${Number(branchId)}` : "";

@@ -253,12 +253,14 @@ function CustomerTab() {
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const bParam = branchFilter ? { branchId: branchFilter } : {};
   const { data: stats } = trpc.access.getAdminMemberStats.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
-  const { data: expiring, isLoading: expiringLoading } = trpc.access.getAdminExpiringMembers.useQuery(
-    isCurrentMonth ? { days: 30, ...bParam } : { days: 30, month: selPrefix, ...bParam }
-  );
+  const expiringParam = viewMode === "annual"
+    ? { days: 30, month: String(selYear), ...bParam }
+    : isCurrentMonth ? { days: 30, ...bParam } : { days: 30, month: selPrefix, ...bParam };
+  const { data: expiring, isLoading: expiringLoading } = trpc.access.getAdminExpiringMembers.useQuery(expiringParam);
   const { data: unpaid } = trpc.pt.listUnpaid.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
   const { data: activePt } = trpc.access.getActivePtPackages.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
-  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year: selYear, month: selMonth, ...bParam });
+  const mParam = viewMode === "monthly" ? { month: selMonth } : {};
+  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year: selYear, ...mParam, ...bParam });
 
   const totalUnpaid = (unpaid ?? []).reduce((s, p) => s + (p.unpaidAmount ?? 0), 0);
   const lowSession = (activePt ?? []).filter((p: any) => (p.totalSessions - p.usedSessions) <= 5);
@@ -266,7 +268,7 @@ function CustomerTab() {
   type CustCat = "expiring" | "lowPt" | "unpaid";
   const [custCat, setCustCat] = useState<CustCat>("expiring");
 
-  const expiringLabel = isCurrentMonth ? "만료 임박" : `${selMonth}월 만료`;
+  const expiringLabel = viewMode === "annual" ? `${selYear}년 만료` : isCurrentMonth ? "만료 임박" : `${selMonth}월 만료`;
   const CUST_CATS: { key: CustCat; label: string; count: number; icon: React.ReactNode; color: string; activeClass: string }[] = [
     { key: "expiring", label: expiringLabel, count: expiring?.length ?? 0, icon: <AlertCircle className="h-3.5 w-3.5" />, color: "text-amber-400", activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
     { key: "lowPt", label: "PT 잔여 5↓", count: lowSession.length, icon: <Dumbbell className="h-3.5 w-3.5" />, color: "text-blue-400", activeClass: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
@@ -518,8 +520,10 @@ function MarketingTab() {
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
-  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
-  const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  const mParam = viewMode === "monthly" ? { month } : {};
+  const dateRange = viewMode === "annual"
+    ? { startDate: `${year}-01-01`, endDate: `${year}-12-31` }
+    : { startDate: `${year}-${String(month).padStart(2, "0")}-01`, endDate: `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}` };
   const bParam = branchFilter ? { branchId: branchFilter } : {};
 
   const weekRange = useMemo(() => {
@@ -535,15 +539,15 @@ function MarketingTab() {
 
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: pageStats } = trpc.landing.getPageStats.useQuery();
-  const { data: pageStatsMonth } = trpc.landing.getPageStatsByPeriod.useQuery({ year, month });
+  const { data: pageStatsMonth } = trpc.landing.getPageStatsByPeriod.useQuery({ year, ...(viewMode === "monthly" ? { month } : {}) });
   const { data: pageStatsWeek } = trpc.landing.getPageStatsByRange.useQuery({ startDate: weekRange.start, endDate: weekRange.end });
   const { data: channels } = trpc.gym.channels.list.useQuery();
-  const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
-  const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...bParam });
-  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month, ...bParam });
-  const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
-  const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
-  const { data: consultTimeStats } = trpc.gym.leads.consultationTimeStats.useQuery({ year, month });
+  const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, ...mParam });
+  const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, ...mParam, ...bParam });
+  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery(bParam);
+  const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery(dateRange);
+  const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery(dateRange);
+  const { data: consultTimeStats } = trpc.gym.leads.consultationTimeStats.useQuery({ year, ...mParam });
 
   const channelData = (() => {
     const list = (channels ?? [])
@@ -924,11 +928,13 @@ function OperationsTab() {
   const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
   const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth() + 1;
-  const monthStart = `${selPrefix}-01`;
-  const monthEnd = `${selPrefix}-${String(new Date(selYear, selMonth, 0).getDate()).padStart(2, "0")}`;
+  const opsMonthParam = viewMode === "annual" ? String(selYear) : selPrefix;
+  const opsDateRange = viewMode === "annual"
+    ? { startDate: `${selYear}-01-01`, endDate: `${selYear}-12-31` }
+    : { startDate: `${selPrefix}-01`, endDate: `${selPrefix}-${String(new Date(selYear, selMonth, 0).getDate()).padStart(2, "0")}` };
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: dashboard, isLoading: dashLoading } = trpc.access.getOpsVisitDashboard.useQuery(
-    { ...(branchFilter ? { branchId: branchFilter } : {}), month: selPrefix }
+    { ...(branchFilter ? { branchId: branchFilter } : {}), month: opsMonthParam }
   );
   const [, setLocation] = useLocation();
   const [utilModal, setUtilModal] = useState<{ type: string; title: string } | null>(null);
@@ -937,10 +943,10 @@ function OperationsTab() {
     { enabled: !!utilModal }
   );
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
-  const { data: inspectionSummary } = trpc.consultantData.getInspectionSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
-  const { data: inspectionPending } = trpc.consultantData.getInspectionPending.useQuery({ startDate: monthStart, endDate: monthEnd });
-  const { data: inspectionTrend } = trpc.consultantData.getInspectionTrend.useQuery({ startDate: monthStart, endDate: monthEnd });
-  const { data: inspectionAreaStats } = trpc.consultantData.getInspectionAreaStats.useQuery({ startDate: monthStart, endDate: monthEnd });
+  const { data: inspectionSummary } = trpc.consultantData.getInspectionSummary.useQuery(opsDateRange);
+  const { data: inspectionPending } = trpc.consultantData.getInspectionPending.useQuery(opsDateRange);
+  const { data: inspectionTrend } = trpc.consultantData.getInspectionTrend.useQuery(opsDateRange);
+  const { data: inspectionAreaStats } = trpc.consultantData.getInspectionAreaStats.useQuery(opsDateRange);
 
 
   if (dashLoading || !dashboard) {

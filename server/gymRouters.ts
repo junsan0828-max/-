@@ -296,12 +296,12 @@ const leadsRouter = t.router({
   }),
 
   statsByMonth: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+    .input(z.object({ year: z.number(), month: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
       const allLeads = await db.select().from(leads);
       const monthLeads = allLeads.filter(l => (l.consultationDate ?? "").startsWith(prefix));
 
@@ -332,9 +332,9 @@ const leadsRouter = t.router({
     }),
 
   consultationTimeStats: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+    .input(z.object({ year: z.number(), month: z.number().optional() }))
     .query(async ({ input }) => {
-      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
       const result = await pool.query(`
         SELECT
           "consultationDate",
@@ -1534,12 +1534,12 @@ const revenueRouter = t.router({
     }),
 
   channelSummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
+    .input(z.object({ year: z.number(), month: z.number().optional(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
       const allRows = await db.select({
         entry: revenueEntries,
         channelName: channels.name,
@@ -1677,11 +1677,11 @@ const revenueRouter = t.router({
 
   // 이달 PT 프로그램별 통계 (이벤트피티 포함)
   programStats: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
+    .input(z.object({ year: z.number(), month: z.number().optional(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
       const allEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${prefix}%`));
       const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불"
         && e.paidAmount > 0 && (!input.branchId || e.branchId === input.branchId));
