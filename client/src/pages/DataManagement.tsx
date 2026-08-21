@@ -372,6 +372,20 @@ function CustomerTab() {
         ))}
       </div>
 
+      {/* PT 회원 비율 */}
+      {stats && stats.active > 0 && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+          <p className="text-sm font-semibold text-foreground">PT 회원 비율</p>
+          <div className="flex items-baseline gap-3">
+            <span className="text-2xl font-bold text-blue-400">{Math.round((stats.pt_members ?? 0) / stats.active * 100)}%</span>
+            <span className="text-xs text-muted-foreground">활성 {stats.active}명 중 PT {stats.pt_members ?? 0}명</span>
+          </div>
+          <div className="flex rounded-full overflow-hidden h-2 bg-muted">
+            <div className="bg-blue-400 transition-all" style={{ width: `${((stats.pt_members ?? 0) / stats.active) * 100}%` }} />
+          </div>
+        </div>
+      )}
+
       {/* 성별 분포 */}
       {stats && (stats.male + stats.female) > 0 && (
         <div className="bg-card border border-border rounded-xl p-4 space-y-2">

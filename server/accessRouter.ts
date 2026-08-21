@@ -1097,6 +1097,7 @@ export const accessRouter = t.router({
           COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2)::int AS expiring30,
           COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" < $1)::int AS expired_but_active,
           (SELECT COUNT(*)::int FROM pt_packages WHERE status = 'active') AS active_pt_packages,
+          (SELECT COUNT(DISTINCT "memberId")::int FROM pt_packages WHERE status = 'active') AS pt_members,
           (SELECT COALESCE(SUM("unpaidAmount"),0)::int FROM pt_packages WHERE "unpaidAmount" > 0) AS total_unpaid,
           COUNT(*) FILTER (WHERE gender = '남')::int AS male,
           COUNT(*) FILTER (WHERE gender = '여')::int AS female
@@ -1104,7 +1105,7 @@ export const accessRouter = t.router({
       `, [today, in30]);
       return result.rows[0] as {
         total: number; active: number; inactive: number; expiring30: number;
-        expired_but_active: number; active_pt_packages: number; total_unpaid: number;
+        expired_but_active: number; active_pt_packages: number; pt_members: number; total_unpaid: number;
         male: number; female: number;
       };
     }),
