@@ -407,4 +407,72 @@ export const consultantDataRouter = t.router({
       );
       return result.rows.map((r: any) => r.date as string);
     }),
+
+  // ── 광고 데이터: 월별 요약 ──────────────────────────────────────────────
+  getAdMonthlySummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}%`;
+      const result = await pool.query(
+        `SELECT channel, SUM(impressions)::int as impressions, SUM(clicks)::int as clicks, SUM(visits)::int as visits, SUM(inquiries)::int as inquiries
+         FROM ad_data_entries
+         WHERE date LIKE $1
+         GROUP BY channel ORDER BY channel`,
+        [prefix]
+      );
+      return result.rows as Array<{ channel: string; impressions: number; clicks: number; visits: number; inquiries: number }>;
+    }),
+
+  // ── 콘텐츠: 월별 요약 ──────────────────────────────────────────────────
+  getContentMonthlySummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}%`;
+      const result = await pool.query(
+        `SELECT platform, COUNT(*) FILTER (WHERE published = true)::int as "publishedDays", SUM("publishCount")::int as "totalPublished", COUNT(*) FILTER (WHERE completed = true)::int as "completedDays", COUNT(*)::int as "totalDays"
+         FROM content_entries
+         WHERE date LIKE $1
+         GROUP BY platform ORDER BY platform`,
+        [prefix]
+      );
+      return result.rows as Array<{ platform: string; publishedDays: number; totalPublished: number; completedDays: number; totalDays: number }>;
+    }),
+
+  // ── 센터 점검: 월별 요약 ──────────────────────────────────────────────────
+  getInspectionMonthlySummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}%`;
+      const [latestRes, issueRes, daysRes] = await Promise.all([
+        pool.query(
+          `SELECT DISTINCT ON (area) area, "facilityStatus", "hygieneStatus", "issueNote", assignee, "actionStatus", "actionDate", date
+           FROM center_inspection_entries
+           WHERE date LIKE $1
+           ORDER BY area, date DESC`,
+          [prefix]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int as count FROM center_inspection_entries
+           WHERE date LIKE $1 AND ("facilityStatus" != '정상' OR "hygieneStatus" != '양호')`,
+          [prefix]
+        ),
+        pool.query(
+          `SELECT COUNT(DISTINCT date)::int as count FROM center_inspection_entries
+           WHERE date LIKE $1`,
+          [prefix]
+        ),
+      ]);
+      return {
+        latestByArea: latestRes.rows as Array<{
+          area: string; facilityStatus: string; hygieneStatus: string;
+          issueNote: string | null; assignee: string | null;
+          actionStatus: string | null; actionDate: string | null; date: string;
+        }>,
+        issueCount: (issueRes.rows[0] as any).count as number,
+        totalDays: (daysRes.rows[0] as any).count as number,
+      };
+    }),
 });

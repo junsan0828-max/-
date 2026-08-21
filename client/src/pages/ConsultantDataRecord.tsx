@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ClipboardList, ChevronLeft, ChevronRight, Save, Calendar, BarChart2, Megaphone, Building2, ChevronDown, FileText } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronRight, Save, Megaphone, Building2, ChevronDown, FileText } from "lucide-react";
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 function toDateStr(d: Date) { return d.toISOString().substring(0, 10); }
@@ -66,26 +66,18 @@ type ContentValues = Record<string, {
 // ── 메인 페이지 ───────────────────────────────────────────────────────────────
 export default function ConsultantDataRecordPage() {
   const now = new Date();
-  const [mode, setMode] = useState<"daily" | "weekly" | "ads" | "inspection" | "content">("daily");
+  const [mode, setMode] = useState<"ads" | "inspection" | "content">("ads");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [selectedDate, setSelectedDate] = useState(TODAY);
-  const [selectedWeek, setSelectedWeek] = useState("");
 
   const grid = getWeekdayGrid(year, month);
 
   useEffect(() => {
-    if (mode === "daily" || mode === "ads" || mode === "inspection" || mode === "content") {
-      const allDays = grid.flatMap(w => w.days).filter(Boolean) as string[];
-      if (!allDays.includes(selectedDate)) {
-        const todayInMonth = allDays.find(d => d === TODAY);
-        setSelectedDate(todayInMonth ?? allDays[allDays.length - 1] ?? TODAY);
-      }
-    }
-    if (mode === "weekly") {
-      if (!grid.find(w => w.weekKey === selectedWeek)) {
-        setSelectedWeek(grid[0]?.weekKey ?? "");
-      }
+    const allDays = grid.flatMap(w => w.days).filter(Boolean) as string[];
+    if (!allDays.includes(selectedDate)) {
+      const todayInMonth = allDays.find(d => d === TODAY);
+      setSelectedDate(todayInMonth ?? allDays[allDays.length - 1] ?? TODAY);
     }
   }, [year, month, mode]);
 
@@ -98,7 +90,7 @@ export default function ConsultantDataRecordPage() {
     else setMonth(m => m + 1);
   }
 
-  const activeDate = mode === "weekly" ? selectedWeek : selectedDate;
+  const activeDate = selectedDate;
 
   return (
     <div className="space-y-4">
@@ -109,8 +101,6 @@ export default function ConsultantDataRecordPage() {
       {/* 모드 탭 */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {([
-          { key: "daily" as const, label: "일일", icon: Calendar },
-          { key: "weekly" as const, label: "주간", icon: BarChart2 },
           { key: "ads" as const, label: "광고", icon: Megaphone },
           { key: "content" as const, label: "콘텐츠", icon: FileText },
           { key: "inspection" as const, label: "센터", icon: Building2 },
@@ -140,22 +130,11 @@ export default function ConsultantDataRecordPage() {
         </button>
       </div>
 
-      {mode === "daily" || mode === "ads" || mode === "inspection" || mode === "content" ? (
-        <DailyView
-          year={year} month={month} grid={grid}
-          selectedDate={selectedDate} onSelectDate={setSelectedDate}
-          section={mode === "ads" ? "ads" : mode === "inspection" ? "inspection" : mode === "content" ? "content" : "daily"}
-        />
-      ) : (
-        <WeeklyView
-          year={year} month={month} grid={grid}
-          selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek}
-        />
-      )}
-
-      {activeDate && mode !== "ads" && mode !== "inspection" && mode !== "content" && (
-        <EntryForm date={activeDate} section={mode} />
-      )}
+      <DailyView
+        year={year} month={month} grid={grid}
+        selectedDate={selectedDate} onSelectDate={setSelectedDate}
+        section={mode}
+      />
 
       {activeDate && mode === "ads" && (
         <AdEntryForm date={selectedDate} />
@@ -180,12 +159,8 @@ function DailyView({
   grid: ReturnType<typeof getWeekdayGrid>;
   selectedDate: string;
   onSelectDate: (d: string) => void;
-  section: "daily" | "ads" | "inspection" | "content";
+  section: "ads" | "inspection" | "content";
 }) {
-  const { data: datesWithData } = trpc.consultantData.getDatesWithData.useQuery(
-    { year, month, section: "daily" },
-    { enabled: section === "daily" }
-  );
   const { data: adDatesWithData } = trpc.consultantData.getAdDatesWithData.useQuery(
     { year, month },
     { enabled: section === "ads" }
@@ -201,8 +176,7 @@ function DailyView({
   const dateDotSet = new Set(
     section === "ads" ? (adDatesWithData ?? [])
     : section === "inspection" ? (inspectionDatesWithData ?? [])
-    : section === "content" ? (contentDatesWithData ?? [])
-    : (datesWithData ?? [])
+    : (contentDatesWithData ?? [])
   );
 
   return (
@@ -250,174 +224,6 @@ function DailyView({
 }
 
 // ── 주간 목록 ──────────────────────────────────────────────────────────────────
-function WeeklyView({
-  year, month, grid, selectedWeek, onSelectWeek
-}: {
-  year: number; month: number;
-  grid: ReturnType<typeof getWeekdayGrid>;
-  selectedWeek: string;
-  onSelectWeek: (w: string) => void;
-}) {
-  const { data: weeksWithData } = trpc.consultantData.getDatesWithData.useQuery(
-    { year, month, section: "weekly" }
-  );
-  const weekDotSet = new Set(weeksWithData ?? []);
-
-  return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden divide-y divide-border">
-      {grid.map((week) => {
-        const isSelected = week.weekKey === selectedWeek;
-        const hasDot = weekDotSet.has(week.weekKey);
-        return (
-          <button
-            key={week.weekKey}
-            onClick={() => onSelectWeek(week.weekKey)}
-            className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors ${
-              isSelected ? "bg-primary/15 text-primary" : "hover:bg-accent text-foreground"
-            }`}
-          >
-            <span className="font-medium">{week.weekLabel}</span>
-            {hasDot && !isSelected && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-            )}
-            {isSelected && (
-              <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full shrink-0">선택됨</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── 항목 입력 폼 ───────────────────────────────────────────────────────────────
-function EntryForm({ date, section }: { date: string; section: "daily" | "weekly" }) {
-  const utils = trpc.useUtils();
-  const { data: fields, isLoading: fieldsLoading } = trpc.consultantData.listFields.useQuery({ section });
-  const { data: existing, isLoading: entriesLoading } = trpc.consultantData.getEntries.useQuery({ date, section });
-
-  const [values, setValues] = useState<Record<number, string>>({});
-  const [dirty, setDirty] = useState(false);
-
-  useEffect(() => {
-    if (existing) {
-      const map: Record<number, string> = {};
-      for (const e of existing) map[e.fieldId] = e.value;
-      setValues(map);
-    } else {
-      setValues({});
-    }
-    setDirty(false);
-  }, [existing, date]);
-
-  const saveMutation = trpc.consultantData.saveEntries.useMutation({
-    onSuccess: () => {
-      toast.success("저장됐습니다");
-      setDirty(false);
-      utils.consultantData.invalidate();
-    },
-    onError: () => toast.error("저장 실패"),
-  });
-
-  function setValue(fieldId: number, val: string) {
-    setValues(v => ({ ...v, [fieldId]: val }));
-    setDirty(true);
-  }
-
-  function increment(fieldId: number) {
-    const cur = parseInt(values[fieldId] ?? "0") || 0;
-    setValue(fieldId, String(cur + 1));
-  }
-  function decrement(fieldId: number) {
-    const cur = parseInt(values[fieldId] ?? "0") || 0;
-    if (cur > 0) setValue(fieldId, String(cur - 1));
-  }
-
-  function handleSave() {
-    if (!fields?.length) return;
-    const entries = fields.map(f => ({
-      fieldId: f.id,
-      value: values[f.id] ?? "0",
-    }));
-    saveMutation.mutate({ date, entries });
-  }
-
-  if (fieldsLoading || entriesLoading) {
-    return <div className="text-center text-muted-foreground py-8 text-sm">불러오는 중...</div>;
-  }
-
-  if (!fields?.length) {
-    return (
-      <div className="bg-card border border-border rounded-xl p-6 text-center">
-        <p className="text-sm text-muted-foreground">등록된 항목이 없습니다</p>
-        <p className="text-xs text-muted-foreground mt-1">관리자에게 데이터 항목 추가를 요청하세요</p>
-      </div>
-    );
-  }
-
-  const dateLabel = section === "daily"
-    ? (() => {
-        const d = new Date(date + "T00:00:00");
-        return `${d.getMonth() + 1}월 ${d.getDate()}일`;
-      })()
-    : (() => {
-        const parts = date.split("-");
-        return `${parseInt(parts[1])}월 ${parts[2]}`;
-      })();
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-foreground">{dateLabel} 데이터</p>
-        {dirty && (
-          <button
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {saveMutation.isPending ? "저장 중..." : "저장"}
-          </button>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        {fields.map(f => {
-          const val = parseInt(values[f.id] ?? "0") || 0;
-          return (
-            <div key={f.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3">
-              <p className="text-sm text-foreground flex-1 min-w-0 truncate pr-3">{f.name}</p>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => decrement(f.id)}
-                  className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
-                >−</button>
-                <span className="w-16 text-center text-sm font-semibold tabular-nums">
-                  {val.toLocaleString()}
-                  <span className="text-xs text-muted-foreground ml-0.5">{f.unit}</span>
-                </span>
-                <button
-                  onClick={() => increment(f.id)}
-                  className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
-                >+</button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <button
-        onClick={handleSave}
-        disabled={saveMutation.isPending || !dirty}
-        className="w-full py-3 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        <Save className="h-4 w-4 inline mr-1.5" />
-        {saveMutation.isPending ? "저장 중..." : dirty ? "저장하기" : "저장됨"}
-      </button>
-    </div>
-  );
-}
-
 // ── 광고 데이터 입력 폼 ────────────────────────────────────────────────────────
 function AdEntryForm({ date }: { date: string }) {
   const utils = trpc.useUtils();

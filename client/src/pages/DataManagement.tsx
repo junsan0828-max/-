@@ -417,6 +417,8 @@ function MarketingTab() {
   const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year, month });
   const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
+  const { data: adSummary } = trpc.consultantData.getAdMonthlySummary.useQuery({ year, month });
+  const { data: contentSummary } = trpc.consultantData.getContentMonthlySummary.useQuery({ year, month });
 
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
@@ -737,6 +739,81 @@ function MarketingTab() {
               </div>
             );
           })()}
+
+          {/* 광고 채널 성과 (데이터 기록) */}
+          {adSummary && adSummary.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Target className="h-4 w-4 text-blue-400" /> 광고 채널 성과
+                <span className="text-xs text-muted-foreground font-normal">(데이터 기록)</span>
+              </h3>
+              <div className="space-y-2">
+                {adSummary.map((ad: any) => {
+                  const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : "0";
+                  return (
+                    <div key={ad.channel} className="bg-card border border-border rounded-xl p-3">
+                      <p className="text-xs font-medium text-foreground mb-2">{ad.channel}</p>
+                      <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                        <div>
+                          <div className="font-semibold text-foreground">{ad.impressions.toLocaleString()}</div>
+                          <div className="text-muted-foreground">노출</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-blue-400">{ad.clicks.toLocaleString()}</div>
+                          <div className="text-muted-foreground">클릭</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-emerald-400">{ad.visits}</div>
+                          <div className="text-muted-foreground">유입</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-amber-400">{ad.inquiries}</div>
+                          <div className="text-muted-foreground">문의</div>
+                        </div>
+                      </div>
+                      {ad.impressions > 0 && (
+                        <div className="mt-2 text-[11px] text-muted-foreground text-right">CTR {ctr}%</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 콘텐츠 제작 현황 (데이터 기록) */}
+          {contentSummary && contentSummary.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Megaphone className="h-4 w-4 text-pink-400" /> 콘텐츠 제작 현황
+                <span className="text-xs text-muted-foreground font-normal">(데이터 기록)</span>
+              </h3>
+              <div className="grid grid-cols-1 gap-2">
+                {contentSummary.map((c: any) => (
+                  <div key={c.platform} className="bg-card border border-border rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-foreground">{c.platform}</span>
+                      <span className="text-[11px] text-muted-foreground">{c.totalDays}일 기록</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div>
+                        <div className="font-semibold text-foreground">{c.totalPublished ?? 0}</div>
+                        <div className="text-muted-foreground">발행 수</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-emerald-400">{c.publishedDays}</div>
+                        <div className="text-muted-foreground">발행일</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-blue-400">{c.completedDays}</div>
+                        <div className="text-muted-foreground">완료일</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -1009,6 +1086,7 @@ function OperationsTab() {
   const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
+  const { data: inspectionSummary } = trpc.consultantData.getInspectionMonthlySummary.useQuery({ year: selYear, month: selMonth });
 
   const allLockers = (lockers ?? []) as any[];
   const occupied = allLockers.filter(l => l.isOccupied === 1);
@@ -1410,6 +1488,53 @@ function OperationsTab() {
           </div>
         )}
       </div>
+
+      {/* 센터 점검 현황 (데이터 기록) */}
+      {inspectionSummary && inspectionSummary.latestByArea.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <Building2 className="h-4 w-4 text-emerald-400" /> 센터 점검 현황
+            <span className="text-xs text-muted-foreground font-normal">({inspectionSummary.totalDays}일 점검)</span>
+          </h3>
+          {inspectionSummary.issueCount > 0 && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-2 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+              <span className="text-xs text-red-400">이상 항목 {inspectionSummary.issueCount}건 발견</span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {inspectionSummary.latestByArea.map((item: any) => {
+              const facilityOk = item.facilityStatus === "정상";
+              const hygieneOk = item.hygieneStatus === "양호";
+              const hasIssue = !facilityOk || !hygieneOk;
+              return (
+                <div key={item.area} className={`bg-card border rounded-xl px-3 py-2.5 ${hasIssue ? "border-red-500/30" : "border-border"}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-foreground">{item.area}</span>
+                    <span className="text-[11px] text-muted-foreground">{item.date}</span>
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <span className={facilityOk ? "text-emerald-400" : "text-red-400"}>
+                      시설: {item.facilityStatus}
+                    </span>
+                    <span className={hygieneOk ? "text-emerald-400" : "text-amber-400"}>
+                      위생: {item.hygieneStatus}
+                    </span>
+                    {item.actionStatus && (
+                      <span className="text-muted-foreground">
+                        조치: {item.actionStatus}
+                      </span>
+                    )}
+                  </div>
+                  {item.issueNote && (
+                    <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{item.issueNote}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 해지 현황 */}
       {consultantData && consultantData.length > 0 && (() => {
