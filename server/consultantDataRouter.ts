@@ -408,61 +408,58 @@ export const consultantDataRouter = t.router({
       return result.rows.map((r: any) => r.date as string);
     }),
 
-  // ── 광고 데이터: 월별 요약 ──────────────────────────────────────────────
-  getAdMonthlySummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+  // ── 광고 데이터: 기간별 요약 ──────────────────────────────────────────────
+  getAdSummary: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
     .query(async ({ input }) => {
       await ensureTables();
-      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}%`;
       const result = await pool.query(
         `SELECT channel, SUM(impressions)::int as impressions, SUM(clicks)::int as clicks, SUM(visits)::int as visits, SUM(inquiries)::int as inquiries
          FROM ad_data_entries
-         WHERE date LIKE $1
+         WHERE date >= $1 AND date <= $2
          GROUP BY channel ORDER BY channel`,
-        [prefix]
+        [input.startDate, input.endDate]
       );
       return result.rows as Array<{ channel: string; impressions: number; clicks: number; visits: number; inquiries: number }>;
     }),
 
-  // ── 콘텐츠: 월별 요약 ──────────────────────────────────────────────────
-  getContentMonthlySummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+  // ── 콘텐츠: 기간별 요약 ──────────────────────────────────────────────────
+  getContentSummary: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
     .query(async ({ input }) => {
       await ensureTables();
-      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}%`;
       const result = await pool.query(
         `SELECT platform, COUNT(*) FILTER (WHERE published = true)::int as "publishedDays", SUM("publishCount")::int as "totalPublished", COUNT(*) FILTER (WHERE completed = true)::int as "completedDays", COUNT(*)::int as "totalDays"
          FROM content_entries
-         WHERE date LIKE $1
+         WHERE date >= $1 AND date <= $2
          GROUP BY platform ORDER BY platform`,
-        [prefix]
+        [input.startDate, input.endDate]
       );
       return result.rows as Array<{ platform: string; publishedDays: number; totalPublished: number; completedDays: number; totalDays: number }>;
     }),
 
-  // ── 센터 점검: 월별 요약 ──────────────────────────────────────────────────
-  getInspectionMonthlySummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+  // ── 센터 점검: 기간별 요약 ──────────────────────────────────────────────────
+  getInspectionSummary: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
     .query(async ({ input }) => {
       await ensureTables();
-      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}%`;
       const [latestRes, issueRes, daysRes] = await Promise.all([
         pool.query(
           `SELECT DISTINCT ON (area) area, "facilityStatus", "hygieneStatus", "issueNote", assignee, "actionStatus", "actionDate", date
            FROM center_inspection_entries
-           WHERE date LIKE $1
+           WHERE date >= $1 AND date <= $2
            ORDER BY area, date DESC`,
-          [prefix]
+          [input.startDate, input.endDate]
         ),
         pool.query(
           `SELECT COUNT(*)::int as count FROM center_inspection_entries
-           WHERE date LIKE $1 AND ("facilityStatus" != '정상' OR "hygieneStatus" != '양호')`,
-          [prefix]
+           WHERE date >= $1 AND date <= $2 AND ("facilityStatus" != '정상' OR "hygieneStatus" != '양호')`,
+          [input.startDate, input.endDate]
         ),
         pool.query(
           `SELECT COUNT(DISTINCT date)::int as count FROM center_inspection_entries
-           WHERE date LIKE $1`,
-          [prefix]
+           WHERE date >= $1 AND date <= $2`,
+          [input.startDate, input.endDate]
         ),
       ]);
       return {

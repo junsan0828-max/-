@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
   Database, TrendingUp, Users, Megaphone, Building2,
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
   Dumbbell, Lock, Shirt, UserCog, Activity, Target,
-  DollarSign, Percent, X,
+  DollarSign, Percent, X, CalendarDays,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
 
@@ -16,6 +16,128 @@ function fmtWon(v: number) {
   if (v >= 10000000) return `${(v / 10000000).toFixed(1)}천만`;
   if (v >= 10000) return `${Math.round(v / 10000)}만`;
   return v.toLocaleString();
+}
+
+type PeriodMode = "daily" | "weekly" | "monthly";
+
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getWeekRange(dateStr: string): { start: string; end: string } {
+  const d = new Date(dateStr + "T00:00:00");
+  const day = d.getDay();
+  const diffToMon = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diffToMon);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return { start: toDateStr(mon), end: toDateStr(sun) };
+}
+
+function getMonthRange(year: number, month: number): { start: string; end: string } {
+  const last = new Date(year, month, 0).getDate();
+  return {
+    start: `${year}-${String(month).padStart(2, "0")}-01`,
+    end: `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`,
+  };
+}
+
+function usePeriod() {
+  const kstNow = new Date(Date.now() + 9 * 3600000);
+  const todayStr = toDateStr(kstNow);
+  const [mode, setMode] = useState<PeriodMode>("monthly");
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [year, setYear] = useState(kstNow.getUTCFullYear());
+  const [month, setMonth] = useState(kstNow.getUTCMonth() + 1);
+
+  const range = useMemo(() => {
+    if (mode === "daily") return { start: selectedDate, end: selectedDate };
+    if (mode === "weekly") return getWeekRange(selectedDate);
+    return getMonthRange(year, month);
+  }, [mode, selectedDate, year, month]);
+
+  function navPrev() {
+    if (mode === "daily") {
+      const d = new Date(selectedDate + "T00:00:00");
+      d.setDate(d.getDate() - 1);
+      setSelectedDate(toDateStr(d));
+    } else if (mode === "weekly") {
+      const d = new Date(selectedDate + "T00:00:00");
+      d.setDate(d.getDate() - 7);
+      setSelectedDate(toDateStr(d));
+    } else {
+      if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1);
+    }
+  }
+  function navNext() {
+    if (mode === "daily") {
+      const d = new Date(selectedDate + "T00:00:00");
+      d.setDate(d.getDate() + 1);
+      if (toDateStr(d) <= todayStr) setSelectedDate(toDateStr(d));
+    } else if (mode === "weekly") {
+      const d = new Date(selectedDate + "T00:00:00");
+      d.setDate(d.getDate() + 7);
+      const wr = getWeekRange(toDateStr(d));
+      if (wr.start <= todayStr) setSelectedDate(toDateStr(d));
+    } else {
+      const cur = `${year}-${String(month).padStart(2, "0")}`;
+      const now = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}`;
+      if (cur < now) {
+        if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1);
+      }
+    }
+  }
+
+  const label = useMemo(() => {
+    if (mode === "daily") {
+      const d = new Date(selectedDate + "T00:00:00");
+      const dow = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+      return `${d.getMonth() + 1}월 ${d.getDate()}일 (${dow})`;
+    }
+    if (mode === "weekly") {
+      const wr = getWeekRange(selectedDate);
+      const s = new Date(wr.start + "T00:00:00");
+      const e = new Date(wr.end + "T00:00:00");
+      return `${s.getMonth() + 1}/${s.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}`;
+    }
+    return `${year}년 ${month}월`;
+  }, [mode, selectedDate, year, month]);
+
+  return { mode, setMode, year, month, selectedDate, range, label, navPrev, navNext };
+}
+
+function PeriodSelector({ mode, setMode, label, navPrev, navNext }: {
+  mode: PeriodMode; setMode: (m: PeriodMode) => void;
+  label: string; navPrev: () => void; navNext: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
+        {([
+          { key: "daily" as const, label: "일일" },
+          { key: "weekly" as const, label: "주간" },
+          { key: "monthly" as const, label: "월간" },
+        ]).map(({ key, label: l }) => (
+          <button key={key} onClick={() => setMode(key)}
+            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${mode === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-2.5">
+        <button onClick={navPrev} className="p-1 text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <span className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+          <CalendarDays className="h-4 w-4 text-muted-foreground" />{label}
+        </span>
+        <button onClick={navNext} className="p-1 text-muted-foreground hover:text-foreground">
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── 재무 탭 ──────────────────────────────────────────────────────────────────
@@ -402,10 +524,9 @@ const CHANNEL_TYPE_LABELS: Record<string, string> = {
 };
 
 function MarketingTab() {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [tab, setTab] = useState<"month" | "annual">("month");
+  const period = usePeriod();
+  const { mode, year, month, range } = period;
+  const [showAnnual, setShowAnnual] = useState(false);
 
   const { data: pageStats } = trpc.landing.getPageStats.useQuery();
   const { data: pageStatsMonth } = trpc.landing.getPageStatsByPeriod.useQuery({ year, month });
@@ -417,11 +538,8 @@ function MarketingTab() {
   const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year, month });
   const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
-  const { data: adSummary } = trpc.consultantData.getAdMonthlySummary.useQuery({ year, month });
-  const { data: contentSummary } = trpc.consultantData.getContentMonthlySummary.useQuery({ year, month });
-
-  function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
-  function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
+  const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery({ startDate: range.start, endDate: range.end });
+  const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery({ startDate: range.start, endDate: range.end });
 
   const channelData = (channels ?? []).map((ch, i) => {
     const leadStat = monthStats?.byChannel[ch.id];
@@ -490,27 +608,85 @@ function MarketingTab() {
         )}
       </div>
 
-      {/* 월별 / 연간 탭 */}
-      <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
-        <button onClick={() => setTab("month")}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
-          월별 통계
-        </button>
-        <button onClick={() => setTab("annual")}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "annual" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
-          연간 누적
-        </button>
-      </div>
+      {/* 기간 선택 */}
+      <PeriodSelector {...period} />
 
-      {/* ── 월별 ── */}
-      {tab === "month" && (
-        <>
-          <div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-2.5">
-            <button onClick={prevMonth} className="p-1 text-muted-foreground hover:text-foreground"><ChevronLeft className="w-5 h-5" /></button>
-            <span className="font-semibold text-foreground">{year}년 {month}월</span>
-            <button onClick={nextMonth} className="p-1 text-muted-foreground hover:text-foreground"><ChevronRight className="w-5 h-5" /></button>
+      {/* 광고 채널 성과 (데이터 기록) */}
+      {adSummary && adSummary.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <Target className="h-4 w-4 text-blue-400" /> 광고 채널 성과
+          </h3>
+          <div className="space-y-2">
+            {adSummary.map((ad: any) => {
+              const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : "0";
+              return (
+                <div key={ad.channel} className="bg-card border border-border rounded-xl p-3">
+                  <p className="text-xs font-medium text-foreground mb-2">{ad.channel}</p>
+                  <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                    <div>
+                      <div className="font-semibold text-foreground">{ad.impressions.toLocaleString()}</div>
+                      <div className="text-muted-foreground">노출</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-blue-400">{ad.clicks.toLocaleString()}</div>
+                      <div className="text-muted-foreground">클릭</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-emerald-400">{ad.visits}</div>
+                      <div className="text-muted-foreground">유입</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-amber-400">{ad.inquiries}</div>
+                      <div className="text-muted-foreground">문의</div>
+                    </div>
+                  </div>
+                  {ad.impressions > 0 && (
+                    <div className="mt-2 text-[11px] text-muted-foreground text-right">CTR {ctr}%</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+        </div>
+      )}
 
+      {/* 콘텐츠 제작 현황 (데이터 기록) */}
+      {contentSummary && contentSummary.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <Megaphone className="h-4 w-4 text-pink-400" /> 콘텐츠 제작 현황
+          </h3>
+          <div className="grid grid-cols-1 gap-2">
+            {contentSummary.map((c: any) => (
+              <div key={c.platform} className="bg-card border border-border rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-foreground">{c.platform}</span>
+                  <span className="text-[11px] text-muted-foreground">{c.totalDays}일 기록</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div>
+                    <div className="font-semibold text-foreground">{c.totalPublished ?? 0}</div>
+                    <div className="text-muted-foreground">발행 수</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-emerald-400">{c.publishedDays}</div>
+                    <div className="text-muted-foreground">발행일</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-blue-400">{c.completedDays}</div>
+                    <div className="text-muted-foreground">완료일</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 월간 기준 데이터 ── */}
+      {mode === "monthly" && (
+        <>
           {/* 요약 카드 */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-card border border-border rounded-xl p-3 text-center">
@@ -740,91 +916,18 @@ function MarketingTab() {
             );
           })()}
 
-          {/* 광고 채널 성과 (데이터 기록) */}
-          {adSummary && adSummary.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <Target className="h-4 w-4 text-blue-400" /> 광고 채널 성과
-                <span className="text-xs text-muted-foreground font-normal">(데이터 기록)</span>
-              </h3>
-              <div className="space-y-2">
-                {adSummary.map((ad: any) => {
-                  const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : "0";
-                  return (
-                    <div key={ad.channel} className="bg-card border border-border rounded-xl p-3">
-                      <p className="text-xs font-medium text-foreground mb-2">{ad.channel}</p>
-                      <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                        <div>
-                          <div className="font-semibold text-foreground">{ad.impressions.toLocaleString()}</div>
-                          <div className="text-muted-foreground">노출</div>
-                        </div>
-                        <div>
-                          <div className="font-semibold text-blue-400">{ad.clicks.toLocaleString()}</div>
-                          <div className="text-muted-foreground">클릭</div>
-                        </div>
-                        <div>
-                          <div className="font-semibold text-emerald-400">{ad.visits}</div>
-                          <div className="text-muted-foreground">유입</div>
-                        </div>
-                        <div>
-                          <div className="font-semibold text-amber-400">{ad.inquiries}</div>
-                          <div className="text-muted-foreground">문의</div>
-                        </div>
-                      </div>
-                      {ad.impressions > 0 && (
-                        <div className="mt-2 text-[11px] text-muted-foreground text-right">CTR {ctr}%</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 콘텐츠 제작 현황 (데이터 기록) */}
-          {contentSummary && contentSummary.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <Megaphone className="h-4 w-4 text-pink-400" /> 콘텐츠 제작 현황
-                <span className="text-xs text-muted-foreground font-normal">(데이터 기록)</span>
-              </h3>
-              <div className="grid grid-cols-1 gap-2">
-                {contentSummary.map((c: any) => (
-                  <div key={c.platform} className="bg-card border border-border rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-foreground">{c.platform}</span>
-                      <span className="text-[11px] text-muted-foreground">{c.totalDays}일 기록</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div>
-                        <div className="font-semibold text-foreground">{c.totalPublished ?? 0}</div>
-                        <div className="text-muted-foreground">발행 수</div>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-emerald-400">{c.publishedDays}</div>
-                        <div className="text-muted-foreground">발행일</div>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-blue-400">{c.completedDays}</div>
-                        <div className="text-muted-foreground">완료일</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
 
       {/* ── 연간 누적 ── */}
-      {tab === "annual" && (
+      {mode === "monthly" && (
+        <button onClick={() => setShowAnnual(v => !v)}
+          className="w-full py-2.5 text-xs font-medium text-muted-foreground bg-card border border-border rounded-xl hover:text-foreground transition-colors">
+          {showAnnual ? "연간 누적 접기 ▲" : "연간 누적 보기 ▼"}
+        </button>
+      )}
+      {mode === "monthly" && showAnnual && (
         <>
-          <div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-2.5">
-            <button onClick={() => setYear(y => y - 1)} className="p-1 text-muted-foreground hover:text-foreground"><ChevronLeft className="w-5 h-5" /></button>
-            <span className="font-semibold text-foreground">{year}년 연간 통계</span>
-            <button onClick={() => setYear(y => y + 1)} className="p-1 text-muted-foreground hover:text-foreground"><ChevronRight className="w-5 h-5" /></button>
-          </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-card border border-border rounded-xl p-3 text-center">
@@ -1064,15 +1167,10 @@ function MarketingTab() {
 
 // ── 센터 운영 탭 ──────────────────────────────────────────────────────────────
 function OperationsTab() {
-  const now = new Date();
-  const kstNow = new Date(now.getTime() + 9 * 3600000);
-  const [selYear, setSelYear] = useState(kstNow.getUTCFullYear());
-  const [selMonth, setSelMonth] = useState(kstNow.getUTCMonth() + 1);
+  const period = usePeriod();
+  const { mode, year: selYear, month: selMonth, range } = period;
   const [branchFilter, setBranchFilter] = useState<number | undefined>(undefined);
   const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
-  const isCurrentMonth = selPrefix === `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}`;
-  const goPrev = () => { if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); } else setSelMonth(m => m - 1); };
-  const goNext = () => { if (isCurrentMonth) return; if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); } else setSelMonth(m => m + 1); };
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: dashboard, isLoading: dashLoading } = trpc.access.getOpsVisitDashboard.useQuery(
     { ...(branchFilter ? { branchId: branchFilter } : {}), month: selPrefix }
@@ -1086,7 +1184,7 @@ function OperationsTab() {
   const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
-  const { data: inspectionSummary } = trpc.consultantData.getInspectionMonthlySummary.useQuery({ year: selYear, month: selMonth });
+  const { data: inspectionSummary } = trpc.consultantData.getInspectionSummary.useQuery({ startDate: range.start, endDate: range.end });
 
   const allLockers = (lockers ?? []) as any[];
   const occupied = allLockers.filter(l => l.isOccupied === 1);
@@ -1097,22 +1195,39 @@ function OperationsTab() {
   }
 
   const {
-    dailyVisits, prevMonthTotal, hourlyVisits, dailyHourly, dowVisits,
+    dailyVisits: allDailyVisits, prevMonthTotal, hourlyVisits: allHourlyVisits, dailyHourly: allDailyHourly, dowVisits: allDowVisits,
     activeCount, visited7, visited14, visited30, memberFrequency,
     currentMonth, today,
   } = dashboard;
+
+  const dailyVisits = mode === "monthly" ? allDailyVisits
+    : allDailyVisits.filter((d: any) => d.day >= range.start && d.day <= range.end);
+  const dailyHourly = mode === "monthly" ? allDailyHourly
+    : allDailyHourly.filter((d: any) => d.day >= range.start && d.day <= range.end);
+  const dowVisits = mode === "monthly" ? allDowVisits
+    : (() => {
+      const filtered = allDailyVisits.filter((d: any) => d.day >= range.start && d.day <= range.end);
+      const byDow: Record<number, number> = {};
+      filtered.forEach((d: any) => {
+        const dt = new Date(d.day + "T00:00:00");
+        const jsDay = dt.getDay();
+        const isodow = jsDay === 0 ? 7 : jsDay;
+        byDow[isodow] = (byDow[isodow] ?? 0) + d.count;
+      });
+      return Object.entries(byDow).map(([dow, count]) => ({ dow: Number(dow), count }));
+    })();
 
   const totalVisits = dailyVisits.reduce((s: number, d: any) => s + d.count, 0);
   const [cy, cm] = currentMonth.split("-").map(Number);
   const daysInMonth = new Date(cy, cm, 0).getDate();
   const todayDate = parseInt(today.substring(8, 10), 10);
-  const elapsedDays = Math.min(todayDate, daysInMonth);
-  const avgDaily = elapsedDays > 0 ? Math.round(totalVisits / elapsedDays) : 0;
-  const prevMonth = cm === 1 ? 12 : cm - 1;
+  const periodDays = mode === "daily" ? 1 : mode === "weekly" ? dailyVisits.length || 1 : Math.min(todayDate, daysInMonth);
+  const avgDaily = periodDays > 0 ? Math.round(totalVisits / periodDays) : 0;
+  const prevMonthNum = cm === 1 ? 12 : cm - 1;
   const prevYear = cm === 1 ? cy - 1 : cy;
-  const prevDaysInMonth = new Date(prevYear, prevMonth, 0).getDate();
+  const prevDaysInMonth = new Date(prevYear, prevMonthNum, 0).getDate();
   const prevAvgDaily = prevDaysInMonth > 0 ? prevMonthTotal / prevDaysInMonth : 0;
-  const changeRate = prevAvgDaily > 0 ? Math.round((avgDaily - prevAvgDaily) / prevAvgDaily * 100) : null;
+  const changeRate = mode === "monthly" && prevAvgDaily > 0 ? Math.round((avgDaily - prevAvgDaily) / prevAvgDaily * 100) : null;
 
   const TIME_BLOCKS = [
     { label: "08~10", hours: [8, 9] },
@@ -1141,9 +1256,10 @@ function OperationsTab() {
 
   const DOW_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
   const dowOccurrences: Record<number, number> = {};
-  for (let d = 1; d <= elapsedDays; d++) {
-    const dt = new Date(cy, cm - 1, d);
-    const jsDay = dt.getDay();
+  const loopStart = mode === "monthly" ? `${cy}-${String(cm).padStart(2, "0")}-01` : range.start;
+  const loopEnd = mode === "monthly" ? `${cy}-${String(cm).padStart(2, "0")}-${String(Math.min(todayDate, daysInMonth)).padStart(2, "0")}` : range.end;
+  for (let cur = new Date(loopStart + "T00:00:00"); toDateStr(cur) <= loopEnd; cur.setDate(cur.getDate() + 1)) {
+    const jsDay = cur.getDay();
     const isodow = jsDay === 0 ? 7 : jsDay;
     dowOccurrences[isodow] = (dowOccurrences[isodow] ?? 0) + 1;
   }
@@ -1201,41 +1317,74 @@ function OperationsTab() {
         </div>
       )}
 
-      {/* 월 선택 */}
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{selYear}년 {selMonth}월</span>
-        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
+      {/* 기간 선택 */}
+      <PeriodSelector {...period} />
+
+      {/* 센터 점검 현황 */}
+      {inspectionSummary && inspectionSummary.latestByArea.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <Building2 className="h-4 w-4 text-emerald-400" /> 센터 점검 현황
+            <span className="text-xs text-muted-foreground font-normal">({inspectionSummary.totalDays}일 점검)</span>
+          </h3>
+          {inspectionSummary.issueCount > 0 && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-2 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+              <span className="text-xs text-red-400">이상 항목 {inspectionSummary.issueCount}건 발견</span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {inspectionSummary.latestByArea.map((item: any) => {
+              const facilityOk = item.facilityStatus === "정상";
+              const hygieneOk = item.hygieneStatus === "양호";
+              const hasIssue = !facilityOk || !hygieneOk;
+              return (
+                <div key={item.area} className={`bg-card border rounded-xl px-3 py-2.5 ${hasIssue ? "border-red-500/30" : "border-border"}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-foreground">{item.area}</span>
+                    <span className="text-[11px] text-muted-foreground">{item.date}</span>
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <span className={facilityOk ? "text-emerald-400" : "text-red-400"}>시설: {item.facilityStatus}</span>
+                    <span className={hygieneOk ? "text-emerald-400" : "text-amber-400"}>위생: {item.hygieneStatus}</span>
+                    {item.actionStatus && <span className="text-muted-foreground">조치: {item.actionStatus}</span>}
+                  </div>
+                  {item.issueNote && <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{item.issueNote}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 1. 센터 방문 요약 */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
           <Activity className="h-4 w-4 text-amber-400" /> 센터 방문 요약
         </h3>
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className={`grid ${mode === "daily" ? "grid-cols-1" : "grid-cols-3"} gap-2 mb-3`}>
           <div className="bg-card border border-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-muted-foreground">월 총 방문</p>
+            <p className="text-[10px] text-muted-foreground">{mode === "daily" ? "당일 방문" : mode === "weekly" ? "주간 방문" : "월 총 방문"}</p>
             <p className="text-lg font-bold text-amber-400">{totalVisits.toLocaleString()}회</p>
           </div>
-          <div className="bg-card border border-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-muted-foreground">일 평균</p>
-            <p className="text-lg font-bold text-foreground">{avgDaily}회</p>
-          </div>
-          <div className="bg-card border border-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-muted-foreground">전월 대비</p>
-            {changeRate !== null ? (
-              <p className={`text-lg font-bold ${changeRate >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {changeRate >= 0 ? "+" : ""}{changeRate}%
-              </p>
-            ) : (
-              <p className="text-lg font-bold text-muted-foreground">-</p>
-            )}
-          </div>
+          {mode !== "daily" && (
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <p className="text-[10px] text-muted-foreground">일 평균</p>
+              <p className="text-lg font-bold text-foreground">{avgDaily}회</p>
+            </div>
+          )}
+          {mode === "monthly" && (
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <p className="text-[10px] text-muted-foreground">전월 대비</p>
+              {changeRate !== null ? (
+                <p className={`text-lg font-bold ${changeRate >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {changeRate >= 0 ? "+" : ""}{changeRate}%
+                </p>
+              ) : (
+                <p className="text-lg font-bold text-muted-foreground">-</p>
+              )}
+            </div>
+          )}
         </div>
         {dailyVisits.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-4">
@@ -1488,53 +1637,6 @@ function OperationsTab() {
           </div>
         )}
       </div>
-
-      {/* 센터 점검 현황 (데이터 기록) */}
-      {inspectionSummary && inspectionSummary.latestByArea.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-            <Building2 className="h-4 w-4 text-emerald-400" /> 센터 점검 현황
-            <span className="text-xs text-muted-foreground font-normal">({inspectionSummary.totalDays}일 점검)</span>
-          </h3>
-          {inspectionSummary.issueCount > 0 && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-2 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
-              <span className="text-xs text-red-400">이상 항목 {inspectionSummary.issueCount}건 발견</span>
-            </div>
-          )}
-          <div className="space-y-1.5">
-            {inspectionSummary.latestByArea.map((item: any) => {
-              const facilityOk = item.facilityStatus === "정상";
-              const hygieneOk = item.hygieneStatus === "양호";
-              const hasIssue = !facilityOk || !hygieneOk;
-              return (
-                <div key={item.area} className={`bg-card border rounded-xl px-3 py-2.5 ${hasIssue ? "border-red-500/30" : "border-border"}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-foreground">{item.area}</span>
-                    <span className="text-[11px] text-muted-foreground">{item.date}</span>
-                  </div>
-                  <div className="flex gap-3 text-xs">
-                    <span className={facilityOk ? "text-emerald-400" : "text-red-400"}>
-                      시설: {item.facilityStatus}
-                    </span>
-                    <span className={hygieneOk ? "text-emerald-400" : "text-amber-400"}>
-                      위생: {item.hygieneStatus}
-                    </span>
-                    {item.actionStatus && (
-                      <span className="text-muted-foreground">
-                        조치: {item.actionStatus}
-                      </span>
-                    )}
-                  </div>
-                  {item.issueNote && (
-                    <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{item.issueNote}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* 해지 현황 */}
       {consultantData && consultantData.length > 0 && (() => {
