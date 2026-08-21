@@ -1167,10 +1167,16 @@ function MarketingTab() {
 
 // ── 센터 운영 탭 ──────────────────────────────────────────────────────────────
 function OperationsTab() {
-  const period = usePeriod();
-  const { mode, year: selYear, month: selMonth, range } = period;
+  const now = new Date();
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | undefined>(undefined);
   const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
+  const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth() + 1;
+  const goPrev = () => { if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); } else setSelMonth(m => m - 1); };
+  const goNext = () => { if (!isCurrentMonth) { if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); } else setSelMonth(m => m + 1); } };
+  const monthStart = `${selPrefix}-01`;
+  const monthEnd = `${selPrefix}-${String(new Date(selYear, selMonth, 0).getDate()).padStart(2, "0")}`;
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: dashboard, isLoading: dashLoading } = trpc.access.getOpsVisitDashboard.useQuery(
     { ...(branchFilter ? { branchId: branchFilter } : {}), month: selPrefix }
@@ -1184,10 +1190,10 @@ function OperationsTab() {
   const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
-  const { data: inspectionSummary } = trpc.consultantData.getInspectionSummary.useQuery({ startDate: range.start, endDate: range.end });
-  const { data: inspectionPending } = trpc.consultantData.getInspectionPending.useQuery({ startDate: range.start, endDate: range.end });
-  const { data: inspectionTrend } = trpc.consultantData.getInspectionTrend.useQuery({ startDate: range.start, endDate: range.end });
-  const { data: inspectionAreaStats } = trpc.consultantData.getInspectionAreaStats.useQuery({ startDate: range.start, endDate: range.end });
+  const { data: inspectionSummary } = trpc.consultantData.getInspectionSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
+  const { data: inspectionPending } = trpc.consultantData.getInspectionPending.useQuery({ startDate: monthStart, endDate: monthEnd });
+  const { data: inspectionTrend } = trpc.consultantData.getInspectionTrend.useQuery({ startDate: monthStart, endDate: monthEnd });
+  const { data: inspectionAreaStats } = trpc.consultantData.getInspectionAreaStats.useQuery({ startDate: monthStart, endDate: monthEnd });
 
   const allLockers = (lockers ?? []) as any[];
   const occupied = allLockers.filter(l => l.isOccupied === 1);
@@ -1198,39 +1204,22 @@ function OperationsTab() {
   }
 
   const {
-    dailyVisits: allDailyVisits, prevMonthTotal, hourlyVisits: allHourlyVisits, dailyHourly: allDailyHourly, dowVisits: allDowVisits,
+    dailyVisits, prevMonthTotal, hourlyVisits: allHourlyVisits, dailyHourly, dowVisits,
     activeCount, visited7, visited14, visited30, memberFrequency,
     currentMonth, today,
   } = dashboard;
-
-  const dailyVisits = mode === "monthly" ? allDailyVisits
-    : allDailyVisits.filter((d: any) => d.day >= range.start && d.day <= range.end);
-  const dailyHourly = mode === "monthly" ? allDailyHourly
-    : allDailyHourly.filter((d: any) => d.day >= range.start && d.day <= range.end);
-  const dowVisits = mode === "monthly" ? allDowVisits
-    : (() => {
-      const filtered = allDailyVisits.filter((d: any) => d.day >= range.start && d.day <= range.end);
-      const byDow: Record<number, number> = {};
-      filtered.forEach((d: any) => {
-        const dt = new Date(d.day + "T00:00:00");
-        const jsDay = dt.getDay();
-        const isodow = jsDay === 0 ? 7 : jsDay;
-        byDow[isodow] = (byDow[isodow] ?? 0) + d.count;
-      });
-      return Object.entries(byDow).map(([dow, count]) => ({ dow: Number(dow), count }));
-    })();
 
   const totalVisits = dailyVisits.reduce((s: number, d: any) => s + d.count, 0);
   const [cy, cm] = currentMonth.split("-").map(Number);
   const daysInMonth = new Date(cy, cm, 0).getDate();
   const todayDate = parseInt(today.substring(8, 10), 10);
-  const periodDays = mode === "daily" ? 1 : mode === "weekly" ? dailyVisits.length || 1 : Math.min(todayDate, daysInMonth);
+  const periodDays = Math.min(todayDate, daysInMonth);
   const avgDaily = periodDays > 0 ? Math.round(totalVisits / periodDays) : 0;
   const prevMonthNum = cm === 1 ? 12 : cm - 1;
   const prevYear = cm === 1 ? cy - 1 : cy;
   const prevDaysInMonth = new Date(prevYear, prevMonthNum, 0).getDate();
   const prevAvgDaily = prevDaysInMonth > 0 ? prevMonthTotal / prevDaysInMonth : 0;
-  const changeRate = mode === "monthly" && prevAvgDaily > 0 ? Math.round((avgDaily - prevAvgDaily) / prevAvgDaily * 100) : null;
+  const changeRate = prevAvgDaily > 0 ? Math.round((avgDaily - prevAvgDaily) / prevAvgDaily * 100) : null;
 
   const TIME_BLOCKS = [
     { label: "08~10", hours: [8, 9] },
@@ -1259,8 +1248,8 @@ function OperationsTab() {
 
   const DOW_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
   const dowOccurrences: Record<number, number> = {};
-  const loopStart = mode === "monthly" ? `${cy}-${String(cm).padStart(2, "0")}-01` : range.start;
-  const loopEnd = mode === "monthly" ? `${cy}-${String(cm).padStart(2, "0")}-${String(Math.min(todayDate, daysInMonth)).padStart(2, "0")}` : range.end;
+  const loopStart = `${cy}-${String(cm).padStart(2, "0")}-01`;
+  const loopEnd = `${cy}-${String(cm).padStart(2, "0")}-${String(Math.min(todayDate, daysInMonth)).padStart(2, "0")}`;
   for (let cur = new Date(loopStart + "T00:00:00"); toDateStr(cur) <= loopEnd; cur.setDate(cur.getDate() + 1)) {
     const jsDay = cur.getDay();
     const isodow = jsDay === 0 ? 7 : jsDay;
@@ -1320,8 +1309,16 @@ function OperationsTab() {
         </div>
       )}
 
-      {/* 기간 선택 */}
-      <PeriodSelector {...period} />
+      {/* 월 선택 */}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{selYear}년 {selMonth}월</span>
+        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
 
       {/* ── 미조치 항목 경고 ── */}
       {inspectionPending && inspectionPending.length > 0 && (
@@ -1475,29 +1472,25 @@ function OperationsTab() {
         <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
           <Activity className="h-4 w-4 text-amber-400" /> 센터 방문 요약
         </h3>
-        <div className={`grid ${mode === "daily" ? "grid-cols-1" : "grid-cols-3"} gap-2 mb-3`}>
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="bg-card border border-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-muted-foreground">{mode === "daily" ? "당일 방문" : mode === "weekly" ? "주간 방문" : "월 총 방문"}</p>
+            <p className="text-[10px] text-muted-foreground">월 총 방문</p>
             <p className="text-lg font-bold text-amber-400">{totalVisits.toLocaleString()}회</p>
           </div>
-          {mode !== "daily" && (
-            <div className="bg-card border border-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-muted-foreground">일 평균</p>
-              <p className="text-lg font-bold text-foreground">{avgDaily}회</p>
-            </div>
-          )}
-          {mode === "monthly" && (
-            <div className="bg-card border border-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-muted-foreground">전월 대비</p>
-              {changeRate !== null ? (
-                <p className={`text-lg font-bold ${changeRate >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {changeRate >= 0 ? "+" : ""}{changeRate}%
-                </p>
-              ) : (
-                <p className="text-lg font-bold text-muted-foreground">-</p>
-              )}
-            </div>
-          )}
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-[10px] text-muted-foreground">일 평균</p>
+            <p className="text-lg font-bold text-foreground">{avgDaily}회</p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-[10px] text-muted-foreground">전월 대비</p>
+            {changeRate !== null ? (
+              <p className={`text-lg font-bold ${changeRate >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {changeRate >= 0 ? "+" : ""}{changeRate}%
+              </p>
+            ) : (
+              <p className="text-lg font-bold text-muted-foreground">-</p>
+            )}
+          </div>
         </div>
         {dailyVisits.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-4">
