@@ -1363,18 +1363,20 @@ function OperationsTab() {
       )}
 
       {/* ── 센터 점검 현황 ── */}
-      {inspectionSummary && inspectionSummary.latestByArea.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-            <Building2 className="h-4 w-4 text-emerald-400" /> 센터 점검 현황
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <Building2 className="h-4 w-4 text-emerald-400" /> 센터 점검 현황
+          {inspectionSummary && inspectionSummary.totalDays > 0 && (
             <span className="text-xs text-muted-foreground font-normal">({inspectionSummary.totalDays}일 점검)</span>
-          </h3>
-          {inspectionSummary.issueCount > 0 && (!inspectionPending || inspectionPending.length === 0) && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-2 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
-              <span className="text-xs text-red-400">이상 항목 {inspectionSummary.issueCount}건 발견</span>
-            </div>
           )}
+        </h3>
+        {inspectionSummary && inspectionSummary.issueCount > 0 && (!inspectionPending || inspectionPending.length === 0) && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-2 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+            <span className="text-xs text-red-400">이상 항목 {inspectionSummary.issueCount}건 발견</span>
+          </div>
+        )}
+        {inspectionSummary && inspectionSummary.latestByArea.length > 0 ? (
           <div className="space-y-1.5">
             {inspectionSummary.latestByArea.map((item: any) => {
               const facilityOk = item.facilityStatus === "정상";
@@ -1396,15 +1398,20 @@ function OperationsTab() {
               );
             })}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground">이번 달 점검 기록이 없습니다</p>
+            <p className="text-[11px] text-muted-foreground mt-1">데이터 기록 → 센터 탭에서 점검을 입력하세요</p>
+          </div>
+        )}
+      </div>
 
       {/* ── 점검 이력 추이 차트 ── */}
-      {inspectionTrend && inspectionTrend.length > 1 && (
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-            <TrendingUp className="h-4 w-4 text-blue-400" /> 점검 이력 추이
-          </h3>
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <TrendingUp className="h-4 w-4 text-blue-400" /> 점검 이력 추이
+        </h3>
+        {inspectionTrend && inspectionTrend.length > 1 ? (
           <div className="bg-card border border-border rounded-xl p-3">
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={inspectionTrend.map((d: any) => ({
@@ -1425,61 +1432,68 @@ function OperationsTab() {
               <span className="text-[10px] text-muted-foreground flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-500 inline-block" /> 이상</span>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground">2일 이상 점검 데이터가 쌓이면 추이가 표시됩니다</p>
+          </div>
+        )}
+      </div>
 
       {/* ── 구역별 이상 빈도 순위 ── */}
-      {inspectionAreaStats && inspectionAreaStats.length > 0 && (() => {
-        const maxIssues = Math.max(...inspectionAreaStats.map((a: any) => a.total_issues), 1);
-        const hasAnyIssue = inspectionAreaStats.some((a: any) => a.total_issues > 0);
-        return (
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <Target className="h-4 w-4 text-orange-400" /> 구역별 이상 빈도
-              {hasAnyIssue && <span className="text-xs text-muted-foreground font-normal">
-                (최다: {inspectionAreaStats[0].area})
-              </span>}
-            </h3>
-            <div className="space-y-1.5">
-              {inspectionAreaStats.map((area: any, idx: number) => {
-                const pct = area.total_checks > 0 ? Math.round(area.total_issues / area.total_checks * 100) : 0;
-                const barW = maxIssues > 0 ? Math.round(area.total_issues / maxIssues * 100) : 0;
-                return (
-                  <div key={area.area} className="bg-card border border-border rounded-xl px-3 py-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        {idx < 3 && area.total_issues > 0 && (
-                          <span className={`text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
-                            idx === 0 ? "bg-red-500/20 text-red-400" : idx === 1 ? "bg-orange-500/20 text-orange-400" : "bg-amber-500/20 text-amber-400"
-                          }`}>{idx + 1}</span>
-                        )}
-                        <span className="text-xs font-medium text-foreground">{area.area}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground">{area.total_checks}회 점검</span>
-                        <span className={`text-xs font-semibold ${area.total_issues > 0 ? "text-red-400" : "text-emerald-400"}`}>
-                          {area.total_issues > 0 ? `이상 ${area.total_issues}건 (${pct}%)` : "이상 없음"}
-                        </span>
-                      </div>
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <Target className="h-4 w-4 text-orange-400" /> 구역별 이상 빈도
+          {inspectionAreaStats && inspectionAreaStats.length > 0 && inspectionAreaStats.some((a: any) => a.total_issues > 0) && (
+            <span className="text-xs text-muted-foreground font-normal">
+              (최다: {inspectionAreaStats[0].area})
+            </span>
+          )}
+        </h3>
+        {inspectionAreaStats && inspectionAreaStats.length > 0 ? (
+          <div className="space-y-1.5">
+            {inspectionAreaStats.map((area: any, idx: number) => {
+              const maxIssues = Math.max(...inspectionAreaStats.map((a: any) => a.total_issues), 1);
+              const pct = area.total_checks > 0 ? Math.round(area.total_issues / area.total_checks * 100) : 0;
+              const barW = maxIssues > 0 ? Math.round(area.total_issues / maxIssues * 100) : 0;
+              return (
+                <div key={area.area} className="bg-card border border-border rounded-xl px-3 py-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      {idx < 3 && area.total_issues > 0 && (
+                        <span className={`text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
+                          idx === 0 ? "bg-red-500/20 text-red-400" : idx === 1 ? "bg-orange-500/20 text-orange-400" : "bg-amber-500/20 text-amber-400"
+                        }`}>{idx + 1}</span>
+                      )}
+                      <span className="text-xs font-medium text-foreground">{area.area}</span>
                     </div>
-                    {area.total_issues > 0 && (
-                      <>
-                        <div className="w-full bg-muted/30 rounded-full h-1.5 mb-1">
-                          <div className="h-1.5 rounded-full bg-gradient-to-r from-red-500 to-orange-500 transition-all" style={{ width: `${barW}%` }} />
-                        </div>
-                        <div className="flex gap-3 text-[10px] text-muted-foreground">
-                          {area.facility_issues > 0 && <span>시설 {area.facility_issues}건</span>}
-                          {area.hygiene_issues > 0 && <span>위생 {area.hygiene_issues}건</span>}
-                        </div>
-                      </>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">{area.total_checks}회 점검</span>
+                      <span className={`text-xs font-semibold ${area.total_issues > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                        {area.total_issues > 0 ? `이상 ${area.total_issues}건 (${pct}%)` : "이상 없음"}
+                      </span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                  {area.total_issues > 0 && (
+                    <>
+                      <div className="w-full bg-muted/30 rounded-full h-1.5 mb-1">
+                        <div className="h-1.5 rounded-full bg-gradient-to-r from-red-500 to-orange-500 transition-all" style={{ width: `${barW}%` }} />
+                      </div>
+                      <div className="flex gap-3 text-[10px] text-muted-foreground">
+                        {area.facility_issues > 0 && <span>시설 {area.facility_issues}건</span>}
+                        {area.hygiene_issues > 0 && <span>위생 {area.hygiene_issues}건</span>}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        );
-      })()}
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground">점검 데이터가 쌓이면 구역별 통계가 표시됩니다</p>
+          </div>
+        )}
+      </div>
 
       {/* 1. 센터 방문 요약 */}
       <div>
