@@ -527,6 +527,17 @@ function MarketingTab() {
 
   return (
     <div className="space-y-5">
+      {/* 월 선택 */}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{year}년 {month}월</span>
+        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
       {/* 랜딩페이지 방문자 통계 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
@@ -564,17 +575,6 @@ function MarketingTab() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* 월 선택 */}
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{year}년 {month}월</span>
-        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
-          <ChevronRight className="h-4 w-4" />
-        </button>
       </div>
 
       {/* 광고 채널 성과 (데이터 기록) */}
