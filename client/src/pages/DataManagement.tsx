@@ -1185,6 +1185,9 @@ function OperationsTab() {
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
   const { data: inspectionSummary } = trpc.consultantData.getInspectionSummary.useQuery({ startDate: range.start, endDate: range.end });
+  const { data: inspectionPending } = trpc.consultantData.getInspectionPending.useQuery({ startDate: range.start, endDate: range.end });
+  const { data: inspectionTrend } = trpc.consultantData.getInspectionTrend.useQuery({ startDate: range.start, endDate: range.end });
+  const { data: inspectionAreaStats } = trpc.consultantData.getInspectionAreaStats.useQuery({ startDate: range.start, endDate: range.end });
 
   const allLockers = (lockers ?? []) as any[];
   const occupied = allLockers.filter(l => l.isOccupied === 1);
@@ -1320,14 +1323,42 @@ function OperationsTab() {
       {/* 기간 선택 */}
       <PeriodSelector {...period} />
 
-      {/* 센터 점검 현황 */}
+      {/* ── 미조치 항목 경고 ── */}
+      {inspectionPending && inspectionPending.length > 0 && (
+        <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3">
+          <h3 className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-1.5">
+            <AlertCircle className="h-4 w-4" /> 미조치 항목 {inspectionPending.length}건
+          </h3>
+          <div className="space-y-1.5">
+            {inspectionPending.map((item: any) => (
+              <div key={item.area + item.date} className="bg-card border border-red-500/20 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-xs font-medium text-foreground">{item.area}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">{item.actionStatus || "미처리"}</span>
+                    <span className="text-[11px] text-muted-foreground">{item.date}</span>
+                  </div>
+                </div>
+                <div className="flex gap-3 text-xs">
+                  {item.facilityStatus !== "정상" && <span className="text-red-400">시설: {item.facilityStatus}</span>}
+                  {item.hygieneStatus !== "양호" && <span className="text-amber-400">위생: {item.hygieneStatus}</span>}
+                  {item.assignee && <span className="text-muted-foreground">담당: {item.assignee}</span>}
+                </div>
+                {item.issueNote && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{item.issueNote}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 센터 점검 현황 ── */}
       {inspectionSummary && inspectionSummary.latestByArea.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
             <Building2 className="h-4 w-4 text-emerald-400" /> 센터 점검 현황
             <span className="text-xs text-muted-foreground font-normal">({inspectionSummary.totalDays}일 점검)</span>
           </h3>
-          {inspectionSummary.issueCount > 0 && (
+          {inspectionSummary.issueCount > 0 && (!inspectionPending || inspectionPending.length === 0) && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-2 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
               <span className="text-xs text-red-400">이상 항목 {inspectionSummary.issueCount}건 발견</span>
@@ -1356,6 +1387,88 @@ function OperationsTab() {
           </div>
         </div>
       )}
+
+      {/* ── 점검 이력 추이 차트 ── */}
+      {inspectionTrend && inspectionTrend.length > 1 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+            <TrendingUp className="h-4 w-4 text-blue-400" /> 점검 이력 추이
+          </h3>
+          <div className="bg-card border border-border rounded-xl p-3">
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={inspectionTrend.map((d: any) => ({
+                date: d.date.substring(5),
+                정상: d.total - d.issues,
+                이상: d.issues,
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#888" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#888" }} width={24} />
+                <Tooltip contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }} />
+                <Bar dataKey="정상" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="이상" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex justify-center gap-4 mt-1">
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500 inline-block" /> 정상</span>
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-500 inline-block" /> 이상</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 구역별 이상 빈도 순위 ── */}
+      {inspectionAreaStats && inspectionAreaStats.length > 0 && (() => {
+        const maxIssues = Math.max(...inspectionAreaStats.map((a: any) => a.total_issues), 1);
+        const hasAnyIssue = inspectionAreaStats.some((a: any) => a.total_issues > 0);
+        return (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <Target className="h-4 w-4 text-orange-400" /> 구역별 이상 빈도
+              {hasAnyIssue && <span className="text-xs text-muted-foreground font-normal">
+                (최다: {inspectionAreaStats[0].area})
+              </span>}
+            </h3>
+            <div className="space-y-1.5">
+              {inspectionAreaStats.map((area: any, idx: number) => {
+                const pct = area.total_checks > 0 ? Math.round(area.total_issues / area.total_checks * 100) : 0;
+                const barW = maxIssues > 0 ? Math.round(area.total_issues / maxIssues * 100) : 0;
+                return (
+                  <div key={area.area} className="bg-card border border-border rounded-xl px-3 py-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        {idx < 3 && area.total_issues > 0 && (
+                          <span className={`text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
+                            idx === 0 ? "bg-red-500/20 text-red-400" : idx === 1 ? "bg-orange-500/20 text-orange-400" : "bg-amber-500/20 text-amber-400"
+                          }`}>{idx + 1}</span>
+                        )}
+                        <span className="text-xs font-medium text-foreground">{area.area}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground">{area.total_checks}회 점검</span>
+                        <span className={`text-xs font-semibold ${area.total_issues > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                          {area.total_issues > 0 ? `이상 ${area.total_issues}건 (${pct}%)` : "이상 없음"}
+                        </span>
+                      </div>
+                    </div>
+                    {area.total_issues > 0 && (
+                      <>
+                        <div className="w-full bg-muted/30 rounded-full h-1.5 mb-1">
+                          <div className="h-1.5 rounded-full bg-gradient-to-r from-red-500 to-orange-500 transition-all" style={{ width: `${barW}%` }} />
+                        </div>
+                        <div className="flex gap-3 text-[10px] text-muted-foreground">
+                          {area.facility_issues > 0 && <span>시설 {area.facility_issues}건</span>}
+                          {area.hygiene_issues > 0 && <span>위생 {area.hygiene_issues}건</span>}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 1. 센터 방문 요약 */}
       <div>

@@ -472,4 +472,66 @@ export const consultantDataRouter = t.router({
         totalDays: (daysRes.rows[0] as any).count as number,
       };
     }),
+
+  // ── 센터 점검: 미조치 항목 목록 ──────────────────────────────────────────────
+  getInspectionPending: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const res = await pool.query(
+        `SELECT DISTINCT ON (area) area, "facilityStatus", "hygieneStatus", "issueNote", assignee, "actionStatus", date
+         FROM center_inspection_entries
+         WHERE date >= $1 AND date <= $2
+           AND ("facilityStatus" != '정상' OR "hygieneStatus" != '양호')
+           AND (COALESCE("actionStatus", '미처리') != '완료')
+         ORDER BY area, date DESC`,
+        [input.startDate, input.endDate]
+      );
+      return res.rows as Array<{
+        area: string; facilityStatus: string; hygieneStatus: string;
+        issueNote: string | null; assignee: string | null;
+        actionStatus: string | null; date: string;
+      }>;
+    }),
+
+  // ── 센터 점검: 일별 이상 건수 추이 ──────────────────────────────────────────
+  getInspectionTrend: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const res = await pool.query(
+        `SELECT date,
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE "facilityStatus" != '정상' OR "hygieneStatus" != '양호')::int AS issues
+         FROM center_inspection_entries
+         WHERE date >= $1 AND date <= $2
+         GROUP BY date
+         ORDER BY date`,
+        [input.startDate, input.endDate]
+      );
+      return res.rows as Array<{ date: string; total: number; issues: number }>;
+    }),
+
+  // ── 센터 점검: 구역별 이상 빈도 통계 ──────────────────────────────────────────
+  getInspectionAreaStats: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const res = await pool.query(
+        `SELECT area,
+                COUNT(*)::int AS total_checks,
+                COUNT(*) FILTER (WHERE "facilityStatus" != '정상')::int AS facility_issues,
+                COUNT(*) FILTER (WHERE "hygieneStatus" != '양호')::int AS hygiene_issues,
+                COUNT(*) FILTER (WHERE "facilityStatus" != '정상' OR "hygieneStatus" != '양호')::int AS total_issues
+         FROM center_inspection_entries
+         WHERE date >= $1 AND date <= $2
+         GROUP BY area
+         ORDER BY total_issues DESC, area`,
+        [input.startDate, input.endDate]
+      );
+      return res.rows as Array<{
+        area: string; total_checks: number;
+        facility_issues: number; hygiene_issues: number; total_issues: number;
+      }>;
+    }),
 });
