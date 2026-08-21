@@ -4357,7 +4357,14 @@ const adminRouter = t.router({
         expiryDate: ptPackages.expiryDate,
       }).from(ptPackages).where(inArray(ptPackages.memberId, memberIds)) : [];
 
+      const todayD = new Date(today + "T00:00:00");
+      const nextMonthStart = new Date(todayD.getFullYear(), todayD.getMonth() + 1, 1);
+      const nextMonthEnd = new Date(todayD.getFullYear(), todayD.getMonth() + 2, 0);
+      const nmStart = nextMonthStart.toISOString().substring(0, 10);
+      const nmEnd = nextMonthEnd.toISOString().substring(0, 10);
+
       const byTrainer: Record<number, { total: number; rereg: number; churn: number }> = {};
+      const byTrainerNext: Record<number, number> = {};
       for (const m of allActiveMembers) {
         if (!m.trainerId) continue;
         const pkgs = allPkgs.filter(p => p.memberId === m.id)
@@ -4365,14 +4372,17 @@ const adminRouter = t.router({
         const latest = pkgs[0];
         if (!latest) continue;
         const remaining = (latest.totalSessions ?? 0) - (latest.usedSessions ?? 0);
-        if (remaining > threshold && latest.status === "active") continue;
         const hasNewer = pkgs.some(p => p.id !== latest.id && (p.startDate ?? "") > (latest.startDate ?? ""));
         if (hasNewer) continue;
 
-        if (!byTrainer[m.trainerId]) byTrainer[m.trainerId] = { total: 0, rereg: 0, churn: 0 };
-        byTrainer[m.trainerId].total++;
-        if (m.renewalIntent === "재등록예정") byTrainer[m.trainerId].rereg++;
-        if (m.renewalIntent === "이탈예정") byTrainer[m.trainerId].churn++;
+        if (remaining <= threshold || latest.status !== "active") {
+          if (!byTrainer[m.trainerId]) byTrainer[m.trainerId] = { total: 0, rereg: 0, churn: 0 };
+          byTrainer[m.trainerId].total++;
+          if (m.renewalIntent === "재등록예정") byTrainer[m.trainerId].rereg++;
+          if (m.renewalIntent === "이탈예정") byTrainer[m.trainerId].churn++;
+        } else if (latest.expiryDate && latest.expiryDate >= nmStart && latest.expiryDate <= nmEnd) {
+          byTrainerNext[m.trainerId] = (byTrainerNext[m.trainerId] ?? 0) + 1;
+        }
       }
 
       const trainerList = await db.select({ id: trainers.id }).from(trainers);
@@ -4381,6 +4391,7 @@ const adminRouter = t.router({
         total: byTrainer[tid]?.total ?? 0,
         rereg: byTrainer[tid]?.rereg ?? 0,
         churn: byTrainer[tid]?.churn ?? 0,
+        nextMonth: byTrainerNext[tid] ?? 0,
       }));
 
       return Object.fromEntries(summary.map(s => [s.trainerId, s]));

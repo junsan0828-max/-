@@ -149,6 +149,7 @@ function TrainerList() {
             const exp = expiringSummary?.[trainer.id];
             const hasExpiring = exp && exp.total > 0;
             const undecided = hasExpiring ? exp.total - exp.rereg - exp.churn : 0;
+            const nextMonthExp = exp?.nextMonth ?? 0;
             return (
               <button key={trainer.id} onClick={() => setLocation(`/trainers/${trainer.id}`)}
                 className={`w-full text-left p-4 rounded-lg bg-card border transition-colors hover:border-primary/50 ${hasExpiring ? "border-purple-500/40" : "border-border"}`}>
@@ -168,17 +169,19 @@ function TrainerList() {
                         {trainer.expiredCount > 0 && <span className="text-xs text-red-400">만료 {trainer.expiredCount}명</span>}
                         <span className="text-xs text-primary">정산 {trainer.settlementRate}%</span>
                       </div>
-                      {hasExpiring && (
+                      {(hasExpiring || nextMonthExp > 0) && (
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/25 font-medium">
-                            이번달 만료 {exp.total}명
-                          </span>
-                          {exp.rereg > 0 && (
+                          {hasExpiring && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/25 font-medium">
+                              이번달 만료 {exp.total}명
+                            </span>
+                          )}
+                          {exp?.rereg > 0 && (
                             <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
                               재등록 {exp.rereg}명
                             </span>
                           )}
-                          {exp.churn > 0 && (
+                          {exp?.churn > 0 && (
                             <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/25">
                               이탈 {exp.churn}명
                             </span>
@@ -186,6 +189,11 @@ function TrainerList() {
                           {undecided > 0 && (
                             <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-muted/40 text-muted-foreground border border-border">
                               미정 {undecided}명
+                            </span>
+                          )}
+                          {nextMonthExp > 0 && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 font-medium">
+                              다음달 만료 {nextMonthExp}명
                             </span>
                           )}
                         </div>
