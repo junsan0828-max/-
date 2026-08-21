@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ClipboardList, ChevronLeft, ChevronRight, Save, Calendar, BarChart2, Megaphone, Building2, ChevronDown } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronRight, Save, Calendar, BarChart2, Megaphone, Building2, ChevronDown, FileText } from "lucide-react";
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 function toDateStr(d: Date) { return d.toISOString().substring(0, 10); }
@@ -55,10 +55,18 @@ type InspectionValues = Record<string, {
   actionStatus: string; actionDate: string;
 }>;
 
+const CONTENT_PLATFORMS = ["플레이스", "당근", "블로그"] as const;
+
+type ContentValues = Record<string, {
+  published: boolean; publishCount: number; topic: string;
+  publishDate: string; assignee: string; completed: boolean;
+  autoStatus: string;
+}>;
+
 // ── 메인 페이지 ───────────────────────────────────────────────────────────────
 export default function ConsultantDataRecordPage() {
   const now = new Date();
-  const [mode, setMode] = useState<"daily" | "weekly" | "ads" | "inspection">("daily");
+  const [mode, setMode] = useState<"daily" | "weekly" | "ads" | "inspection" | "content">("daily");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [selectedDate, setSelectedDate] = useState(TODAY);
@@ -67,7 +75,7 @@ export default function ConsultantDataRecordPage() {
   const grid = getWeekdayGrid(year, month);
 
   useEffect(() => {
-    if (mode === "daily" || mode === "ads" || mode === "inspection") {
+    if (mode === "daily" || mode === "ads" || mode === "inspection" || mode === "content") {
       const allDays = grid.flatMap(w => w.days).filter(Boolean) as string[];
       if (!allDays.includes(selectedDate)) {
         const todayInMonth = allDays.find(d => d === TODAY);
@@ -99,23 +107,24 @@ export default function ConsultantDataRecordPage() {
       </h1>
 
       {/* 모드 탭 */}
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {([
-          { key: "daily" as const, label: "일일 데이터", icon: Calendar },
-          { key: "weekly" as const, label: "주간 데이터", icon: BarChart2 },
-          { key: "ads" as const, label: "광고 관리", icon: Megaphone },
-          { key: "inspection" as const, label: "센터 관리", icon: Building2 },
+          { key: "daily" as const, label: "일일", icon: Calendar },
+          { key: "weekly" as const, label: "주간", icon: BarChart2 },
+          { key: "ads" as const, label: "광고", icon: Megaphone },
+          { key: "content" as const, label: "콘텐츠", icon: FileText },
+          { key: "inspection" as const, label: "센터", icon: Building2 },
         ]).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setMode(key)}
-            className={`flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-medium border transition-colors ${
+            className={`flex items-center justify-center gap-1 py-2.5 px-3 rounded-xl text-xs font-medium border transition-colors whitespace-nowrap shrink-0 ${
               mode === key
                 ? "bg-primary/20 text-primary border-primary/40"
                 : "bg-card border-border text-muted-foreground hover:bg-accent"
             }`}
           >
-            <Icon className="h-4 w-4" />{label}
+            <Icon className="h-3.5 w-3.5" />{label}
           </button>
         ))}
       </div>
@@ -131,11 +140,11 @@ export default function ConsultantDataRecordPage() {
         </button>
       </div>
 
-      {mode === "daily" || mode === "ads" || mode === "inspection" ? (
+      {mode === "daily" || mode === "ads" || mode === "inspection" || mode === "content" ? (
         <DailyView
           year={year} month={month} grid={grid}
           selectedDate={selectedDate} onSelectDate={setSelectedDate}
-          section={mode === "ads" ? "ads" : mode === "inspection" ? "inspection" : "daily"}
+          section={mode === "ads" ? "ads" : mode === "inspection" ? "inspection" : mode === "content" ? "content" : "daily"}
         />
       ) : (
         <WeeklyView
@@ -144,12 +153,16 @@ export default function ConsultantDataRecordPage() {
         />
       )}
 
-      {activeDate && mode !== "ads" && mode !== "inspection" && (
+      {activeDate && mode !== "ads" && mode !== "inspection" && mode !== "content" && (
         <EntryForm date={activeDate} section={mode} />
       )}
 
       {activeDate && mode === "ads" && (
         <AdEntryForm date={selectedDate} />
+      )}
+
+      {activeDate && mode === "content" && (
+        <ContentForm date={selectedDate} />
       )}
 
       {activeDate && mode === "inspection" && (
@@ -167,7 +180,7 @@ function DailyView({
   grid: ReturnType<typeof getWeekdayGrid>;
   selectedDate: string;
   onSelectDate: (d: string) => void;
-  section: "daily" | "ads" | "inspection";
+  section: "daily" | "ads" | "inspection" | "content";
 }) {
   const { data: datesWithData } = trpc.consultantData.getDatesWithData.useQuery(
     { year, month, section: "daily" },
@@ -181,9 +194,14 @@ function DailyView({
     { year, month },
     { enabled: section === "inspection" }
   );
+  const { data: contentDatesWithData } = trpc.consultantData.getContentDatesWithData.useQuery(
+    { year, month },
+    { enabled: section === "content" }
+  );
   const dateDotSet = new Set(
     section === "ads" ? (adDatesWithData ?? [])
     : section === "inspection" ? (inspectionDatesWithData ?? [])
+    : section === "content" ? (contentDatesWithData ?? [])
     : (datesWithData ?? [])
   );
 
@@ -823,6 +841,270 @@ function InspectionForm({ date }: { date: string }) {
                           />
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saveMutation.isPending || !dirty}
+        className="w-full py-3 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Save className="h-4 w-4 inline mr-1.5" />
+        {saveMutation.isPending ? "저장 중..." : dirty ? "저장하기" : "저장됨"}
+      </button>
+    </div>
+  );
+}
+
+// ── 콘텐츠 관리 입력 폼 ───────────────────────────────────────────────────────
+function ContentForm({ date }: { date: string }) {
+  const utils = trpc.useUtils();
+  const { data: existing, isLoading } = trpc.consultantData.getContentEntries.useQuery({ date });
+  const { data: staffList } = trpc.consultantData.listStaff.useQuery();
+
+  const emptyValues = (): ContentValues => {
+    const v: ContentValues = {};
+    for (const p of CONTENT_PLATFORMS) {
+      v[p] = { published: false, publishCount: 0, topic: "", publishDate: "", assignee: "", completed: false, autoStatus: "" };
+    }
+    return v;
+  };
+
+  const [values, setValues] = useState<ContentValues>(emptyValues);
+  const [dirty, setDirty] = useState(false);
+  const [openPlatform, setOpenPlatform] = useState<string | null>(null);
+
+  useEffect(() => {
+    const v = emptyValues();
+    if (existing) {
+      for (const e of existing) {
+        v[e.platform] = {
+          published: e.published ?? false,
+          publishCount: e.publishCount ?? 0,
+          topic: e.topic ?? "",
+          publishDate: e.publishDate ?? "",
+          assignee: e.assignee ?? "",
+          completed: e.completed ?? false,
+          autoStatus: e.autoStatus ?? "",
+        };
+      }
+    }
+    setValues(v);
+    setDirty(false);
+  }, [existing, date]);
+
+  const saveMutation = trpc.consultantData.saveContentEntries.useMutation({
+    onSuccess: () => {
+      toast.success("콘텐츠 데이터 저장됨");
+      setDirty(false);
+      utils.consultantData.invalidate();
+    },
+    onError: () => toast.error("저장 실패"),
+  });
+
+  function updateField(platform: string, field: keyof ContentValues[string], val: any) {
+    setValues(prev => ({
+      ...prev,
+      [platform]: { ...prev[platform], [field]: val },
+    }));
+    setDirty(true);
+  }
+
+  function handleSave() {
+    const entries = CONTENT_PLATFORMS.map(p => {
+      const v = values[p];
+      return {
+        platform: p,
+        published: v?.published ?? false,
+        publishCount: v?.publishCount ?? 0,
+        topic: v?.topic || undefined,
+        publishDate: v?.publishDate || undefined,
+        assignee: v?.assignee || undefined,
+        completed: v?.completed ?? false,
+        autoStatus: (v?.autoStatus || undefined) as "정상" | "오류" | undefined,
+      };
+    });
+    saveMutation.mutate({ date, entries });
+  }
+
+  if (isLoading) {
+    return <div className="text-center text-muted-foreground py-8 text-sm">불러오는 중...</div>;
+  }
+
+  const dateLabel = (() => {
+    const d = new Date(date + "T00:00:00");
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  })();
+
+  const PLATFORM_COLORS: Record<string, string> = {
+    "플레이스": "border-emerald-500/40 bg-emerald-500/5",
+    "당근": "border-orange-500/40 bg-orange-500/5",
+    "블로그": "border-green-500/40 bg-green-500/5",
+  };
+  const PLATFORM_TEXT: Record<string, string> = {
+    "플레이스": "text-emerald-400",
+    "당근": "text-orange-400",
+    "블로그": "text-green-400",
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-foreground">{dateLabel} 콘텐츠 관리</p>
+        {dirty && (
+          <button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {saveMutation.isPending ? "저장 중..." : "저장"}
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {CONTENT_PLATFORMS.map(platform => {
+          const isOpen = openPlatform === platform;
+          const v = values[platform] ?? emptyValues()[platform];
+          const hasData = existing?.some(e => e.platform === platform);
+
+          return (
+            <div key={platform} className={`rounded-xl border overflow-hidden transition-colors ${isOpen ? PLATFORM_COLORS[platform] : "border-border bg-card"}`}>
+              <button
+                onClick={() => setOpenPlatform(isOpen ? null : platform)}
+                className="w-full flex items-center justify-between px-4 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-semibold ${isOpen ? PLATFORM_TEXT[platform] : "text-foreground"}`}>{platform}</span>
+                  {hasData && !isOpen && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  )}
+                  {!isOpen && v.completed && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">완료</span>
+                  )}
+                  {!isOpen && !v.completed && v.published && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400">발행됨</span>
+                  )}
+                </div>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isOpen && (
+                <div className="px-4 pb-4 space-y-3">
+                  {/* 발행 여부 */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground font-medium">발행 여부</span>
+                    <button
+                      onClick={() => updateField(platform, "published", !v.published)}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${v.published ? "bg-primary" : "bg-muted"}`}
+                    >
+                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${v.published ? "translate-x-5.5 left-auto right-0.5" : "left-0.5"}`} />
+                    </button>
+                  </div>
+
+                  {/* 발행 수 */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">발행 수</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => { if (v.publishCount > 0) updateField(platform, "publishCount", v.publishCount - 1); }}
+                        className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
+                      >−</button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={v.publishCount || ""}
+                        onChange={e => updateField(platform, "publishCount", Math.max(0, parseInt(e.target.value) || 0))}
+                        placeholder="0"
+                        className="w-16 text-center text-sm font-semibold tabular-nums bg-background border border-border rounded-lg py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <button
+                        onClick={() => updateField(platform, "publishCount", v.publishCount + 1)}
+                        className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
+                      >+</button>
+                    </div>
+                  </div>
+
+                  {/* 콘텐츠 주제 */}
+                  <div>
+                    <span className="text-xs text-muted-foreground">콘텐츠 주제</span>
+                    <input
+                      type="text"
+                      value={v.topic}
+                      onChange={e => updateField(platform, "topic", e.target.value)}
+                      placeholder="주제 입력..."
+                      className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  {/* 발행일 */}
+                  <div>
+                    <span className="text-xs text-muted-foreground">발행일</span>
+                    <input
+                      type="date"
+                      value={v.publishDate}
+                      onChange={e => updateField(platform, "publishDate", e.target.value)}
+                      className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  {/* 담당자 */}
+                  <div>
+                    <span className="text-xs text-muted-foreground">담당자</span>
+                    <select
+                      value={v.assignee}
+                      onChange={e => updateField(platform, "assignee", e.target.value)}
+                      className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">선택 안 함</option>
+                      {staffList?.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 완료/미완료 */}
+                  <div>
+                    <span className="text-xs text-muted-foreground font-medium">진행 상태</span>
+                    <div className="flex gap-1.5 mt-1.5">
+                      {([false, true] as const).map(val => (
+                        <button
+                          key={String(val)}
+                          onClick={() => updateField(platform, "completed", val)}
+                          className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                            v.completed === val
+                              ? val ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                              : "border-border text-muted-foreground hover:bg-accent"
+                          }`}
+                        >{val ? "완료" : "미완료"}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 당근 자동화 상태 */}
+                  {platform === "당근" && (
+                    <div>
+                      <span className="text-xs text-muted-foreground font-medium">자동화 상태</span>
+                      <div className="flex gap-1.5 mt-1.5">
+                        {(["정상", "오류"] as const).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => updateField(platform, "autoStatus", v.autoStatus === s ? "" : s)}
+                            className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                              v.autoStatus === s
+                                ? s === "정상" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"
+                                : "border-border text-muted-foreground hover:bg-accent"
+                            }`}
+                          >{s}</button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
