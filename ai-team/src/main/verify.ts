@@ -11,6 +11,7 @@
 // 부풀려진다 — 활성+만료+정지가 정확히 전체와 일치하는 걸로 이미 검증된 정의라 그대로 재사용한다.
 import { neon } from "@neondatabase/serverless";
 import { GymContext } from "./data";
+import { todayStr, addDays, findExpiryCandidates, findConsultFollowupCandidates } from "./autoMessage";
 
 function kstDate(offsetDays = 0): string {
   const d = new Date(Date.now() + offsetDays * 864e5);
@@ -37,6 +38,25 @@ export interface TodayTransaction {
   unpaidAmount: number;
   customerName: string | null;
   phone: string | null;
+  programDetail: string | null; // 프로그램명 (예: "헬스 12개월")
+  sessions: number | null; // PT라면 등록 회차, 아니면 null
+}
+
+export interface ExpiryHistoryItem {
+  category: "expiry_d10" | "expiry_d5";
+  name: string;
+  phone: string | null;
+  branchId: number | null;
+  membershipEnd: string;
+  sent: boolean; // auto_message_log 기준 발송 성공 여부
+}
+
+export interface ConsultFollowupItem {
+  name: string | null;
+  phone: string | null;
+  consultationDate: string; // 상담일(D0)
+  sent: boolean; // D+1 후속 문자 발송 성공 여부
+  registered: boolean; // 현재 리드 상태가 등록완료인지
 }
 
 export interface VerificationResult {
@@ -47,6 +67,8 @@ export interface VerificationResult {
   todayTransactions: TodayTransaction[];
   unpaidMembersNow: { name: string; phone: string | null; branchId: number | null; unpaid: number }[];
   expiringWithin10: { name: string; phone: string | null; branchId: number | null; membershipEnd: string; daysLeft: number }[];
+  expiryHistory: ExpiryHistoryItem[]; // 오늘 기준 D-10·D-5 대상자와 발송 이력
+  consultFollowup: ConsultFollowupItem[]; // 어제 상담 완료 → 오늘 D+1 후속 대상, 발송·등록전환 여부
 }
 
 type Sql = ReturnType<typeof neon<false, false>>;
@@ -116,7 +138,7 @@ export async function runVerification(ctx: GymContext): Promise<VerificationResu
   }));
 
   const todayTxRows = (await sql.query(
-    `SELECT "subType","branchId",amount,"paidAmount","refundAmount","unpaidAmount","customerName",phone
+    `SELECT "subType","branchId",amount,"paidAmount","refundAmount","unpaidAmount","customerName",phone,"programDetail",sessions
      FROM revenue_entries WHERE "paymentDate" = $1 ORDER BY "paymentDate"`,
     [today]
   )) as any[];
@@ -130,7 +152,14 @@ export async function runVerification(ctx: GymContext): Promise<VerificationResu
     unpaidAmount: Number(r.unpaidAmount),
     customerName: r.customerName,
     phone: r.phone,
+    programDetail: r.programDetail ?? null,
+    sessions: r.sessions === null || r.sessions === undefined ? null : Number(r.sessions),
   }));
+
+  const [expiryHistory, consultFollowup] = await Promise.all([
+    gatherExpiryHistory(sql, today),
+    gatherConsultFollowup(sql, today),
+  ]);
 
   return {
     asOfDate: today,
@@ -143,5 +172,61 @@ export async function runVerification(ctx: GymContext): Promise<VerificationResu
     expiringWithin10: ctx.members.expiringSoon
       .filter((m) => m.daysUntilExpiry <= 10)
       .map((m) => ({ name: m.name, phone: m.phone, branchId: m.branchId, membershipEnd: m.membershipEnd, daysLeft: m.daysUntilExpiry })),
+    expiryHistory,
+    consultFollowup,
   };
+}
+
+/** 오늘 기준 D-10·D-5 대상자와 auto_message_log상 발송 성공 여부. 만료 관리는 이 규칙으로만
+ * 운영한다(2026-08-20 대표 지시) — 온라인 지부장이 매일 실제 발송 이력을 확인할 수 있어야 한다. */
+async function gatherExpiryHistory(sql: Sql, today: string): Promise<ExpiryHistoryItem[]> {
+  const d10Target = addDays(today, 10);
+  const d5Target = addDays(today, 5);
+  const [d10Candidates, d5Candidates, sentRows] = await Promise.all([
+    findExpiryCandidates(sql, d10Target),
+    findExpiryCandidates(sql, d5Target),
+    sql.query(
+      `SELECT category, member_id FROM auto_message_log WHERE category IN ('expiry_d10','expiry_d5') AND reference_date = ANY($1) AND success = true`,
+      [[d10Target, d5Target]]
+    ) as unknown as Promise<{ category: string; member_id: number }[]>,
+  ]);
+
+  const sentSet = new Set(sentRows.map((r) => `${r.category}:${r.member_id}`));
+  const toItem = (category: "expiry_d10" | "expiry_d5") => (m: { id: number; name: string; phone: string | null; branchId: number | null; membershipEnd: string }): ExpiryHistoryItem => ({
+    category,
+    name: m.name,
+    phone: m.phone,
+    branchId: m.branchId,
+    membershipEnd: m.membershipEnd,
+    sent: sentSet.has(`${category}:${m.id}`),
+  });
+
+  return [...d10Candidates.map(toItem("expiry_d10")), ...d5Candidates.map(toItem("expiry_d5"))];
+}
+
+/** 어제 상담 완료된 리드 중 오늘 D+1 후속 문자 대상, 발송 성공 여부, 현재 등록전환 여부. */
+async function gatherConsultFollowup(sql: Sql, today: string): Promise<ConsultFollowupItem[]> {
+  const yesterday = addDays(today, -1);
+  const candidates = await findConsultFollowupCandidates(sql, yesterday);
+  if (candidates.length === 0) return [];
+
+  const [sentRows, leadRows] = await Promise.all([
+    sql.query(
+      `SELECT lead_id FROM auto_message_log WHERE category = 'consult_followup' AND reference_date = $1 AND success = true`,
+      [yesterday]
+    ) as unknown as Promise<{ lead_id: number }[]>,
+    sql.query(`SELECT id, status FROM leads WHERE id = ANY($1)`, [candidates.map((c) => c.id)]) as unknown as Promise<
+      { id: number; status: string }[]
+    >,
+  ]);
+  const sentSet = new Set(sentRows.map((r) => r.lead_id));
+  const statusMap = new Map(leadRows.map((r) => [r.id, r.status]));
+
+  return candidates.map((c) => ({
+    name: c.name,
+    phone: c.phone,
+    consultationDate: yesterday,
+    sent: sentSet.has(c.id),
+    registered: statusMap.get(c.id) === "registered",
+  }));
 }

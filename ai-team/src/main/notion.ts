@@ -11,6 +11,8 @@ import { JournalEntry } from "./journal";
 import { GymContext } from "./data";
 import { ShortVideo } from "./youtube/shorts";
 import { VerificationResult } from "./verify";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -710,9 +712,9 @@ function branchLabel(branchId: number | null): string {
 function buildVerificationBlocks(result: VerificationResult): Block[] {
   const kstTime = new Date(result.asOfTimestamp).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
   const blocks: Block[] = [
-    heading(`🔍 온라인 지부장 실대조 검증 · ${result.asOfDate} ${kstTime} KST`),
+    heading(`🔍 [제이] 온라인 지부장 실대조 검증 · ${result.asOfDate} ${kstTime} (Asia/Seoul)`),
     paragraph(
-      "출처: Neon Postgres 실조회(gatherContext + revenue_entries + members), 실행: verify.ts runVerification(). 사람이 쓴 서술이 아니라 매 실행마다 DB에서 직접 계산한 원본 데이터입니다(증감 계산 없음)."
+      "출처: Neon Postgres 실조회(gatherContext + revenue_entries + members + auto_message_log + leads), 실행: verify.ts runVerification(). 사람이 쓴 서술이 아니라 매 실행마다 DB에서 직접 계산한 원본 데이터입니다(증감 계산 없음)."
     ),
   ];
 
@@ -726,14 +728,15 @@ function buildVerificationBlocks(result: VerificationResult): Block[] {
 
   blocks.push(paragraph(result.activeMethodNote));
 
-  blocks.push(heading(`오늘(${result.asOfDate}) 실제 거래 내역 (revenue_entries 직접 조회)`));
+  blocks.push(heading(`오늘(${result.asOfDate}) 실제 거래 내역 — 신규·재등록 상세 (revenue_entries 직접 조회)`));
   if (result.todayTransactions.length === 0) {
     blocks.push(paragraph("오늘 거래 없음"));
   } else {
     for (const t of result.todayTransactions) {
+      const program = t.programDetail ? ` · ${t.programDetail}${t.sessions ? ` ${t.sessions}회` : ""}` : "";
       blocks.push(
         bullet(
-          `${t.subType} · ${branchLabel(t.branchId)} · ${t.customerName ?? "이름없음"} · 계약 ${t.amount.toLocaleString()}원 / 실입금 ${t.paidAmount.toLocaleString()}원${t.refundAmount ? ` / 환불 ${t.refundAmount.toLocaleString()}원` : ""}${t.unpaidAmount ? ` / 미수 ${t.unpaidAmount.toLocaleString()}원` : ""}`
+          `${t.subType} · ${branchLabel(t.branchId)} · ${t.customerName ?? "이름없음"}${program} · 계약 ${t.amount.toLocaleString()}원 / 실입금 ${t.paidAmount.toLocaleString()}원${t.refundAmount ? ` / 환불 ${t.refundAmount.toLocaleString()}원` : ""}${t.unpaidAmount ? ` / 미수 ${t.unpaidAmount.toLocaleString()}원` : ""}`
         )
       );
     }
@@ -748,6 +751,31 @@ function buildVerificationBlocks(result: VerificationResult): Block[] {
     }
   }
 
+  blocks.push(heading(`만료 D-10·D-5 발송 이력 (오늘 대상 ${result.expiryHistory.length}명 — 만료 관리는 이 규칙으로만 운영)`));
+  if (result.expiryHistory.length === 0) {
+    blocks.push(paragraph("오늘 D-10·D-5 대상 없음"));
+  } else {
+    for (const h of result.expiryHistory) {
+      const label = h.category === "expiry_d10" ? "D-10" : "D-5";
+      blocks.push(
+        bullet(`${label} · ${h.name} · ${branchLabel(h.branchId)} · 만료 ${h.membershipEnd} · ${h.sent ? "발송 성공" : "발송 안 됨"}`)
+      );
+    }
+  }
+
+  blocks.push(heading(`관리상담 D+1 후속 결과 (어제 상담 → 오늘 발송 대상 ${result.consultFollowup.length}명)`));
+  if (result.consultFollowup.length === 0) {
+    blocks.push(paragraph("어제 상담 완료 리드 없음 — 오늘 발송 대상 없음"));
+  } else {
+    for (const c of result.consultFollowup) {
+      blocks.push(
+        bullet(
+          `${c.name ?? "이름 누락"} · ${c.phone ? c.phone : "발송 불가·연락처 누락"} · 상담일 ${c.consultationDate} · ${c.sent ? "발송 성공" : "발송 안 됨"} · 등록전환 ${c.registered ? "완료" : "아직"}`
+        )
+      );
+    }
+  }
+
   blocks.push(heading(`현재 미수금 (${result.unpaidMembersNow.length}명)`));
   if (result.unpaidMembersNow.length === 0) {
     blocks.push(paragraph("미수금 없음"));
@@ -757,11 +785,49 @@ function buildVerificationBlocks(result: VerificationResult): Block[] {
     }
   }
 
+  blocks.push(heading("직원 업무 완료 결과"));
+  blocks.push(
+    paragraph("확인 불가 / 누락된 필드: 직원이 회원 연락·상담·수납을 처리했는지 기록하는 필드가 DB에 없음 — 운영시스템에 처리완료 체크 기능이 추가되면 반영 가능.")
+  );
+
   return blocks;
 }
 
+/** 하루 4번(0·2·4·13시) 도는 검증에서 숫자가 그대로면 같은 내용을 반복해서 붙이지 않기 위한
+ * 지문(fingerprint) — 스냅샷 파일과 비교해 그날 이미 같은 값을 남겼는지 판단한다(2026-08-20 대표 지시). */
+function verificationFingerprint(result: VerificationResult): string {
+  const parts = [
+    ...result.scopes.map((s) => `${s.scope}:${s.activeNow}:${s.monthRevenue}:${s.refundAmount}:${s.newCount}:${s.reRegisterCount}`),
+    `tx:${result.todayTransactions.length}:${result.todayTransactions.reduce((sum, t) => sum + t.paidAmount, 0)}`,
+    `expiry:${result.expiryHistory.filter((h) => h.sent).length}/${result.expiryHistory.length}`,
+    `consult:${result.consultFollowup.filter((c) => c.sent).length}/${result.consultFollowup.length}`,
+    `unpaid:${result.unpaidMembersNow.length}:${result.unpaidMembersNow.reduce((sum, u) => sum + u.unpaid, 0)}`,
+  ];
+  return parts.join("|");
+}
+
+function verifySnapshotPath(date: string): string {
+  const dir = join(__dirname, "..", "..", "output", "verify-snapshot");
+  mkdirSync(dir, { recursive: true });
+  return join(dir, `${date}.json`);
+}
+
+function loadVerifySnapshot(date: string): string | null {
+  try {
+    return JSON.parse(readFileSync(verifySnapshotPath(date), "utf-8")).fingerprint ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function saveVerifySnapshot(date: string, fingerprint: string) {
+  writeFileSync(verifySnapshotPath(date), JSON.stringify({ fingerprint }, null, 2), "utf-8");
+}
+
 /** 협의실 DB에서 오늘자 "제이 교류｜YYYY-MM-DD 자정 인계" 페이지를 찾아 검증 블록을 이어붙이고,
- * 없으면 새로 만든다. 상태는 "확인 중"(대표 확인 전)으로 시작한다. */
+ * 없으면 새로 만든다. 상태는 "확인 중"(대표 확인 전)으로 시작한다.
+ * 2026-08-20 대표 지시: 같은 날 두 번째 이후 실행에서 수치가 이전과 똑같으면 전체 블록을 다시
+ * 붙이지 않고 "변동 없음" 한 줄만 남긴다 — 00시 실행이 사실상 항상 그날의 전체 기록이 된다. */
 export async function pushVerificationToConsultRoom(result: VerificationResult): Promise<NotionPushResult> {
   if (!process.env.NOTION_API_KEY) {
     return { ok: false, error: "Notion 미설정 (.env에 NOTION_API_KEY 필요)" };
@@ -778,7 +844,15 @@ export async function pushVerificationToConsultRoom(result: VerificationResult):
       }),
     });
 
-    const verifyBlocks = buildVerificationBlocks(result);
+    const fingerprint = verificationFingerprint(result);
+    const prevFingerprint = loadVerifySnapshot(result.asOfDate);
+    const unchanged = query.results?.length > 0 && prevFingerprint === fingerprint;
+    saveVerifySnapshot(result.asOfDate, fingerprint);
+
+    const kstTime = new Date(result.asOfTimestamp).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+    const verifyBlocks = unchanged
+      ? [paragraph(`🔍 [제이] ${result.asOfDate} ${kstTime} (Asia/Seoul) — 재확인, 이전 기록과 수치 변동 없음`)]
+      : buildVerificationBlocks(result);
 
     if (query.results?.length > 0) {
       const pageId = query.results[0].id;
