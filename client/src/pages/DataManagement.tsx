@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import {
   Database, TrendingUp, Users, Megaphone, Building2,
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
-  Dumbbell, Lock, Shirt, UserCog, Activity, Target,
+  Dumbbell, UserCog, Activity, Target,
   DollarSign, Percent, X, CalendarDays,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
@@ -1201,17 +1201,12 @@ function OperationsTab() {
     { type: utilModal?.type as any, branchId: branchFilter, month: selPrefix },
     { enabled: !!utilModal }
   );
-  const { data: lockers } = trpc.access.getLockers.useQuery();
-  const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year: selYear, month: selMonth });
   const { data: inspectionSummary } = trpc.consultantData.getInspectionSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
   const { data: inspectionPending } = trpc.consultantData.getInspectionPending.useQuery({ startDate: monthStart, endDate: monthEnd });
   const { data: inspectionTrend } = trpc.consultantData.getInspectionTrend.useQuery({ startDate: monthStart, endDate: monthEnd });
   const { data: inspectionAreaStats } = trpc.consultantData.getInspectionAreaStats.useQuery({ startDate: monthStart, endDate: monthEnd });
 
-  const allLockers = (lockers ?? []) as any[];
-  const occupied = allLockers.filter(l => l.isOccupied === 1);
-  const allUniforms = (uniforms ?? []) as any[];
 
   if (dashLoading || !dashboard) {
     return <p className="text-sm text-muted-foreground text-center py-8">로딩 중...</p>;
@@ -1717,59 +1712,6 @@ function OperationsTab() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* 락커 현황 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Lock className="h-4 w-4 text-amber-400" /> 락커 현황
-        </h3>
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          {[
-            { label: "전체", value: allLockers.length, color: "text-foreground" },
-            { label: "사용 중", value: occupied.length, color: "text-amber-400" },
-            { label: "비어 있음", value: allLockers.length - occupied.length, color: "text-emerald-400" },
-          ].map(c => (
-            <div key={c.label} className="bg-card border border-border rounded-xl p-3 text-center">
-              <p className="text-xs text-muted-foreground mb-1">{c.label}</p>
-              <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
-            </div>
-          ))}
-        </div>
-        {allLockers.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-3">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-              <span>점유율</span>
-              <span>{Math.round((occupied.length / allLockers.length) * 100)}%</span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(occupied.length / allLockers.length) * 100}%` }} />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 운동복 현황 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Shirt className="h-4 w-4 text-amber-400" /> 운동복 현황 (착용 중)
-          <span className="text-xs text-muted-foreground font-normal">({allUniforms.length}명)</span>
-        </h3>
-        {!allUniforms.length ? (
-          <p className="text-xs text-muted-foreground text-center py-4">착용 중인 운동복이 없습니다</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: "유료 대여", value: allUniforms.filter((u: any) => u.rentalType === "paid").length, color: "text-foreground" },
-              { label: "서비스 대여", value: allUniforms.filter((u: any) => u.rentalType === "service").length, color: "text-violet-400" },
-            ].map(c => (
-              <div key={c.label} className="bg-card border border-border rounded-xl p-3 text-center">
-                <p className="text-xs text-muted-foreground mb-1">{c.label}</p>
-                <p className={`text-lg font-bold ${c.color}`}>{c.value}명</p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* 해지 현황 */}
