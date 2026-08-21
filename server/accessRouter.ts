@@ -1125,7 +1125,7 @@ export const accessRouter = t.router({
         }
         const result = await pool.query(
           `SELECT m.id, m.name, m.phone, m."membershipEnd",
-                  t."trainerName",
+                  COALESCE(pt_tr."trainerName", t."trainerName") AS "trainerName",
                   (m."membershipEnd"::date - $3::date)::int AS days_left,
                   r.type AS rev_type,
                   r.duration AS rev_duration,
@@ -1141,10 +1141,22 @@ export const accessRouter = t.router({
              ORDER BY "paymentDate" DESC, id DESC
              LIMIT 1
            ) r ON true
+           LEFT JOIN LATERAL (
+             SELECT "trainerId"
+             FROM revenue_entries
+             WHERE "memberId" = m.id AND type = 'PT'
+             ORDER BY "paymentDate" DESC, id DESC
+             LIMIT 1
+           ) pt_rev ON true
+           LEFT JOIN trainers pt_tr ON pt_tr.id = pt_rev."trainerId"
            WHERE m.status = 'active'
              AND m."membershipEnd" IS NOT NULL
              AND m."membershipEnd" >= $1
              AND m."membershipEnd" <= $2
+             AND EXISTS (
+               SELECT 1 FROM revenue_entries
+               WHERE "memberId" = m.id AND type = 'PT'
+             )
            ORDER BY m."membershipEnd" ASC`,
           [today, future, today]
         );
