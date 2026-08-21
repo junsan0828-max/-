@@ -7,7 +7,7 @@ import {
   Dumbbell, UserCog, Activity, Target,
   DollarSign, Percent, X,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, LabelList } from "recharts";
 
 const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4", "#6b7280", "#f97316"];
 
@@ -797,7 +797,9 @@ function MarketingTab() {
                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#9ca3af" }} />
                     <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
                     <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
-                    <Bar dataKey="count" name="건수" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="count" name="건수" fill="#6366f1" radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="count" position="top" style={{ fontSize: 10, fill: "#d1d5db", fontWeight: 600 }} formatter={(v: number) => v > 0 ? v : ""} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -811,7 +813,9 @@ function MarketingTab() {
                     <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#9ca3af" }} tickFormatter={(h: number) => `${h}시`} />
                     <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
                     <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} labelFormatter={(h: number) => `${h}시`} />
-                    <Bar dataKey="count" name="건수" fill="#8b5cf6" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="count" name="건수" fill="#8b5cf6" radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="count" position="top" style={{ fontSize: 9, fill: "#d1d5db", fontWeight: 600 }} formatter={(v: number) => v > 0 ? v : ""} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
