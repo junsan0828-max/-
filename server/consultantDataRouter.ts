@@ -12,6 +12,7 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 
 const AD_CHANNELS = ["검색광고", "파워링크", "플레이스", "당근", "블로그"] as const;
 const AD_CHANNELS_WITH_INQUIRY = ["플레이스", "당근", "블로그"] as const;
+const INSPECTION_AREAS = ["유산소 기구", "3층 소도구존", "2층 웨이트기구", "PT/케어존", "탈의실", "2층 거울", "3층 거울", "현장 이슈"] as const;
 
 let _tablesReady = false;
 async function ensureTables() {
@@ -49,6 +50,21 @@ async function ensureTables() {
       "createdAt" TEXT NOT NULL,
       "updatedAt" TEXT NOT NULL,
       CONSTRAINT ad_unique_date_channel_user UNIQUE (date, channel, "createdBy")
+    );
+    CREATE TABLE IF NOT EXISTS center_inspection_entries (
+      id SERIAL PRIMARY KEY,
+      date TEXT NOT NULL,
+      area TEXT NOT NULL,
+      "facilityStatus" TEXT NOT NULL DEFAULT '정상',
+      "hygieneStatus" TEXT NOT NULL DEFAULT '양호',
+      "issueNote" TEXT,
+      "assignee" TEXT,
+      "actionStatus" TEXT,
+      "actionDate" TEXT,
+      "createdBy" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL,
+      CONSTRAINT ci_unique_date_area_user UNIQUE (date, area, "createdBy")
     );
   `);
   _tablesReady = true;
@@ -251,6 +267,65 @@ export const consultantDataRouter = t.router({
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
       const result = await pool.query(
         `SELECT DISTINCT date FROM ad_data_entries WHERE "createdBy" = $1 AND date LIKE $2`,
+        [ctx.user.id, `${prefix}%`]
+      );
+      return result.rows.map((r: any) => r.date as string);
+    }),
+
+  // ── 센터 점검: 특정 날짜 조회 ──────────────────────────────────────────
+  getInspectionEntries: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await ensureTables();
+      const result = await pool.query(
+        `SELECT * FROM center_inspection_entries WHERE date = $1 AND "createdBy" = $2 ORDER BY id ASC`,
+        [input.date, ctx.user.id]
+      );
+      return result.rows as Array<{
+        id: number; date: string; area: string;
+        facilityStatus: string; hygieneStatus: string;
+        issueNote: string | null; assignee: string | null;
+        actionStatus: string | null; actionDate: string | null;
+      }>;
+    }),
+
+  // ── 센터 점검: 저장 (배치 upsert) ──────────────────────────────────────
+  saveInspectionEntries: protectedProcedure
+    .input(z.object({
+      date: z.string(),
+      entries: z.array(z.object({
+        area: z.string(),
+        facilityStatus: z.enum(["정상", "주의", "이상"]),
+        hygieneStatus: z.enum(["양호", "청소 필요", "즉시 조치 필요"]),
+        issueNote: z.string().optional(),
+        assignee: z.string().optional(),
+        actionStatus: z.enum(["미처리", "진행", "완료"]).optional(),
+        actionDate: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await ensureTables();
+      const now = new Date().toISOString();
+      for (const e of input.entries) {
+        await pool.query(
+          `INSERT INTO center_inspection_entries (date, area, "facilityStatus", "hygieneStatus", "issueNote", "assignee", "actionStatus", "actionDate", "createdBy", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+           ON CONFLICT ON CONSTRAINT ci_unique_date_area_user
+           DO UPDATE SET "facilityStatus" = $3, "hygieneStatus" = $4, "issueNote" = $5, "assignee" = $6, "actionStatus" = $7, "actionDate" = $8, "updatedAt" = $10`,
+          [input.date, e.area, e.facilityStatus, e.hygieneStatus, e.issueNote ?? null, e.assignee ?? null, e.actionStatus ?? null, e.actionDate ?? null, ctx.user.id, now]
+        );
+      }
+      return { ok: true };
+    }),
+
+  // ── 센터 점검: 월별 기록 있는 날짜 목록 ────────────────────────────────
+  getInspectionDatesWithData: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ ctx, input }) => {
+      await ensureTables();
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const result = await pool.query(
+        `SELECT DISTINCT date FROM center_inspection_entries WHERE "createdBy" = $1 AND date LIKE $2`,
         [ctx.user.id, `${prefix}%`]
       );
       return result.rows.map((r: any) => r.date as string);

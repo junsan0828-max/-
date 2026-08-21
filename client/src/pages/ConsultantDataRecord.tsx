@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ClipboardList, ChevronLeft, ChevronRight, Save, Calendar, BarChart2, Megaphone } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronRight, Save, Calendar, BarChart2, Megaphone, Building2, ChevronDown } from "lucide-react";
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 function toDateStr(d: Date) { return d.toISOString().substring(0, 10); }
@@ -44,10 +44,21 @@ const CHANNELS_WITH_INQUIRY = new Set(["플레이스", "당근", "블로그"]);
 
 type AdValues = Record<string, { impressions: number; clicks: number; visits: number; inquiries: number; notes: string }>;
 
+const INSPECTION_AREAS = ["유산소 기구", "3층 소도구존", "2층 웨이트기구", "PT/케어존", "탈의실", "2층 거울", "3층 거울", "현장 이슈"] as const;
+const FACILITY_STATUSES = ["정상", "주의", "이상"] as const;
+const HYGIENE_STATUSES = ["양호", "청소 필요", "즉시 조치 필요"] as const;
+const ACTION_STATUSES = ["미처리", "진행", "완료"] as const;
+
+type InspectionValues = Record<string, {
+  facilityStatus: string; hygieneStatus: string;
+  issueNote: string; assignee: string;
+  actionStatus: string; actionDate: string;
+}>;
+
 // ── 메인 페이지 ───────────────────────────────────────────────────────────────
 export default function ConsultantDataRecordPage() {
   const now = new Date();
-  const [mode, setMode] = useState<"daily" | "weekly" | "ads">("daily");
+  const [mode, setMode] = useState<"daily" | "weekly" | "ads" | "inspection">("daily");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [selectedDate, setSelectedDate] = useState(TODAY);
@@ -56,7 +67,7 @@ export default function ConsultantDataRecordPage() {
   const grid = getWeekdayGrid(year, month);
 
   useEffect(() => {
-    if (mode === "daily" || mode === "ads") {
+    if (mode === "daily" || mode === "ads" || mode === "inspection") {
       const allDays = grid.flatMap(w => w.days).filter(Boolean) as string[];
       if (!allDays.includes(selectedDate)) {
         const todayInMonth = allDays.find(d => d === TODAY);
@@ -88,11 +99,12 @@ export default function ConsultantDataRecordPage() {
       </h1>
 
       {/* 모드 탭 */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-1.5">
         {([
           { key: "daily" as const, label: "일일 데이터", icon: Calendar },
           { key: "weekly" as const, label: "주간 데이터", icon: BarChart2 },
           { key: "ads" as const, label: "광고 관리", icon: Megaphone },
+          { key: "inspection" as const, label: "센터 관리", icon: Building2 },
         ]).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -119,11 +131,11 @@ export default function ConsultantDataRecordPage() {
         </button>
       </div>
 
-      {mode === "daily" || mode === "ads" ? (
+      {mode === "daily" || mode === "ads" || mode === "inspection" ? (
         <DailyView
           year={year} month={month} grid={grid}
           selectedDate={selectedDate} onSelectDate={setSelectedDate}
-          section={mode === "ads" ? "ads" : "daily"}
+          section={mode === "ads" ? "ads" : mode === "inspection" ? "inspection" : "daily"}
         />
       ) : (
         <WeeklyView
@@ -132,12 +144,16 @@ export default function ConsultantDataRecordPage() {
         />
       )}
 
-      {activeDate && mode !== "ads" && (
+      {activeDate && mode !== "ads" && mode !== "inspection" && (
         <EntryForm date={activeDate} section={mode} />
       )}
 
       {activeDate && mode === "ads" && (
         <AdEntryForm date={selectedDate} />
+      )}
+
+      {activeDate && mode === "inspection" && (
+        <InspectionForm date={selectedDate} />
       )}
     </div>
   );
@@ -151,7 +167,7 @@ function DailyView({
   grid: ReturnType<typeof getWeekdayGrid>;
   selectedDate: string;
   onSelectDate: (d: string) => void;
-  section: "daily" | "ads";
+  section: "daily" | "ads" | "inspection";
 }) {
   const { data: datesWithData } = trpc.consultantData.getDatesWithData.useQuery(
     { year, month, section: "daily" },
@@ -161,7 +177,15 @@ function DailyView({
     { year, month },
     { enabled: section === "ads" }
   );
-  const dateDotSet = new Set(section === "ads" ? (adDatesWithData ?? []) : (datesWithData ?? []));
+  const { data: inspectionDatesWithData } = trpc.consultantData.getInspectionDatesWithData.useQuery(
+    { year, month },
+    { enabled: section === "inspection" }
+  );
+  const dateDotSet = new Set(
+    section === "ads" ? (adDatesWithData ?? [])
+    : section === "inspection" ? (inspectionDatesWithData ?? [])
+    : (datesWithData ?? [])
+  );
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -548,6 +572,259 @@ function AdEntryForm({ date }: { date: string }) {
                       className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                     />
                   </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saveMutation.isPending || !dirty}
+        className="w-full py-3 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Save className="h-4 w-4 inline mr-1.5" />
+        {saveMutation.isPending ? "저장 중..." : dirty ? "저장하기" : "저장됨"}
+      </button>
+    </div>
+  );
+}
+
+// ── 센터 점검 입력 폼 ─────────────────────────────────────────────────────────
+function InspectionForm({ date }: { date: string }) {
+  const utils = trpc.useUtils();
+  const { data: existing, isLoading } = trpc.consultantData.getInspectionEntries.useQuery({ date });
+  const { data: staffList } = trpc.consultantData.listStaff.useQuery();
+
+  const emptyValues = (): InspectionValues => {
+    const v: InspectionValues = {};
+    for (const area of INSPECTION_AREAS) {
+      v[area] = { facilityStatus: "정상", hygieneStatus: "양호", issueNote: "", assignee: "", actionStatus: "", actionDate: "" };
+    }
+    return v;
+  };
+
+  const [values, setValues] = useState<InspectionValues>(emptyValues);
+  const [dirty, setDirty] = useState(false);
+  const [openArea, setOpenArea] = useState<string | null>(null);
+
+  useEffect(() => {
+    const v = emptyValues();
+    if (existing) {
+      for (const e of existing) {
+        v[e.area] = {
+          facilityStatus: e.facilityStatus ?? "정상",
+          hygieneStatus: e.hygieneStatus ?? "양호",
+          issueNote: e.issueNote ?? "",
+          assignee: e.assignee ?? "",
+          actionStatus: e.actionStatus ?? "",
+          actionDate: e.actionDate ?? "",
+        };
+      }
+    }
+    setValues(v);
+    setDirty(false);
+  }, [existing, date]);
+
+  const saveMutation = trpc.consultantData.saveInspectionEntries.useMutation({
+    onSuccess: () => {
+      toast.success("센터 점검 저장됨");
+      setDirty(false);
+      utils.consultantData.invalidate();
+    },
+    onError: () => toast.error("저장 실패"),
+  });
+
+  function updateField(area: string, field: keyof InspectionValues[string], val: string) {
+    setValues(prev => ({
+      ...prev,
+      [area]: { ...prev[area], [field]: val },
+    }));
+    setDirty(true);
+  }
+
+  function handleSave() {
+    const entries = INSPECTION_AREAS.map(area => {
+      const v = values[area];
+      return {
+        area,
+        facilityStatus: (v?.facilityStatus ?? "정상") as "정상" | "주의" | "이상",
+        hygieneStatus: (v?.hygieneStatus ?? "양호") as "양호" | "청소 필요" | "즉시 조치 필요",
+        issueNote: v?.issueNote || undefined,
+        assignee: v?.assignee || undefined,
+        actionStatus: (v?.actionStatus || undefined) as "미처리" | "진행" | "완료" | undefined,
+        actionDate: v?.actionDate || undefined,
+      };
+    });
+    saveMutation.mutate({ date, entries });
+  }
+
+  if (isLoading) {
+    return <div className="text-center text-muted-foreground py-8 text-sm">불러오는 중...</div>;
+  }
+
+  const dateLabel = (() => {
+    const d = new Date(date + "T00:00:00");
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  })();
+
+  const FACILITY_COLORS: Record<string, string> = {
+    "정상": "bg-green-500/20 text-green-400 border-green-500/30",
+    "주의": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    "이상": "bg-red-500/20 text-red-400 border-red-500/30",
+  };
+  const HYGIENE_COLORS: Record<string, string> = {
+    "양호": "bg-green-500/20 text-green-400 border-green-500/30",
+    "청소 필요": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    "즉시 조치 필요": "bg-red-500/20 text-red-400 border-red-500/30",
+  };
+  const ACTION_COLORS: Record<string, string> = {
+    "미처리": "bg-red-500/20 text-red-400 border-red-500/30",
+    "진행": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    "완료": "bg-green-500/20 text-green-400 border-green-500/30",
+  };
+
+  function hasIssue(area: string) {
+    const v = values[area];
+    return v && (v.facilityStatus !== "정상" || v.hygieneStatus !== "양호");
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-foreground">{dateLabel} 센터 점검</p>
+        {dirty && (
+          <button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {saveMutation.isPending ? "저장 중..." : "저장"}
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {INSPECTION_AREAS.map(area => {
+          const isOpen = openArea === area;
+          const v = values[area] ?? emptyValues()[area];
+          const issue = hasIssue(area);
+          const hasData = existing?.some(e => e.area === area);
+
+          return (
+            <div key={area} className={`rounded-xl border overflow-hidden transition-colors ${
+              isOpen ? "border-primary/40 bg-primary/5" : issue ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-card"
+            }`}>
+              <button
+                onClick={() => setOpenArea(isOpen ? null : area)}
+                className="w-full flex items-center justify-between px-4 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-semibold ${isOpen ? "text-primary" : "text-foreground"}`}>{area}</span>
+                  {!isOpen && hasData && !issue && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  )}
+                  {!isOpen && issue && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">주의</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {!isOpen && (
+                    <div className="flex gap-1">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${FACILITY_COLORS[v.facilityStatus]}`}>{v.facilityStatus}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${HYGIENE_COLORS[v.hygieneStatus]}`}>{v.hygieneStatus}</span>
+                    </div>
+                  )}
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </div>
+              </button>
+
+              {isOpen && (
+                <div className="px-4 pb-4 space-y-3">
+                  <div>
+                    <span className="text-xs text-muted-foreground font-medium">시설 상태</span>
+                    <div className="flex gap-1.5 mt-1.5">
+                      {FACILITY_STATUSES.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => updateField(area, "facilityStatus", s)}
+                          className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                            v.facilityStatus === s ? FACILITY_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
+                          }`}
+                        >{s}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-xs text-muted-foreground font-medium">위생 상태</span>
+                    <div className="flex gap-1.5 mt-1.5">
+                      {HYGIENE_STATUSES.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => updateField(area, "hygieneStatus", s)}
+                          className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                            v.hygieneStatus === s ? HYGIENE_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
+                          }`}
+                        >{s}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {issue && (
+                    <div className="space-y-2.5 pt-1 border-t border-border">
+                      <div>
+                        <span className="text-xs text-muted-foreground">문제 내용</span>
+                        <textarea
+                          value={v.issueNote}
+                          onChange={e => updateField(area, "issueNote", e.target.value)}
+                          placeholder="문제 상세 내용..."
+                          rows={2}
+                          className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground">담당자</span>
+                        <select
+                          value={v.assignee}
+                          onChange={e => updateField(area, "assignee", e.target.value)}
+                          className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="">선택 안 함</option>
+                          {staffList?.map(s => (
+                            <option key={s.id} value={s.name}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground">조치 상태</span>
+                        <div className="flex gap-1.5 mt-1.5">
+                          {ACTION_STATUSES.map(s => (
+                            <button
+                              key={s}
+                              onClick={() => updateField(area, "actionStatus", s)}
+                              className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                                v.actionStatus === s ? ACTION_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
+                              }`}
+                            >{s}</button>
+                          ))}
+                        </div>
+                      </div>
+                      {v.actionStatus === "완료" && (
+                        <div>
+                          <span className="text-xs text-muted-foreground">조치 완료일</span>
+                          <input
+                            type="date"
+                            value={v.actionDate}
+                            onChange={e => updateField(area, "actionDate", e.target.value)}
+                            className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
