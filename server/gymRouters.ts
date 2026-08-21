@@ -359,7 +359,7 @@ const leadsRouter = t.router({
       }
 
       return {
-        byDow: DOW_LABELS.map((label, i) => ({ day: label, count: byDow[i] })),
+        byDow: DOW_LABELS.map((label, i) => ({ day: label, count: byDow[i] })).filter(d => d.day !== "일"),
         byHour: byHour.map((count, h) => ({ hour: h, count })).filter(h => h.count > 0 || (h.hour >= 8 && h.hour <= 22)),
         total: result.rows.length,
       };
