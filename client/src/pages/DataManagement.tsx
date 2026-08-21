@@ -330,6 +330,7 @@ function CustomerTab() {
   );
   const { data: unpaid } = trpc.pt.listUnpaid.useQuery();
   const { data: activePt } = trpc.access.getActivePtPackages.useQuery();
+  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year: selYear, month: selMonth });
 
   const totalUnpaid = (unpaid ?? []).reduce((s, p) => s + (p.unpaidAmount ?? 0), 0);
   const lowSession = (activePt ?? []).filter((p: any) => (p.totalSessions - p.usedSessions) <= 5);
@@ -528,6 +529,49 @@ function CustomerTab() {
           )}
         </div>
       )}
+
+      {/* PT 프로그램별 현황 */}
+      {programStats && programStats.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">PT 프로그램별 현황</h2>
+          <div className="space-y-2">
+            {programStats.map((prog: any, i: number) => {
+              const isEvent = prog.name.includes("이벤트");
+              const maxRev = programStats[0].revenue;
+              const pct = maxRev > 0 ? Math.round((prog.revenue / maxRev) * 100) : 0;
+              return (
+                <div key={prog.name}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded-full font-medium ${isEvent ? "bg-amber-400/15 text-amber-400" : "bg-primary/10 text-primary"}`}>{prog.name}</span>
+                      <span className="text-muted-foreground">{prog.count}건</span>
+                      <span className="text-muted-foreground text-[10px]">(신규 {prog.newCount} / 재등록 {prog.renewalCount})</span>
+                    </div>
+                    <span className="font-semibold text-foreground">{fmtWon(prog.revenue)}</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: isEvent ? "#f59e0b" : COLORS[i % COLORS.length] }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {(() => {
+            const evList = programStats.filter((p: any) => p.name.includes("이벤트"));
+            if (!evList.length) return null;
+            const evTotal = evList.reduce((s: number, p: any) => s + p.revenue, 0);
+            const evCount = evList.reduce((s: number, p: any) => s + p.count, 0);
+            const totalRev = programStats.reduce((s: number, p: any) => s + p.revenue, 0);
+            const evPct = totalRev > 0 ? Math.round((evTotal / totalRev) * 100) : 0;
+            return (
+              <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
+                <span className="text-amber-400 font-medium">이벤트피티 합계</span>
+                <span className="text-foreground font-semibold">{evCount}건 · {fmtWon(evTotal)} ({evPct}%)</span>
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
@@ -549,7 +593,6 @@ function MarketingTab() {
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
   const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
   const { data: annualData } = trpc.gym.revenue.channelAnnual.useQuery({ year });
-  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year, month });
   const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
   const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery({ startDate: range.start, endDate: range.end });
@@ -767,127 +810,46 @@ function MarketingTab() {
             </div>
           )}
 
-          {/* 채널별 리드 & 등록 차트 */}
-          {channelData.some(c => c.leads > 0 || c.revenue > 0) && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-foreground mb-4">채널별 리드 & 등록</h2>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={channelData.filter(c => c.leads > 0 || c.revenue > 0).map(c => ({
-                  name: c.name.length > 6 ? c.name.slice(0, 6) + "…" : c.name,
-                  리드: c.leads, 등록: c.registered,
-                }))} barSize={14}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#9ca3af" }} />
-                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
-                  <Bar dataKey="리드" fill="#6366f1" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="등록" fill="#10b981" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* PT 프로그램별 현황 */}
-          {programStats && programStats.length > 0 && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-foreground mb-3">PT 프로그램별 현황</h2>
-              <div className="space-y-2">
-                {programStats.map((prog, i) => {
-                  const isEvent = prog.name.includes("이벤트");
-                  const maxRev = programStats[0].revenue;
-                  const pct = maxRev > 0 ? Math.round((prog.revenue / maxRev) * 100) : 0;
-                  return (
-                    <div key={prog.name}>
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-1.5 py-0.5 rounded-full font-medium ${isEvent ? "bg-amber-400/15 text-amber-400" : "bg-primary/10 text-primary"}`}>{prog.name}</span>
-                          <span className="text-muted-foreground">{prog.count}건</span>
-                          <span className="text-muted-foreground text-[10px]">(신규 {prog.newCount} / 재등록 {prog.renewalCount})</span>
-                        </div>
-                        <span className="font-semibold text-foreground">{fmtWon(prog.revenue)}</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-1.5">
-                        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: isEvent ? "#f59e0b" : COLORS[i % COLORS.length] }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {(() => {
-                const evList = programStats.filter(p => p.name.includes("이벤트"));
-                if (!evList.length) return null;
-                const evTotal = evList.reduce((s, p) => s + p.revenue, 0);
-                const evCount = evList.reduce((s, p) => s + p.count, 0);
-                const totalRev = programStats.reduce((s, p) => s + p.revenue, 0);
-                const evPct = totalRev > 0 ? Math.round((evTotal / totalRev) * 100) : 0;
-                return (
-                  <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
-                    <span className="text-amber-400 font-medium">이벤트피티 합계</span>
-                    <span className="text-foreground font-semibold">{evCount}건 · {fmtWon(evTotal)} ({evPct}%)</span>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* 채널별 상담 전환 */}
-          {channels && channels.length > 0 && (
+          {/* 채널별 성과 (상담 전환 + 매출 통합) */}
+          {channelData.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <Target className="h-4 w-4 text-violet-400" /> 채널별 상담 전환
+                <Target className="h-4 w-4 text-violet-400" /> 채널별 성과
               </h3>
-              <div className="space-y-1.5">
-                {channels.map((ch: any) => {
+              <div className="space-y-2">
+                {channelData.map((ch: any) => {
                   const stat = monthStats?.byChannel?.[ch.id];
-                  const count = stat?.count ?? 0;
-                  const registered = stat?.registered ?? 0;
+                  const consultCount = stat?.count ?? 0;
+                  const convRate = ch.leads > 0 ? Math.round((ch.registered / ch.leads) * 100) : 0;
                   return (
-                    <div key={ch.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
-                      <p className="text-sm font-medium text-foreground">{ch.name}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">상담 {count}건</span>
-                        <span className="text-xs font-semibold text-emerald-400">등록 {registered}건</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400">
-                          {count > 0 ? Math.round((registered / count) * 100) : 0}%
-                        </span>
+                    <div key={ch.id} className="bg-card border border-border rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ch.color }} />
+                        <span className="text-sm font-medium text-foreground">{ch.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{CHANNEL_TYPE_LABELS[ch.type] ?? ch.type}</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 text-xs text-center">
+                        <div>
+                          <div className="font-semibold text-foreground">{ch.leads}</div>
+                          <div className="text-muted-foreground">리드</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-blue-400">{consultCount}</div>
+                          <div className="text-muted-foreground">상담</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-emerald-400">{ch.registered}<span className="text-muted-foreground ml-0.5">({convRate}%)</span></div>
+                          <div className="text-muted-foreground">등록</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-primary">{fmtWon(ch.revenue)}</div>
+                          <div className="text-muted-foreground">매출</div>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* 채널별 성과 */}
-          {channelData.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-sm font-semibold text-foreground">채널별 성과</h2>
-              {channelData.map(ch => {
-                const convRate = ch.leads > 0 ? Math.round((ch.registered / ch.leads) * 100) : 0;
-                return (
-                  <div key={ch.id} className="bg-card border border-border rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ch.color }} />
-                      <span className="font-medium text-foreground">{ch.name}</span>
-                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{CHANNEL_TYPE_LABELS[ch.type] ?? ch.type}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="text-center">
-                        <div className="font-semibold text-foreground">{ch.leads}</div>
-                        <div className="text-muted-foreground">리드</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-semibold text-emerald-400">{convRate}%</div>
-                        <div className="text-muted-foreground">전환율</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-semibold text-primary">{fmtWon(ch.revenue)}</div>
-                        <div className="text-muted-foreground">매출</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           )}
 
