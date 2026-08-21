@@ -312,14 +312,23 @@ const leadsRouter = t.router({
       const conversionRate = total > 0 ? Math.round((registered / total) * 100) : 0;
 
       const channelList = await db.select().from(channels);
-      const byChannel: Record<number, { name: string; count: number; registered: number }> = {};
+      const byChannel: Record<number, { name: string; count: number; consulted: number; registered: number }> = {};
       for (const ch of channelList) {
         const chLeads = monthLeads.filter(l => l.channelId === ch.id);
         if (chLeads.length > 0)
-          byChannel[ch.id] = { name: ch.name, count: chLeads.length, registered: chLeads.filter(l => l.status === "registered").length };
+          byChannel[ch.id] = {
+            name: ch.name,
+            count: chLeads.length,
+            consulted: chLeads.filter(l => l.status === "consulted" || l.status === "registered" || l.status === "followup").length,
+            registered: chLeads.filter(l => l.status === "registered").length,
+          };
       }
 
-      return { total, consulted, followup, registered, conversionRate, byChannel };
+      const noChannelLeads = monthLeads.filter(l => !l.channelId);
+      const noChannelConsulted = noChannelLeads.filter(l => l.status === "consulted" || l.status === "registered" || l.status === "followup").length;
+      const noChannelRegistered = noChannelLeads.filter(l => l.status === "registered").length;
+
+      return { total, consulted, followup, registered, conversionRate, byChannel, noChannel: noChannelLeads.length > 0 ? { count: noChannelLeads.length, consulted: noChannelConsulted, registered: noChannelRegistered } : null };
     }),
 
   consultationTimeStats: protectedProcedure

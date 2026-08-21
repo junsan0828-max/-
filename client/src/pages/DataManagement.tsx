@@ -517,17 +517,33 @@ function MarketingTab() {
   const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
   const { data: consultTimeStats } = trpc.gym.leads.consultationTimeStats.useQuery({ year, month });
 
-  const channelData = (channels ?? []).map((ch, i) => {
-    const leadStat = monthStats?.byChannel[ch.id];
-    const revData = channelRevSummary?.find(r => r.channelName === ch.name);
-    return {
-      id: ch.id, name: ch.name, type: ch.type,
-      leads: leadStat?.count ?? 0,
-      registered: leadStat?.registered ?? 0,
-      revenue: revData?.total ?? 0,
-      color: COLORS[i % COLORS.length],
-    };
-  }).sort((a, b) => b.revenue - a.revenue);
+  const channelData = (() => {
+    const list = (channels ?? [])
+      .filter(ch => ch.name !== "전화예약")
+      .map((ch, i) => {
+        const leadStat = monthStats?.byChannel[ch.id];
+        const revData = channelRevSummary?.find(r => r.channelName === ch.name);
+        return {
+          id: ch.id, name: ch.name, type: ch.type,
+          leads: leadStat?.count ?? 0,
+          consulted: leadStat?.consulted ?? 0,
+          registered: leadStat?.registered ?? 0,
+          revenue: revData?.total ?? 0,
+          color: COLORS[i % COLORS.length],
+        };
+      });
+    if (monthStats?.noChannel) {
+      list.push({
+        id: -1, name: "채널 미지정", type: "etc",
+        leads: monthStats.noChannel.count,
+        consulted: monthStats.noChannel.consulted,
+        registered: monthStats.noChannel.registered,
+        revenue: 0,
+        color: COLORS[(list.length) % COLORS.length],
+      });
+    }
+    return list.filter(ch => ch.leads > 0 || ch.revenue > 0).sort((a, b) => b.leads - a.leads);
+  })();
 
   const totalLeads = monthStats?.total ?? 0;
   const totalRevenue = channelRevSummary?.reduce((s, r) => s + r.total, 0) ?? 0;
@@ -810,8 +826,6 @@ function MarketingTab() {
               </h3>
               <div className="space-y-2">
                 {channelData.map((ch: any) => {
-                  const stat = monthStats?.byChannel?.[ch.id];
-                  const consultCount = stat?.count ?? 0;
                   const convRate = ch.leads > 0 ? Math.round((ch.registered / ch.leads) * 100) : 0;
                   return (
                     <div key={ch.id} className="bg-card border border-border rounded-xl p-3">
@@ -826,7 +840,7 @@ function MarketingTab() {
                           <div className="text-muted-foreground">리드</div>
                         </div>
                         <div>
-                          <div className="font-semibold text-blue-400">{consultCount}</div>
+                          <div className="font-semibold text-blue-400">{ch.consulted}</div>
                           <div className="text-muted-foreground">상담</div>
                         </div>
                         <div>
