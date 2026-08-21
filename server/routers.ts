@@ -1399,7 +1399,9 @@ const ptRouter = t.router({
   }),
 
   // 미수금 있는 PT 패키지 목록 (admin/sub_admin용)
-  listUnpaid: protectedProcedure.query(async ({ ctx }) => {
+  listUnpaid: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -1417,7 +1419,8 @@ const ptRouter = t.router({
       .where(
         and(
           sql`${ptPackages.unpaidAmount} IS NOT NULL`,
-          gt(ptPackages.unpaidAmount, 0)
+          gt(ptPackages.unpaidAmount, 0),
+          ...(input?.branchId ? [eq(members.branchId, input.branchId)] : [])
         )
       )
       .orderBy(desc(ptPackages.unpaidAmount));

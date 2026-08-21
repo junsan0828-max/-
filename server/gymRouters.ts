@@ -1522,16 +1522,17 @@ const revenueRouter = t.router({
     }),
 
   channelAnnual: protectedProcedure
-    .input(z.object({ year: z.number() }))
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-`;
-      const rows = await db.select({ entry: revenueEntries, channelName: channels.name })
+      const allRows = await db.select({ entry: revenueEntries, channelName: channels.name })
         .from(revenueEntries)
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
       const allLeads = await db.select().from(leads);
       const channelList = await db.select().from(channels);

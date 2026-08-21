@@ -201,18 +201,21 @@ function CustomerTab() {
   const kstNow = new Date(Date.now() + 9 * 3600000);
   const [selYear, setSelYear] = useState(kstNow.getUTCFullYear());
   const [selMonth, setSelMonth] = useState(kstNow.getUTCMonth() + 1);
+  const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const selPrefix = `${selYear}-${String(selMonth).padStart(2, "0")}`;
   const isCurrentMonth = selPrefix === `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}`;
   const goPrev = () => { if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); } else setSelMonth(m => m - 1); };
   const goNext = () => { if (isCurrentMonth) return; if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); } else setSelMonth(m => m + 1); };
 
-  const { data: stats } = trpc.access.getAdminMemberStats.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const bParam = branchFilter ? { branchId: branchFilter } : {};
+  const { data: stats } = trpc.access.getAdminMemberStats.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
   const { data: expiring, isLoading: expiringLoading } = trpc.access.getAdminExpiringMembers.useQuery(
-    isCurrentMonth ? { days: 30 } : { days: 30, month: selPrefix }
+    isCurrentMonth ? { days: 30, ...bParam } : { days: 30, month: selPrefix, ...bParam }
   );
-  const { data: unpaid } = trpc.pt.listUnpaid.useQuery();
-  const { data: activePt } = trpc.access.getActivePtPackages.useQuery();
-  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year: selYear, month: selMonth });
+  const { data: unpaid } = trpc.pt.listUnpaid.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
+  const { data: activePt } = trpc.access.getActivePtPackages.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
+  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year: selYear, month: selMonth, ...bParam });
 
   const totalUnpaid = (unpaid ?? []).reduce((s, p) => s + (p.unpaidAmount ?? 0), 0);
   const lowSession = (activePt ?? []).filter((p: any) => (p.totalSessions - p.usedSessions) <= 5);
@@ -239,6 +242,16 @@ function CustomerTab() {
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
+
+      {/* 호점 필터 */}
+      {branchList && branchList.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
+          {branchList.map(b => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
+          ))}
+        </div>
+      )}
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 gap-2">
@@ -469,11 +482,13 @@ function MarketingTab() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [showAnnual, setShowAnnual] = useState(false);
   const [lpMode, setLpMode] = useState<"weekly" | "monthly">("monthly");
+  const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
   const goPrev = () => { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); };
   const goNext = () => { if (!isCurrentMonth) { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); } };
   const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
   const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  const bParam = branchFilter ? { branchId: branchFilter } : {};
 
   const weekRange = useMemo(() => {
     const today = new Date();
@@ -486,16 +501,17 @@ function MarketingTab() {
     return { start: toDateStr(mon), end: toDateStr(sun) };
   }, []);
 
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: pageStats } = trpc.landing.getPageStats.useQuery();
   const { data: pageStatsMonth } = trpc.landing.getPageStatsByPeriod.useQuery({ year, month });
   const { data: pageStatsWeek } = trpc.landing.getPageStatsByRange.useQuery({ startDate: weekRange.start, endDate: weekRange.end });
   const { data: pageStatsAnnual } = trpc.landing.getPageStatsByPeriod.useQuery({ year });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
-  const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
-  const { data: annualData } = trpc.gym.revenue.channelAnnual.useQuery({ year });
-  const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year });
-  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
+  const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...bParam });
+  const { data: annualData } = trpc.gym.revenue.channelAnnual.useQuery({ year, ...bParam });
+  const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year, ...bParam });
+  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month, ...bParam });
   const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
   const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
 
@@ -537,6 +553,16 @@ function MarketingTab() {
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
+
+      {/* 호점 필터 */}
+      {branchList && branchList.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
+          {branchList.map(b => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
+          ))}
+        </div>
+      )}
 
       {/* 랜딩페이지 방문자 통계 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">

@@ -1020,15 +1020,17 @@ export const accessRouter = t.router({
 
   // 활성 PT 패키지 목록 (서비스 관리 - PT권 탭)
   getActivePtPackages: protectedProcedure
-    .query(async () => {
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
       const today = kstDate();
+      const bCond = input?.branchId ? `AND m."branchId" = ${Number(input.branchId)}` : "";
       const result = await pool.query(
         `SELECT p.id, p."memberId", m.name as "memberName", m.phone as "memberPhone",
                 p."packageName", p."totalSessions", p."usedSessions",
                 p."startDate", p."expiryDate", p.status, p."paymentAmount"
          FROM pt_packages p
          JOIN members m ON m.id = p."memberId"
-         WHERE p.status = 'active' AND (p."expiryDate" IS NULL OR p."expiryDate" >= $1)
+         WHERE p.status = 'active' AND (p."expiryDate" IS NULL OR p."expiryDate" >= $1) ${bCond}
          ORDER BY p."expiryDate" ASC NULLS LAST`,
         [today]
       );
@@ -1086,9 +1088,12 @@ export const accessRouter = t.router({
 
   // 관리자용 전체 회원 통계
   getAdminMemberStats: protectedProcedure
-    .query(async () => {
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
       const today = kstDate();
       const in30 = kstDate(30);
+      const bCond = input?.branchId ? `AND "branchId" = ${Number(input.branchId)}` : "";
+      const mBCond = input?.branchId ? `AND m."branchId" = ${Number(input.branchId)}` : "";
       const result = await pool.query(`
         SELECT
           COUNT(*)::int AS total,
@@ -1096,12 +1101,12 @@ export const accessRouter = t.router({
           COUNT(*) FILTER (WHERE status != 'active')::int AS inactive,
           COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2)::int AS expiring30,
           COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" < $1)::int AS expired_but_active,
-          (SELECT COUNT(*)::int FROM pt_packages WHERE status = 'active') AS active_pt_packages,
-          (SELECT COUNT(DISTINCT "memberId")::int FROM pt_packages WHERE status = 'active') AS pt_members,
-          (SELECT COALESCE(SUM("unpaidAmount"),0)::int FROM pt_packages WHERE "unpaidAmount" > 0) AS total_unpaid,
+          (SELECT COUNT(*)::int FROM pt_packages p JOIN members m ON m.id = p."memberId" WHERE p.status = 'active' ${mBCond}) AS active_pt_packages,
+          (SELECT COUNT(DISTINCT p."memberId")::int FROM pt_packages p JOIN members m ON m.id = p."memberId" WHERE p.status = 'active' ${mBCond}) AS pt_members,
+          (SELECT COALESCE(SUM(p."unpaidAmount"),0)::int FROM pt_packages p JOIN members m ON m.id = p."memberId" WHERE p."unpaidAmount" > 0 ${mBCond}) AS total_unpaid,
           COUNT(*) FILTER (WHERE gender = '남')::int AS male,
           COUNT(*) FILTER (WHERE gender = '여')::int AS female
-        FROM members
+        FROM members WHERE 1=1 ${bCond}
       `, [today, in30]);
       return result.rows[0] as {
         total: number; active: number; inactive: number; expiring30: number;
@@ -1112,7 +1117,7 @@ export const accessRouter = t.router({
 
   // 관리자용 만료 임박 회원 목록 (N일 이내 또는 특정 월)
   getAdminExpiringMembers: protectedProcedure
-    .input(z.object({ days: z.number().default(30), month: z.string().optional() }))
+    .input(z.object({ days: z.number().default(30), month: z.string().optional(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       try {
         let today: string, future: string;
@@ -1124,6 +1129,7 @@ export const accessRouter = t.router({
           today = kstDate();
           future = kstDate(input.days);
         }
+        const bCond = input.branchId ? `AND m."branchId" = ${Number(input.branchId)}` : "";
         const result = await pool.query(
           `SELECT m.id, m.name, m.phone, m."membershipEnd",
                   COALESCE(pt_tr."trainerName", t."trainerName") AS "trainerName",
@@ -1158,6 +1164,7 @@ export const accessRouter = t.router({
                SELECT 1 FROM revenue_entries
                WHERE "memberId" = m.id AND type = 'PT'
              )
+             ${bCond}
            ORDER BY m."membershipEnd" ASC`,
           [today, future, today]
         );
