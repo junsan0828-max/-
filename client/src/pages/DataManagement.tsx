@@ -5,7 +5,7 @@ import {
   Database, TrendingUp, Users, Megaphone, Building2,
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
   Dumbbell, UserCog, Activity, Target,
-  DollarSign, Percent, X, CalendarDays,
+  DollarSign, Percent, X,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
 
@@ -18,126 +18,8 @@ function fmtWon(v: number) {
   return v.toLocaleString();
 }
 
-type PeriodMode = "daily" | "weekly" | "monthly";
-
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function getWeekRange(dateStr: string): { start: string; end: string } {
-  const d = new Date(dateStr + "T00:00:00");
-  const day = d.getDay();
-  const diffToMon = day === 0 ? -6 : 1 - day;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() + diffToMon);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return { start: toDateStr(mon), end: toDateStr(sun) };
-}
-
-function getMonthRange(year: number, month: number): { start: string; end: string } {
-  const last = new Date(year, month, 0).getDate();
-  return {
-    start: `${year}-${String(month).padStart(2, "0")}-01`,
-    end: `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`,
-  };
-}
-
-function usePeriod() {
-  const kstNow = new Date(Date.now() + 9 * 3600000);
-  const todayStr = toDateStr(kstNow);
-  const [mode, setMode] = useState<PeriodMode>("monthly");
-  const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [year, setYear] = useState(kstNow.getUTCFullYear());
-  const [month, setMonth] = useState(kstNow.getUTCMonth() + 1);
-
-  const range = useMemo(() => {
-    if (mode === "daily") return { start: selectedDate, end: selectedDate };
-    if (mode === "weekly") return getWeekRange(selectedDate);
-    return getMonthRange(year, month);
-  }, [mode, selectedDate, year, month]);
-
-  function navPrev() {
-    if (mode === "daily") {
-      const d = new Date(selectedDate + "T00:00:00");
-      d.setDate(d.getDate() - 1);
-      setSelectedDate(toDateStr(d));
-    } else if (mode === "weekly") {
-      const d = new Date(selectedDate + "T00:00:00");
-      d.setDate(d.getDate() - 7);
-      setSelectedDate(toDateStr(d));
-    } else {
-      if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1);
-    }
-  }
-  function navNext() {
-    if (mode === "daily") {
-      const d = new Date(selectedDate + "T00:00:00");
-      d.setDate(d.getDate() + 1);
-      if (toDateStr(d) <= todayStr) setSelectedDate(toDateStr(d));
-    } else if (mode === "weekly") {
-      const d = new Date(selectedDate + "T00:00:00");
-      d.setDate(d.getDate() + 7);
-      const wr = getWeekRange(toDateStr(d));
-      if (wr.start <= todayStr) setSelectedDate(toDateStr(d));
-    } else {
-      const cur = `${year}-${String(month).padStart(2, "0")}`;
-      const now = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}`;
-      if (cur < now) {
-        if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1);
-      }
-    }
-  }
-
-  const label = useMemo(() => {
-    if (mode === "daily") {
-      const d = new Date(selectedDate + "T00:00:00");
-      const dow = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
-      return `${d.getMonth() + 1}월 ${d.getDate()}일 (${dow})`;
-    }
-    if (mode === "weekly") {
-      const wr = getWeekRange(selectedDate);
-      const s = new Date(wr.start + "T00:00:00");
-      const e = new Date(wr.end + "T00:00:00");
-      return `${s.getMonth() + 1}/${s.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}`;
-    }
-    return `${year}년 ${month}월`;
-  }, [mode, selectedDate, year, month]);
-
-  return { mode, setMode, year, month, selectedDate, range, label, navPrev, navNext };
-}
-
-function PeriodSelector({ mode, setMode, label, navPrev, navNext }: {
-  mode: PeriodMode; setMode: (m: PeriodMode) => void;
-  label: string; navPrev: () => void; navNext: () => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
-        {([
-          { key: "daily" as const, label: "일일" },
-          { key: "weekly" as const, label: "주간" },
-          { key: "monthly" as const, label: "월간" },
-        ]).map(({ key, label: l }) => (
-          <button key={key} onClick={() => setMode(key)}
-            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${mode === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-2.5">
-        <button onClick={navPrev} className="p-1 text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <span className="font-semibold text-foreground text-sm flex items-center gap-1.5">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />{label}
-        </span>
-        <button onClick={navNext} className="p-1 text-muted-foreground hover:text-foreground">
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
 }
 
 // ── 재무 탭 ──────────────────────────────────────────────────────────────────
@@ -582,12 +464,31 @@ const CHANNEL_TYPE_LABELS: Record<string, string> = {
 };
 
 function MarketingTab() {
-  const period = usePeriod();
-  const { mode, year, month, range } = period;
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const [showAnnual, setShowAnnual] = useState(false);
+  const [lpMode, setLpMode] = useState<"weekly" | "monthly">("monthly");
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+  const goPrev = () => { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); };
+  const goNext = () => { if (!isCurrentMonth) { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); } };
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+
+  const weekRange = useMemo(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(today);
+    mon.setDate(today.getDate() + diffToMon);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { start: toDateStr(mon), end: toDateStr(sun) };
+  }, []);
 
   const { data: pageStats } = trpc.landing.getPageStats.useQuery();
   const { data: pageStatsMonth } = trpc.landing.getPageStatsByPeriod.useQuery({ year, month });
+  const { data: pageStatsWeek } = trpc.landing.getPageStatsByRange.useQuery({ startDate: weekRange.start, endDate: weekRange.end });
   const { data: pageStatsAnnual } = trpc.landing.getPageStatsByPeriod.useQuery({ year });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
@@ -595,8 +496,8 @@ function MarketingTab() {
   const { data: annualData } = trpc.gym.revenue.channelAnnual.useQuery({ year });
   const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
-  const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery({ startDate: range.start, endDate: range.end });
-  const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery({ startDate: range.start, endDate: range.end });
+  const { data: adSummary } = trpc.consultantData.getAdSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
+  const { data: contentSummary } = trpc.consultantData.getContentSummary.useQuery({ startDate: monthStart, endDate: monthEnd });
 
   const channelData = (channels ?? []).map((ch, i) => {
     const leadStat = monthStats?.byChannel[ch.id];
@@ -665,8 +566,16 @@ function MarketingTab() {
         )}
       </div>
 
-      {/* 기간 선택 */}
-      <PeriodSelector {...period} />
+      {/* 월 선택 */}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{year}년 {month}월</span>
+        <button onClick={goNext} disabled={isCurrentMonth} className={`p-1.5 rounded-lg bg-card border border-border ${isCurrentMonth ? "text-border cursor-not-allowed" : "text-muted-foreground hover:text-foreground"}`}>
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
 
       {/* 광고 채널 성과 (데이터 기록) */}
       {adSummary && adSummary.length > 0 && (
@@ -741,10 +650,7 @@ function MarketingTab() {
         </div>
       )}
 
-      {/* ── 월간 기준 데이터 ── */}
-      {mode === "monthly" && (
-        <>
-          {/* 요약 카드 */}
+      {/* 요약 카드 */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-card border border-border rounded-xl p-3 text-center">
               <Users className="h-4 w-4 text-blue-400 mx-auto mb-1" />
@@ -763,27 +669,47 @@ function MarketingTab() {
             </div>
           </div>
 
-          {/* 랜딩페이지 월간 통계 */}
+          {/* 랜딩페이지 주간/월간 통계 */}
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Megaphone className="h-4 w-4 text-primary" />
-              <h2 className="font-semibold text-sm">랜딩페이지 {month}월 현황</h2>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-muted/30 rounded-lg p-3 text-center">
-                <p className="text-2xl font-black text-blue-400">{pageStatsMonth?.views ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">명</span></p>
-                <p className="text-[10px] text-muted-foreground mt-1">방문자(순)</p>
-                <p className="text-[9px] text-muted-foreground/80 mt-0.5">신규 {pageStatsMonth?.newVisitors ?? 0} · 재방문 {pageStatsMonth?.returningVisitors ?? 0}</p>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-4 w-4 text-primary" />
+                <h2 className="font-semibold text-sm">
+                  랜딩페이지 {lpMode === "weekly" ? "이번 주" : `${month}월`} 현황
+                </h2>
               </div>
-              <div className="bg-muted/30 rounded-lg p-3 text-center">
-                <p className="text-2xl font-black text-emerald-400">{pageStatsMonth?.naverClicks ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">회</span></p>
-                <p className="text-[10px] text-muted-foreground mt-1">네이버 클릭</p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 text-center">
-                <p className="text-2xl font-black text-amber-400">{pageStatsMonth?.analysisComplete ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">건</span></p>
-                <p className="text-[10px] text-muted-foreground mt-1">체형분석 신청</p>
+              <div className="flex gap-1 bg-muted/40 rounded-lg p-0.5">
+                {([{ key: "weekly" as const, label: "주간" }, { key: "monthly" as const, label: "월간" }]).map(({ key, label: l }) => (
+                  <button key={key} onClick={() => setLpMode(key)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${lpMode === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+                    {l}
+                  </button>
+                ))}
               </div>
             </div>
+            {lpMode === "weekly" && (
+              <p className="text-[10px] text-muted-foreground mb-2">{weekRange.start.slice(5)} ~ {weekRange.end.slice(5)}</p>
+            )}
+            {(() => {
+              const d = lpMode === "weekly" ? pageStatsWeek : pageStatsMonth;
+              return (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-black text-blue-400">{d?.views ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">명</span></p>
+                    <p className="text-[10px] text-muted-foreground mt-1">방문자(순)</p>
+                    <p className="text-[9px] text-muted-foreground/80 mt-0.5">신규 {d?.newVisitors ?? 0} · 재방문 {d?.returningVisitors ?? 0}</p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-black text-emerald-400">{d?.naverClicks ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">회</span></p>
+                    <p className="text-[10px] text-muted-foreground mt-1">네이버 클릭</p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-black text-amber-400">{d?.analysisComplete ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">건</span></p>
+                    <p className="text-[10px] text-muted-foreground mt-1">체형분석 신청</p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* 전환 퍼널 */}
@@ -892,17 +818,12 @@ function MarketingTab() {
             );
           })()}
 
-        </>
-      )}
-
       {/* ── 연간 누적 ── */}
-      {mode === "monthly" && (
-        <button onClick={() => setShowAnnual(v => !v)}
-          className="w-full py-2.5 text-xs font-medium text-muted-foreground bg-card border border-border rounded-xl hover:text-foreground transition-colors">
-          {showAnnual ? "연간 누적 접기 ▲" : "연간 누적 보기 ▼"}
-        </button>
-      )}
-      {mode === "monthly" && showAnnual && (
+      <button onClick={() => setShowAnnual(v => !v)}
+        className="w-full py-2.5 text-xs font-medium text-muted-foreground bg-card border border-border rounded-xl hover:text-foreground transition-colors">
+        {showAnnual ? "연간 누적 접기 ▲" : "연간 누적 보기 ▼"}
+      </button>
+      {showAnnual && (
         <>
 
           <div className="grid grid-cols-3 gap-3">

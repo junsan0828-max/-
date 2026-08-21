@@ -6698,6 +6698,50 @@ const landingRouter = t.router({
         };
       } catch (e) { console.error("getPageStatsByPeriod error:", e); return { views: 0, newVisitors: 0, returningVisitors: 0, naverClicks: 0, analysisComplete: 0 }; }
     }),
+
+  getPageStatsByRange: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ input }) => {
+      try {
+        const [visitorRes, otherRes] = await Promise.all([
+          pool.query(`
+            WITH sf AS (
+              SELECT session_id, MIN("createdAt"::timestamp) AS first_ts
+              FROM landing_page_stats
+              WHERE event='page_view' AND session_id IS NOT NULL
+              GROUP BY session_id
+            ),
+            period AS (
+              SELECT DISTINCT session_id
+              FROM landing_page_stats
+              WHERE event='page_view' AND session_id IS NOT NULL
+                AND ("createdAt"::timestamp + interval '9 hours')::date BETWEEN $1::date AND $2::date
+            )
+            SELECT
+              COUNT(*) AS views,
+              COUNT(*) FILTER (WHERE (sf.first_ts + interval '9 hours')::date BETWEEN $1::date AND $2::date) AS new_visitors,
+              COUNT(*) FILTER (WHERE (sf.first_ts + interval '9 hours')::date < $1::date) AS returning_visitors
+            FROM period p JOIN sf ON p.session_id = sf.session_id
+          `, [input.startDate, input.endDate]),
+          pool.query(`
+            SELECT
+              COUNT(CASE WHEN event='naver_click' THEN 1 END) as naver_clicks,
+              COUNT(CASE WHEN event='body_analysis_complete' THEN 1 END) as conversions
+            FROM landing_page_stats
+            WHERE ("createdAt"::timestamp + interval '9 hours')::date BETWEEN $1::date AND $2::date
+          `, [input.startDate, input.endDate]),
+        ]);
+        const v = visitorRes.rows[0];
+        const o = otherRes.rows[0];
+        return {
+          views: parseInt(v?.views ?? "0"),
+          newVisitors: parseInt(v?.new_visitors ?? "0"),
+          returningVisitors: parseInt(v?.returning_visitors ?? "0"),
+          naverClicks: parseInt(o?.naver_clicks ?? "0"),
+          analysisComplete: parseInt(o?.conversions ?? "0"),
+        };
+      } catch (e) { console.error("getPageStatsByRange error:", e); return { views: 0, newVisitors: 0, returningVisitors: 0, naverClicks: 0, analysisComplete: 0 }; }
+    }),
 });
 
 // ─── 무료 체형분석 예약 라우터 ────────────────────────────────────────────────
