@@ -48,20 +48,21 @@ function FinanceTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2">
-          <button onClick={() => setYear(y => y - 1)} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
-          <span className="text-sm font-semibold w-14 text-center">{year}년</span>
-          <button onClick={() => setYear(y => y + 1)} className="text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+      {/* 호점 필터 */}
+      {branchList && branchList.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
+          {branchList.map((b: any) => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
+          ))}
         </div>
-        {branchList && branchList.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
-            {branchList.map((b: any) => (
-              <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
-            ))}
-          </div>
-        )}
+      )}
+
+      {/* 년도 선택 */}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={() => setYear(y => y - 1)} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
+        <span className="text-sm font-semibold text-foreground min-w-[80px] text-center">{year}년</span>
+        <button onClick={() => setYear(y => y + 1)} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
       </div>
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">로딩 중...</div>
@@ -232,6 +233,16 @@ function CustomerTab() {
 
   return (
     <div className="space-y-4">
+      {/* 호점 필터 */}
+      {branchList && branchList.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
+          {branchList.map(b => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
+          ))}
+        </div>
+      )}
+
       {/* 월 선택 */}
       <div className="flex items-center justify-center gap-3">
         <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
@@ -242,16 +253,6 @@ function CustomerTab() {
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-
-      {/* 호점 필터 */}
-      {branchList && branchList.length > 1 && (
-        <div className="flex gap-1.5 flex-wrap">
-          <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
-          {branchList.map(b => (
-            <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
-          ))}
-        </div>
-      )}
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 gap-2">
@@ -544,6 +545,16 @@ function MarketingTab() {
 
   return (
     <div className="space-y-5">
+      {/* 호점 필터 */}
+      {branchList && branchList.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
+          {branchList.map(b => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
+          ))}
+        </div>
+      )}
+
       {/* 월 선택 */}
       <div className="flex items-center justify-center gap-3">
         <button onClick={goPrev} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground">
@@ -554,16 +565,6 @@ function MarketingTab() {
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-
-      {/* 호점 필터 */}
-      {branchList && branchList.length > 1 && (
-        <div className="flex gap-1.5 flex-wrap">
-          <button onClick={() => setBranchFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>전체</button>
-          {branchList.map(b => (
-            <button key={b.id} onClick={() => setBranchFilter(b.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{b.name}</button>
-          ))}
-        </div>
-      )}
 
       {/* 랜딩페이지 방문자 통계 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
