@@ -407,6 +407,49 @@ function CustomerTab() {
         </div>
       )}
 
+      {/* PT 프로그램별 현황 */}
+      {programStats && programStats.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">PT 프로그램별 현황</h2>
+          <div className="space-y-2">
+            {programStats.map((prog: any, i: number) => {
+              const isEvent = prog.name.includes("이벤트");
+              const maxRev = programStats[0].revenue;
+              const pct = maxRev > 0 ? Math.round((prog.revenue / maxRev) * 100) : 0;
+              return (
+                <div key={prog.name}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded-full font-medium ${isEvent ? "bg-amber-400/15 text-amber-400" : "bg-primary/10 text-primary"}`}>{prog.name}</span>
+                      <span className="text-muted-foreground">{prog.count}건</span>
+                      <span className="text-muted-foreground text-[10px]">(신규 {prog.newCount} / 재등록 {prog.renewalCount})</span>
+                    </div>
+                    <span className="font-semibold text-foreground">{fmtWon(prog.revenue)}</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: isEvent ? "#f59e0b" : COLORS[i % COLORS.length] }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {(() => {
+            const evList = programStats.filter((p: any) => p.name.includes("이벤트"));
+            if (!evList.length) return null;
+            const evTotal = evList.reduce((s: number, p: any) => s + p.revenue, 0);
+            const evCount = evList.reduce((s: number, p: any) => s + p.count, 0);
+            const totalRev = programStats.reduce((s: number, p: any) => s + p.revenue, 0);
+            const evPct = totalRev > 0 ? Math.round((evTotal / totalRev) * 100) : 0;
+            return (
+              <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
+                <span className="text-amber-400 font-medium">이벤트피티 합계</span>
+                <span className="text-foreground font-semibold">{evCount}건 · {fmtWon(evTotal)} ({evPct}%)</span>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* 카테고리 탭 */}
       <div className="flex gap-1.5">
         {CUST_CATS.map(c => {
@@ -527,49 +570,6 @@ function CustomerTab() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* PT 프로그램별 현황 */}
-      {programStats && programStats.length > 0 && (
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-foreground mb-3">PT 프로그램별 현황</h2>
-          <div className="space-y-2">
-            {programStats.map((prog: any, i: number) => {
-              const isEvent = prog.name.includes("이벤트");
-              const maxRev = programStats[0].revenue;
-              const pct = maxRev > 0 ? Math.round((prog.revenue / maxRev) * 100) : 0;
-              return (
-                <div key={prog.name}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`px-1.5 py-0.5 rounded-full font-medium ${isEvent ? "bg-amber-400/15 text-amber-400" : "bg-primary/10 text-primary"}`}>{prog.name}</span>
-                      <span className="text-muted-foreground">{prog.count}건</span>
-                      <span className="text-muted-foreground text-[10px]">(신규 {prog.newCount} / 재등록 {prog.renewalCount})</span>
-                    </div>
-                    <span className="font-semibold text-foreground">{fmtWon(prog.revenue)}</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-1.5">
-                    <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: isEvent ? "#f59e0b" : COLORS[i % COLORS.length] }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {(() => {
-            const evList = programStats.filter((p: any) => p.name.includes("이벤트"));
-            if (!evList.length) return null;
-            const evTotal = evList.reduce((s: number, p: any) => s + p.revenue, 0);
-            const evCount = evList.reduce((s: number, p: any) => s + p.count, 0);
-            const totalRev = programStats.reduce((s: number, p: any) => s + p.revenue, 0);
-            const evPct = totalRev > 0 ? Math.round((evTotal / totalRev) * 100) : 0;
-            return (
-              <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
-                <span className="text-amber-400 font-medium">이벤트피티 합계</span>
-                <span className="text-foreground font-semibold">{evCount}건 · {fmtWon(evTotal)} ({evPct}%)</span>
-              </div>
-            );
-          })()}
         </div>
       )}
     </div>

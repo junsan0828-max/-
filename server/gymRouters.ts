@@ -1639,8 +1639,8 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
       const allEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${prefix}%`));
-      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전"
-        && (!input.branchId || e.branchId === input.branchId));
+      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불"
+        && e.paidAmount > 0 && (!input.branchId || e.branchId === input.branchId));
 
       const byProgram: Record<string, { name: string; count: number; revenue: number; newCount: number; renewalCount: number }> = {};
       for (const e of entries) {
