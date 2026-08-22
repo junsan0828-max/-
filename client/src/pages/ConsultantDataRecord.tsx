@@ -431,7 +431,6 @@ function InspectionForm({ date }: { date: string }) {
 
   const [values, setValues] = useState<InspectionValues>(emptyValues);
   const [dirty, setDirty] = useState(false);
-  const [openArea, setOpenArea] = useState<string | null>(null);
 
   useEffect(() => {
     const v = emptyValues();
@@ -532,122 +531,78 @@ function InspectionForm({ date }: { date: string }) {
 
       <div className="space-y-2">
         {INSPECTION_AREAS.map(area => {
-          const isOpen = openArea === area;
           const v = values[area] ?? emptyValues()[area];
           const issue = hasIssue(area);
-          const hasData = existing?.some(e => e.area === area);
 
           return (
             <div key={area} className={`rounded-xl border overflow-hidden transition-colors ${
-              isOpen ? "border-primary/40 bg-primary/5" : issue ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-card"
+              issue ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-card"
             }`}>
-              <button
-                onClick={() => setOpenArea(isOpen ? null : area)}
-                className="w-full flex items-center justify-between px-4 py-3"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-semibold ${isOpen ? "text-primary" : "text-foreground"}`}>{area}</span>
-                  {!isOpen && hasData && !issue && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  )}
-                  {!isOpen && issue && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">주의</span>
-                  )}
+              <div className="px-4 py-3 space-y-2.5">
+                <span className="text-sm font-semibold text-foreground">{area}</span>
+                <div className="flex gap-1.5">
+                  {FACILITY_STATUSES.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => updateField(area, "facilityStatus", s)}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
+                        v.facilityStatus === s ? FACILITY_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
+                      }`}
+                    >{s}</button>
+                  ))}
                 </div>
-                <div className="flex items-center gap-2">
-                  {!isOpen && (
+                <div className="flex gap-1.5">
+                  {HYGIENE_STATUSES.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => updateField(area, "hygieneStatus", s)}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
+                        v.hygieneStatus === s ? HYGIENE_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
+                      }`}
+                    >{s}</button>
+                  ))}
+                </div>
+              </div>
+
+              {issue && (
+                <div className="px-4 pb-3 space-y-2.5 border-t border-border/50 pt-2.5">
+                  <textarea
+                    value={v.issueNote}
+                    onChange={e => updateField(area, "issueNote", e.target.value)}
+                    placeholder="문제 상세 내용..."
+                    rows={2}
+                    className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={v.assignee}
+                      onChange={e => updateField(area, "assignee", e.target.value)}
+                      className="flex-1 text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">담당자</option>
+                      {staffList?.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
                     <div className="flex gap-1">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${FACILITY_COLORS[v.facilityStatus]}`}>{v.facilityStatus}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${HYGIENE_COLORS[v.hygieneStatus]}`}>{v.hygieneStatus}</span>
-                    </div>
-                  )}
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                </div>
-              </button>
-
-              {isOpen && (
-                <div className="px-4 pb-4 space-y-3">
-                  <div>
-                    <span className="text-xs text-muted-foreground font-medium">시설 상태</span>
-                    <div className="flex gap-1.5 mt-1.5">
-                      {FACILITY_STATUSES.map(s => (
+                      {ACTION_STATUSES.map(s => (
                         <button
                           key={s}
-                          onClick={() => updateField(area, "facilityStatus", s)}
-                          className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                            v.facilityStatus === s ? FACILITY_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
+                          onClick={() => updateField(area, "actionStatus", s)}
+                          className={`px-2.5 py-2 rounded-lg text-[11px] font-medium border transition-colors ${
+                            v.actionStatus === s ? ACTION_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
                           }`}
                         >{s}</button>
                       ))}
                     </div>
                   </div>
-
-                  <div>
-                    <span className="text-xs text-muted-foreground font-medium">위생 상태</span>
-                    <div className="flex gap-1.5 mt-1.5">
-                      {HYGIENE_STATUSES.map(s => (
-                        <button
-                          key={s}
-                          onClick={() => updateField(area, "hygieneStatus", s)}
-                          className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                            v.hygieneStatus === s ? HYGIENE_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
-                          }`}
-                        >{s}</button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {issue && (
-                    <div className="space-y-2.5 pt-1 border-t border-border">
-                      <div>
-                        <span className="text-xs text-muted-foreground">문제 내용</span>
-                        <textarea
-                          value={v.issueNote}
-                          onChange={e => updateField(area, "issueNote", e.target.value)}
-                          placeholder="문제 상세 내용..."
-                          rows={2}
-                          className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">담당자</span>
-                        <select
-                          value={v.assignee}
-                          onChange={e => updateField(area, "assignee", e.target.value)}
-                          className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          <option value="">선택 안 함</option>
-                          {staffList?.map(s => (
-                            <option key={s.id} value={s.name}>{s.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">조치 상태</span>
-                        <div className="flex gap-1.5 mt-1.5">
-                          {ACTION_STATUSES.map(s => (
-                            <button
-                              key={s}
-                              onClick={() => updateField(area, "actionStatus", s)}
-                              className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                                v.actionStatus === s ? ACTION_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
-                              }`}
-                            >{s}</button>
-                          ))}
-                        </div>
-                      </div>
-                      {v.actionStatus === "완료" && (
-                        <div>
-                          <span className="text-xs text-muted-foreground">조치 완료일</span>
-                          <input
-                            type="date"
-                            value={v.actionDate}
-                            onChange={e => updateField(area, "actionDate", e.target.value)}
-                            className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-                      )}
-                    </div>
+                  {v.actionStatus === "완료" && (
+                    <input
+                      type="date"
+                      value={v.actionDate}
+                      onChange={e => updateField(area, "actionDate", e.target.value)}
+                      className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
                   )}
                 </div>
               )}
