@@ -1683,7 +1683,7 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
       const allEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${prefix}%`));
-      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불"
+      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불" && e.subType !== "미수금"
         && e.paidAmount > 0 && (!input.branchId || e.branchId === input.branchId));
 
       const KNOWN_PROGRAMS = ["웨이트피티", "케어피티", "이벤트피티", "학생피티", "체험권"];
@@ -1715,7 +1715,7 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const allEntries = await db.select().from(revenueEntries)
         .where(like(revenueEntries.paymentDate, `${input.year}%`));
-      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전"
+      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불" && e.subType !== "미수금"
         && (!input.branchId || e.branchId === input.branchId));
 
       const programs = new Set<string>();
