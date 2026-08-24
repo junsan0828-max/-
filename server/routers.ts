@@ -5101,7 +5101,7 @@ const attendanceChecksRouter = t.router({
         .where(and(
           eq(members.status, "active"),
           or(
-            and(eq(members.trainerId, trainerId), hasPtPackage),
+            eq(members.trainerId, trainerId),
             hasActivePtWithTrainer
           )
         ))
