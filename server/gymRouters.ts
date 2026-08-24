@@ -1686,9 +1686,18 @@ const revenueRouter = t.router({
       const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불"
         && e.paidAmount > 0 && (!input.branchId || e.branchId === input.branchId));
 
+      const KNOWN_PROGRAMS = ["웨이트피티", "케어피티", "이벤트피티", "학생피티", "체험권"];
+      function normalizeProgram(raw: string | null): string {
+        if (!raw) return "기타PT";
+        for (const p of KNOWN_PROGRAMS) {
+          if (raw.includes(p)) return p;
+        }
+        return raw;
+      }
+
       const byProgram: Record<string, { name: string; count: number; revenue: number; newCount: number; renewalCount: number }> = {};
       for (const e of entries) {
-        const key = e.programDetail ?? "기타PT";
+        const key = normalizeProgram(e.programDetail);
         if (!byProgram[key]) byProgram[key] = { name: key, count: 0, revenue: 0, newCount: 0, renewalCount: 0 };
         byProgram[key].count++;
         byProgram[key].revenue += e.paidAmount;
@@ -1713,9 +1722,18 @@ const revenueRouter = t.router({
       const monthly: Record<number, Record<string, { count: number; revenue: number }>> = {};
       for (let m = 1; m <= 12; m++) monthly[m] = {};
 
+      const KNOWN_PROGRAMS = ["웨이트피티", "케어피티", "이벤트피티", "학생피티", "체험권"];
+      function normalizeProgram(raw: string | null): string {
+        if (!raw) return "기타PT";
+        for (const p of KNOWN_PROGRAMS) {
+          if (raw.includes(p)) return p;
+        }
+        return raw;
+      }
+
       for (const e of entries) {
         const m = parseInt(e.paymentDate.substring(5, 7));
-        const prog = e.programDetail ?? "기타PT";
+        const prog = normalizeProgram(e.programDetail);
         programs.add(prog);
         if (!monthly[m][prog]) monthly[m][prog] = { count: 0, revenue: 0 };
         monthly[m][prog].count++;
