@@ -5094,6 +5094,7 @@ const attendanceChecksRouter = t.router({
       if (!trainerId) return [];
 
       const hasActivePtWithTrainer = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id} AND p."trainerId" = ${trainerId} AND p.status = 'active')`;
+      const hasAnyActivePt = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id} AND p.status = 'active')`;
 
       const memberList = await db
         .select({ id: members.id, name: members.name, status: members.status })
@@ -5101,7 +5102,7 @@ const attendanceChecksRouter = t.router({
         .where(and(
           eq(members.status, "active"),
           or(
-            eq(members.trainerId, trainerId),
+            and(eq(members.trainerId, trainerId), hasAnyActivePt),
             hasActivePtWithTrainer
           )
         ))
