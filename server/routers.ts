@@ -1489,6 +1489,13 @@ const ptRouter = t.router({
         eventId: input.eventId ?? undefined,
       });
 
+      // PT 패키지 생성 시 members.trainerId가 비어있으면 동기화
+      if (trainerId) {
+        await db.update(members)
+          .set({ trainerId })
+          .where(and(eq(members.id, input.memberId), isNull(members.trainerId)));
+      }
+
       // 결제금액이 있으면 매출 항목 자동 생성
       if (input.paymentAmount) {
         const today = new Date().toISOString().substring(0, 10);
@@ -5086,10 +5093,18 @@ const attendanceChecksRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) return [];
 
+      const hasActivePtWithTrainer = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id} AND p."trainerId" = ${trainerId} AND p.status = 'active')`;
+
       const memberList = await db
         .select({ id: members.id, name: members.name, status: members.status })
         .from(members)
-        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active"), hasPtPackage))
+        .where(and(
+          eq(members.status, "active"),
+          or(
+            and(eq(members.trainerId, trainerId), hasPtPackage),
+            hasActivePtWithTrainer
+          )
+        ))
         .orderBy(members.name);
 
       const checks = await db
