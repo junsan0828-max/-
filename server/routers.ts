@@ -211,7 +211,7 @@ const membersRouter = t.router({
       if (existing.rows.length > 0) {
         targetMemberId = existing.rows[0].id;
         // 정지 회원이면 활성으로 전환
-        await db.update(members).set({ status: "active", updatedAt: now }).where(and(eq(members.id, targetMemberId!), eq(members.status, "paused")));
+        await db.update(members).set({ status: "active", updatedAt: now }).where(and(eq(members.id, targetMemberId!), or(eq(members.status, "paused"), eq(members.status, "inactive"))));
       } else {
         const [newMember] = await db.insert(members).values({
           name: entry.customerName,
@@ -233,7 +233,7 @@ const membersRouter = t.router({
     // 운동복 구매로 연결된 정지 회원도 활성으로 전환
     await pool.query(`
       UPDATE members m SET status = 'active', "updatedAt" = NOW()::text
-      WHERE m.status = 'paused'
+      WHERE m.status IN ('paused', 'inactive')
         AND EXISTS (
           SELECT 1 FROM revenue_entries r
           WHERE r."memberId" = m.id
@@ -522,7 +522,7 @@ const membersRouter = t.router({
         birthDate: z.string().optional(),
         gender: z.enum(["male", "female", "other"]).optional(),
         grade: z.enum(["basic", "premium", "vip"]).default("basic"),
-        status: z.enum(["active", "paused"]).default("active"),
+        status: z.enum(["active", "paused", "inactive"]).default("active"),
         membershipStart: z.string().optional(),
         membershipEnd: z.string().optional(),
         profileNote: z.string().optional(),
@@ -704,7 +704,7 @@ const membersRouter = t.router({
         birthDate: z.string().optional(),
         gender: z.enum(["male", "female", "other"]).optional(),
         grade: z.enum(["basic", "premium", "vip"]).optional(),
-        status: z.enum(["active", "paused"]).optional(),
+        status: z.enum(["active", "paused", "inactive"]).optional(),
         membershipStart: z.string().nullable().optional(),
         membershipEnd: z.string().nullable().optional(),
         profileNote: z.string().optional(),
@@ -1241,7 +1241,7 @@ const membersRouter = t.router({
         phone: z.string().optional(),
         gender: z.enum(["male", "female", "other"]).optional(),
         birthDate: z.string().optional(),
-        status: z.enum(["active", "paused"]).default("active"),
+        status: z.enum(["active", "paused", "inactive"]).default("active"),
         membershipStart: z.string().optional(),
         membershipEnd: z.string().optional(),
         profileNote: z.string().optional(),

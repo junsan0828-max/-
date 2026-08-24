@@ -3,7 +3,7 @@
 
 export type ServiceType = "PT" | "헬스" | "필라테스" | "락커" | "운동복" | "기타";
 export type ServiceStatus = "active" | "expiring" | "expired" | "paused" | "waiting" | "completed";
-export type MemberStatus = "active" | "paused" | "ended";
+export type MemberStatus = "active" | "paused" | "inactive" | "ended";
 
 // ─── 서비스 타입별 색상 ────────────────────────────────────────────────────
 export const SERVICE_COLORS: Record<ServiceType, { bg: string; text: string; border: string; faint: string }> = {
@@ -27,9 +27,10 @@ export const STATUS_COLORS: Record<ServiceStatus, { bg: string; text: string; bo
 
 // ─── 회원 상태 ───────────────────────────────────────────────────────────
 export const MEMBER_STATUS: Record<MemberStatus, { bg: string; text: string; border: string; label: string }> = {
-  active: { bg: "bg-green-500/20",  text: "text-green-400",  border: "border-green-500/30", label: "활성" },
-  paused: { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500/30", label: "정지" },
-  ended:  { bg: "bg-gray-500/20",   text: "text-gray-400",   border: "border-gray-500/30",   label: "마감" },
+  active:   { bg: "bg-green-500/20",  text: "text-green-400",  border: "border-green-500/30",  label: "활성" },
+  paused:   { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500/30", label: "정지" },
+  inactive: { bg: "bg-red-500/20",    text: "text-red-400",    border: "border-red-500/30",    label: "종료" },
+  ended:    { bg: "bg-gray-500/20",   text: "text-gray-400",   border: "border-gray-500/30",   label: "마감" },
 };
 
 // ─── PT 패키지 상태 ──────────────────────────────────────────────────────

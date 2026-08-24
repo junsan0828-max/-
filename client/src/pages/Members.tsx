@@ -20,7 +20,7 @@ const gradeLabels: Record<string, string> = {
   vip: "VIP",
 };
 
-type StatusFilter = "all" | "active" | "paused" | "ended";
+type StatusFilter = "all" | "active" | "paused" | "inactive" | "ended";
 type GradeFilter = "all" | "basic" | "premium" | "vip";
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
@@ -89,7 +89,7 @@ export default function Members() {
     const matchSearch =
       m.name.includes(search) || (m.phone && m.phone.includes(search));
     const matchStatus = statusFilter === "all"
-      ? m.status !== "ended"
+      ? m.status !== "ended" && m.status !== "inactive"
       : m.status === statusFilter;
     const matchGrade = gradeFilter === "all" || m.grade === gradeFilter;
 
@@ -244,19 +244,21 @@ export default function Members() {
       {/* 상태 · 등급 필터 */}
       <div className="space-y-2">
         <div className="flex gap-1.5 flex-wrap">
-          {(["all", "active", "paused", "ended"] as StatusFilter[]).map((s) => (
+          {(["all", "active", "paused", "inactive", "ended"] as StatusFilter[]).map((s) => {
+            const labels: Record<string, string> = { all: "전체 상태", active: "활성", paused: "정지", inactive: "종료", ended: "마감" };
+            return (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1 rounded-full text-xs border transition-colors ${
                 statusFilter === s
-                  ? s === "ended" ? "bg-gray-600 text-white border-gray-600" : "bg-primary text-primary-foreground border-primary"
+                  ? (s === "ended" || s === "inactive") ? "bg-gray-600 text-white border-gray-600" : "bg-primary text-primary-foreground border-primary"
                   : "border-border text-muted-foreground hover:border-primary/40"
               }`}
             >
-              {s === "all" ? "전체 상태" : s === "active" ? "활성" : s === "paused" ? "정지" : "마감"}
-            </button>
-          ))}
+              {labels[s]}
+            </button>);
+          })}
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {(["all", "basic", "premium", "vip"] as GradeFilter[]).map((g) => (

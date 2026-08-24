@@ -131,6 +131,7 @@ const membershipLabels: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   active: "활성",
   paused: "정지",
+  inactive: "종료",
   ended: "마감",
 };
 
@@ -1141,12 +1142,16 @@ export default function MemberDetail({ memberId }: Props) {
                     <p className="text-xs text-muted-foreground">상태</p>
                     <div className="flex items-center gap-2 flex-wrap mt-0.5">
                       <p className="text-sm font-medium text-foreground">{statusLabels[member.status] ?? "-"}</p>
-                      {member.status === "active" ? (
+                      {member.status === "active" ? (<>
                         <button
                           onClick={() => { setMemberPauseForm({ pauseStart: today, pauseEnd: today, reason: "" }); setMemberPauseOpen(true); }}
                           className="text-xs px-2 py-0.5 rounded border border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/10 transition-colors"
                         >정지</button>
-                      ) : (
+                        <button
+                          onClick={() => toggleStatusMutation.mutate({ id: memberId, status: "inactive" })}
+                          className="text-xs px-2 py-0.5 rounded border border-gray-400/50 text-gray-400 hover:bg-gray-400/10 transition-colors"
+                        >종료</button>
+                      </>) : (
                         <button
                           onClick={() => setMemberActivateOpen(true)}
                           className="text-xs px-2 py-0.5 rounded border border-emerald-400/50 text-emerald-400 hover:bg-emerald-400/10 transition-colors"
