@@ -5,7 +5,8 @@ import {
   Database, TrendingUp, Users, Megaphone, Building2,
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
   Dumbbell, UserCog, Activity, Target,
-  DollarSign, Percent, X,
+  DollarSign, Percent, X, Smartphone,
+  Coins, ArrowUpDown, Gift, CalendarPlus,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, LabelList } from "recharts";
 
@@ -1514,12 +1515,202 @@ function OperationsTab() {
   );
 }
 
+// ── 앱 현황 탭 ──────────────────────────────────────────────────────────────
+function AppTab() {
+  const now = new Date();
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
+  const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth() + 1;
+
+  const { data, isLoading } = trpc.gym.appStats.summary.useQuery({
+    year: selYear,
+    ...(viewMode === "monthly" ? { month: selMonth } : {}),
+  });
+
+  const [showMemberPoints, setShowMemberPoints] = useState(false);
+  const [showTxLog, setShowTxLog] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      <PeriodSelector viewMode={viewMode} setViewMode={setViewMode}
+        year={selYear} setYear={setSelYear} month={selMonth} setMonth={setSelMonth}
+        isCurrentMonth={isCurrentMonth} />
+
+      {isLoading ? (
+        <p className="text-center text-muted-foreground py-12 text-sm">로딩 중...</p>
+      ) : !data ? (
+        <p className="text-center text-muted-foreground py-12 text-sm">데이터 없음</p>
+      ) : (
+        <div className="space-y-4">
+          {/* 앱 가입 현황 */}
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-cyan-400" />
+              앱 가입 현황
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "총 가입자", value: `${data.totalMembers}명`, color: "text-foreground" },
+                { label: "활성 회원", value: `${data.activeMembers}명`, color: "text-emerald-400" },
+                { label: "최근 활동 (30일)", value: `${data.recentActive}명`, color: "text-blue-400" },
+                { label: "비활성 (30일+)", value: `${data.inactive30}명`, color: data.inactive30 > 0 ? "text-yellow-400" : "text-muted-foreground" },
+              ].map(s => (
+                <div key={s.label} className="bg-background border border-border rounded-xl p-3">
+                  <p className="text-[11px] text-muted-foreground">{s.label}</p>
+                  <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 포인트 현황 */}
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Coins className="h-4 w-4 text-amber-400" />
+              포인트 현황
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "전체 보유", value: `${data.totalPoints.toLocaleString()}P`, color: "text-foreground" },
+                { label: viewMode === "monthly" ? `${selMonth}월 적립` : `${selYear}년 적립`, value: `+${data.earnedPoints.toLocaleString()}P`, color: "text-emerald-400" },
+                { label: viewMode === "monthly" ? `${selMonth}월 사용` : `${selYear}년 사용`, value: `-${data.spentPoints.toLocaleString()}P`, color: "text-red-400" },
+              ].map(s => (
+                <div key={s.label} className="bg-background border border-border rounded-xl p-3">
+                  <p className="text-[11px] text-muted-foreground">{s.label}</p>
+                  <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* 연간: 포인트 추이 차트 */}
+            {viewMode === "annual" && data.pointTrend.length > 0 && (
+              <div className="h-48 mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.pointTrend} barGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="earned" name="적립" fill="#10b981" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="earned" position="top" style={{ fontSize: 9, fill: "#10b981" }} />
+                    </Bar>
+                    <Bar dataKey="spent" name="사용" fill="#ef4444" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="spent" position="top" style={{ fontSize: 9, fill: "#ef4444" }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* 회원별 보유 포인트 */}
+            <button
+              onClick={() => setShowMemberPoints(!showMemberPoints)}
+              className="text-xs text-primary underline hover:text-primary/70"
+            >
+              회원별 보유 포인트 {showMemberPoints ? "접기" : "보기"}
+            </button>
+            {showMemberPoints && data.memberPoints.length > 0 && (
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {data.memberPoints.map((m: any) => (
+                  <div key={m.id} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{m.name}</p>
+                      {m.phone && <p className="text-[11px] text-muted-foreground">{m.phone}</p>}
+                    </div>
+                    <p className="text-sm font-bold text-amber-400">{m.points.toLocaleString()}P</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 요청 현황 */}
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4 text-violet-400" />
+              요청 현황
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {/* 재등록 요청 */}
+              <div className="bg-background border border-border rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Gift className="h-3.5 w-3.5 text-violet-400" />
+                  <p className="text-xs font-medium text-foreground">재등록 신청</p>
+                </div>
+                <p className="text-2xl font-bold text-foreground">{data.renewals.total}<span className="text-xs text-muted-foreground ml-1">건</span></p>
+                <div className="flex gap-2 text-[11px]">
+                  {data.renewals.pending > 0 && <span className="text-yellow-400">대기 {data.renewals.pending}</span>}
+                  {data.renewals.approved > 0 && <span className="text-emerald-400">승인 {data.renewals.approved}</span>}
+                  {data.renewals.rejected > 0 && <span className="text-red-400">거절 {data.renewals.rejected}</span>}
+                  {data.renewals.total === 0 && <span className="text-muted-foreground">없음</span>}
+                </div>
+              </div>
+              {/* 포인트 연장 */}
+              <div className="bg-background border border-border rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <CalendarPlus className="h-3.5 w-3.5 text-cyan-400" />
+                  <p className="text-xs font-medium text-foreground">포인트 연장</p>
+                </div>
+                <p className="text-2xl font-bold text-foreground">{data.extensions.total}<span className="text-xs text-muted-foreground ml-1">건</span></p>
+                <div className="text-[11px] space-y-0.5">
+                  {data.extensions.total > 0 ? (<>
+                    <p className="text-amber-400">{data.extensions.pointsUsed.toLocaleString()}P 사용</p>
+                    <p className="text-cyan-400">{data.extensions.daysExtended}일 연장</p>
+                  </>) : (
+                    <p className="text-muted-foreground">없음</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 최근 포인트 거래 내역 */}
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <button
+              onClick={() => setShowTxLog(!showTxLog)}
+              className="text-sm font-semibold text-foreground flex items-center gap-2 w-full"
+            >
+              <Activity className="h-4 w-4 text-blue-400" />
+              최근 포인트 거래
+              <span className="text-[11px] text-primary ml-auto">{showTxLog ? "접기" : "펼치기"}</span>
+            </button>
+            {showTxLog && data.recentTransactions.length > 0 && (
+              <div className="space-y-1 max-h-72 overflow-y-auto">
+                {data.recentTransactions.map((tx: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground">{tx.memberName ?? "알 수 없음"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{tx.description}</p>
+                    </div>
+                    <div className="text-right shrink-0 ml-2">
+                      <p className={`text-sm font-bold ${tx.type === 'spend' ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {tx.type === 'spend' ? '' : '+'}{tx.amount.toLocaleString()}P
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{tx.createdAt?.substring(0, 10)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {showTxLog && data.recentTransactions.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">거래 내역이 없습니다</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 탭 정의 ──────────────────────────────────────────────────────────────────
 const TABS = [
   { key: "finance", label: "재무", icon: TrendingUp, activeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
   { key: "customer", label: "고객", icon: Users, activeClass: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
   { key: "marketing", label: "마케팅", icon: Megaphone, activeClass: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
   { key: "operations", label: "센터 운영", icon: Building2, activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+  { key: "app", label: "앱 현황", icon: Smartphone, activeClass: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30" },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -1533,7 +1724,7 @@ export default function DataManagementPage() {
         <Database className="h-5 w-5 text-primary" />
         데이터 관리
       </h1>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         {TABS.map(t => {
           const Icon = t.icon;
           const isActive = tab === t.key;
@@ -1554,6 +1745,7 @@ export default function DataManagementPage() {
       {tab === "customer" && <CustomerTab />}
       {tab === "marketing" && <MarketingTab />}
       {tab === "operations" && <OperationsTab />}
+      {tab === "app" && <AppTab />}
     </div>
   );
 }

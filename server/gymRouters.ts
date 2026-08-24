@@ -26,6 +26,10 @@ import {
   ptPackages,
   lockers,
   uniforms,
+  gymPlusMembers,
+  pointTransactions,
+  gymPlusMembershipRenewals,
+  pointMembershipExtensions,
 } from "../drizzle/schema";
 import type { ReportData } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
@@ -4185,6 +4189,161 @@ const registerMutation = protectedProcedure
     return { memberId: memberId!, revenueEntryIds };
   });
 
+// ─── 앱 현황 (ZIANTGYM+) ──────────────────────────────────────────────────────
+const appStatsRouter = t.router({
+  summary: protectedProcedure
+    .input(z.object({
+      year: z.number(),
+      month: z.number().optional(),
+      branchId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { year, month, branchId } = input;
+      const prefix = month ? `${year}-${String(month).padStart(2, "0")}` : `${year}`;
+
+      // 1. 앱 가입 현황
+      const totalRes = await pool.query(`SELECT COUNT(*) as cnt FROM gym_plus_members`);
+      const totalMembers = Number(totalRes.rows[0]?.cnt ?? 0);
+
+      const activeRes = await pool.query(`SELECT COUNT(*) as cnt FROM gym_plus_members WHERE "isActive" = 1`);
+      const activeMembers = Number(activeRes.rows[0]?.cnt ?? 0);
+
+      // 최근 활동 (포인트 거래 기준 — 로그인 추적 없으므로)
+      const recentActivityRes = await pool.query(
+        `SELECT COUNT(DISTINCT gm.id) as cnt
+         FROM gym_plus_members gm
+         WHERE EXISTS (
+           SELECT 1 FROM point_transactions pt
+           WHERE pt."gymPlusMemberId" = gm.id
+             AND pt."createdAt" >= (NOW() - INTERVAL '30 days')::text
+         )`
+      );
+      const recentActive = Number(recentActivityRes.rows[0]?.cnt ?? 0);
+      const inactive30 = activeMembers - recentActive;
+
+      // 2. 포인트 현황
+      const totalPointsRes = await pool.query(`SELECT COALESCE(SUM(points), 0) as total FROM gym_plus_members WHERE "isActive" = 1`);
+      const totalPoints = Number(totalPointsRes.rows[0]?.total ?? 0);
+
+      const earnRes = await pool.query(
+        `SELECT COALESCE(SUM(amount), 0) as total FROM point_transactions
+         WHERE type IN ('earn', 'charge') AND "createdAt" LIKE $1`,
+        [`${prefix}%`]
+      );
+      const earnedPoints = Number(earnRes.rows[0]?.total ?? 0);
+
+      const spendRes = await pool.query(
+        `SELECT COALESCE(SUM(ABS(amount)), 0) as total FROM point_transactions
+         WHERE type = 'spend' AND "createdAt" LIKE $1`,
+        [`${prefix}%`]
+      );
+      const spentPoints = Number(spendRes.rows[0]?.total ?? 0);
+
+      // 포인트 월별 추이 (연간 모드)
+      let pointTrend: { month: string; earned: number; spent: number }[] = [];
+      if (!month) {
+        const trendRes = await pool.query(
+          `SELECT
+             SUBSTRING("createdAt", 6, 2) as m,
+             SUM(CASE WHEN type IN ('earn','charge') THEN amount ELSE 0 END) as earned,
+             SUM(CASE WHEN type = 'spend' THEN ABS(amount) ELSE 0 END) as spent
+           FROM point_transactions
+           WHERE "createdAt" LIKE $1
+           GROUP BY m ORDER BY m`,
+          [`${year}-%`]
+        );
+        pointTrend = trendRes.rows.map((r: any) => ({
+          month: `${Number(r.m)}월`,
+          earned: Number(r.earned ?? 0),
+          spent: Number(r.spent ?? 0),
+        }));
+      }
+
+      // 3. 회원별 포인트 보유 (상위 50명)
+      const memberPointsRes = await pool.query(
+        `SELECT gm.id, gm.name, gm.phone, gm.points, gm."memberId"
+         FROM gym_plus_members gm
+         WHERE gm."isActive" = 1 AND gm.points > 0
+         ORDER BY gm.points DESC
+         LIMIT 50`
+      );
+      const memberPoints = memberPointsRes.rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        phone: r.phone,
+        points: Number(r.points ?? 0),
+        memberId: r.memberId,
+      }));
+
+      // 4. 상품 구매/재등록 요청
+      const renewalRes = await pool.query(
+        `SELECT
+           COUNT(*) as total,
+           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+           SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+           SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+         FROM gym_plus_membership_renewals
+         WHERE "requestedAt" LIKE $1`,
+        [`${prefix}%`]
+      );
+      const renewals = {
+        total: Number(renewalRes.rows[0]?.total ?? 0),
+        pending: Number(renewalRes.rows[0]?.pending ?? 0),
+        approved: Number(renewalRes.rows[0]?.approved ?? 0),
+        rejected: Number(renewalRes.rows[0]?.rejected ?? 0),
+      };
+
+      // 5. 포인트 연장 요청
+      const extensionRes = await pool.query(
+        `SELECT
+           COUNT(*) as total,
+           COALESCE(SUM("pointsUsed"), 0) as points_used,
+           COALESCE(SUM("extensionDays"), 0) as days_extended
+         FROM point_membership_extensions
+         WHERE "createdAt" LIKE $1`,
+        [`${prefix}%`]
+      );
+      const extensions = {
+        total: Number(extensionRes.rows[0]?.total ?? 0),
+        pointsUsed: Number(extensionRes.rows[0]?.points_used ?? 0),
+        daysExtended: Number(extensionRes.rows[0]?.days_extended ?? 0),
+      };
+
+      // 6. 최근 포인트 거래 내역 (상위 30건)
+      const recentTxRes = await pool.query(
+        `SELECT pt.type, pt.amount, pt.description, pt."createdAt", gm.name
+         FROM point_transactions pt
+         LEFT JOIN gym_plus_members gm ON gm.id = pt."gymPlusMemberId"
+         WHERE pt."createdAt" LIKE $1
+         ORDER BY pt."createdAt" DESC
+         LIMIT 30`,
+        [`${prefix}%`]
+      );
+      const recentTransactions = recentTxRes.rows.map((r: any) => ({
+        type: r.type,
+        amount: Number(r.amount),
+        description: r.description,
+        createdAt: r.createdAt,
+        memberName: r.name,
+      }));
+
+      return {
+        totalMembers,
+        activeMembers,
+        recentActive,
+        inactive30: Math.max(0, inactive30),
+        totalPoints,
+        earnedPoints,
+        spentPoints,
+        pointTrend,
+        memberPoints,
+        renewals,
+        extensions,
+        recentTransactions,
+      };
+    }),
+});
+
 export const gymRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
@@ -4198,6 +4357,7 @@ export const gymRouter = t.router({
   register: registerMutation,
   createRefundContract: refundContractRouter.createRefundContract,
   getRefundContract: refundContractRouter.getRefundContract,
+  appStats: appStatsRouter,
 });
 
 export type GymRouter = typeof gymRouter;
