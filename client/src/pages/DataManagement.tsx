@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
@@ -525,7 +525,6 @@ function MarketingTab() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [lpMode, setLpMode] = useState<"weekly" | "monthly">("monthly");
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
@@ -535,21 +534,10 @@ function MarketingTab() {
     : { startDate: `${year}-${String(month).padStart(2, "0")}-01`, endDate: `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}` };
   const bParam = branchFilter ? { branchId: branchFilter } : {};
 
-  const weekRange = useMemo(() => {
-    const today = new Date();
-    const day = today.getDay();
-    const diffToMon = day === 0 ? -6 : 1 - day;
-    const mon = new Date(today);
-    mon.setDate(today.getDate() + diffToMon);
-    const sun = new Date(mon);
-    sun.setDate(mon.getDate() + 6);
-    return { start: toDateStr(mon), end: toDateStr(sun) };
-  }, []);
 
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: pageStats } = trpc.landing.getPageStats.useQuery();
   const { data: pageStatsMonth } = trpc.landing.getPageStatsByPeriod.useQuery({ year, ...(viewMode === "monthly" ? { month } : {}) });
-  const { data: pageStatsWeek } = trpc.landing.getPageStatsByRange.useQuery({ startDate: weekRange.start, endDate: weekRange.end });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, ...mParam });
   const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, ...mParam, ...bParam });
@@ -604,8 +592,8 @@ function MarketingTab() {
 
       <PeriodSelector viewMode={viewMode} setViewMode={setViewMode} year={year} setYear={setYear} month={month} setMonth={setMonth} isCurrentMonth={isCurrentMonth} />
 
-      {/* 랜딩페이지 방문자 통계 */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      {/* 랜딩페이지 오늘 현황 — 월간 모드에서만 */}
+      {viewMode === "monthly" && <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Megaphone className="h-4 w-4 text-primary" />
           <h2 className="font-semibold text-sm">랜딩페이지 오늘 현황</h2>
@@ -641,7 +629,7 @@ function MarketingTab() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* 광고 채널 성과 (데이터 기록) */}
       {adSummary && adSummary.length > 0 && (
@@ -735,29 +723,16 @@ function MarketingTab() {
             </div>
           </div>
 
-          {/* 랜딩페이지 주간/월간 통계 */}
+          {/* 랜딩페이지 기간 통계 */}
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Megaphone className="h-4 w-4 text-primary" />
-                <h2 className="font-semibold text-sm">
-                  랜딩페이지 {lpMode === "weekly" ? "이번 주" : `${month}월`} 현황
-                </h2>
-              </div>
-              <div className="flex gap-1 bg-muted/40 rounded-lg p-0.5">
-                {([{ key: "weekly" as const, label: "주간" }, { key: "monthly" as const, label: "월간" }]).map(({ key, label: l }) => (
-                  <button key={key} onClick={() => setLpMode(key)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${lpMode === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
-                    {l}
-                  </button>
-                ))}
-              </div>
+            <div className="flex items-center gap-2 mb-3">
+              <Megaphone className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-sm">
+                랜딩페이지 {viewMode === "annual" ? `${year}년` : `${month}월`} 현황
+              </h2>
             </div>
-            {lpMode === "weekly" && (
-              <p className="text-[10px] text-muted-foreground mb-2">{weekRange.start.slice(5)} ~ {weekRange.end.slice(5)}</p>
-            )}
             {(() => {
-              const d = lpMode === "weekly" ? pageStatsWeek : pageStatsMonth;
+              const d = pageStatsMonth;
               return (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
