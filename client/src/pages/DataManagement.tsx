@@ -344,11 +344,12 @@ function CustomerTab() {
           <h2 className="text-sm font-semibold text-foreground mb-3">PT 프로그램별 현황</h2>
           <div className="space-y-2">
             {programStats.map((prog: any, i: number) => {
-              const isEvent = prog.name.includes("이벤트");
+              const isEvent = prog.isEvent;
               const maxRev = programStats[0].revenue;
               const pct = maxRev > 0 ? Math.round((prog.revenue / maxRev) * 100) : 0;
+              const subItems = isEvent && prog.subItems ? Object.entries(prog.subItems as Record<string, { count: number; revenue: number }>) : [];
               return (
-                <div key={prog.name}>
+                <div key={prog.name} className={isEvent ? "rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 space-y-2" : ""}>
                   <div className="flex items-center justify-between text-xs mb-1">
                     <div className="flex items-center gap-1.5">
                       <span className={`px-1.5 py-0.5 rounded-full font-medium ${isEvent ? "bg-amber-400/15 text-amber-400" : "bg-primary/10 text-primary"}`}>{prog.name}</span>
@@ -360,21 +361,29 @@ function CustomerTab() {
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: isEvent ? "#f59e0b" : COLORS[i % COLORS.length] }} />
                   </div>
+                  {isEvent && subItems.length > 0 && (
+                    <div className="pt-1 space-y-1">
+                      {subItems.sort((a, b) => b[1].revenue - a[1].revenue).map(([name, sub]) => (
+                        <div key={name} className="flex items-center justify-between text-[11px] pl-2 border-l-2 border-amber-500/30">
+                          <span className="text-muted-foreground">{name}</span>
+                          <span className="text-amber-300 font-medium">{sub.count}건 · {fmtWon(sub.revenue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
           {(() => {
-            const evList = programStats.filter((p: any) => p.name.includes("이벤트"));
-            if (!evList.length) return null;
-            const evTotal = evList.reduce((s: number, p: any) => s + p.revenue, 0);
-            const evCount = evList.reduce((s: number, p: any) => s + p.count, 0);
+            const ev = programStats.find((p: any) => p.isEvent);
+            if (!ev) return null;
             const totalRev = programStats.reduce((s: number, p: any) => s + p.revenue, 0);
-            const evPct = totalRev > 0 ? Math.round((evTotal / totalRev) * 100) : 0;
+            const evPct = totalRev > 0 ? Math.round((ev.revenue / totalRev) * 100) : 0;
             return (
               <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
                 <span className="text-amber-400 font-medium">이벤트피티 합계</span>
-                <span className="text-foreground font-semibold">{evCount}건 · {fmtWon(evTotal)} ({evPct}%)</span>
+                <span className="text-foreground font-semibold">{ev.count}건 · {fmtWon(ev.revenue)} ({evPct}%)</span>
               </div>
             );
           })()}

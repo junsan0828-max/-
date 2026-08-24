@@ -1686,23 +1686,35 @@ const revenueRouter = t.router({
       const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불" && e.subType !== "미수금"
         && e.paidAmount > 0 && (!input.branchId || e.branchId === input.branchId));
 
-      const KNOWN_PROGRAMS = ["웨이트피티", "케어피티", "이벤트피티", "학생피티", "체험권"];
+      // 웨이트피티/케어피티/학생피티/체험권은 같은 이름끼리 묶고
+      // 이벤트피티는 원래 programDetail을 그대로 표시 (어떤 이벤트인지가 중요)
+      const MERGE_PROGRAMS = ["웨이트피티", "케어피티", "학생피티", "체험권"];
       function normalizeProgram(raw: string | null): string {
         if (!raw) return "기타PT";
-        for (const p of KNOWN_PROGRAMS) {
+        for (const p of MERGE_PROGRAMS) {
           if (raw.includes(p)) return p;
         }
         return raw;
       }
 
-      const byProgram: Record<string, { name: string; count: number; revenue: number; newCount: number; renewalCount: number }> = {};
+      const byProgram: Record<string, { name: string; count: number; revenue: number; newCount: number; renewalCount: number; isEvent: boolean; subItems: Record<string, { count: number; revenue: number }> }> = {};
       for (const e of entries) {
-        const key = normalizeProgram(e.programDetail);
-        if (!byProgram[key]) byProgram[key] = { name: key, count: 0, revenue: 0, newCount: 0, renewalCount: 0 };
-        byProgram[key].count++;
-        byProgram[key].revenue += e.paidAmount;
-        if (e.subType === "신규") byProgram[key].newCount++;
-        if (e.subType === "재등록") byProgram[key].renewalCount++;
+        const raw = e.programDetail;
+        const isEvent = !!(raw && raw.includes("이벤트피티"));
+        const groupKey = isEvent ? "이벤트피티" : normalizeProgram(raw);
+        const subKey = raw ?? "기타PT";
+
+        if (!byProgram[groupKey]) byProgram[groupKey] = { name: groupKey, count: 0, revenue: 0, newCount: 0, renewalCount: 0, isEvent, subItems: {} };
+        byProgram[groupKey].count++;
+        byProgram[groupKey].revenue += e.paidAmount;
+        if (e.subType === "신규") byProgram[groupKey].newCount++;
+        if (e.subType === "재등록") byProgram[groupKey].renewalCount++;
+
+        if (isEvent) {
+          if (!byProgram[groupKey].subItems[subKey]) byProgram[groupKey].subItems[subKey] = { count: 0, revenue: 0 };
+          byProgram[groupKey].subItems[subKey].count++;
+          byProgram[groupKey].subItems[subKey].revenue += e.paidAmount;
+        }
       }
       return Object.values(byProgram).sort((a, b) => b.revenue - a.revenue);
     }),
