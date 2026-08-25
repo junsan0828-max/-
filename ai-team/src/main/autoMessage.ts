@@ -4,10 +4,16 @@
 // 재등록 유도 문구·타이밍(D+3~14, 1개월 서비스 혜택)은 2026-08-17 대표 확정.
 // 클라우드 예약실행에서도 동작해야 해서 pg Pool이 아니라 neon() HTTP 방식을 쓴다(다른 잡들과 동일).
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import { sendSms } from "./aligo";
+import { sendSms, sendAlimtalk } from "./aligo";
 import { pushKakaoText } from "./kakao";
 
-export type Category = "expiry_d10" | "expiry_d5" | "consult_followup" | "lapsed_recover" | "gymplus_launch";
+export type Category = "expiry_d10" | "expiry_d5" | "consult_followup" | "lapsed_recover" | "gymplus_launch" | "signup_complete";
+
+// 2026-08-24 알리고 카카오 알림톡 템플릿 승인 완료(발신프로필 @자이언트짐). 승인된 문구를 그대로
+// 써야 해서(변수만 치환) 아래 두 카테고리는 SMS 대신 알림톡으로 발송한다. 나머지 카테고리는 아직
+// 템플릿 미승인이라 기존 SMS 경로(클라우드에서는 발송 안 됨) 그대로 둔다.
+const TPL_EXPIRY_D10 = "UK_4902";
+const TPL_SIGNUP_COMPLETE = "UJ_5253";
 
 const BRANCH_NAMES: Record<number, string> = { 1: "1호점", 2: "2호점" };
 const GYM_PLUS_URL = "https://ziantgym.com/gym-plus";
@@ -20,6 +26,7 @@ const CATEGORY_LABEL: Record<Category, string> = {
   consult_followup: "관리상담 D+1",
   lapsed_recover: "만료 후 재등록 유도(D+3~14)",
   gymplus_launch: "자이언트짐+ 오픈 안내",
+  signup_complete: "회원가입 완료 안내",
 };
 
 export interface AutoMessageResult {
@@ -200,6 +207,43 @@ ${GYM_PLUS_URL}
 감사합니다.`;
 }
 
+// 알림톡은 승인된 템플릿 문구를 변수만 치환해 그대로 보내야 한다 — 자유롭게 재구성 불가.
+// 아래 두 함수의 텍스트는 2026-08-24 알리고 템플릿 API(akv10/template/list)로 직접 조회해 확보한
+// 승인된 원문(UK_4902/UJ_5253)이며, 임의로 수정하면 카카오 정책 위반으로 발송 거부될 수 있다.
+function alimtalkBranchName(branchId: number | null): string {
+  const name = branchId != null ? BRANCH_NAMES[branchId] : null;
+  return name ? `자이언트짐 ${name}` : `자이언트짐`;
+}
+
+export function expiryD10AlimtalkMessage(name: string, branchId: number | null, endDate: string): string {
+  return `안녕하세요, ${alimtalkBranchName(branchId)}입니다.
+
+${name} 회원님의 헬스 이용권이 ${formatKoreanDate(endDate)}에 종료될 예정입니다.
+
+회원권 연장이나 재등록을 원하시거나 궁금한 점이 있으시면 답장 주세요.
+
+회원정보 등 다양한 기능은 자이언트짐+ 앱에서 확인하실 수 있습니다.
+감사합니다.`;
+}
+
+export function signupCompleteAlimtalkMessage(name: string): string {
+  return `안녕하세요. ${name}님.\r\n\r\n정왕동 맞춤운동센터 자이언트짐입니다.\r\n\r\n회원가입이 정상적으로 완료되었습니다.\r\n\r\n회원 전용 페이지에서는 다음 서비스를 이용하실 수 있습니다.\r\n\r\n• 회원권 및 PT 이용현황 확인\r\n• 공지사항 및 이용안내 확인\r\n• 운동 기록 및 운동 안내\r\n• 이벤트 포인트 적립\r\n\r\n아래 '회원 전용 페이지' 버튼을 눌러 로그인 후 이용해 주세요.\r\n\r\n감사합니다.\r\n\r\n맞춤운동센터 자이언트짐`;
+}
+
+// 신규 헬스 등록 대상: 오늘자 revenue_entries에 '헬스/신규'로 찍힌 결제 건. 이 프로젝트는 members를
+// 직접 만들지 않아(외부 회원관리 시스템이 원천) 신규가입 시점은 매출 발생으로만 감지 가능하다.
+export async function findSignupCompleteCandidates(
+  sql: NeonQueryFunction<false, false>,
+  targetDate: string
+): Promise<{ id: number; name: string; phone: string | null; branchId: number | null }[]> {
+  return (await sql.query(
+    `SELECT re."memberId" AS id, re."customerName" AS name, re.phone, re."branchId" AS "branchId"
+     FROM revenue_entries re
+     WHERE re.type = '헬스' AND re."subType" = '신규' AND re."paymentDate" = $1 AND re."memberId" IS NOT NULL`,
+    [targetDate]
+  )) as { id: number; name: string; phone: string | null; branchId: number | null }[];
+}
+
 export function expiryD5Message(name: string, branchId: number | null, endDate: string): string {
   return `안녕하세요, ${branchGreeting(branchId)}.
 
@@ -284,14 +328,74 @@ export async function runAutoMessageJob(): Promise<AutoMessageResult> {
         continue;
       }
 
-      const message = buildMessage(m.name, m.branchId, targetDate);
-      const result = await sendSms(phone, message);
+      const result =
+        category === "expiry_d10"
+          ? await sendAlimtalk({
+              receiver: phone,
+              tplCode: TPL_EXPIRY_D10,
+              subject: CATEGORY_LABEL.expiry_d10,
+              message: expiryD10AlimtalkMessage(m.name, m.branchId, targetDate),
+            })
+          : await sendSms(phone, buildMessage(m.name, m.branchId, targetDate));
       if (result.ok) sent++;
       else failed++;
       await logAttempt(sql, {
         category,
         memberId: m.id,
         referenceDate: targetDate,
+        name: m.name,
+        phone,
+        branchId: m.branchId,
+        success: result.ok,
+        error: result.error,
+      });
+      details.push({ category, name: m.name, phone, result: result.ok ? "sent" : "failed", error: result.error });
+    }
+
+    summary.push({ category, targeted: candidates.length, sent, failed, skippedInvalidPhone });
+  }
+
+  // --- 회원가입 완료 안내 (오늘자 헬스/신규 매출 기준) ---
+  {
+    const category: Category = "signup_complete";
+    const candidates = await findSignupCompleteCandidates(sql, today);
+    let sent = 0;
+    let failed = 0;
+    let skippedInvalidPhone = 0;
+
+    for (const m of candidates) {
+      if (await alreadySent(sql, category, "member_id", m.id, today)) continue;
+
+      const phone = normalizePhone(m.phone);
+      if (!phone) {
+        skippedInvalidPhone++;
+        await logAttempt(sql, {
+          category,
+          memberId: m.id,
+          referenceDate: today,
+          name: m.name,
+          phone: m.phone,
+          branchId: m.branchId,
+          success: false,
+          error: "연락처 누락·확인 필요",
+        });
+        details.push({ category, name: m.name, phone: m.phone, result: "skipped", error: "연락처 누락·확인 필요" });
+        continue;
+      }
+
+      const result = await sendAlimtalk({
+        receiver: phone,
+        tplCode: TPL_SIGNUP_COMPLETE,
+        subject: "회원가입 완료 안내",
+        emtitle: "회원 전용 페이지 안내",
+        message: signupCompleteAlimtalkMessage(m.name),
+      });
+      if (result.ok) sent++;
+      else failed++;
+      await logAttempt(sql, {
+        category,
+        memberId: m.id,
+        referenceDate: today,
         name: m.name,
         phone,
         branchId: m.branchId,

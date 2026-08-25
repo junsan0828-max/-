@@ -57,3 +57,62 @@ export async function sendSms(receiver: string, message: string): Promise<SendSm
 export function isAligoEnabled(): boolean {
   return isConfigured();
 }
+
+// 알림톡(카카오 비즈니스 메시지) 발송 — SMS와 달리 발신 IP 화이트리스트 제약이 없다(2026-08-24
+// 확인, https://smartsms.aligo.in/alimapi.html). 승인된 템플릿 문구를 변수만 치환해 그대로 보내야
+// 하며, 임의로 문구를 바꾸면 카카오 정책 위반으로 발송 거부될 수 있다.
+const ALIGO_ALIMTALK_URL = "https://kakaoapi.aligo.in/akv10/alimtalk/send/";
+
+export interface AlimtalkButton {
+  name: string;
+  linkType: "WL" | "AC" | "DS" | "AL" | "BK" | "MD";
+  linkMo?: string;
+  linkPc?: string;
+}
+
+export interface AlimtalkParams {
+  receiver: string;
+  tplCode: string;
+  subject: string;
+  message: string;
+  emtitle?: string;
+  buttons?: AlimtalkButton[];
+  testMode?: boolean;
+}
+
+function isAlimtalkConfigured() {
+  return !!(process.env.ALIGO_USER_ID && process.env.ALIGO_API_KEY && process.env.ALIGO_SENDER && process.env.ALIGO_SENDER_KEY);
+}
+
+export async function sendAlimtalk(params: AlimtalkParams): Promise<SendSmsResult> {
+  if (!isAlimtalkConfigured()) {
+    return { ok: false, error: "알리고 알림톡 미설정 (.env에 ALIGO_SENDER_KEY 필요)" };
+  }
+  const digits = params.receiver.replace(/[^0-9]/g, "");
+  if (!digits) return { ok: false, error: "받는 사람 번호가 없습니다." };
+
+  const body = new URLSearchParams({
+    apikey: process.env.ALIGO_API_KEY!,
+    userid: process.env.ALIGO_USER_ID!,
+    senderkey: process.env.ALIGO_SENDER_KEY!,
+    tpl_code: params.tplCode,
+    sender: process.env.ALIGO_SENDER!,
+    receiver_1: digits,
+    subject_1: params.subject,
+    message_1: params.message,
+  });
+  if (params.emtitle) body.set("emtitle_1", params.emtitle);
+  if (params.buttons?.length) body.set("button_1", JSON.stringify({ button: params.buttons }));
+  if (params.testMode) body.set("testMode", "Y");
+
+  try {
+    const res = await fetch(ALIGO_ALIMTALK_URL, { method: "POST", body });
+    const data: any = await res.json();
+    if (Number(data.code) !== 0) {
+      return { ok: false, error: data.message || `알림톡 발송 실패 (code ${data.code})` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
