@@ -4848,9 +4848,8 @@ const adminRouter = t.router({
       SELECT p.id, p."memberId", m.name AS "memberName",
              p."trainerId", t."trainerName",
              p."packageName", p."totalSessions", p."paymentAmount", p."pricePerSession",
-             p."paymentDate", p."revenueEntryId",
-             r.amount AS "revenueAmount", r."paidAmount" AS "revenuePaidAmount",
-             r."subType" AS "revenueSubType"
+             p."paymentDate", p."revenueEntryId", COALESCE(p."unpaidAmount", 0) AS "pkgUnpaid",
+             r.amount AS "revenueAmount", r."paidAmount" AS "revenuePaidAmount"
       FROM pt_packages p
       LEFT JOIN members m ON m.id = p."memberId"
       LEFT JOIN trainers t ON t.id = p."trainerId"
@@ -4884,7 +4883,7 @@ const adminRouter = t.router({
       if (lowThreshold > 0 && (r.pricePerSession ?? 0) > 0 && (r.pricePerSession ?? 0) < lowThreshold) {
         reasons.push(`세션당 단가 ${(r.pricePerSession ?? 0).toLocaleString()}원 (전체 중앙값 ${median.toLocaleString()}원의 40% 미만)`);
       }
-      if (r.revenueEntryId && r.revenueAmount != null) {
+      if (r.revenueEntryId && r.revenueAmount != null && !((r as any).pkgUnpaid > 0)) {
         const revenuePaid = r.revenuePaidAmount ?? r.revenueAmount;
         const unpaidCollected = unpaidMap.get(r.revenueEntryId) ?? 0;
         const totalReceived = revenuePaid + unpaidCollected;
