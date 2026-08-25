@@ -4849,7 +4849,8 @@ const adminRouter = t.router({
              p."trainerId", t."trainerName",
              p."packageName", p."totalSessions", p."paymentAmount", p."pricePerSession",
              p."paymentDate", p."revenueEntryId",
-             r.amount AS "revenueAmount", r."paidAmount" AS "revenuePaidAmount"
+             r.amount AS "revenueAmount", r."paidAmount" AS "revenuePaidAmount",
+             r."subType" AS "revenueSubType"
       FROM pt_packages p
       LEFT JOIN members m ON m.id = p."memberId"
       LEFT JOIN trainers t ON t.id = p."trainerId"
@@ -4864,6 +4865,20 @@ const adminRouter = t.router({
     const median = prices.length > 0 ? prices[Math.floor(prices.length / 2)] : 0;
     const lowThreshold = median > 0 ? median * 0.4 : 0;
 
+    // 미수금 수납분 합산 맵: revenueEntryId → 수납 총액
+    const revIds = pkgs.rows.map(r => r.revenueEntryId).filter(Boolean) as number[];
+    const unpaidMap = new Map<number, number>();
+    if (revIds.length > 0) {
+      const unpaidRes = await pool.query<{ relatedEntryId: number; total: number }>(
+        `SELECT "relatedEntryId", SUM(COALESCE("paidAmount", 0)) as total
+         FROM revenue_entries
+         WHERE "subType" = '미수금' AND "relatedEntryId" = ANY($1)
+         GROUP BY "relatedEntryId"`,
+        [revIds]
+      );
+      for (const r of unpaidRes.rows) unpaidMap.set(r.relatedEntryId, Number(r.total));
+    }
+
     const anomalies = pkgs.rows.map(r => {
       const reasons: string[] = [];
       if (lowThreshold > 0 && (r.pricePerSession ?? 0) > 0 && (r.pricePerSession ?? 0) < lowThreshold) {
@@ -4871,8 +4886,10 @@ const adminRouter = t.router({
       }
       if (r.revenueEntryId && r.revenueAmount != null) {
         const revenuePaid = r.revenuePaidAmount ?? r.revenueAmount;
-        if (Math.abs((r.paymentAmount ?? 0) - revenuePaid) > 1000) {
-          reasons.push(`매출 결제금액(${revenuePaid.toLocaleString()}원)과 패키지 결제금액(${(r.paymentAmount ?? 0).toLocaleString()}원) 불일치`);
+        const unpaidCollected = unpaidMap.get(r.revenueEntryId) ?? 0;
+        const totalReceived = revenuePaid + unpaidCollected;
+        if (Math.abs((r.paymentAmount ?? 0) - totalReceived) > 1000) {
+          reasons.push(`매출 결제금액(${totalReceived.toLocaleString()}원)과 패키지 결제금액(${(r.paymentAmount ?? 0).toLocaleString()}원) 불일치`);
         }
       }
       return reasons.length > 0 ? { ...r, reasons } : null;
