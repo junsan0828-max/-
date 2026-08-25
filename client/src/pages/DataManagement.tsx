@@ -1564,6 +1564,55 @@ function AppTab() {
             </div>
           </div>
 
+          {/* 일일 앱 활동 */}
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Activity className="h-4 w-4 text-emerald-400" />
+              앱 이용 현황
+            </h3>
+            {/* 오늘 + 기간 요약 */}
+            <div className="grid grid-cols-2 gap-2">
+              {viewMode === "monthly" && (
+                <>
+                  <div className="bg-background border border-border rounded-xl p-3">
+                    <p className="text-[11px] text-muted-foreground">오늘 입장</p>
+                    <p className="text-lg font-bold text-emerald-400">{data.todayCheckins}명</p>
+                  </div>
+                  <div className="bg-background border border-border rounded-xl p-3">
+                    <p className="text-[11px] text-muted-foreground">오늘 운동기록</p>
+                    <p className="text-lg font-bold text-blue-400">{data.todayWorkouts}명</p>
+                  </div>
+                </>
+              )}
+              <div className="bg-background border border-border rounded-xl p-3">
+                <p className="text-[11px] text-muted-foreground">{viewMode === "monthly" ? `${selMonth}월` : `${selYear}년`} 총 입장</p>
+                <p className="text-lg font-bold text-foreground">{data.totalCheckins}회</p>
+              </div>
+              <div className="bg-background border border-border rounded-xl p-3">
+                <p className="text-[11px] text-muted-foreground">{viewMode === "monthly" ? `${selMonth}월` : `${selYear}년`} 운동기록</p>
+                <p className="text-lg font-bold text-foreground">{data.totalWorkouts}건</p>
+              </div>
+            </div>
+            {/* 일별 추이 차트 */}
+            {data.dailyActivity.length > 0 && (
+              <div className="h-48 mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.dailyActivity} barGap={1}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                      tickFormatter={(v: string) => viewMode === "monthly" ? v.substring(8) + "일" : v.substring(5, 7) + "월"} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                      labelFormatter={(v: string) => v} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="checkins" name="입장" fill="#10b981" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="workouts" name="운동기록" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
           {/* 포인트 현황 */}
           <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">

@@ -4327,6 +4327,38 @@ const appStatsRouter = t.router({
         memberName: r.name,
       }));
 
+      // 7. 일별 앱 활동 (입장 · 운동기록)
+      const dailyCheckinRes = await pool.query(
+        `SELECT SUBSTRING("createdAt", 1, 10) as day, COUNT(DISTINCT "gymPlusMemberId") as cnt
+         FROM point_transactions
+         WHERE "referenceType" = 'checkin' AND "createdAt" LIKE $1
+         GROUP BY day ORDER BY day`,
+        [`${prefix}%`]
+      );
+      const dailyWorkoutRes = await pool.query(
+        `SELECT "logDate" as day, COUNT(DISTINCT "gymPlusMemberId") as cnt
+         FROM gym_plus_workout_logs
+         WHERE "logDate" LIKE $1
+         GROUP BY day ORDER BY day`,
+        [`${prefix}%`]
+      );
+
+      const checkinMap = new Map(dailyCheckinRes.rows.map((r: any) => [r.day, Number(r.cnt)]));
+      const workoutMap = new Map(dailyWorkoutRes.rows.map((r: any) => [r.day, Number(r.cnt)]));
+      const allDays = new Set([...checkinMap.keys(), ...workoutMap.keys()]);
+      const dailyActivity = [...allDays].sort().map(day => ({
+        day,
+        checkins: checkinMap.get(day) ?? 0,
+        workouts: workoutMap.get(day) ?? 0,
+      }));
+
+      // 오늘/이번 달 요약
+      const todayStr = new Date(Date.now() + 9 * 3600000).toISOString().substring(0, 10);
+      const todayCheckins = checkinMap.get(todayStr) ?? 0;
+      const todayWorkouts = workoutMap.get(todayStr) ?? 0;
+      const totalCheckins = dailyCheckinRes.rows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+      const totalWorkouts = dailyWorkoutRes.rows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+
       return {
         totalMembers,
         activeMembers,
@@ -4340,6 +4372,11 @@ const appStatsRouter = t.router({
         renewals,
         extensions,
         recentTransactions,
+        dailyActivity,
+        todayCheckins,
+        todayWorkouts,
+        totalCheckins,
+        totalWorkouts,
       };
     }),
 });
