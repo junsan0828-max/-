@@ -4,7 +4,7 @@
 // 재등록 유도 문구·타이밍(D+3~14, 1개월 서비스 혜택)은 2026-08-17 대표 확정.
 // 클라우드 예약실행에서도 동작해야 해서 pg Pool이 아니라 neon() HTTP 방식을 쓴다(다른 잡들과 동일).
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import { sendSms, sendAlimtalk } from "./aligo";
+import { sendSms, sendAlimtalk, type AlimtalkButton } from "./aligo";
 import { pushKakaoText } from "./kakao";
 
 export type Category = "expiry_d10" | "expiry_d5" | "consult_followup" | "lapsed_recover" | "gymplus_launch" | "signup_complete";
@@ -14,6 +14,18 @@ export type Category = "expiry_d10" | "expiry_d5" | "consult_followup" | "lapsed
 // 템플릿 미승인이라 기존 SMS 경로(클라우드에서는 발송 안 됨) 그대로 둔다.
 const TPL_EXPIRY_D10 = "UK_4902";
 const TPL_SIGNUP_COMPLETE = "UJ_5253";
+
+// 2026-08-25 발견: button_1을 안 보내면 문구가 승인 템플릿과 완전히 같아도 카카오가 "메시지가
+// 템플릿과 일치하지않음"으로 실배송 처리한다(API 응답 자체는 code:0 성공으로 와서 겉으로는 몰랐음
+// — akv10/history/detail/의 rslt로만 확인 가능). 승인된 템플릿의 버튼 구성을 그대로 보내야 한다.
+const EXPIRY_D10_BUTTONS: AlimtalkButton[] = [
+  { name: "채널 추가", linkType: "AC" },
+  { name: "자이언트짐+ 바로가기", linkType: "WL", linkMo: "https://ziantgym.com/gym-plus", linkPc: "" },
+];
+const SIGNUP_COMPLETE_BUTTONS: AlimtalkButton[] = [
+  { name: "채널 추가", linkType: "AC" },
+  { name: "자이언트짐+", linkType: "WL", linkMo: "https://ziantgym.com/gym-plus", linkPc: "https://ziantgym.com/gym-plus" },
+];
 
 const BRANCH_NAMES: Record<number, string> = { 1: "1호점", 2: "2호점" };
 const GYM_PLUS_URL = "https://ziantgym.com/gym-plus";
@@ -335,6 +347,7 @@ export async function runAutoMessageJob(): Promise<AutoMessageResult> {
               tplCode: TPL_EXPIRY_D10,
               subject: CATEGORY_LABEL.expiry_d10,
               message: expiryD10AlimtalkMessage(m.name, m.branchId, targetDate),
+              buttons: EXPIRY_D10_BUTTONS,
             })
           : await sendSms(phone, buildMessage(m.name, m.branchId, targetDate));
       if (result.ok) sent++;
@@ -389,6 +402,7 @@ export async function runAutoMessageJob(): Promise<AutoMessageResult> {
         subject: "회원가입 완료 안내",
         emtitle: "회원 전용 페이지 안내",
         message: signupCompleteAlimtalkMessage(m.name),
+        buttons: SIGNUP_COMPLETE_BUTTONS,
       });
       if (result.ok) sent++;
       else failed++;
