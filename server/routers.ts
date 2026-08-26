@@ -2009,8 +2009,8 @@ const ptRouter = t.router({
       // 동기화가 필요한 필드 변경 시 항상 기존 패키지를 조회
       const pkg = (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0];
 
-      // 관리자이거나 본인이 담당한 패키지만 수정 가능
-      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      // 관리자·컨설턴트이거나 본인이 담당한 패키지만 수정 가능
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin" || ctx.user.role === "consultant";
       if (pkg && !isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
         throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 수정할 수 있습니다." });
 
