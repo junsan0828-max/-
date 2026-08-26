@@ -1382,6 +1382,29 @@ export default function MemberDetail({ memberId }: Props) {
                             </div>
                             <div className="flex items-center gap-2">
                               <button
+                                onClick={() => {
+                                  setEditPkgForm({
+                                    packageId: pkg.id,
+                                    packageName: pkg.packageName ?? "",
+                                    totalSessions: String(pkg.totalSessions ?? ""),
+                                    usedSessions: String(pkg.usedSessions ?? ""),
+                                    startDate: pkg.startDate ?? "",
+                                    expiryDate: pkg.expiryDate ?? "",
+                                    paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
+                                    unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
+                                    paymentMethod: (pkg.paymentMethod as any) ?? "",
+                                    transferAmount: pkg.transferAmount ? String(pkg.transferAmount) : "",
+                                    cardAmount: pkg.cardAmount ? String(pkg.cardAmount) : "",
+                                    paymentDate: pkg.paymentDate ?? "",
+                                    paymentMemo: pkg.paymentMemo ?? "",
+                                  });
+                                  setEditPkgOpen(true);
+                                }}
+                                className="text-xs text-primary underline hover:text-primary/70 transition-colors"
+                              >
+                                수정
+                              </button>
+                              <button
                                 onClick={() => openRefundModal()}
                                 className="text-xs text-orange-400 underline hover:text-orange-300 transition-colors"
                               >
