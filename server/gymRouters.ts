@@ -17,6 +17,11 @@ import {
   notices,
   noticeReads,
   ptPackages,
+  gymPlusMembers,
+  gymPlusWorkoutLogs,
+  pointTransactions,
+  gymPlusMembershipRenewals,
+  pointMembershipExtensions,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -1104,6 +1109,150 @@ const staffRouter = t.router({
   }),
 });
 
+// ─── App Stats Router ─────────────────────────────────────────────────────────
+const appStatsRouter = t.router({
+  summary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const { year, month } = input;
+      const isMonthly = month !== undefined;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const periodStart = isMonthly ? `${year}-${pad(month!)}-01` : `${year}-01-01`;
+      const periodEnd = isMonthly
+        ? `${year}-${pad(month!)}-31`
+        : `${year}-12-31`;
+
+      const now = new Date();
+      const todayKst = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const ago30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const ago30Str = `${ago30.getFullYear()}-${pad(ago30.getMonth() + 1)}-${pad(ago30.getDate())}`;
+
+      const [
+        totalMembersRes,
+        activeMembersRes,
+        recentActiveRes,
+        totalWorkoutsRes,
+        todayWorkoutsRes,
+        totalPointsRes,
+        earnedPointsRes,
+        spentPointsRes,
+        memberPointsRes,
+        recentTxRes,
+        renewalRes,
+        extensionRes,
+        dailyActivityRes,
+        pointTrendRes,
+      ] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusMembers),
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusMembers).where(eq(gymPlusMembers.isActive, 1)),
+        db.select({ count: sql<number>`COUNT(DISTINCT "gymPlusMemberId")::int` })
+          .from(gymPlusWorkoutLogs)
+          .where(gte(gymPlusWorkoutLogs.logDate, ago30Str)),
+        db.select({ count: sql<number>`COUNT(*)::int` })
+          .from(gymPlusWorkoutLogs)
+          .where(and(gte(gymPlusWorkoutLogs.logDate, periodStart), lte(gymPlusWorkoutLogs.logDate, periodEnd))),
+        db.select({ count: sql<number>`COUNT(DISTINCT "gymPlusMemberId")::int` })
+          .from(gymPlusWorkoutLogs)
+          .where(eq(gymPlusWorkoutLogs.logDate, todayKst)),
+        db.select({ total: sql<number>`COALESCE(SUM(points),0)::int` }).from(gymPlusMembers).where(eq(gymPlusMembers.isActive, 1)),
+        db.select({ total: sql<number>`COALESCE(SUM(amount),0)::int` })
+          .from(pointTransactions)
+          .where(and(eq(pointTransactions.type, "earn"), gte(pointTransactions.createdAt, periodStart), lte(pointTransactions.createdAt, periodEnd + "T99"))),
+        db.select({ total: sql<number>`COALESCE(SUM(amount),0)::int` })
+          .from(pointTransactions)
+          .where(and(eq(pointTransactions.type, "spend"), gte(pointTransactions.createdAt, periodStart), lte(pointTransactions.createdAt, periodEnd + "T99"))),
+        db.select({ id: gymPlusMembers.id, name: gymPlusMembers.name, phone: gymPlusMembers.phone, points: gymPlusMembers.points })
+          .from(gymPlusMembers)
+          .where(and(eq(gymPlusMembers.isActive, 1), sql`points > 0`))
+          .orderBy(desc(gymPlusMembers.points))
+          .limit(30),
+        db.select({
+          gymPlusMemberId: pointTransactions.gymPlusMemberId,
+          type: pointTransactions.type,
+          amount: pointTransactions.amount,
+          description: pointTransactions.description,
+          createdAt: pointTransactions.createdAt,
+          memberName: gymPlusMembers.name,
+        })
+          .from(pointTransactions)
+          .leftJoin(gymPlusMembers, eq(pointTransactions.gymPlusMemberId, gymPlusMembers.id))
+          .orderBy(desc(pointTransactions.createdAt))
+          .limit(30),
+        db.select({
+          total: sql<number>`COUNT(*)::int`,
+          pending: sql<number>`COUNT(*) FILTER (WHERE status='pending')::int`,
+          approved: sql<number>`COUNT(*) FILTER (WHERE status='approved')::int`,
+          rejected: sql<number>`COUNT(*) FILTER (WHERE status='rejected')::int`,
+        }).from(gymPlusMembershipRenewals)
+          .where(and(gte(gymPlusMembershipRenewals.requestedAt, periodStart), lte(gymPlusMembershipRenewals.requestedAt, periodEnd + "T99"))),
+        db.select({
+          total: sql<number>`COUNT(*)::int`,
+          pointsUsed: sql<number>`COALESCE(SUM("pointsUsed"),0)::int`,
+          daysExtended: sql<number>`COALESCE(SUM("extensionDays"),0)::int`,
+        }).from(pointMembershipExtensions)
+          .where(and(gte(pointMembershipExtensions.newEnd, periodStart), lte(pointMembershipExtensions.newEnd, periodEnd))),
+        isMonthly
+          ? db.select({
+              day: gymPlusWorkoutLogs.logDate,
+              workouts: sql<number>`COUNT(*)::int`,
+            })
+              .from(gymPlusWorkoutLogs)
+              .where(and(gte(gymPlusWorkoutLogs.logDate, periodStart), lte(gymPlusWorkoutLogs.logDate, periodEnd)))
+              .groupBy(gymPlusWorkoutLogs.logDate)
+              .orderBy(gymPlusWorkoutLogs.logDate)
+          : Promise.resolve([]),
+        !isMonthly
+          ? db.select({
+              month: sql<string>`TO_CHAR(TO_DATE("createdAt", 'YYYY-MM-DD'), 'YYYY-MM')`,
+              earned: sql<number>`COALESCE(SUM(amount) FILTER (WHERE type='earn'), 0)::int`,
+              spent: sql<number>`COALESCE(SUM(amount) FILTER (WHERE type='spend'), 0)::int`,
+            })
+              .from(pointTransactions)
+              .where(and(gte(pointTransactions.createdAt, `${year}-01-01`), lte(pointTransactions.createdAt, `${year}-12-31T99`)))
+              .groupBy(sql`TO_CHAR(TO_DATE("createdAt", 'YYYY-MM-DD'), 'YYYY-MM')`)
+              .orderBy(sql`1`)
+          : Promise.resolve([]),
+      ]);
+
+      const activeCount = activeMembersRes[0]?.count ?? 0;
+      const recentActiveCount = recentActiveRes[0]?.count ?? 0;
+
+      const dailyMap = new Map<string, { checkins: number; workouts: number }>();
+      for (const row of dailyActivityRes as any[]) {
+        dailyMap.set(row.day, { checkins: 0, workouts: Number(row.workouts) });
+      }
+
+      return {
+        totalMembers: totalMembersRes[0]?.count ?? 0,
+        activeMembers: activeCount,
+        recentActive: recentActiveCount,
+        inactive30: Math.max(0, activeCount - recentActiveCount),
+        todayCheckins: 0,
+        todayWorkouts: todayWorkoutsRes[0]?.count ?? 0,
+        totalCheckins: 0,
+        totalWorkouts: totalWorkoutsRes[0]?.count ?? 0,
+        dailyActivity: Array.from(dailyMap.entries()).map(([day, v]) => ({ day, ...v })),
+        totalPoints: totalPointsRes[0]?.total ?? 0,
+        earnedPoints: earnedPointsRes[0]?.total ?? 0,
+        spentPoints: spentPointsRes[0]?.total ?? 0,
+        memberPoints: memberPointsRes.map(m => ({ id: m.id, name: m.name, phone: m.phone, points: m.points ?? 0 })),
+        recentTransactions: recentTxRes.map((tx: any) => ({
+          memberName: tx.memberName,
+          description: tx.description,
+          type: tx.type,
+          amount: tx.amount,
+          createdAt: tx.createdAt,
+        })),
+        renewals: renewalRes[0] ?? { total: 0, pending: 0, approved: 0, rejected: 0 },
+        extensions: extensionRes[0] ?? { total: 0, pointsUsed: 0, daysExtended: 0 },
+        pointTrend: (pointTrendRes as any[]).map(r => ({ month: r.month, earned: r.earned, spent: r.spent })),
+      };
+    }),
+});
+
 export const gymRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
@@ -1113,6 +1262,7 @@ export const gymRouter = t.router({
   ai: aiRouter,
   work: workRouter,
   staff: staffRouter,
+  appStats: appStatsRouter,
 });
 
 export type GymRouter = typeof gymRouter;
