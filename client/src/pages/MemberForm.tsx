@@ -155,18 +155,14 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     onError: (err) => toast.error("운동복 등록 실패: " + (err.message || "")),
   });
 
-  // 락커 가격 자동 기입
-  useEffect(() => {
-    if (!gymSettings || !addLocker) return;
-    const price = (gymSettings as any).lockerMonthlyPrice ?? 0;
-    if (price > 0) setLockerPrice(String(price * lockerMonths));
-  }, [gymSettings, addLocker, lockerMonths]);
+  // 락커/운동복 가격은 자동 기입하지 않음 (기본 0 = 메인 금액에 포함)
+  // 별도 청구 시에만 직접 입력
 
-  // 운동복 가격 자동 기입
+  // 운동복 가격 자동 기입 (비활성화)
   useEffect(() => {
     if (!gymSettings || !addUniform) return;
-    const price = (gymSettings as any).uniformPrice ?? 0;
-    if (price > 0) setUniformPrice(String(price));
+    // 자동 기입 제거 — 0(메인에 포함)이 기본값
+    if (false) setUniformPrice(String((gymSettings as any).uniformPrice ?? 0));
   }, [gymSettings, addUniform]);
 
   // 락커/운동복 종료일 자동 계산
@@ -712,7 +708,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <label className="text-xs text-muted-foreground">결제 금액</label>
+                                <label className="text-xs text-muted-foreground">별도 결제 금액 <span className="text-muted-foreground/60">(0=메인에 포함)</span></label>
                                 <Input type="number" value={lockerPrice} onChange={e => setLockerPrice(e.target.value)}
                                   placeholder="0" className="mt-1 bg-input border-border" />
                               </div>
@@ -745,7 +741,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <label className="text-xs text-muted-foreground">결제 금액</label>
+                                <label className="text-xs text-muted-foreground">별도 결제 금액 <span className="text-muted-foreground/60">(0=메인에 포함)</span></label>
                                 <Input type="number" value={uniformPrice} onChange={e => setUniformPrice(e.target.value)}
                                   placeholder="0" className="mt-1 bg-input border-border" />
                               </div>
