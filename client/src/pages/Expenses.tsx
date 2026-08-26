@@ -18,18 +18,20 @@ const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b"];
 type ExpForm = {
   branchId?: number;
   category: string;
-  subCategory: string;
+  subCategories: string[];
   amount: string;
   paymentMethod: string;
   vendor: string;
   expenseDate: string;
   memo: string;
+  recurring: boolean;
 };
 
 const defaultForm: ExpForm = {
-  category: "", subCategory: "",
+  category: "", subCategories: [],
   amount: "", paymentMethod: "카드", vendor: "",
   expenseDate: new Date().toISOString().substring(0, 10), memo: "",
+  recurring: false,
 };
 
 export default function ExpensesPage() {
@@ -61,15 +63,17 @@ export default function ExpensesPage() {
 
   function openEdit(row: any) {
     setEditId(row.entry.id);
+    const sub = row.entry.subCategory ?? "";
     setForm({
       branchId: row.entry.branchId ?? undefined,
       category: row.entry.category,
-      subCategory: row.entry.subCategory ?? "",
+      subCategories: sub ? sub.split(", ") : [],
       amount: String(row.entry.amount),
       paymentMethod: row.entry.paymentMethod ?? "카드",
       vendor: row.entry.vendor ?? "",
       expenseDate: row.entry.expenseDate,
       memo: row.entry.memo ?? "",
+      recurring: false,
     });
     setShowForm(true);
   }
@@ -77,20 +81,32 @@ export default function ExpensesPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.category) return toast.error("대분류 카테고리를 선택해주세요");
-    if (!form.subCategory) return toast.error("소분류 카테고리를 선택해주세요");
+    if (form.subCategories.length === 0) return toast.error("소분류 카테고리를 선택해주세요");
     if (!form.amount) return toast.error("금액을 입력해주세요");
     const payload = {
       branchId: form.branchId,
       category: form.category,
-      subCategory: form.subCategory,
+      subCategory: form.subCategories.join(", "),
       amount: parseInt(form.amount) || 0,
       paymentMethod: form.paymentMethod || undefined,
       vendor: form.vendor || undefined,
       expenseDate: form.expenseDate,
       memo: form.memo || undefined,
     };
-    if (editId) updateMutation.mutate({ id: editId, ...payload });
-    else createMutation.mutate(payload);
+    if (editId) {
+      updateMutation.mutate({ id: editId, ...payload });
+    } else {
+      createMutation.mutate(payload);
+      if (form.recurring && form.category === "고정관리비") {
+        const [y, m, dayStr] = form.expenseDate.split("-").map(Number);
+        const nextMonth = m === 12 ? 1 : m + 1;
+        const nextYear = m === 12 ? y + 1 : y;
+        const lastDay = new Date(nextYear, nextMonth, 0).getDate();
+        const day = Math.min(dayStr, lastDay);
+        const nextDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        createMutation.mutate({ ...payload, expenseDate: nextDate });
+      }
+    }
   }
 
   function prevMonth() {
@@ -241,7 +257,7 @@ export default function ExpensesPage() {
                   <div className="grid grid-cols-2 gap-2 mt-1">
                     {MAIN_CATEGORIES.map((cat, i) => (
                       <button key={cat} type="button"
-                        onClick={() => setForm(f => ({ ...f, category: cat, subCategory: "" }))}
+                        onClick={() => setForm(f => ({ ...f, category: cat, subCategories: [] }))}
                         className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.category === cat ? "text-white border-transparent" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}
                         style={form.category === cat ? { backgroundColor: COLORS[i] } : {}}>
                         {cat}
@@ -250,18 +266,26 @@ export default function ExpensesPage() {
                   </div>
                 </div>
 
-                {/* 소분류 */}
+                {/* 소분류 (다중 선택) */}
                 {form.category && (
                   <div>
-                    <label className="text-xs text-muted-foreground">소분류 *</label>
+                    <label className="text-xs text-muted-foreground">소분류 * <span className="text-muted-foreground/60">(복수 선택 가능)</span></label>
                     <div className="flex flex-wrap gap-2 mt-1">
-                      {CATEGORY_MAP[form.category].map(sub => (
-                        <button key={sub} type="button"
-                          onClick={() => setForm(f => ({ ...f, subCategory: sub }))}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.subCategory === sub ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                          {sub}
-                        </button>
-                      ))}
+                      {CATEGORY_MAP[form.category].map(sub => {
+                        const selected = form.subCategories.includes(sub);
+                        return (
+                          <button key={sub} type="button"
+                            onClick={() => setForm(f => ({
+                              ...f,
+                              subCategories: selected
+                                ? f.subCategories.filter(s => s !== sub)
+                                : [...f.subCategories, sub],
+                            }))}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${selected ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                            {sub}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -305,6 +329,28 @@ export default function ExpensesPage() {
                   <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
                 </div>
+
+                {!editId && form.category === "고정관리비" && (
+                  <label className="flex items-center gap-2.5 bg-primary/5 border border-primary/20 rounded-xl p-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.recurring}
+                      onChange={e => setForm(f => ({ ...f, recurring: e.target.checked }))}
+                      className="w-4 h-4 rounded border-border accent-primary"
+                    />
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">다음달도 동일하게 등록</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {(() => {
+                          const [y, m] = form.expenseDate.split("-").map(Number);
+                          const nm = m === 12 ? 1 : m + 1;
+                          const ny = m === 12 ? y + 1 : y;
+                          return `${ny}년 ${nm}월에도 같은 항목이 자동 등록됩니다`;
+                        })()}
+                      </p>
+                    </div>
+                  </label>
+                )}
 
               </div>
               <div className="flex gap-2 p-4 border-t border-border shrink-0">

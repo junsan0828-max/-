@@ -254,7 +254,6 @@ const PRODUCT_CATEGORIES = [
 ];
 
 const PAYMENT_METHODS = [
-  { value: "points", label: "포인트 결제", icon: "◈" },
   { value: "cash", label: "현장 현금", icon: "₩" },
   { value: "transfer", label: "계좌이체", icon: "→" },
   { value: "card", label: "카드결제", icon: "▣" },
@@ -271,7 +270,6 @@ export default function GymPlusProfile() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState("points");
   const [pointsToUse, setPointsToUse] = useState(0);
-  const [remainderMethod, setRemainderMethod] = useState("cash");
   const [purchaseNote, setPurchaseNote] = useState("");
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [extendDone, setExtendDone] = useState(false);
@@ -281,6 +279,7 @@ export default function GymPlusProfile() {
   const requestPurchase = trpc.gymPlus.requestPurchase.useMutation({
     onSuccess: (res) => {
       utils.gymPlus.memberMe.invalidate();
+      utils.gymPlus.getPointTransactions.invalidate();
       setShowPurchaseDone({ status: res.status, productName: selectedProduct?.name ?? "" });
       setSelectedProduct(null);
       setPurchaseNote("");
@@ -288,9 +287,13 @@ export default function GymPlusProfile() {
     onError: (e) => toast.error(e.message),
   });
 
+  const { data: pointHistory } = trpc.gymPlus.getPointTransactions.useQuery();
+  const [showPointHistory, setShowPointHistory] = useState(false);
+
   const requestPointExtension = trpc.gymPlus.requestPointExtension.useMutation({
     onSuccess: () => {
       utils.gymPlus.memberMe.invalidate();
+      utils.gymPlus.getPointTransactions.invalidate();
       setExtendDone(true);
     },
     onError: (e) => toast.error(e.message),
@@ -597,7 +600,49 @@ export default function GymPlusProfile() {
             </button>
           );
         })()}
+        <button
+          onClick={() => setShowPointHistory(!showPointHistory)}
+          className="mt-2 w-full rounded-xl py-2 text-xs font-medium flex items-center justify-center gap-1 bg-white/10 hover:bg-white/15 text-white/80 transition-colors"
+        >
+          적립/사용 내역 {showPointHistory ? "접기" : "보기"}
+          <svg viewBox="0 0 20 20" fill="currentColor" className={`w-3.5 h-3.5 transition-transform ${showPointHistory ? "rotate-180" : ""}`}>
+            <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
+
+      {showPointHistory && (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50">
+            <h3 className="text-sm font-bold text-[#1a2b4b]">포인트 내역</h3>
+            <p className="text-[10px] text-gray-400 mt-0.5">출석 적립은 하루 1회 100P 자동 적립</p>
+          </div>
+          {!pointHistory || pointHistory.length === 0 ? (
+            <div className="py-8 text-center text-xs text-gray-400">아직 포인트 내역이 없습니다</div>
+          ) : (
+            <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
+              {pointHistory.map((tx) => (
+                <div key={tx.id} className="px-4 py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      tx.type === "earn" ? "bg-blue-50 text-blue-500" : "bg-red-50 text-red-500"
+                    }`}>
+                      {tx.type === "earn" ? "+" : "-"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-[#1a2b4b] truncate">{tx.description || (tx.type === "earn" ? "포인트 적립" : "포인트 사용")}</p>
+                      <p className="text-[10px] text-gray-400">{tx.createdAt?.slice(0, 10).replace(/-/g, ".")}</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-bold flex-shrink-0 ${tx.type === "earn" ? "text-blue-500" : "text-red-500"}`}>
+                    {tx.type === "earn" ? "+" : "-"}{tx.amount.toLocaleString("ko-KR")}P
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 카테고리 필터 */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
@@ -631,12 +676,8 @@ export default function GymPlusProfile() {
                 key={p.id}
                 onClick={() => {
                   setSelectedProduct(p);
-                  const canUsePoints = p.pointPrice != null || p.price >= MIN_POINTS_TO_USE;
-                  setPaymentMethod(canUsePoints ? "points" : "cash");
-                  const balance = member?.points ?? 0;
-                  const maxUsable = Math.floor(Math.min(balance, p.price) / POINT_USE_STEP) * POINT_USE_STEP;
-                  setPointsToUse(canUsePoints && maxUsable >= MIN_POINTS_TO_USE ? maxUsable : 0);
-                  setRemainderMethod("cash");
+                  setPaymentMethod("cash");
+                  setPointsToUse(0);
                   setPurchaseNote("");
                 }}
                 className="w-full border border-border rounded-2xl overflow-hidden bg-card text-left hover:border-primary/40 hover:shadow-md transition-all"
@@ -714,31 +755,27 @@ export default function GymPlusProfile() {
                 </div>
               </div>
 
-              {/* 결제 수단 선택 — 관리자가 포인트 가격을 지정했거나, 상품 가격이 최소 사용 기준
-                  이상이면 원화 가격(1P=1원)을 그대로 포인트 결제로 허용한다. 포인트가 상품 금액에
-                  못 미쳐도 최소 기준 이상만 되면 일부만 쓰고 나머지는 현금 등으로 분할결제할 수 있다. */}
+              {/* 결제 수단 선택 */}
               {(() => {
                 const balance = member?.points ?? 0;
                 const price = selectedProduct.price;
                 const fullPointCost = selectedProduct.pointPrice ?? (price >= MIN_POINTS_TO_USE ? price : null);
-                const canShowPoints = fullPointCost != null;
-                const maxUsable = Math.floor(Math.min(balance, price) / POINT_USE_STEP) * POINT_USE_STEP;
-                const canUseAnyPoints = canShowPoints && maxUsable >= MIN_POINTS_TO_USE;
-                const usingPoints = paymentMethod === "points";
-                const remainder = usingPoints ? Math.max(0, price - pointsToUse) : price;
+                const canUsePoints = fullPointCost != null;
+                const pointCap = fullPointCost ?? price;
+                const maxUsable = Math.floor(Math.min(balance, pointCap) / POINT_USE_STEP) * POINT_USE_STEP;
+                const canApplyPoints = canUsePoints && maxUsable >= MIN_POINTS_TO_USE;
+                const usingPoints = pointsToUse > 0;
+                const remainder = usingPoints ? Math.max(0, pointCap - pointsToUse) : price;
 
                 return (
                   <>
                     <div>
                       <p className="text-xs font-semibold text-foreground mb-3">결제 수단</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {PAYMENT_METHODS.filter(pm => pm.value !== "points" || canShowPoints).map(pm => (
+                      <div className="grid grid-cols-3 gap-2">
+                        {PAYMENT_METHODS.map(pm => (
                           <button
                             key={pm.value}
-                            onClick={() => {
-                              setPaymentMethod(pm.value);
-                              if (pm.value === "points") setPointsToUse(canUseAnyPoints ? maxUsable : 0);
-                            }}
+                            onClick={() => setPaymentMethod(pm.value)}
                             className={`p-3 rounded-xl border text-left transition-all ${
                               paymentMethod === pm.value
                                 ? "border-primary bg-primary/5"
@@ -747,82 +784,71 @@ export default function GymPlusProfile() {
                           >
                             <span className="text-base">{pm.icon}</span>
                             <p className="text-xs font-semibold mt-1 text-foreground">{pm.label}</p>
-                            {pm.value === "points" && (
-                              <p className={`text-[10px] mt-0.5 ${canUseAnyPoints ? "text-green-500" : "text-red-400"}`}>
-                                {canUseAnyPoints
-                                  ? `보유 ${balance.toLocaleString("ko-KR")}P`
-                                  : `${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 이용 가능`}
-                              </p>
-                            )}
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    {/* 포인트 사용액 조절 + 부족분 분할결제 */}
-                    {usingPoints && canUseAnyPoints && (
+                    {/* 포인트 적용 영역 */}
+                    {canUsePoints && (
                       <div className="rounded-xl border border-border p-3 space-y-3">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-foreground">사용할 포인트</p>
-                          <p className="text-xs text-muted-foreground">보유 {balance.toLocaleString("ko-KR")}P</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">◈</span>
+                            <p className="text-xs font-semibold text-foreground">포인트 적용</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">잔여 <span className="font-bold text-primary">{balance.toLocaleString("ko-KR")}P</span></p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button type="button"
-                            onClick={() => setPointsToUse(p => Math.max(MIN_POINTS_TO_USE, p - POINT_USE_STEP))}
-                            className="w-9 h-9 rounded-lg border border-border font-bold text-foreground"
-                          >−</button>
-                          <input
-                            type="number"
-                            value={pointsToUse}
-                            onChange={e => {
-                              const raw = parseInt(e.target.value, 10) || 0;
-                              setPointsToUse(Math.max(0, Math.min(maxUsable, raw)));
-                            }}
-                            className="flex-1 text-center rounded-lg border border-input bg-background px-2 py-2 text-sm font-bold"
-                          />
-                          <button type="button"
-                            onClick={() => setPointsToUse(p => Math.min(maxUsable, p + POINT_USE_STEP))}
-                            className="w-9 h-9 rounded-lg border border-border font-bold text-foreground"
-                          >+</button>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          {MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 {POINT_USE_STEP}P 단위로 사용할 수 있어요 (최대 {maxUsable.toLocaleString("ko-KR")}P)
-                        </p>
 
-                        {remainder > 0 ? (
-                          <div className="space-y-2 pt-2 border-t border-border">
-                            <p className="text-xs font-semibold text-foreground">남은 금액 {remainder.toLocaleString("ko-KR")}원 결제 방법</p>
-                            <div className="grid grid-cols-3 gap-2">
-                              {[{ v: "cash", l: "현장 현금" }, { v: "transfer", l: "계좌이체" }, { v: "card", l: "카드결제" }].map(m => (
-                                <button key={m.v} type="button"
-                                  onClick={() => setRemainderMethod(m.v)}
-                                  className={`py-2 rounded-lg border text-xs font-semibold transition-colors ${
-                                    remainderMethod === m.v ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground"
-                                  }`}
-                                >
-                                  {m.l}
-                                </button>
-                              ))}
+                        {canApplyPoints ? (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <button type="button"
+                                onClick={() => setPointsToUse(p => Math.max(0, p - POINT_USE_STEP))}
+                                className="w-9 h-9 rounded-lg border border-border font-bold text-foreground"
+                              >−</button>
+                              <input
+                                type="number"
+                                value={pointsToUse}
+                                onChange={e => {
+                                  const raw = parseInt(e.target.value, 10) || 0;
+                                  setPointsToUse(Math.max(0, Math.min(maxUsable, raw)));
+                                }}
+                                className="flex-1 text-center rounded-lg border border-input bg-background px-2 py-2 text-sm font-bold"
+                              />
+                              <button type="button"
+                                onClick={() => setPointsToUse(p => Math.min(maxUsable, p + POINT_USE_STEP))}
+                                className="w-9 h-9 rounded-lg border border-border font-bold text-foreground"
+                              >+</button>
+                              <button type="button"
+                                onClick={() => setPointsToUse(maxUsable)}
+                                className="px-3 h-9 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-bold flex-shrink-0"
+                              >전액</button>
                             </div>
-                            {remainderMethod === "transfer" && (
-                              <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 space-y-2">
-                                <div>
-                                  <p className="text-xs font-semibold">카카오뱅크 3333-05-2664409</p>
-                                  <p className="text-xs text-muted-foreground">예금주: (자이언트짐)</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 {POINT_USE_STEP}P 단위 (최대 {maxUsable.toLocaleString("ko-KR")}P)
+                            </p>
+                            {usingPoints && (
+                              <div className="pt-2 border-t border-border space-y-1">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground">포인트 할인</span>
+                                  <span className="font-bold text-primary">-{pointsToUse.toLocaleString("ko-KR")}P</span>
                                 </div>
-                                <button type="button"
-                                  onClick={() => { navigator.clipboard.writeText("333305266409"); toast.success("계좌번호가 복사되었습니다"); }}
-                                  className="w-full py-2 rounded-lg bg-yellow-400/20 border border-yellow-400/30 text-yellow-500 text-xs font-semibold"
-                                >
-                                  계좌번호 복사하기
-                                </button>
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground">남은 결제액</span>
+                                  <span className="font-bold text-foreground">{remainder.toLocaleString("ko-KR")}원</span>
+                                </div>
+                                {remainder === 0 && (
+                                  <p className="text-xs text-green-600 font-medium mt-1">포인트만으로 결제 가능</p>
+                                )}
                               </div>
                             )}
-                            <p className="text-[10px] text-muted-foreground">포인트는 신청 시 바로 차감되며, 남은 금액은 신청 후 센터 직원에게 결제해 주세요.</p>
-                          </div>
+                          </>
                         ) : (
-                          <p className="text-xs text-green-600 font-medium pt-1 border-t border-border">
-                            포인트만으로 결제 완료 · 결제 후 잔여 {(balance - pointsToUse).toLocaleString("ko-KR")}P
+                          <p className="text-[10px] text-muted-foreground">
+                            {balance < MIN_POINTS_TO_USE
+                              ? `${MIN_POINTS_TO_USE.toLocaleString("ko-KR")}P부터 사용 가능 (현재 ${balance.toLocaleString("ko-KR")}P)`
+                              : "이 상품은 포인트를 사용할 수 없습니다"}
                           </p>
                         )}
                       </div>
@@ -831,7 +857,7 @@ export default function GymPlusProfile() {
                 );
               })()}
 
-              {/* 계좌이체 안내 (포인트 없이 전액 계좌이체) */}
+              {/* 계좌이체 안내 */}
               {paymentMethod === "transfer" && (
                 <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 space-y-2">
                   <div>
@@ -848,11 +874,9 @@ export default function GymPlusProfile() {
               )}
 
               {/* 현장결제 안내 */}
-              {paymentMethod !== "points" && (
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">신청 후 센터 직원에게 결제 방법을 안내받으세요.</p>
-                </div>
-              )}
+              <div className="bg-muted/50 rounded-xl p-3">
+                <p className="text-xs text-muted-foreground">신청 후 센터 직원에게 결제 방법을 안내받으세요.</p>
+              </div>
 
               {/* 메모 */}
               <div>
@@ -876,21 +900,19 @@ export default function GymPlusProfile() {
                 </button>
                 <button
                   onClick={() => {
-                    const usingPoints = paymentMethod === "points";
-                    const remainder = usingPoints ? Math.max(0, selectedProduct.price - pointsToUse) : 0;
+                    const usingPoints = pointsToUse >= MIN_POINTS_TO_USE;
+                    const remainder = usingPoints ? Math.max(0, selectedProduct.price - pointsToUse) : selectedProduct.price;
                     requestPurchase.mutate({
                       productId: selectedProduct.id,
-                      paymentMethod: usingPoints ? (remainder > 0 ? remainderMethod : "points") : paymentMethod,
+                      paymentMethod: usingPoints && remainder === 0 ? "points" : paymentMethod,
                       pointsToUse: usingPoints ? pointsToUse : undefined,
                       note: purchaseNote || undefined,
                     });
                   }}
-                  disabled={requestPurchase.isPending || (paymentMethod === "points" && (
-                    (member?.points ?? 0) < MIN_POINTS_TO_USE || pointsToUse < MIN_POINTS_TO_USE
-                  ))}
+                  disabled={requestPurchase.isPending}
                   className="flex-1 py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold disabled:opacity-50"
                 >
-                  {requestPurchase.isPending ? "처리 중..." : paymentMethod === "points" ? "결제 신청" : "구매 신청"}
+                  {requestPurchase.isPending ? "처리 중..." : "구매 신청"}
                 </button>
               </div>
             </div>

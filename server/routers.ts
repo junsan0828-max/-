@@ -4249,6 +4249,29 @@ ${dataContext}
       .limit(50);
   }),
 
+  getPointTransactions: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const [gm] = await db.select({ memberId: gymPlusMembers.memberId })
+      .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+
+    const res = await pool.query(
+      `(SELECT id, type, amount, reason AS description, "createdAt"
+        FROM gym_plus_point_logs WHERE "gymPlusMemberId" = $1)
+       UNION ALL
+       (SELECT id + 1000000, type, amount, description, "createdAt"
+        FROM point_transactions WHERE "memberId" = $2)
+       ORDER BY "createdAt" DESC LIMIT 50`,
+      [ctx.gymPlusMemberId, gm?.memberId ?? -1]
+    );
+    return (res.rows as { id: number; type: string; amount: number; description: string | null; createdAt: string }[])
+      .map(r => ({
+        ...r,
+        type: r.type === "charge" || r.type === "earn" || r.type === "refund" ? "earn" : "use",
+        amount: Math.abs(r.amount),
+      }));
+  }),
+
   admin_chargePoints: adminOnlyGymPlus
     .input(z.object({
       gymPlusMemberId: z.number(),
@@ -4404,6 +4427,15 @@ ${dataContext}
         relatedId: row.id,
       });
 
+      const [gmForTx] = await db.select({ memberId: gymPlusMembers.memberId })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+      if (gmForTx?.memberId) {
+        await pool.query(
+          `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'use', $2, $3, now()::text)`,
+          [gmForTx.memberId, cost, `회원권 ${input.days}일 연장`]
+        );
+      }
+
       const extContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
       sendRequestNotification({
         kind: "회원권 연장(포인트)",
@@ -4478,6 +4510,16 @@ ${dataContext}
           reason: `회원권 ${reqRow.requestedDays}일 연장 신청 거절 · 포인트 반환`,
           relatedId: reqRow.id,
         });
+
+        const [gmRefundTx] = await db.select({ memberId: gymPlusMembers.memberId })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, reqRow.gymPlusMemberId)).limit(1);
+        if (gmRefundTx?.memberId) {
+          await pool.query(
+            `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'earn', $2, $3, now()::text)`,
+            [gmRefundTx.memberId, reqRow.pointsUsed, `회원권 연장 거절 · 포인트 반환`]
+          );
+        }
+
         return { success: true, refunded: reqRow.pointsUsed };
       }
 
@@ -4533,6 +4575,26 @@ ${dataContext}
     }
     return { global, branches };
   }),
+
+  // ─── 키오스크 공지사항 관리 ───────────────────────────────────────────────────
+
+  getKioskNotices: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'kiosk_notices'`);
+    const raw = res.rows[0]?.value;
+    if (!raw) return [];
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }),
+
+  setKioskNotices: adminOnlyGymPlus
+    .input(z.object({ notices: z.array(z.string().max(100)).max(5) }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('kiosk_notices', $1, now()::text)
+         ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
+        [JSON.stringify(input.notices)]
+      );
+      return { success: true };
+    }),
 
   // ─── 구매신청 ────────────────────────────────────────────────────────────────
 
@@ -4599,6 +4661,15 @@ ${dataContext}
           reason: `${product.name} 구매${remainder > 0 ? " (분할결제)" : ""}`,
           relatedId: req.id,
         });
+
+        const [gmPurchaseTx] = await db.select({ memberId: gymPlusMembers.memberId })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+        if (gmPurchaseTx?.memberId) {
+          await pool.query(
+            `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'use', $2, $3, now()::text)`,
+            [gmPurchaseTx.memberId, pointsUsed, `${product.name} 구매`]
+          );
+        }
 
         if (remainder > 0) {
           const splitContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
@@ -4707,6 +4778,15 @@ ${dataContext}
           reason: `${existing.productName} 구매 반려 · 포인트 반환`,
           relatedId: existing.id,
         });
+
+        const [gmPurchaseRefund] = await db.select({ memberId: gymPlusMembers.memberId })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, existing.gymPlusMemberId)).limit(1);
+        if (gmPurchaseRefund?.memberId) {
+          await pool.query(
+            `INSERT INTO point_transactions ("memberId", type, amount, description, "createdAt") VALUES ($1, 'earn', $2, $3, now()::text)`,
+            [gmPurchaseRefund.memberId, existing.pointsUsed, `${existing.productName} 구매 반려 · 포인트 반환`]
+          );
+        }
       }
 
       await db.update(gymPlusPurchaseRequests).set({ status: input.status })
@@ -5016,6 +5096,15 @@ const landingRouter = t.router({
 
 // ─── Kiosk ────────────────────────────────────────────────────────────────────
 const kioskRouter = t.router({
+  getNotices: publicProcedure.query(async () => {
+    const res = await pool.query(
+      `SELECT value FROM gym_plus_settings WHERE key = 'kiosk_notices'`
+    );
+    const raw = res.rows[0]?.value;
+    if (!raw) return [];
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }),
+
   checkIn: publicProcedure
     .input(z.object({ phone: z.string().min(9) }))
     .mutation(async ({ input }) => {

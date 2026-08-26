@@ -45,6 +45,7 @@ import TrainerSettlement from "./pages/TrainerSettlement";
 import LeadsPage from "./pages/Leads";
 import ContractPrint from "./pages/ContractPrint";
 import Landing from "./pages/Landing";
+import Privacy from "./pages/Privacy";
 import MyWorkPage from "./pages/MyWork";
 import RevenuePage from "./pages/Revenue";
 import ExpensesPage from "./pages/Expenses";
@@ -119,6 +120,11 @@ function App() {
   // 키오스크 출입 페이지 (공개, 인증 불필요)
   if (location === "/kiosk") {
     return <KioskPage />;
+  }
+
+  // 개인정보처리방침 (공개)
+  if (location === "/privacy") {
+    return <Privacy />;
   }
 
   // ZIANTGYM+ 회원앱 (Layout 밖에서 독립 렌더)
