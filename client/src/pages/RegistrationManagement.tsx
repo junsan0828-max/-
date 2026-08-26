@@ -279,6 +279,7 @@ export default function RegistrationManagement() {
   const utils = trpc.useUtils();
 
   const revListQuery = trpc.gym.revenue.list.useQuery(undefined, { enabled: tab === "members" });
+  const orphanPkgQuery = trpc.gym.revenue.listOrphanPackages.useQuery(undefined, { enabled: tab === "members" });
   const updateRevMutation = trpc.gym.revenue.update.useMutation({
     onSuccess: () => { toast.success("수정 완료"); setEditRev(null); revListQuery.refetch(); },
     onError: (e) => toast.error(e.message || "수정 실패"),
@@ -681,7 +682,28 @@ export default function RegistrationManagement() {
 
           {/* 등록 내역 */}
           {(() => {
-            const allRevs: any[] = (revListQuery.data ?? []).map((r: any) => ({ ...r.entry, memberName: r.memberName, trainerName: r.trainerName }));
+            // revenue_entries 기반 목록
+            const revEntries: any[] = (revListQuery.data ?? []).map((r: any) => ({ ...r.entry, memberName: r.memberName, trainerName: r.trainerName }));
+            // revenue_entries 없는(고아) PT 패키지를 가상 매출 항목으로 변환해 합산
+            const orphanRevs: any[] = (orphanPkgQuery.data ?? []).map((r: any) => ({
+              id: `pkg-${r.pkg.id}`,
+              memberId: r.pkg.memberId,
+              customerName: r.memberName ?? "",
+              memberName: r.memberName,
+              phone: r.memberPhone,
+              type: "PT",
+              subType: "등록",
+              programDetail: r.pkg.packageName,
+              sessions: r.pkg.totalSessions,
+              amount: r.pkg.paymentAmount ?? 0,
+              paidAmount: r.pkg.paymentAmount ?? 0,
+              unpaidAmount: r.pkg.unpaidAmount ?? 0,
+              paymentDate: r.pkg.paymentDate ?? r.pkg.startDate ?? "",
+              startDate: r.pkg.startDate,
+              trainerName: r.trainerName,
+              _isOrphanPkg: true,
+            }));
+            const allRevs: any[] = [...revEntries, ...orphanRevs];
             // 미수금 수납은 "등록"이 아니라 기존 등록 건에 대한 입금이다. 별도 카드로 띄우면
             // 새 등록처럼 보여 헷갈리므로, 목록에서 빼고 원본 등록 카드 안에 이력으로 표시한다.
             // (매출·월별 집계에는 그대로 잡히므로 수납한 달 매출은 정확하다)
@@ -741,7 +763,7 @@ export default function RegistrationManagement() {
                     className="w-full pl-8 pr-3 py-2 text-sm bg-background border border-border rounded-lg"
                   />
                 </div>
-                {revListQuery.isLoading ? (
+                {(revListQuery.isLoading || orphanPkgQuery.isLoading) ? (
                   <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
                 ) : filtered.length === 0 ? (
                   <div className="text-center py-6 space-y-2">
@@ -822,13 +844,19 @@ export default function RegistrationManagement() {
                                       </div>
                                       <span className="text-xs text-muted-foreground shrink-0">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</span>
                                       <div className="flex gap-2 shrink-0">
-                                        <button onClick={() => openEditRev(r)} className="text-xs text-primary underline hover:text-primary/70">수정</button>
-                                        {r.subType !== "환불" && (
-                                          <button onClick={() => setRefundTarget(r)} className="text-xs text-orange-400 underline hover:text-orange-300">환불</button>
+                                        {r._isOrphanPkg ? (
+                                          <button onClick={() => setLocation(`/members/${r.memberId}`)} className="text-xs text-primary underline hover:text-primary/70">회원 상세</button>
+                                        ) : (
+                                          <>
+                                            <button onClick={() => openEditRev(r)} className="text-xs text-primary underline hover:text-primary/70">수정</button>
+                                            {r.subType !== "환불" && (
+                                              <button onClick={() => setRefundTarget(r)} className="text-xs text-orange-400 underline hover:text-orange-300">환불</button>
+                                            )}
+                                            <button
+                                              onClick={() => { if (confirm(`"${r.customerName || r.memberName}" ${r.type} 항목을 삭제하시겠습니까?`)) deleteRevMutation.mutate({ id: r.id }); }}
+                                              className="text-xs text-red-400 underline hover:text-red-300">삭제</button>
+                                          </>
                                         )}
-                                        <button
-                                          onClick={() => { if (confirm(`"${r.customerName || r.memberName}" ${r.type} 항목을 삭제하시겠습니까?`)) deleteRevMutation.mutate({ id: r.id }); }}
-                                          className="text-xs text-red-400 underline hover:text-red-300">삭제</button>
                                       </div>
                                     </div>
                                   );
