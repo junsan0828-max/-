@@ -773,121 +773,88 @@ export default function RegistrationManagement() {
                       <p className="text-xs text-muted-foreground">매출 등록 없이 생성된 회원일 수 있습니다. <button onClick={() => setLocation("/members")} className="text-primary underline hover:text-primary/70">회원 관리에서 검색</button></p>
                     )}
                   </div>
-                ) : (
-                  (() => {
-                    // 1단계: 회원별 그룹화 (회원 1명 = 카드 1장)
+                ) : (() => {
+                    // 회원별 그룹화: 회원 1명 = 카드 1장
                     const memberMap = new Map<string, any[]>();
-                    for (const r of filtered) {
+                    filtered.forEach((r: any) => {
                       const who = r.memberId ? `m${r.memberId}` : `n:${(r.customerName || r.memberName || "").trim()}|${r.phone ?? ""}`;
                       if (!memberMap.has(who)) memberMap.set(who, []);
                       memberMap.get(who)!.push(r);
-                    }
-                    // 각 회원 내 등록을 결제일 내림차순 정렬 → 최신이 앞
-                    for (const [, entries] of memberMap) {
+                    });
+                    // 각 회원 내 등록을 결제일 내림차순 정렬
+                    memberMap.forEach((entries) => {
                       entries.sort((a: any, b: any) => (b.paymentDate ?? b.startDate ?? "").localeCompare(a.paymentDate ?? a.startDate ?? ""));
-                    }
-                    // 2단계: 같은 결제일 항목을 묶어 "등록 건" 단위로 만듦
-                    function buildDateGroups(entries: any[]) {
+                    });
+                    // 같은 결제일 항목을 묶어 "등록 건" 단위로 만듦
+                    const buildDateGroups = (entries: any[]) => {
                       const dateMap = new Map<string, any[]>();
-                      for (const r of entries) {
+                      entries.forEach((r: any) => {
                         const k = r.paymentDate ?? r.startDate ?? "";
                         if (!dateMap.has(k)) dateMap.set(k, []);
                         dateMap.get(k)!.push(r);
-                      }
+                      });
                       return Array.from(dateMap.values());
-                    }
-
+                    };
                     const memberEntries = Array.from(memberMap.entries()).slice(0, 100);
 
-                    function renderDateGroup(items: any[], memberKey: string, isLatest: boolean) {
-                      const head = items[0];
-                      const total = items.reduce((s: number, x: any) => s + (x.amount ?? x.paidAmount ?? 0), 0);
-                      const unpaid = items.reduce((s: number, x: any) => s + (x.unpaidAmount ?? 0), 0);
-                      const startDate = items.map((x: any) => x.startDate).filter(Boolean).sort()[0];
-                      const linked = items.flatMap((x: any) => collectionsByParent.get(x.id) ?? []);
-                      const legacy = isLatest ? (collectionsByMember.get(memberKey) ?? []) : [];
-                      const paidBacks = [...linked, ...legacy];
+                    const renderItems = (items: any[]) => items.map((r: any) => {
+                      const si = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
+                      const label = r.programDetail || (si.length ? "" : "—");
                       return (
-                        <div key={items.map((x: any) => x.id).join("-")} className={isLatest ? "" : "pt-3 border-t border-border/40"}>
-                          {!isLatest && (
-                            <p className="text-xs text-muted-foreground mb-2">{head.paymentDate || "날짜 없음"}</p>
-                          )}
-                          {startDate && isLatest && <p className="text-xs text-muted-foreground">시작일: {startDate}</p>}
-                          {unpaid > 0 && <p className="text-xs text-red-400 font-medium">미수금 {unpaid.toLocaleString()}원</p>}
-                          {paidBacks.length > 0 && (
-                            <div className="space-y-0.5 pt-1">
-                              {paidBacks.map((c: any) => (
-                                <p key={c.id} className="text-xs text-emerald-400">
-                                  ✓ {c.paymentDate} 미수금 {(c.paidAmount ?? c.amount ?? 0).toLocaleString()}원 수납
-                                </p>
+                        <div key={r.id} className="flex items-center justify-between gap-2 py-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? typeColor["기타"]}`}>{r.type}</span>
+                              {label && <span className="text-xs text-foreground">{label}</span>}
+                              {si.map((item: string) => (
+                                <span key={item} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium">🎁 {item}</span>
                               ))}
                             </div>
-                          )}
-                          <div className="divide-y divide-border/60 border-t border-border/60 mt-1">
-                            {items.map((r: any) => {
-                              const si = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
-                              const label = r.programDetail || (si.length ? "" : "—");
-                              return (
-                                <div key={r.id} className="flex items-center justify-between gap-2 py-2">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? typeColor["기타"]}`}>{r.type}</span>
-                                      {label && <span className="text-xs text-foreground">{label}</span>}
-                                      {si.map((item: string) => (
-                                        <span key={item} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium">🎁 {item}</span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  <span className="text-xs text-muted-foreground shrink-0">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</span>
-                                  <div className="flex gap-2 shrink-0">
-                                    {r._isOrphanPkg ? (
-                                      <button onClick={() => setLocation(`/members/${r.memberId}`)} className="text-xs text-primary underline hover:text-primary/70">회원 상세</button>
-                                    ) : (
-                                      <>
-                                        <button onClick={() => openEditRev(r)} className="text-xs text-primary underline hover:text-primary/70">수정</button>
-                                        {r.subType !== "환불" && (
-                                          <button onClick={() => setRefundTarget(r)} className="text-xs text-orange-400 underline hover:text-orange-300">환불</button>
-                                        )}
-                                        <button
-                                          onClick={() => { if (confirm(`"${r.customerName || r.memberName}" ${r.type} 항목을 삭제하시겠습니까?`)) deleteRevMutation.mutate({ id: r.id }); }}
-                                          className="text-xs text-red-400 underline hover:text-red-300">삭제</button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
                           </div>
-                          {!isLatest && startDate && <p className="text-xs text-muted-foreground mt-1">시작일: {startDate}</p>}
+                          <span className="text-xs text-muted-foreground shrink-0">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</span>
+                          <div className="flex gap-2 shrink-0">
+                            {r._isOrphanPkg ? (
+                              <button onClick={() => setLocation(`/members/${r.memberId}`)} className="text-xs text-primary underline hover:text-primary/70">회원 상세</button>
+                            ) : (
+                              <>
+                                <button onClick={() => openEditRev(r)} className="text-xs text-primary underline hover:text-primary/70">수정</button>
+                                {r.subType !== "환불" && (
+                                  <button onClick={() => setRefundTarget(r)} className="text-xs text-orange-400 underline hover:text-orange-300">환불</button>
+                                )}
+                                <button
+                                  onClick={() => { if (confirm(`"${r.customerName || r.memberName}" ${r.type} 항목을 삭제하시겠습니까?`)) deleteRevMutation.mutate({ id: r.id }); }}
+                                  className="text-xs text-red-400 underline hover:text-red-300">삭제</button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
-                    }
+                    });
 
                     return (
                       <div className="space-y-2">
                         {memberEntries.map(([memberKey, allEntries]) => {
                           const dateGroups = buildDateGroups(allEntries);
-                          const latestGroup = dateGroups[0];
+                          const latestGroup = dateGroups[0] ?? [];
                           const olderGroups = dateGroups.slice(1);
                           const head = latestGroup[0];
+                          if (!head) return null;
                           const latestTotal = latestGroup.reduce((s: number, x: any) => s + (x.amount ?? x.paidAmount ?? 0), 0);
+                          const latestUnpaid = latestGroup.reduce((s: number, x: any) => s + (x.unpaidAmount ?? 0), 0);
+                          const latestStart = latestGroup.map((x: any) => x.startDate).filter(Boolean).sort()[0];
+                          const latestLinked = latestGroup.flatMap((x: any) => collectionsByParent.get(x.id) ?? []);
+                          const latestLegacy = collectionsByMember.get(head.memberId ? `m${head.memberId}` : `n:${(head.customerName || head.memberName || "").trim()}`) ?? [];
+                          const latestPaidBacks = [...latestLinked, ...latestLegacy];
                           const isExpanded = expandedMembers.has(memberKey);
-                          const toggleExpand = () => setExpandedMembers(prev => {
-                            const next = new Set(prev);
-                            if (next.has(memberKey)) next.delete(memberKey); else next.add(memberKey);
-                            return next;
-                          });
                           return (
                             <div key={memberKey} className="bg-card border border-border rounded-xl px-4 py-3 space-y-2">
-                              {/* 헤더: 회원 + 최신 등록 합계 + 결제일 */}
+                              {/* 헤더 */}
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                                   <span className="font-medium text-sm text-foreground">{head.customerName || head.memberName || "—"}</span>
                                   {head.subType && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{head.subType}</span>}
                                   {olderGroups.length > 0 && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground">
-                                      총 {dateGroups.length}회 등록
-                                    </span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground">총 {dateGroups.length}회 등록</span>
                                   )}
                                 </div>
                                 <div className="text-right shrink-0">
@@ -896,20 +863,54 @@ export default function RegistrationManagement() {
                                 </div>
                               </div>
                               {/* 최신 등록 건 */}
-                              {renderDateGroup(latestGroup, memberKey, true)}
-                              {/* 이전 등록 내역 펼치기 */}
+                              {latestStart && <p className="text-xs text-muted-foreground">시작일: {latestStart}</p>}
+                              {latestUnpaid > 0 && <p className="text-xs text-red-400 font-medium">미수금 {latestUnpaid.toLocaleString()}원</p>}
+                              {latestPaidBacks.length > 0 && (
+                                <div className="space-y-0.5">
+                                  {latestPaidBacks.map((c: any) => (
+                                    <p key={c.id} className="text-xs text-emerald-400">✓ {c.paymentDate} 미수금 {(c.paidAmount ?? c.amount ?? 0).toLocaleString()}원 수납</p>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="divide-y divide-border/60 border-t border-border/60">
+                                {renderItems(latestGroup)}
+                              </div>
+                              {/* 이전 등록 펼치기 */}
                               {olderGroups.length > 0 && (
                                 <>
                                   <button
-                                    onClick={toggleExpand}
+                                    onClick={() => setExpandedMembers(prev => { const next = new Set(prev); if (next.has(memberKey)) next.delete(memberKey); else next.add(memberKey); return next; })}
                                     className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full pt-1"
                                   >
                                     {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                                     {isExpanded ? "이전 등록 내역 접기" : `이전 등록 ${olderGroups.length}건 더보기`}
                                   </button>
                                   {isExpanded && (
-                                    <div className="space-y-2">
-                                      {olderGroups.map(g => renderDateGroup(g, memberKey, false))}
+                                    <div className="space-y-3">
+                                      {olderGroups.map((grp: any[], gi: number) => {
+                                        const gh = grp[0];
+                                        const gUnpaid = grp.reduce((s: number, x: any) => s + (x.unpaidAmount ?? 0), 0);
+                                        const gStart = grp.map((x: any) => x.startDate).filter(Boolean).sort()[0];
+                                        const gLinked = grp.flatMap((x: any) => collectionsByParent.get(x.id) ?? []);
+                                        const gPaidBacks = [...gLinked];
+                                        return (
+                                          <div key={gi} className="pt-3 border-t border-border/40">
+                                            <p className="text-xs text-muted-foreground mb-1">{gh?.paymentDate || "날짜 없음"}</p>
+                                            {gStart && <p className="text-xs text-muted-foreground">시작일: {gStart}</p>}
+                                            {gUnpaid > 0 && <p className="text-xs text-red-400 font-medium">미수금 {gUnpaid.toLocaleString()}원</p>}
+                                            {gPaidBacks.length > 0 && (
+                                              <div className="space-y-0.5">
+                                                {gPaidBacks.map((c: any) => (
+                                                  <p key={c.id} className="text-xs text-emerald-400">✓ {c.paymentDate} 미수금 {(c.paidAmount ?? c.amount ?? 0).toLocaleString()}원 수납</p>
+                                                ))}
+                                              </div>
+                                            )}
+                                            <div className="divide-y divide-border/60 border-t border-border/60 mt-1">
+                                              {renderItems(grp)}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </>
@@ -920,8 +921,7 @@ export default function RegistrationManagement() {
                         {memberMap.size > 100 && <p className="text-xs text-muted-foreground text-center py-2">최근 100명 표시</p>}
                       </div>
                     );
-                  })()
-                )}
+                  })()}
               </div>
             );
           })()}
