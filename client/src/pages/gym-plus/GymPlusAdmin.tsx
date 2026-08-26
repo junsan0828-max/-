@@ -587,15 +587,182 @@ function GymPlusPointClaimsAdmin() {
 }
 
 // ─── 이벤트/공지 관리 ─────────────────────────────────────────────────────────
+// ─── 스케줄 달력 빌더 ─────────────────────────────────────────────────────────
+type DayStatus = "open" | "closed" | "special";
+interface ScheduleData {
+  year: number;
+  month: number; // 1-based
+  days: Record<string, DayStatus>;
+  hours: { weekday: string; saturday: string; sunday: string; special: string };
+  notice: string;
+}
+
+const SCHED_CYCLE: DayStatus[] = ["open", "closed", "special"];
+const SCHED_LABEL: Record<DayStatus, string> = { open: "정상", closed: "휴무", special: "단축" };
+const SCHED_COLOR: Record<DayStatus, string> = {
+  open: "bg-green-500/15 text-green-600 border-green-500/30",
+  closed: "bg-red-500/15 text-red-500 border-red-500/30",
+  special: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+};
+
+function defaultSchedule(): ScheduleData {
+  const now = new Date();
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 2 <= 12 ? now.getMonth() + 2 : 1,
+    days: {},
+    hours: { weekday: "06:00 – 23:00", saturday: "08:00 – 18:00", sunday: "휴무", special: "10:00 – 18:00" },
+    notice: "",
+  };
+}
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+function getFirstDayOfWeek(year: number, month: number) {
+  return new Date(year, month - 1, 1).getDay(); // 0=Sun
+}
+
+function ScheduleBuilder({ value, onChange }: { value: ScheduleData; onChange: (v: ScheduleData) => void }) {
+  const { year, month, days, hours, notice } = value;
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDow = getFirstDayOfWeek(year, month);
+
+  function toggleDay(d: number) {
+    const key = String(d);
+    const cur: DayStatus = days[key] ?? "open";
+    const next = SCHED_CYCLE[(SCHED_CYCLE.indexOf(cur) + 1) % SCHED_CYCLE.length];
+    onChange({ ...value, days: { ...days, [key]: next } });
+  }
+
+  function setAllWeekdays(status: DayStatus) {
+    const newDays = { ...days };
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      if (dow !== 0 && dow !== 6) newDays[String(d)] = status;
+    }
+    onChange({ ...value, days: newDays });
+  }
+
+  const cells: (number | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="space-y-3">
+      {/* 연/월 선택 */}
+      <div className="flex gap-2 items-center">
+        <select
+          className="border border-border rounded-lg px-2 py-1 text-sm bg-background"
+          value={year}
+          onChange={e => onChange({ ...value, year: Number(e.target.value) })}
+        >
+          {[2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
+        </select>
+        <select
+          className="border border-border rounded-lg px-2 py-1 text-sm bg-background"
+          value={month}
+          onChange={e => onChange({ ...value, month: Number(e.target.value) })}
+        >
+          {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}월</option>)}
+        </select>
+        <span className="text-xs text-muted-foreground ml-auto">클릭으로 상태 변경</span>
+      </div>
+
+      {/* 빠른 설정 */}
+      <div className="flex gap-1.5 flex-wrap">
+        <span className="text-[10px] text-muted-foreground self-center">평일 일괄:</span>
+        {SCHED_CYCLE.map(s => (
+          <button key={s} onClick={() => setAllWeekdays(s)}
+            className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${SCHED_COLOR[s]}`}
+          >{SCHED_LABEL[s]}</button>
+        ))}
+      </div>
+
+      {/* 달력 그리드 */}
+      <div className="rounded-xl border border-border overflow-hidden">
+        <div className="grid grid-cols-7 bg-muted/50">
+          {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
+            <div key={d} className={`text-center text-[10px] font-bold py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-primary" : "text-muted-foreground"}`}>{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-px bg-border">
+          {cells.map((d, i) => {
+            if (!d) return <div key={i} className="bg-background aspect-square" />;
+            const status: DayStatus = days[String(d)] ?? "open";
+            const dow = (i % 7);
+            return (
+              <button
+                key={d}
+                onClick={() => toggleDay(d)}
+                className={`bg-background aspect-square flex flex-col items-center justify-center gap-0.5 transition-colors hover:opacity-80 ${SCHED_COLOR[status]} border-0`}
+              >
+                <span className={`text-xs font-bold leading-none ${dow === 0 ? "text-red-500" : dow === 6 ? "text-primary" : ""}`}>{d}</span>
+                <span className="text-[7px] font-semibold leading-none opacity-70">{SCHED_LABEL[status]}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 범례 */}
+      <div className="flex gap-3">
+        {SCHED_CYCLE.map(s => (
+          <div key={s} className="flex items-center gap-1">
+            <span className={`w-3 h-3 rounded-sm border ${SCHED_COLOR[s]}`} />
+            <span className="text-[10px] text-muted-foreground">{SCHED_LABEL[s]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 운영시간 */}
+      <div className="space-y-2 bg-muted/30 rounded-xl p-3">
+        <p className="text-xs font-semibold text-muted-foreground">운영시간</p>
+        {([
+          ["weekday", "월~금"] as const,
+          ["saturday", "토요일"] as const,
+          ["sunday", "일요일"] as const,
+          ["special", "단축운영"] as const,
+        ]).map(([key, label]) => (
+          <div key={key} className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground w-16 flex-shrink-0">{label}</span>
+            <input
+              className="flex-1 border border-border rounded-lg px-2 py-1 text-xs bg-background"
+              value={hours[key]}
+              onChange={e => onChange({ ...value, hours: { ...hours, [key]: e.target.value } })}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* 안내사항 */}
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">안내사항 (선택)</Label>
+        <textarea
+          className="w-full border border-border rounded-lg p-2 text-xs bg-input text-foreground resize-none"
+          rows={3}
+          placeholder="특이사항, 공휴일 안내 등"
+          value={notice}
+          onChange={e => onChange({ ...value, notice: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function GymPlusEventsAdmin() {
   const utils = trpc.useUtils();
   const { data: events } = trpc.gymPlus.admin_listEvents.useQuery();
   const [eventsTab, setEventsTab] = useState<"list" | "claims">("list");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [scheduleData, setScheduleData] = useState<ScheduleData>(defaultSchedule);
   const [form, setForm] = useState({
     title: "", content: "", imageUrl: "", linkUrl: "",
-    eventType: "notice" as "notice" | "event" | "promotion" | "points",
+    eventType: "notice" as "notice" | "event" | "promotion" | "points" | "schedule",
     pointAmount: "0",
     startDate: "", endDate: "", isPublished: "1", isPinned: "0",
   });
@@ -617,17 +784,24 @@ export function GymPlusEventsAdmin() {
 
   function resetForm() {
     setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", pointAmount: "0", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
+    setScheduleData(defaultSchedule());
   }
 
   function openEdit(e: any) {
-    setForm({ title: e.title, content: e.content, imageUrl: e.imageUrl ?? "", linkUrl: e.linkUrl ?? "", eventType: e.eventType, pointAmount: String(e.pointAmount ?? 0), startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
+    setForm({ title: e.title, content: e.eventType === "schedule" ? "" : e.content, imageUrl: e.imageUrl ?? "", linkUrl: e.linkUrl ?? "", eventType: e.eventType, pointAmount: String(e.pointAmount ?? 0), startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
+    if (e.eventType === "schedule") {
+      try { setScheduleData(JSON.parse(e.content)); } catch { setScheduleData(defaultSchedule()); }
+    }
     setEditingId(e.id);
     setShowForm(true);
   }
 
   function handleSubmit() {
-    if (!form.title || !form.content) { toast.error("제목과 내용은 필수입니다."); return; }
-    const data = { ...form, isPublished: parseInt(form.isPublished), isPinned: parseInt(form.isPinned), pointAmount: parseInt(form.pointAmount) || 0, startDate: form.startDate || undefined, endDate: form.endDate || undefined, imageUrl: form.imageUrl || undefined, linkUrl: form.linkUrl || undefined };
+    const isSchedule = form.eventType === "schedule";
+    const content = isSchedule ? JSON.stringify(scheduleData) : form.content;
+    if (!form.title) { toast.error("제목은 필수입니다."); return; }
+    if (!isSchedule && !content) { toast.error("내용은 필수입니다."); return; }
+    const data = { ...form, content, isPublished: parseInt(form.isPublished), isPinned: parseInt(form.isPinned), pointAmount: parseInt(form.pointAmount) || 0, startDate: form.startDate || undefined, endDate: form.endDate || undefined, imageUrl: isSchedule ? undefined : (form.imageUrl || undefined), linkUrl: form.linkUrl || undefined };
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
     } else {
@@ -635,7 +809,7 @@ export function GymPlusEventsAdmin() {
     }
   }
 
-  const typeLabel: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션", points: "포인트" };
+  const typeLabel: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션", points: "포인트", schedule: "스케줄" };
 
   return (
     <div className="space-y-3">
@@ -692,27 +866,38 @@ export function GymPlusEventsAdmin() {
           <div className="space-y-3 pb-2">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">유형</Label>
-              <Select value={form.eventType} onValueChange={(v) => setForm((p) => ({ ...p, eventType: v as any }))}>
+              <Select value={form.eventType} onValueChange={(v) => {
+                setForm((p) => ({ ...p, eventType: v as any, isPinned: v === "schedule" ? "1" : p.isPinned }));
+                if (v === "schedule") setScheduleData(defaultSchedule());
+              }}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="notice">공지</SelectItem>
                   <SelectItem value="event">이벤트</SelectItem>
                   <SelectItem value="points">포인트</SelectItem>
+                  <SelectItem value="schedule">스케줄</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">제목 *</Label>
-              <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} className="h-8 text-sm" />
+              <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} className="h-8 text-sm"
+                placeholder={form.eventType === "schedule" ? "예: 9월 센터 운영 스케줄" : ""} />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">내용 *</Label>
-              <textarea value={form.content} onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))} rows={4} className="w-full bg-input border border-border rounded-lg p-2 text-sm text-foreground resize-none" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">이미지 URL</Label>
-              <Input value={form.imageUrl} onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))} className="h-8 text-sm" />
-            </div>
+            {form.eventType === "schedule" ? (
+              <ScheduleBuilder value={scheduleData} onChange={setScheduleData} />
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">내용 *</Label>
+                  <textarea value={form.content} onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))} rows={4} className="w-full bg-input border border-border rounded-lg p-2 text-sm text-foreground resize-none" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">이미지 URL</Label>
+                  <Input value={form.imageUrl} onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))} className="h-8 text-sm" />
+                </div>
+              </>
+            )}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">링크 URL <span className="text-[10px] text-muted-foreground/60">(입력 시 클릭하면 해당 링크로 이동)</span></Label>
               <Input value={form.linkUrl} onChange={(e) => setForm((p) => ({ ...p, linkUrl: e.target.value }))} placeholder="https://..." className="h-8 text-sm" />
@@ -978,10 +1163,10 @@ function formatPrice(n: number) {
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
   points: "포인트", cash: "현금", transfer: "계좌이체", card: "카드",
 };
-const STATUS_LABEL: Record<string, string> = {
+const REQUEST_LABEL: Record<string, string> = {
   pending: "대기중", approved: "승인", rejected: "거절",
 };
-const STATUS_COLOR: Record<string, string> = {
+const REQUEST_COLOR: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-500",
   approved: "bg-green-500/10 text-green-500",
   rejected: "bg-red-500/10 text-red-400",
@@ -1029,8 +1214,8 @@ function GymPlusPurchaseRequestsAdmin() {
                   </p>
                   {r.note && <p className="text-xs text-muted-foreground mt-0.5">메모: {r.note}</p>}
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLOR[r.status] ?? "bg-muted text-muted-foreground"}`}>
-                  {STATUS_LABEL[r.status] ?? r.status}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${REQUEST_COLOR[r.status] ?? "bg-muted text-muted-foreground"}`}>
+                  {REQUEST_LABEL[r.status] ?? r.status}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">

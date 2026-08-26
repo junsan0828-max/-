@@ -9,6 +9,7 @@ const eventTypeLabel: Record<string, string> = {
   event: "이벤트",
   promotion: "프로모션",
   points: "포인트",
+  schedule: "스케줄",
 };
 
 const eventTypeStyle: Record<string, string> = {
@@ -16,7 +17,101 @@ const eventTypeStyle: Record<string, string> = {
   event: "bg-green-500/20 text-green-400",
   promotion: "bg-orange-500/20 text-orange-400",
   points: "bg-purple-500/20 text-purple-400",
+  schedule: "bg-indigo-500/20 text-indigo-400",
 };
+
+// ─── 스케줄 달력 뷰어 ─────────────────────────────────────────────────────────
+type DayStatus = "open" | "closed" | "special";
+interface ScheduleData {
+  year: number;
+  month: number;
+  days: Record<string, DayStatus>;
+  hours: { weekday: string; saturday: string; sunday: string; special: string };
+  notice: string;
+}
+
+const DAY_STATUS_LABEL: Record<DayStatus, string> = { open: "정상", closed: "휴무", special: "단축" };
+const DAY_STATUS_BG: Record<DayStatus, string> = {
+  open: "bg-green-500/10 text-green-600",
+  closed: "bg-red-500/10 text-red-500",
+  special: "bg-amber-500/10 text-amber-600",
+};
+
+function ScheduleCalendarView({ content }: { content: string }) {
+  let data: ScheduleData;
+  try { data = JSON.parse(content); } catch { return <p className="text-sm text-muted-foreground">스케줄 데이터를 불러올 수 없습니다.</p>; }
+
+  const { year, month, days, hours, notice } = data;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const firstDow = new Date(year, month - 1, 1).getDay();
+  const cells: (number | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const hasSpecial = Object.values(days).includes("special");
+
+  return (
+    <div className="space-y-4">
+      {/* 범례 */}
+      <div className="flex gap-3 flex-wrap">
+        {(["open", "closed", "special"] as DayStatus[]).filter(s => s !== "special" || hasSpecial).map(s => (
+          <div key={s} className="flex items-center gap-1.5">
+            <span className={`w-3 h-3 rounded-sm ${DAY_STATUS_BG[s]}`} />
+            <span className="text-xs text-muted-foreground">{DAY_STATUS_LABEL[s]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 달력 */}
+      <div className="rounded-xl border border-border overflow-hidden">
+        <div className="grid grid-cols-7 bg-muted/40">
+          {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
+            <div key={d} className={`text-center text-[10px] font-bold py-2 ${i === 0 ? "text-red-500" : i === 6 ? "text-primary" : "text-muted-foreground"}`}>{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-px bg-border">
+          {cells.map((d, i) => {
+            if (!d) return <div key={i} className="bg-background aspect-square" />;
+            const status: DayStatus = days[String(d)] ?? "open";
+            const dow = i % 7;
+            return (
+              <div key={d} className={`bg-background aspect-square flex flex-col items-center justify-center gap-0.5 ${DAY_STATUS_BG[status]}`}>
+                <span className={`text-xs font-bold leading-none ${dow === 0 ? "text-red-500" : dow === 6 ? "text-primary" : ""}`}>{d}</span>
+                <span className="text-[7px] font-semibold opacity-60 leading-none">{DAY_STATUS_LABEL[status]}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 운영시간 */}
+      <div className="bg-muted/30 rounded-xl p-4 space-y-2">
+        <p className="text-xs font-bold text-foreground mb-2">운영시간</p>
+        {([
+          ["weekday", "월~금"],
+          ["saturday", "토요일"],
+          ["sunday", "일요일"],
+          ...(hasSpecial ? [["special", "단축운영"]] : []),
+        ] as [keyof typeof hours, string][]).map(([key, label]) => (
+          <div key={key} className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="font-semibold tabular-nums">{hours[key]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 안내사항 */}
+      {notice && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+          <p className="text-xs font-bold text-amber-600 mb-1">안내사항</p>
+          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{notice}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const VISITED_KEY = (eventId: number) => `gp_visited_event_${eventId}`;
 
@@ -89,14 +184,18 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
         )}
       </div>
 
-      {event.imageUrl && (
-        <img src={event.imageUrl} alt={event.title} className="w-full rounded-xl object-cover" />
+      {event.eventType === "schedule" ? (
+        <ScheduleCalendarView content={event.content} />
+      ) : (
+        <>
+          {event.imageUrl && (
+            <img src={event.imageUrl} alt={event.title} className="w-full rounded-xl object-cover" />
+          )}
+          <div className="bg-card border border-border rounded-xl p-4">
+            <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">{event.content}</p>
+          </div>
+        </>
       )}
-
-      <div className="bg-card border border-border rounded-xl p-4">
-        {/* break-words: 긴 URL을 그대로 붙여 써도 줄바꿈되어 모달이 가로로 넘치지 않도록 */}
-        <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">{event.content}</p>
-      </div>
 
       {/* 포인트 이벤트 전용 영역 */}
       {isPointsEvent && event.linkUrl && (
