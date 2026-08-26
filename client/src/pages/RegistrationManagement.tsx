@@ -744,7 +744,12 @@ export default function RegistrationManagement() {
                 {revListQuery.isLoading ? (
                   <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
                 ) : filtered.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">등록 내역이 없습니다.</p>
+                  <div className="text-center py-6 space-y-2">
+                    <p className="text-sm text-muted-foreground">등록 내역이 없습니다.</p>
+                    {regSearch.trim() && (
+                      <p className="text-xs text-muted-foreground">매출 등록 없이 생성된 회원일 수 있습니다. <button onClick={() => setLocation("/members")} className="text-primary underline hover:text-primary/70">회원 관리에서 검색</button></p>
+                    )}
+                  </div>
                 ) : (
                   (() => {
                     // 같은 회원 · 같은 결제일 등록을 하나의 카드로 묶음 (데이터는 유형별로 유지)
