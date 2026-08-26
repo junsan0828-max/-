@@ -21,20 +21,21 @@ const eventTypeStyle: Record<string, string> = {
 };
 
 // ─── 스케줄 달력 뷰어 ─────────────────────────────────────────────────────────
-type DayStatus = "open" | "closed" | "special";
+type DayStatus = "open" | "closed" | "special" | "special2";
 interface ScheduleData {
   year: number;
   month: number;
   days: Record<string, DayStatus>;
-  hours: { weekday: string; saturday: string; sunday: string; special: string };
+  hours: { weekday: string; saturday: string; sunday: string; special: string; special2?: string };
   notice: string;
 }
 
-const DAY_STATUS_LABEL: Record<DayStatus, string> = { open: "정상", closed: "휴무", special: "단축" };
+const DAY_STATUS_LABEL: Record<DayStatus, string> = { open: "정상", closed: "휴무", special: "단축A", special2: "단축B" };
 const DAY_STATUS_BG: Record<DayStatus, string> = {
   open: "bg-green-500/10 text-green-600",
   closed: "bg-red-500/10 text-red-500",
   special: "bg-amber-500/10 text-amber-600",
+  special2: "bg-sky-500/10 text-sky-600",
 };
 
 function ScheduleCalendarView({ content }: { content: string }) {
@@ -51,12 +52,13 @@ function ScheduleCalendarView({ content }: { content: string }) {
   while (cells.length % 7 !== 0) cells.push(null);
 
   const hasSpecial = Object.values(days).includes("special");
+  const hasSpecial2 = Object.values(days).includes("special2");
 
   return (
     <div className="space-y-4">
       {/* 범례 */}
       <div className="flex gap-3 flex-wrap">
-        {(["open", "closed", "special"] as DayStatus[]).filter(s => s !== "special" || hasSpecial).map(s => (
+        {(["open", "closed", "special", "special2"] as DayStatus[]).filter(s => (s !== "special" || hasSpecial) && (s !== "special2" || hasSpecial2)).map(s => (
           <div key={s} className="flex items-center gap-1.5">
             <span className={`w-3 h-3 rounded-sm ${DAY_STATUS_BG[s]}`} />
             <span className="text-xs text-muted-foreground">{DAY_STATUS_LABEL[s]}</span>
@@ -93,7 +95,8 @@ function ScheduleCalendarView({ content }: { content: string }) {
           ["weekday", "월~금"],
           ["saturday", "토요일"],
           ["sunday", "일요일"],
-          ...(hasSpecial ? [["special", "단축운영"]] : []),
+          ...(hasSpecial ? [["special", "단축A"]] : []),
+          ...(hasSpecial2 && hours.special2 ? [["special2", "단축B"]] : []),
         ] as [keyof typeof hours, string][]).map(([key, label]) => (
           <div key={key} className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">{label}</span>
