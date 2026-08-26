@@ -209,6 +209,7 @@ export default function RegistrationManagement() {
   const [regSearch, setRegSearch] = useState(initialQ);
   const [regTypeFilter, setRegTypeFilter] = useState<"all" | "PT" | "헬스" | "기타">("all");
   const [regShowNullOnly, setRegShowNullOnly] = useState(false);
+  const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
   const [editRev, setEditRev] = useState<any | null>(null);
   const [editRevForm, setEditRevForm] = useState({
     programDetail: "", sessions: "", duration: "",
@@ -774,98 +775,149 @@ export default function RegistrationManagement() {
                   </div>
                 ) : (
                   (() => {
-                    // 같은 회원 · 같은 결제일 등록을 하나의 카드로 묶음 (데이터는 유형별로 유지)
-                    const groupMap = new Map<string, any[]>();
+                    // 1단계: 회원별 그룹화 (회원 1명 = 카드 1장)
+                    const memberMap = new Map<string, any[]>();
                     for (const r of filtered) {
                       const who = r.memberId ? `m${r.memberId}` : `n:${(r.customerName || r.memberName || "").trim()}|${r.phone ?? ""}`;
-                      const key = `${who}|${r.paymentDate ?? ""}`;
-                      if (!groupMap.has(key)) groupMap.set(key, []);
-                      groupMap.get(key)!.push(r);
+                      if (!memberMap.has(who)) memberMap.set(who, []);
+                      memberMap.get(who)!.push(r);
                     }
-                    const groups = Array.from(groupMap.values()).slice(0, 100);
+                    // 각 회원 내 등록을 결제일 내림차순 정렬 → 최신이 앞
+                    for (const [, entries] of memberMap) {
+                      entries.sort((a: any, b: any) => (b.paymentDate ?? b.startDate ?? "").localeCompare(a.paymentDate ?? a.startDate ?? ""));
+                    }
+                    // 2단계: 같은 결제일 항목을 묶어 "등록 건" 단위로 만듦
+                    function buildDateGroups(entries: any[]) {
+                      const dateMap = new Map<string, any[]>();
+                      for (const r of entries) {
+                        const k = r.paymentDate ?? r.startDate ?? "";
+                        if (!dateMap.has(k)) dateMap.set(k, []);
+                        dateMap.get(k)!.push(r);
+                      }
+                      return Array.from(dateMap.values());
+                    }
+
+                    const memberEntries = Array.from(memberMap.entries()).slice(0, 100);
+
+                    function renderDateGroup(items: any[], memberKey: string, isLatest: boolean) {
+                      const head = items[0];
+                      const total = items.reduce((s: number, x: any) => s + (x.amount ?? x.paidAmount ?? 0), 0);
+                      const unpaid = items.reduce((s: number, x: any) => s + (x.unpaidAmount ?? 0), 0);
+                      const startDate = items.map((x: any) => x.startDate).filter(Boolean).sort()[0];
+                      const linked = items.flatMap((x: any) => collectionsByParent.get(x.id) ?? []);
+                      const legacy = isLatest ? (collectionsByMember.get(memberKey) ?? []) : [];
+                      const paidBacks = [...linked, ...legacy];
+                      return (
+                        <div key={items.map((x: any) => x.id).join("-")} className={isLatest ? "" : "pt-3 border-t border-border/40"}>
+                          {!isLatest && (
+                            <p className="text-xs text-muted-foreground mb-2">{head.paymentDate || "날짜 없음"}</p>
+                          )}
+                          {startDate && isLatest && <p className="text-xs text-muted-foreground">시작일: {startDate}</p>}
+                          {unpaid > 0 && <p className="text-xs text-red-400 font-medium">미수금 {unpaid.toLocaleString()}원</p>}
+                          {paidBacks.length > 0 && (
+                            <div className="space-y-0.5 pt-1">
+                              {paidBacks.map((c: any) => (
+                                <p key={c.id} className="text-xs text-emerald-400">
+                                  ✓ {c.paymentDate} 미수금 {(c.paidAmount ?? c.amount ?? 0).toLocaleString()}원 수납
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                          <div className="divide-y divide-border/60 border-t border-border/60 mt-1">
+                            {items.map((r: any) => {
+                              const si = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
+                              const label = r.programDetail || (si.length ? "" : "—");
+                              return (
+                                <div key={r.id} className="flex items-center justify-between gap-2 py-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? typeColor["기타"]}`}>{r.type}</span>
+                                      {label && <span className="text-xs text-foreground">{label}</span>}
+                                      {si.map((item: string) => (
+                                        <span key={item} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium">🎁 {item}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground shrink-0">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</span>
+                                  <div className="flex gap-2 shrink-0">
+                                    {r._isOrphanPkg ? (
+                                      <button onClick={() => setLocation(`/members/${r.memberId}`)} className="text-xs text-primary underline hover:text-primary/70">회원 상세</button>
+                                    ) : (
+                                      <>
+                                        <button onClick={() => openEditRev(r)} className="text-xs text-primary underline hover:text-primary/70">수정</button>
+                                        {r.subType !== "환불" && (
+                                          <button onClick={() => setRefundTarget(r)} className="text-xs text-orange-400 underline hover:text-orange-300">환불</button>
+                                        )}
+                                        <button
+                                          onClick={() => { if (confirm(`"${r.customerName || r.memberName}" ${r.type} 항목을 삭제하시겠습니까?`)) deleteRevMutation.mutate({ id: r.id }); }}
+                                          className="text-xs text-red-400 underline hover:text-red-300">삭제</button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {!isLatest && startDate && <p className="text-xs text-muted-foreground mt-1">시작일: {startDate}</p>}
+                        </div>
+                      );
+                    }
+
                     return (
                       <div className="space-y-2">
-                        {groups.map((items) => {
-                          const head = items[0];
-                          const total = items.reduce((s, x) => s + (x.amount ?? x.paidAmount ?? 0), 0);
-                          const unpaid = items.reduce((s, x) => s + (x.unpaidAmount ?? 0), 0);
-                          const startDate = items.map(x => x.startDate).filter(Boolean).sort()[0];
+                        {memberEntries.map(([memberKey, allEntries]) => {
+                          const dateGroups = buildDateGroups(allEntries);
+                          const latestGroup = dateGroups[0];
+                          const olderGroups = dateGroups.slice(1);
+                          const head = latestGroup[0];
+                          const latestTotal = latestGroup.reduce((s: number, x: any) => s + (x.amount ?? x.paidAmount ?? 0), 0);
+                          const isExpanded = expandedMembers.has(memberKey);
+                          const toggleExpand = () => setExpandedMembers(prev => {
+                            const next = new Set(prev);
+                            if (next.has(memberKey)) next.delete(memberKey); else next.add(memberKey);
+                            return next;
+                          });
                           return (
-                            <div key={items.map(x => x.id).join("-")} className="bg-card border border-border rounded-xl px-4 py-3 space-y-2">
-                              {/* 헤더: 회원 + 합계 + 결제일 */}
+                            <div key={memberKey} className="bg-card border border-border rounded-xl px-4 py-3 space-y-2">
+                              {/* 헤더: 회원 + 최신 등록 합계 + 결제일 */}
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                                   <span className="font-medium text-sm text-foreground">{head.customerName || head.memberName || "—"}</span>
                                   {head.subType && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{head.subType}</span>}
+                                  {olderGroups.length > 0 && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground">
+                                      총 {dateGroups.length}회 등록
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <p className="text-sm font-bold text-foreground">{total.toLocaleString()}원</p>
+                                  <p className="text-sm font-bold text-foreground">{latestTotal.toLocaleString()}원</p>
                                   <p className="text-xs text-muted-foreground">{head.paymentDate || "—"}</p>
                                 </div>
                               </div>
-                              {startDate && <p className="text-xs text-muted-foreground">시작일: {startDate}</p>}
-                              {unpaid > 0 && <p className="text-xs text-red-400 font-medium">미수금 {unpaid.toLocaleString()}원</p>}
-                              {/* 이 등록 건에 대한 미수금 수납 이력 */}
-                              {(() => {
-                                const memberKey = head.memberId ? `m${head.memberId}` : `n:${(head.customerName || head.memberName || "").trim()}`;
-                                const linked = items.flatMap((x: any) => collectionsByParent.get(x.id) ?? []);
-                                // 연결고리 없는 예전 수납 건은, 그 회원의 등록 카드 중 가장 최근 것 하나에만 붙인다
-                                const isNewestCard = groups.find(g =>
-                                  (g[0].memberId ? `m${g[0].memberId}` : `n:${(g[0].customerName || g[0].memberName || "").trim()}`) === memberKey
-                                ) === items;
-                                const legacy = isNewestCard ? (collectionsByMember.get(memberKey) ?? []) : [];
-                                const paidBacks = [...linked, ...legacy];
-                                if (paidBacks.length === 0) return null;
-                                return (
-                                  <div className="space-y-0.5 pt-1">
-                                    {paidBacks.map((c: any) => (
-                                      <p key={c.id} className="text-xs text-emerald-400">
-                                        ✓ {c.paymentDate} 미수금 {(c.paidAmount ?? c.amount ?? 0).toLocaleString()}원 수납
-                                      </p>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                              {/* 항목별 행 */}
-                              <div className="divide-y divide-border/60 border-t border-border/60">
-                                {items.map((r: any) => {
-                                  const si = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
-                                  const label = r.programDetail || (si.length ? "" : "—");
-                                  return (
-                                    <div key={r.id} className="flex items-center justify-between gap-2 py-2">
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? typeColor["기타"]}`}>{r.type}</span>
-                                          {label && <span className="text-xs text-foreground">{label}</span>}
-                                          {si.map((item: string) => (
-                                            <span key={item} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium">🎁 {item}</span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                      <span className="text-xs text-muted-foreground shrink-0">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</span>
-                                      <div className="flex gap-2 shrink-0">
-                                        {r._isOrphanPkg ? (
-                                          <button onClick={() => setLocation(`/members/${r.memberId}`)} className="text-xs text-primary underline hover:text-primary/70">회원 상세</button>
-                                        ) : (
-                                          <>
-                                            <button onClick={() => openEditRev(r)} className="text-xs text-primary underline hover:text-primary/70">수정</button>
-                                            {r.subType !== "환불" && (
-                                              <button onClick={() => setRefundTarget(r)} className="text-xs text-orange-400 underline hover:text-orange-300">환불</button>
-                                            )}
-                                            <button
-                                              onClick={() => { if (confirm(`"${r.customerName || r.memberName}" ${r.type} 항목을 삭제하시겠습니까?`)) deleteRevMutation.mutate({ id: r.id }); }}
-                                              className="text-xs text-red-400 underline hover:text-red-300">삭제</button>
-                                          </>
-                                        )}
-                                      </div>
+                              {/* 최신 등록 건 */}
+                              {renderDateGroup(latestGroup, memberKey, true)}
+                              {/* 이전 등록 내역 펼치기 */}
+                              {olderGroups.length > 0 && (
+                                <>
+                                  <button
+                                    onClick={toggleExpand}
+                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full pt-1"
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                    {isExpanded ? "이전 등록 내역 접기" : `이전 등록 ${olderGroups.length}건 더보기`}
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="space-y-2">
+                                      {olderGroups.map(g => renderDateGroup(g, memberKey, false))}
                                     </div>
-                                  );
-                                })}
-                              </div>
+                                  )}
+                                </>
+                              )}
                             </div>
                           );
                         })}
-                        {groupMap.size > 100 && <p className="text-xs text-muted-foreground text-center py-2">최근 100건 표시</p>}
+                        {memberMap.size > 100 && <p className="text-xs text-muted-foreground text-center py-2">최근 100명 표시</p>}
                       </div>
                     );
                   })()
