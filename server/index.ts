@@ -1061,6 +1061,8 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       UNIQUE("gymPlusMemberId", "videoId")
     )`,
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "appInstalledAt" TEXT`,
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "appInstalledDevice" TEXT`,
   ];
   for (const stmt of accessTables) {
     await pool.query(stmt);

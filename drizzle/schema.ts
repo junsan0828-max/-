@@ -563,6 +563,8 @@ export const gymPlusMembers = pgTable("gym_plus_members", {
   membershipEnd: text("membershipEnd"),
   isActive: integer("isActive").default(1).notNull(),
   points: integer("points").default(0),
+  appInstalledAt: text("appInstalledAt"),
+  appInstalledDevice: text("appInstalledDevice"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

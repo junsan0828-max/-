@@ -1613,41 +1613,33 @@ function AppTab() {
             )}
           </div>
 
-          {/* 콘텐츠 저장 현황 */}
+          {/* 앱 설치 현황 */}
           <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Bookmark className="h-4 w-4 text-pink-400" />
-              콘텐츠 저장 현황
+              앱 설치 현황 (바탕화면 저장)
             </h3>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                {
-                  label: "운동 즐겨찾기",
-                  periodValue: data.contentSaves?.favorites?.period ?? 0,
-                  totalValue: data.contentSaves?.favorites?.total ?? 0,
-                  color: "text-pink-400",
-                },
-                {
-                  label: "식단 저장",
-                  periodValue: data.contentSaves?.meals?.period ?? 0,
-                  totalValue: data.contentSaves?.meals?.total ?? 0,
-                  color: "text-orange-400",
-                },
-                {
-                  label: "영상 찜",
-                  periodValue: data.contentSaves?.videos?.period ?? 0,
-                  totalValue: data.contentSaves?.videos?.total ?? 0,
-                  color: "text-violet-400",
-                },
-              ].map(s => (
-                <div key={s.label} className="bg-background border border-border rounded-xl p-3 space-y-1">
-                  <p className="text-[11px] text-muted-foreground">{s.label}</p>
-                  <p className={`text-xl font-bold ${s.color}`}>{s.periodValue.toLocaleString()}<span className="text-xs text-muted-foreground ml-0.5">건</span></p>
-                  <p className="text-[11px] text-muted-foreground">누적 {s.totalValue.toLocaleString()}건</p>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-background border border-border rounded-xl p-3 space-y-1">
+                <p className="text-[11px] text-muted-foreground">총 설치 회원</p>
+                <p className="text-2xl font-bold text-pink-400">{data.appInstalls?.total ?? 0}<span className="text-xs text-muted-foreground ml-1">명</span></p>
+                <p className="text-[11px] text-muted-foreground">전체 {data.totalMembers}명 중</p>
+              </div>
+              <div className="bg-background border border-border rounded-xl p-3 space-y-1">
+                <p className="text-[11px] text-muted-foreground">{viewMode === "monthly" ? `${selMonth}월` : `${selYear}년`} 신규 설치</p>
+                <p className="text-2xl font-bold text-foreground">{data.appInstalls?.period ?? 0}<span className="text-xs text-muted-foreground ml-1">명</span></p>
+                <p className="text-[11px] text-muted-foreground">설치율 {data.totalMembers > 0 ? Math.round(((data.appInstalls?.total ?? 0) / data.totalMembers) * 100) : 0}%</p>
+              </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">기간 수치: {viewMode === "monthly" ? `${selMonth}월` : `${selYear}년`} 기준 · 누적: 전체</p>
+            {(data.appInstalls?.byDevice?.length ?? 0) > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {data.appInstalls.byDevice.map((d: any) => (
+                  <span key={d.device} className="text-[11px] bg-background border border-border rounded-full px-2 py-0.5 text-muted-foreground">
+                    {d.device}: {d.count}명
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 포인트 현황 */}
