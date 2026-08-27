@@ -1,8 +1,45 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { formatMembershipType } from "@/lib/membership";
 import GymPlusOnboarding from "./GymPlusOnboarding";
+
+function usePushSubscription() {
+  const { data: vapidData } = trpc.gymPlus.getPushVapidKey.useQuery();
+  const subscribeMut = trpc.gymPlus.subscribePush.useMutation();
+
+  useEffect(() => {
+    if (!vapidData?.publicKey) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (Notification.permission === "denied") return;
+
+    const run = async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) {
+          const keys = existing.toJSON().keys as { p256dh: string; auth: string };
+          subscribeMut.mutate({ endpoint: existing.endpoint, p256dh: keys.p256dh, auth: keys.auth });
+          return;
+        }
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidData.publicKey,
+        });
+        const keys = sub.toJSON().keys as { p256dh: string; auth: string };
+        subscribeMut.mutate({ endpoint: sub.endpoint, p256dh: keys.p256dh, auth: keys.auth });
+      } catch (e) {
+        console.error("push subscribe error:", e);
+      }
+    };
+
+    // 로그인 후 3초 뒤 요청 (사용자 경험 배려)
+    const t = setTimeout(run, 3000);
+    return () => clearTimeout(t);
+  }, [vapidData?.publicKey]);
+}
 
 function daysUntil(dateStr: string | null | undefined) {
   if (!dateStr) return null;
@@ -110,6 +147,7 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
   const utils = trpc.useUtils();
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  usePushSubscription();
 
   const { data: health, isLoading: healthLoading } = trpc.gymPlus.getHealth.useQuery();
   const { data: me } = trpc.gymPlus.memberMe.useQuery();

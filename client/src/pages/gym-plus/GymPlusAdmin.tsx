@@ -588,21 +588,22 @@ function GymPlusPointClaimsAdmin() {
 
 // ─── 이벤트/공지 관리 ─────────────────────────────────────────────────────────
 // ─── 스케줄 달력 빌더 ─────────────────────────────────────────────────────────
-type DayStatus = "open" | "closed" | "special";
+type DayStatus = "open" | "closed" | "special" | "special2";
 interface ScheduleData {
   year: number;
   month: number; // 1-based
   days: Record<string, DayStatus>;
-  hours: { weekday: string; saturday: string; sunday: string; special: string };
+  hours: { weekday: string; saturday: string; sunday: string; special: string; special2: string };
   notice: string;
 }
 
-const SCHED_CYCLE: DayStatus[] = ["open", "closed", "special"];
-const SCHED_LABEL: Record<DayStatus, string> = { open: "정상", closed: "휴무", special: "단축" };
+const SCHED_CYCLE: DayStatus[] = ["open", "closed", "special", "special2"];
+const SCHED_LABEL: Record<DayStatus, string> = { open: "정상", closed: "휴무", special: "단축A", special2: "단축B" };
 const SCHED_COLOR: Record<DayStatus, string> = {
   open: "bg-green-500/15 text-green-600 border-green-500/30",
   closed: "bg-red-500/15 text-red-500 border-red-500/30",
   special: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+  special2: "bg-sky-500/15 text-sky-600 border-sky-500/30",
 };
 
 function defaultSchedule(): ScheduleData {
@@ -611,7 +612,7 @@ function defaultSchedule(): ScheduleData {
     year: now.getFullYear(),
     month: now.getMonth() + 2 <= 12 ? now.getMonth() + 2 : 1,
     days: {},
-    hours: { weekday: "06:00 – 23:00", saturday: "08:00 – 18:00", sunday: "휴무", special: "10:00 – 18:00" },
+    hours: { weekday: "06:00 – 23:00", saturday: "08:00 – 18:00", sunday: "휴무", special: "10:00 – 18:00", special2: "" },
     notice: "",
   };
 }
@@ -725,13 +726,15 @@ function ScheduleBuilder({ value, onChange }: { value: ScheduleData; onChange: (
           ["weekday", "월~금"] as const,
           ["saturday", "토요일"] as const,
           ["sunday", "일요일"] as const,
-          ["special", "단축운영"] as const,
+          ["special", "단축A"] as const,
+          ["special2", "단축B"] as const,
         ]).map(([key, label]) => (
           <div key={key} className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground w-16 flex-shrink-0">{label}</span>
+            <span className={`text-[11px] w-14 flex-shrink-0 font-medium ${key === "special" ? "text-amber-500" : key === "special2" ? "text-sky-500" : "text-muted-foreground"}`}>{label}</span>
             <input
               className="flex-1 border border-border rounded-lg px-2 py-1 text-xs bg-background"
               value={hours[key]}
+              placeholder={key === "special2" ? "사용 안 하면 비워두세요" : ""}
               onChange={e => onChange({ ...value, hours: { ...hours, [key]: e.target.value } })}
             />
           </div>
@@ -760,6 +763,7 @@ export function GymPlusEventsAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [scheduleData, setScheduleData] = useState<ScheduleData>(defaultSchedule);
+  const [sendPush, setSendPush] = useState(false);
   const [form, setForm] = useState({
     title: "", content: "", imageUrl: "", linkUrl: "",
     eventType: "notice" as "notice" | "event" | "promotion" | "points" | "schedule",
@@ -785,6 +789,7 @@ export function GymPlusEventsAdmin() {
   function resetForm() {
     setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", pointAmount: "0", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
     setScheduleData(defaultSchedule());
+    setSendPush(false);
   }
 
   function openEdit(e: any) {
@@ -805,7 +810,7 @@ export function GymPlusEventsAdmin() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate({ ...data, sendPush: !editingId && sendPush });
     }
   }
 
@@ -934,6 +939,18 @@ export function GymPlusEventsAdmin() {
                 </Select>
               </div>
             </div>
+            {!editingId && (
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={sendPush}
+                  onChange={e => setSendPush(e.target.checked)}
+                  className="w-4 h-4 accent-primary rounded"
+                />
+                <span className="text-xs text-foreground font-medium">앱 푸시 알림 발송</span>
+                <span className="text-[10px] text-muted-foreground">(앱 알림 허용 회원에게 즉시 발송)</span>
+              </label>
+            )}
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setShowForm(false)}>취소</Button>
               <Button className="flex-1 h-8 text-sm" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>

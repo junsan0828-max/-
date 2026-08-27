@@ -625,6 +625,14 @@ async function initDatabase() {
       description TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS gym_plus_diet_foods (
       id SERIAL PRIMARY KEY,
       category TEXT NOT NULL,

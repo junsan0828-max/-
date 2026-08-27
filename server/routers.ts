@@ -1,5 +1,11 @@
 import { gymRouter } from "./gymRouters";
 import { sendPointClaimNotification, sendRequestNotification } from "./email";
+import webpush from "web-push";
+
+// VAPID 설정 (Railway 환경변수 우선, fallback은 빌드 시 생성된 키)
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || "BK0ZTd_UQHIaELB4FB0JphGm4UWlwIAwsfOdF3DNnAn_DGQNfwVm3I2HMi2VQxuHHUZhCwup7h1frg8Ue2XKMl8";
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "P6P5QkLgcevRCu79kmk4AhUIlaxvrqKosPHB5NCkHv4";
+webpush.setVapidDetails("mailto:admin@ziantgym.com", VAPID_PUBLIC, VAPID_PRIVATE);
 import Anthropic from "@anthropic-ai/sdk";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -3958,17 +3964,49 @@ ${dataContext}
       content: z.string().min(1),
       imageUrl: z.string().optional(),
       linkUrl: z.string().optional(),
-      eventType: z.enum(["notice", "event", "promotion", "points"]).default("notice"),
+      eventType: z.enum(["notice", "event", "promotion", "points", "schedule"]).default("notice"),
       pointAmount: z.number().int().min(0).default(0),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       isPublished: z.number().default(1),
       isPinned: z.number().default(0),
+      sendPush: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [row] = await db.insert(gymPlusEvents).values(input).returning();
+      const { sendPush, ...eventData } = input;
+      const [row] = await db.insert(gymPlusEvents).values(eventData).returning();
+
+      // 푸시 발송
+      if (sendPush && input.isPublished) {
+        try {
+          const subs = await pool.query(`SELECT endpoint, p256dh, auth FROM push_subscriptions`);
+          const payload = JSON.stringify({
+            title: `ZIANTGYM+ ${input.eventType === "notice" ? "공지" : input.eventType === "schedule" ? "스케줄" : "이벤트"}`,
+            body: input.title,
+            url: `/gym-plus/events/${row.id}`,
+          });
+          const results = await Promise.allSettled(
+            subs.rows.map((s: any) =>
+              webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload)
+            )
+          );
+          // 만료된 구독 삭제
+          const expired = subs.rows.filter((_: any, i: number) => {
+            const r = results[i];
+            return r.status === "rejected" && (r.reason as any)?.statusCode === 410;
+          });
+          if (expired.length) {
+            await Promise.allSettled(expired.map((s: any) =>
+              pool.query(`DELETE FROM push_subscriptions WHERE endpoint = $1`, [s.endpoint])
+            ));
+          }
+        } catch (e) {
+          console.error("push send error:", e);
+        }
+      }
+
       return row;
     }),
 
@@ -3979,7 +4017,7 @@ ${dataContext}
       content: z.string().optional(),
       imageUrl: z.string().optional(),
       linkUrl: z.string().optional(),
-      eventType: z.enum(["notice", "event", "promotion", "points"]).optional(),
+      eventType: z.enum(["notice", "event", "promotion", "points", "schedule"]).optional(),
       pointAmount: z.number().int().min(0).optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
@@ -4593,6 +4631,32 @@ ${dataContext}
          ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
         [JSON.stringify(input.notices)]
       );
+      return { success: true };
+    }),
+
+  // ─── 푸시 구독 ────────────────────────────────────────────────────────────────
+  getPushVapidKey: gymPlusProtected.query(() => ({ publicKey: VAPID_PUBLIC })),
+
+  subscribePush: gymPlusProtected
+    .input(z.object({
+      endpoint: z.string(),
+      p256dh: z.string(),
+      auth: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await pool.query(
+        `INSERT INTO push_subscriptions ("gymPlusMemberId", endpoint, p256dh, auth, "createdAt")
+         VALUES ($1, $2, $3, $4, now()::text)
+         ON CONFLICT (endpoint) DO UPDATE SET p256dh = $3, auth = $4`,
+        [ctx.gymPlusMemberId, input.endpoint, input.p256dh, input.auth]
+      );
+      return { success: true };
+    }),
+
+  unsubscribePush: gymPlusProtected
+    .input(z.object({ endpoint: z.string() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM push_subscriptions WHERE endpoint = $1`, [input.endpoint]);
       return { success: true };
     }),
 
