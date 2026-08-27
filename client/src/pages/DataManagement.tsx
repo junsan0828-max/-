@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
   Dumbbell, UserCog, Activity, Target,
   DollarSign, Percent, X, Smartphone,
-  Coins, ArrowUpDown, Gift, CalendarPlus,
+  Coins, ArrowUpDown, Gift, CalendarPlus, Bookmark,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, LabelList } from "recharts";
 
@@ -1611,6 +1611,43 @@ function AppTab() {
                 </ResponsiveContainer>
               </div>
             )}
+          </div>
+
+          {/* 콘텐츠 저장 현황 */}
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Bookmark className="h-4 w-4 text-pink-400" />
+              콘텐츠 저장 현황
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  label: "운동 즐겨찾기",
+                  periodValue: data.contentSaves?.favorites?.period ?? 0,
+                  totalValue: data.contentSaves?.favorites?.total ?? 0,
+                  color: "text-pink-400",
+                },
+                {
+                  label: "식단 저장",
+                  periodValue: data.contentSaves?.meals?.period ?? 0,
+                  totalValue: data.contentSaves?.meals?.total ?? 0,
+                  color: "text-orange-400",
+                },
+                {
+                  label: "영상 찜",
+                  periodValue: data.contentSaves?.videos?.period ?? 0,
+                  totalValue: data.contentSaves?.videos?.total ?? 0,
+                  color: "text-violet-400",
+                },
+              ].map(s => (
+                <div key={s.label} className="bg-background border border-border rounded-xl p-3 space-y-1">
+                  <p className="text-[11px] text-muted-foreground">{s.label}</p>
+                  <p className={`text-xl font-bold ${s.color}`}>{s.periodValue.toLocaleString()}<span className="text-xs text-muted-foreground ml-0.5">건</span></p>
+                  <p className="text-[11px] text-muted-foreground">누적 {s.totalValue.toLocaleString()}건</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">기간 수치: {viewMode === "monthly" ? `${selMonth}월` : `${selYear}년`} 기준 · 누적: 전체</p>
           </div>
 
           {/* 포인트 현황 */}

@@ -1038,6 +1038,29 @@ async function initDatabase() {
       "processedAt" TEXT,
       "newMembershipEnd" TEXT
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_workout_favorites (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "contentType" TEXT NOT NULL DEFAULT 'exercise',
+      "contentId" INTEGER,
+      "contentName" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_saved_meals (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "mealName" TEXT NOT NULL,
+      "mealsJson" TEXT,
+      "totalCalories" INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_saved_videos (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "videoId" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE("gymPlusMemberId", "videoId")
+    )`,
   ];
   for (const stmt of accessTables) {
     await pool.query(stmt);

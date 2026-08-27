@@ -683,6 +683,36 @@ export const pointMembershipExtensions = pgTable("point_membership_extensions", 
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// ─── 자이언트짐++ 콘텐츠 저장 ──────────────────────────────────────────────────
+
+// 운동 즐겨찾기 (홈화면 저장)
+export const gymPlusWorkoutFavorites = pgTable("gym_plus_workout_favorites", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  contentType: text("contentType").default("exercise").notNull(), // 'exercise' | 'routine'
+  contentId: integer("contentId"),
+  contentName: text("contentName"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 저장된 맞춤 식단
+export const gymPlusSavedMeals = pgTable("gym_plus_saved_meals", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  mealName: text("mealName").notNull(),
+  mealsJson: text("mealsJson"),
+  totalCalories: integer("totalCalories"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 찜한 운동 영상
+export const gymPlusSavedVideos = pgTable("gym_plus_saved_videos", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  videoId: integer("videoId").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // 양도양수 계약서
 export const transferContracts = pgTable("transfer_contracts", {
   id: serial("id").primaryKey(),

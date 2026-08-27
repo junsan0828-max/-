@@ -22,6 +22,9 @@ import {
   pointTransactions,
   gymPlusMembershipRenewals,
   pointMembershipExtensions,
+  gymPlusWorkoutFavorites,
+  gymPlusSavedMeals,
+  gymPlusSavedVideos,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -1217,6 +1220,22 @@ const appStatsRouter = t.router({
           : Promise.resolve([]),
       ]);
 
+      // 콘텐츠 저장 현황 (테이블 없으면 0 반환)
+      const safeCount = async (query: Promise<{ count: number }[]>) => {
+        try { return (await query)[0]?.count ?? 0; } catch { return 0; }
+      };
+      const [favTotal, favPeriod, mealTotal, mealPeriod, videoTotal, videoPeriod] = await Promise.all([
+        safeCount(db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusWorkoutFavorites)),
+        safeCount(db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusWorkoutFavorites)
+          .where(and(gte(gymPlusWorkoutFavorites.createdAt, periodStart), lte(gymPlusWorkoutFavorites.createdAt, periodEnd + "T99")))),
+        safeCount(db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusSavedMeals)),
+        safeCount(db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusSavedMeals)
+          .where(and(gte(gymPlusSavedMeals.createdAt, periodStart), lte(gymPlusSavedMeals.createdAt, periodEnd + "T99")))),
+        safeCount(db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusSavedVideos)),
+        safeCount(db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusSavedVideos)
+          .where(and(gte(gymPlusSavedVideos.createdAt, periodStart), lte(gymPlusSavedVideos.createdAt, periodEnd + "T99")))),
+      ]);
+
       const activeCount = activeMembersRes[0]?.count ?? 0;
       const recentActiveCount = recentActiveRes[0]?.count ?? 0;
 
@@ -1249,6 +1268,11 @@ const appStatsRouter = t.router({
         renewals: renewalRes[0] ?? { total: 0, pending: 0, approved: 0, rejected: 0 },
         extensions: extensionRes[0] ?? { total: 0, pointsUsed: 0, daysExtended: 0 },
         pointTrend: (pointTrendRes as any[]).map(r => ({ month: r.month, earned: r.earned, spent: r.spent })),
+        contentSaves: {
+          favorites: { total: favTotal, period: favPeriod },
+          meals: { total: mealTotal, period: mealPeriod },
+          videos: { total: videoTotal, period: videoPeriod },
+        },
       };
     }),
 });
