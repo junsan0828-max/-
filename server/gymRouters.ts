@@ -1,8 +1,9 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, sql, like, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, like, gte, lte, inArray, isNotNull } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
-import { getDb } from "./db";
+import { randomUUID } from "crypto";
+import { getDb, pool } from "./db";
 import {
   channels,
   leads,
@@ -12,17 +13,27 @@ import {
   trainers,
   members,
   branches,
+  trainerBranches,
   users,
   tasks,
   notices,
   noticeReads,
+  parQ,
+  ptSessionLogs,
+  attendanceChecks,
+  healthReports,
+  ptReports,
   ptPackages,
+  lockers,
+  uniforms,
   gymPlusMembers,
-  gymPlusWorkoutLogs,
   pointTransactions,
   gymPlusMembershipRenewals,
   pointMembershipExtensions,
 } from "../drizzle/schema";
+import type { ReportData } from "./healthReportHTML";
+import { generatePTReportHTML } from "./ptReportHTML";
+import type { PTReportData, ExerciseStat } from "./ptReportHTML";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -32,7 +43,22 @@ interface Context {
   res: Response;
 }
 
+// KST(UTC+9) 기준 날짜 문자열(YYYY-MM-DD). UTC 기준으로 계산하면 한국 오전(00~09시)에
+// "오늘" 매출/통계가 하루 밀리는 문제가 생긴다.
+function kstDate(offsetDays = 0): string {
+  return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().substring(0, 10);
+}
+
+// 전화번호를 숫자만 비교(하이픈/공백 유무 무관)해 회원 중복확인이 놓치지 않도록 한다.
+// 정확 문자열 일치(eq)로 비교하면 "010-1234-5678" vs "01012345678"처럼 표기만 다른 같은
+// 회원을 다른 사람으로 오인해 중복 회원이 생기고, 그 결과 "신규"·"재등록"이 서로 다른
+// memberId로 갈라져 같은 회원이 매출에 두 번 잡히는 사고로 이어진다.
+function samePhone(col: any, phone: string) {
+  return sql`REGEXP_REPLACE(COALESCE(${col}, ''), '[^0-9]', '', 'g') = REGEXP_REPLACE(${phone}, '[^0-9]', '', 'g')`;
+}
+
 const t = initTRPC.context<Context>().create();
+const publicProcedure = t.procedure;
 const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
   return next({ ctx: { ...ctx, user: ctx.user } });
@@ -85,29 +111,42 @@ const leadsRouter = t.router({
       status: z.string().optional(),
       channelId: z.number().optional(),
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const consultantAlias = db.select({ id: users.id, username: users.username }).from(users).as("consultant");
+      // 관리상담 → 상담완료 자동 전환: 상담일 기준 7일 경과 시
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
+      await db.update(leads)
+        .set({ status: "consulted", updatedAt: new Date().toISOString() })
+        .where(and(eq(leads.status, "followup"), lte(leads.consultationDate, cutoff)));
+
       const rows = await db.select({
         lead: leads,
         channelName: channels.name,
         trainerName: trainers.trainerName,
-        consultantName: consultantAlias.username,
+        consultantName: sql<string | null>`(SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${leads.assignedConsultantId} LIMIT 1)`,
+        serviceItems: sql<string | null>`(SELECT "serviceItems" FROM revenue_entries WHERE "leadId" = ${leads.id} ORDER BY id DESC LIMIT 1)`,
       })
         .from(leads)
         .leftJoin(channels, eq(leads.channelId, channels.id))
         .leftJoin(trainers, eq(leads.assignedTrainerId, trainers.id))
-        .leftJoin(consultantAlias, eq(leads.assignedConsultantId, consultantAlias.id))
         .orderBy(desc(leads.createdAt));
 
       let result = rows;
+
+      // 트레이너: 본인이 담당하거나 상담담당인 리드만 조회
+      if (ctx.user?.role === "trainer") {
+        result = result.filter(r =>
+          r.lead.assignedTrainerId === ctx.user!.trainerId ||
+          r.lead.assignedConsultantId === ctx.user!.id
+        );
+      }
       if (input?.year && input?.month) {
         const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-        result = result.filter(r => r.lead.createdAt.startsWith(prefix));
+        result = result.filter(r => (r.lead.consultationDate ?? r.lead.createdAt).startsWith(prefix));
       } else if (input?.year) {
-        result = result.filter(r => r.lead.createdAt.startsWith(String(input.year)));
+        result = result.filter(r => (r.lead.consultationDate ?? r.lead.createdAt).startsWith(String(input.year)));
       }
       if (input?.status) result = result.filter(r => r.lead.status === input.status);
       if (input?.channelId) result = result.filter(r => r.lead.channelId === input.channelId);
@@ -134,12 +173,19 @@ const leadsRouter = t.router({
       interestType: z.string().optional(),
       exercisePurpose: z.string().optional(),
       memo: z.string().optional(),
+      signatureDataUrl: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 트레이너: 본인을 상담담당으로 자동 설정
+      const autoFields = ctx.user?.role === "trainer" ? {
+        assignedConsultantId: input.assignedConsultantId ?? ctx.user.id,
+        assignedTrainerId: input.assignedTrainerId ?? ctx.user.trainerId ?? undefined,
+      } : {};
       const [row] = await db.insert(leads).values({
         ...input,
+        ...autoFields,
         updatedAt: new Date().toISOString(),
       }).returning();
       return row;
@@ -166,11 +212,20 @@ const leadsRouter = t.router({
       interestType: z.string().optional(),
       exercisePurpose: z.string().optional(),
       memo: z.string().optional(),
+      signatureDataUrl: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...data } = input;
+      // 트레이너는 본인 담당 상담 건만 수정 가능
+      if (ctx.user?.role === "trainer") {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+        if (!lead) throw new TRPCError({ code: "NOT_FOUND" });
+        if (lead.assignedTrainerId !== ctx.user.trainerId && lead.assignedConsultantId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "본인이 담당한 상담 건만 수정할 수 있습니다." });
+        }
+      }
       const [row] = await db.update(leads).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(leads.id, id)).returning();
       return row;
     }),
@@ -181,8 +236,45 @@ const leadsRouter = t.router({
       if (ctx.user?.role === "sub_admin") throw new TRPCError({ code: "FORBIDDEN", message: "부관리자는 삭제 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 트레이너/컨설턴트는 본인 상담 건만 삭제 가능
+      if (ctx.user?.role === "trainer" || ctx.user?.role === "consultant") {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, input.id)).limit(1);
+        if (!lead) throw new TRPCError({ code: "NOT_FOUND" });
+        const isOwner = lead.assignedTrainerId === ctx.user.trainerId || lead.assignedConsultantId === ctx.user.id;
+        if (!isOwner) throw new TRPCError({ code: "FORBIDDEN", message: "본인이 담당한 상담 건만 삭제할 수 있습니다." });
+      }
       await db.delete(leads).where(eq(leads.id, input.id));
       return { success: true };
+    }),
+
+  markViewed: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await pool.query(`UPDATE leads SET "isViewed" = 1 WHERE id = $1`, [input.id]);
+      return { success: true };
+    }),
+
+  unviewedCount: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return 0;
+    const result = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM leads WHERE "isViewed" = 0 AND "consultationType" = '온라인예약'`
+    );
+    return parseInt(result.rows[0]?.count ?? "0", 10);
+  }),
+
+  getByMemberId: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const [row] = await db.select({
+        consultationNote: leads.consultationNote,
+        memo: leads.memo,
+      }).from(leads).where(eq(leads.registeredMemberId, input.memberId)).limit(1);
+      return row ?? null;
     }),
 
   stats: protectedProcedure.query(async () => {
@@ -191,10 +283,9 @@ const leadsRouter = t.router({
 
     const allLeads = await db.select().from(leads);
     const total = allLeads.length;
-    const pending = allLeads.filter(l => l.status === "pending").length;
     const consulted = allLeads.filter(l => l.status === "consulted").length;
+    const followup = allLeads.filter(l => l.status === "followup").length;
     const registered = allLeads.filter(l => l.status === "registered").length;
-    const dropped = allLeads.filter(l => l.status === "dropped").length;
     const conversionRate = total > 0 ? Math.round((registered / total) * 100) : 0;
 
     // 채널별 리드 수
@@ -205,7 +296,112 @@ const leadsRouter = t.router({
       byChannel[ch.id] = { name: ch.name, count: chLeads.length, registered: chLeads.filter(l => l.status === "registered").length };
     }
 
-    return { total, pending, consulted, registered, dropped, conversionRate, byChannel };
+    return { total, consulted, followup, registered, conversionRate, byChannel };
+  }),
+
+  statsByMonth: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
+      const allLeads = await db.select().from(leads);
+      const monthLeads = allLeads.filter(l => (l.consultationDate ?? "").startsWith(prefix));
+
+      const total = monthLeads.length;
+      const consulted = monthLeads.filter(l => l.status === "consulted").length;
+      const followup = monthLeads.filter(l => l.status === "followup").length;
+      const registered = monthLeads.filter(l => l.status === "registered").length;
+      const conversionRate = total > 0 ? Math.round((registered / total) * 100) : 0;
+
+      const channelList = await db.select().from(channels);
+      const byChannel: Record<number, { name: string; count: number; consulted: number; registered: number }> = {};
+      for (const ch of channelList) {
+        const chLeads = monthLeads.filter(l => l.channelId === ch.id);
+        if (chLeads.length > 0)
+          byChannel[ch.id] = {
+            name: ch.name,
+            count: chLeads.length,
+            consulted: chLeads.filter(l => l.status === "consulted" || l.status === "registered" || l.status === "followup").length,
+            registered: chLeads.filter(l => l.status === "registered").length,
+          };
+      }
+
+      const noChannelLeads = monthLeads.filter(l => !l.channelId);
+      const noChannelConsulted = noChannelLeads.filter(l => l.status === "consulted" || l.status === "registered" || l.status === "followup").length;
+      const noChannelRegistered = noChannelLeads.filter(l => l.status === "registered").length;
+
+      return { total, consulted, followup, registered, conversionRate, byChannel, noChannel: noChannelLeads.length > 0 ? { count: noChannelLeads.length, consulted: noChannelConsulted, registered: noChannelRegistered } : null };
+    }),
+
+  consultationTimeStats: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number().optional() }))
+    .query(async ({ input }) => {
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
+      const result = await pool.query(`
+        SELECT
+          "consultationDate",
+          "createdAt"
+        FROM leads
+        WHERE "consultationDate" LIKE $1
+      `, [`${prefix}%`]);
+
+      const DOW_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+      const byDow: number[] = [0, 0, 0, 0, 0, 0, 0];
+      const byHour: number[] = new Array(24).fill(0);
+
+      for (const row of result.rows) {
+        if (row.consultationDate) {
+          const d = new Date(row.consultationDate + "T00:00:00");
+          byDow[d.getDay()]++;
+        }
+        if (row.createdAt) {
+          const kst = new Date(new Date(row.createdAt).getTime() + 9 * 3600000);
+          byHour[kst.getUTCHours()]++;
+        }
+      }
+
+      return {
+        byDow: DOW_LABELS.map((label, i) => ({ day: label, count: byDow[i] })).filter(d => d.day !== "일"),
+        byHour: byHour.map((count, h) => ({ hour: h, count })).filter(h => h.count > 0 || (h.hour >= 8 && h.hour <= 22)),
+        total: result.rows.length,
+      };
+    }),
+
+  backfillMemberData: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    // 리드와 연결된 회원 목록 조회
+    const linkedLeads = await db.select({
+      leadGender: leads.gender,
+      leadChannelId: leads.channelId,
+      memberId: leads.registeredMemberId,
+    }).from(leads).where(sql`"registeredMemberId" IS NOT NULL`);
+
+    const channelList = await db.select({ id: channels.id, name: channels.name }).from(channels);
+    const channelMap = new Map(channelList.map(c => [c.id, c.name]));
+
+    let updated = 0;
+    for (const row of linkedLeads) {
+      if (!row.memberId) continue;
+      const [mem] = await db.select({ gender: members.gender, visitRoute: members.visitRoute })
+        .from(members).where(eq(members.id, row.memberId)).limit(1);
+      if (!mem) continue;
+
+      const updates: Record<string, string | undefined> = {};
+      if (!mem.gender && row.leadGender) updates.gender = row.leadGender;
+      if (!mem.visitRoute && row.leadChannelId) updates.visitRoute = channelMap.get(row.leadChannelId) ?? undefined;
+
+      if (Object.keys(updates).length > 0) {
+        await db.update(members).set({ ...updates, updatedAt: new Date().toISOString() }).where(eq(members.id, row.memberId));
+        updated++;
+      }
+    }
+
+    return { total: linkedLeads.length, updated };
   }),
 });
 
@@ -230,24 +426,20 @@ const revenueRouter = t.router({
         memberName: members.name,
         channelName: channels.name,
         branchName: branches.name,
-        consultantName: users.username,
+        consultantName: sql<string | null>`COALESCE(
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${revenueEntries.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${members.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t.id = (SELECT l."assignedTrainerId" FROM leads l WHERE l."registeredMemberId" = ${revenueEntries.memberId} LIMIT 1) LIMIT 1)
+        )`,
       })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
         .leftJoin(branches, eq(revenueEntries.branchId, branches.id))
-        .leftJoin(users, eq(revenueEntries.consultantId, users.id))
         .orderBy(desc(revenueEntries.paymentDate));
 
       let result = rows;
-
-      // 컨설턴트: 자신이 입력한 오늘 항목만 조회
-      if (ctx.user?.role === "consultant") {
-        const today = new Date().toISOString().substring(0, 10);
-        result = result.filter(r => r.entry.createdBy === ctx.user!.id && r.entry.paymentDate === today);
-        return result;
-      }
 
       if (input?.year && input?.month) {
         const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
@@ -263,54 +455,27 @@ const revenueRouter = t.router({
       return result;
     }),
 
-  // revenue_entries가 없는(고아) PT 패키지 목록 — 등록 관리 화면에서 회원 누락 방지용
-  listOrphanPackages: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-    // 컨설턴트는 자신이 담당한 항목만 볼 수 없으므로 빈 배열 반환
-    if (ctx.user?.role === "consultant") return [];
-
-    const rows = await db
-      .select({
-        pkg: ptPackages,
-        memberName: members.name,
-        memberPhone: members.phone,
-        trainerName: trainers.trainerName,
-      })
-      .from(ptPackages)
-      .leftJoin(members, eq(ptPackages.memberId, members.id))
-      .leftJoin(trainers, eq(ptPackages.trainerId, trainers.id))
-      .where(
-        sql`NOT EXISTS (
-          SELECT 1 FROM revenue_entries re
-          WHERE re."memberId" = ${ptPackages.memberId}
-            AND re.type = 'PT'
-        )`
-      )
-      .orderBy(desc(ptPackages.id));
-
-    return rows;
-  }),
-
   create: protectedProcedure
     .input(z.object({
       customerName: z.string().optional(),
       phone: z.string().optional(),
       programDetail: z.string().optional(),
       sessions: z.number().optional(),
+      serviceSessions: z.number().min(0).default(0).optional(),
       duration: z.number().optional(),
+      serviceHealthDuration: z.number().nullable().optional(),
       memberId: z.number().optional(),
       leadId: z.number().optional(),
       trainerId: z.number().optional(),
       consultantId: z.number().optional(),
       branchId: z.number().optional(),
       channelId: z.number().optional(),
+      eventId: z.number().optional(),   // 적용 이벤트 (성과 추적)
       type: z.enum(["PT", "헬스", "기타"]),
-      subType: z.enum(["신규", "재등록", "이전"]),
+      subType: z.enum(["신규", "재등록", "이전", "환불"]),
       amount: z.number().min(0),
       discountAmount: z.number().min(0).default(0),
-      paidAmount: z.number().min(0),
+      paidAmount: z.number(),
       unpaidAmount: z.number().min(0).default(0),
       refundAmount: z.number().min(0).default(0),
       paymentMethod: z.string().optional(),
@@ -318,22 +483,398 @@ const revenueRouter = t.router({
       startDate: z.string().optional(),
       installments: z.number().min(1).default(1),
       memo: z.string().optional(),
+      serviceItems: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [row] = await db.insert(revenueEntries).values({
-        ...input,
-        createdBy: ctx.user!.id,
-        updatedAt: new Date().toISOString(),
-      }).returning();
+      await db.execute(sql`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
+      // 트레이너: consultantId만 자동 설정. trainerId는 폼에서 명시적으로 선택한 값만 사용.
+      // ⚠ 상담 담당자 ≠ 담당 트레이너 (CLAUDE.md 규칙 6)
+      const trainerAutoFields = ctx.user?.role === "trainer" ? {
+        consultantId: input.consultantId ?? ctx.user.id,
+      } : {};
+      const resolvedTrainerId = input.trainerId ?? undefined;
+
+      // branchId 미지정 시 트레이너 소속 지점으로 자동 할당
+      let resolvedBranchId = input.branchId ?? undefined;
+      if (!resolvedBranchId && resolvedTrainerId) {
+        const [tr] = await db.select({ branchId: trainers.branchId }).from(trainers).where(eq(trainers.id, resolvedTrainerId)).limit(1);
+        if (tr?.branchId) resolvedBranchId = tr.branchId;
+      }
+
+      // leadId가 있으면 이미 등록된 매출이 있는지 확인 → 중복 방지
+      let row: typeof revenueEntries.$inferSelect;
+      if (input.leadId) {
+        const existing = await db.select().from(revenueEntries)
+          .where(eq(revenueEntries.leadId, input.leadId))
+          .orderBy(desc(revenueEntries.createdAt))
+          .limit(1);
+        if (existing[0]) {
+          // 기존 항목 업데이트 (재등록 방지)
+          const [updated] = await db.update(revenueEntries).set({
+            ...input,
+            ...trainerAutoFields,
+            branchId: resolvedBranchId ?? null,
+            updatedAt: new Date().toISOString(),
+          }).where(eq(revenueEntries.id, existing[0].id)).returning();
+          row = updated;
+        } else {
+          const [inserted] = await db.insert(revenueEntries).values({
+            ...input,
+            ...trainerAutoFields,
+            branchId: resolvedBranchId ?? null,
+            createdBy: ctx.user!.id,
+            updatedAt: new Date().toISOString(),
+          }).returning();
+          row = inserted;
+        }
+      } else {
+        const [inserted] = await db.insert(revenueEntries).values({
+          ...input,
+          ...trainerAutoFields,
+          branchId: resolvedBranchId ?? null,
+          createdBy: ctx.user!.id,
+          updatedAt: new Date().toISOString(),
+        }).returning();
+        row = inserted;
+      }
 
       // 리드가 있으면 상태 registered로 업데이트
       if (input.leadId) {
         await db.update(leads).set({ status: "registered", updatedAt: new Date().toISOString() }).where(eq(leads.id, input.leadId));
       }
 
+      // 리드에서 성별 + 유입경로(채널명) 조회
+      let leadGender: string | undefined;
+      let leadVisitRoute: string | undefined;
+      if (input.leadId) {
+        const [leadInfo] = await db.select({ gender: leads.gender, channelId: leads.channelId })
+          .from(leads).where(eq(leads.id, input.leadId)).limit(1);
+        if (leadInfo?.gender) leadGender = leadInfo.gender;
+        if (leadInfo?.channelId) {
+          const [ch] = await db.select({ name: channels.name }).from(channels).where(eq(channels.id, leadInfo.channelId)).limit(1);
+          if (ch?.name) leadVisitRoute = ch.name;
+        }
+      }
+
+      // 회원 자동 생성 헬퍼: 이름+전화번호로 기존 회원 조회 후 없을 때만 생성
+      const linkOrCreateMember = async (extraFields: Record<string, any>): Promise<number | null> => {
+        if (!input.customerName) return null;
+        // 기존 회원 중복 확인
+        if (input.phone) {
+          const existing = await db.select({ id: members.id })
+            .from(members)
+            .where(and(eq(members.name, input.customerName), samePhone(members.phone, input.phone)))
+            .limit(1);
+          if (existing[0]) {
+            await db.update(revenueEntries).set({ memberId: existing[0].id }).where(eq(revenueEntries.id, row.id));
+            if (input.leadId) await db.update(leads).set({ registeredMemberId: existing[0].id }).where(eq(leads.id, input.leadId));
+            return existing[0].id;
+          }
+        }
+        const now = new Date().toISOString();
+        const [newMember] = await db.insert(members).values({
+          name: input.customerName,
+          phone: input.phone ?? undefined,
+          gender: leadGender ?? undefined,
+          visitRoute: leadVisitRoute ?? undefined,
+          status: "active",
+          grade: "basic",
+          branchId: resolvedBranchId ?? null,
+          consultantId: input.consultantId ?? undefined,   // 상담 담당자 기록 (매출 귀속 판단용)
+          createdAt: now,
+          updatedAt: now,
+          ...extraFields,
+        }).returning({ id: members.id });
+        if (newMember) {
+          await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, row.id));
+          if (input.leadId) await db.update(leads).set({ registeredMemberId: newMember.id }).where(eq(leads.id, input.leadId));
+          return newMember.id;
+        }
+        return null;
+      };
+
+      // serviceItems에서 헬스 서비스 기간 계산 헬퍼
+      const calcServiceHealthEnd = (startDate: string | undefined, serviceItems: string | undefined): string | undefined => {
+        if (!startDate || !serviceItems) return undefined;
+        const [yr, mo, dy] = startDate.split("-").map(Number);
+        const end = new Date(yr, mo - 1, dy);
+        let hasHealth = false;
+        for (const part of serviceItems.split(",").map((s: string) => s.trim())) {
+          const moM = /^헬스\((\d+)개월\)$/.exec(part);
+          if (moM) { end.setMonth(end.getMonth() + parseInt(moM[1])); hasHealth = true; continue; }
+          const dyM = /^헬스\((\d+)일\)$/.exec(part);
+          if (dyM) { end.setDate(end.getDate() + parseInt(dyM[1])); hasHealth = true; }
+        }
+        if (!hasHealth) return undefined;
+        return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+      };
+
+      // PT 등록 시 회원 자동 생성 + ptPackage 생성 (담당 트레이너 미지정도 허용 — 회원관리에서 배정)
+      if (input.type === "PT" && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
+        const svcHealthEnd = calcServiceHealthEnd(input.startDate, input.serviceItems);
+        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId ?? null, membershipStart: input.startDate ?? undefined, ...(svcHealthEnd ? { membershipEnd: svcHealthEnd } : {}) });
+        if (newId) {
+          row.memberId = newId;
+          const sessionCount = input.sessions ?? 0;
+          if (sessionCount > 0) {
+            await db.insert(ptPackages).values({
+              memberId: newId,
+              trainerId: resolvedTrainerId ?? null,
+              packageName: input.programDetail ?? undefined,
+              totalSessions: sessionCount,
+              eventId: input.eventId ?? undefined,
+              usedSessions: 0,
+              startDate: input.startDate ?? undefined,
+              paymentAmount: input.paidAmount ?? input.amount ?? undefined,
+              unpaidAmount: input.unpaidAmount ?? 0,
+              paymentMethod: input.paymentMethod ?? undefined,
+              paymentDate: input.paymentDate ?? undefined,
+              paymentMemo: input.memo ?? undefined,
+            });
+          }
+        }
+      } else if (input.type === "PT" && input.memberId && (input.sessions ?? 0) > 0 && input.subType !== "이전" && input.subType !== "환불") {
+        const sessionCount = input.sessions ?? 0;
+        const svcSessions = input.serviceSessions ?? 0;
+        const [existingPkg] = await db.select({ id: ptPackages.id }).from(ptPackages)
+          .where(and(
+            eq(ptPackages.memberId, input.memberId),
+            eq(ptPackages.totalSessions, sessionCount + svcSessions),
+            input.startDate ? eq(ptPackages.startDate, input.startDate) : sql`${ptPackages.startDate} IS NULL`,
+          )).limit(1);
+        if (!existingPkg) {
+          await db.insert(ptPackages).values({
+            memberId: input.memberId,
+            trainerId: resolvedTrainerId ?? null,
+            packageName: input.programDetail ?? undefined,
+            totalSessions: sessionCount + svcSessions,
+            serviceSessions: svcSessions,
+            eventId: input.eventId ?? undefined,
+            usedSessions: 0,
+            startDate: input.startDate ?? undefined,
+            paymentAmount: input.paidAmount ?? input.amount ?? undefined,
+            unpaidAmount: input.unpaidAmount ?? 0,
+            paymentMethod: input.paymentMethod ?? undefined,
+            paymentDate: input.paymentDate ?? undefined,
+            paymentMemo: input.memo ?? undefined,
+          });
+        }
+        const svcHealthEnd = calcServiceHealthEnd(input.startDate, input.serviceItems);
+        if (svcHealthEnd) {
+          await pool.query(
+            `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
+            [svcHealthEnd, input.memberId]
+          );
+        }
+      }
+
+      // 헬스 등록 시 회원 자동 생성
+      if (input.type === "헬스" && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
+        let membershipEnd: string | undefined;
+        if (input.startDate && input.duration) {
+          const [yr, mo, dy] = input.startDate.split("-").map(Number);
+          const end = new Date(yr, mo - 1, dy);
+          end.setMonth(end.getMonth() + input.duration);
+          if (input.serviceItems) {
+            for (const part of input.serviceItems.split(",").map((s: string) => s.trim())) {
+              const moM = /^헬스\((\d+)개월\)$/.exec(part);
+              if (moM) { end.setMonth(end.getMonth() + parseInt(moM[1])); continue; }
+              const dyM = /^헬스\((\d+)일\)$/.exec(part);
+              if (dyM) { end.setDate(end.getDate() + parseInt(dyM[1])); }
+            }
+          }
+          membershipEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+        }
+        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId ?? null, membershipStart: input.startDate ?? undefined, membershipEnd: membershipEnd ?? undefined });
+        if (newId) row.memberId = newId;
+      }
+
       return row;
+    }),
+
+  // ─── 환불 ──────────────────────────────────────────────────────────────────
+  // 환불 계산 근거를 서버에서 만들어 내려준다. 화면마다 제각각 계산하면 금액이 어긋나므로
+  // (정산 계산식은 한 곳에서 공유한다는 원칙) 항목별 잔여·환불가능액을 여기서 산출한다.
+  getRefundBasis: protectedProcedure
+    .input(z.object({ revenueEntryId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [entry] = await db.select().from(revenueEntries).where(eq(revenueEntries.id, input.revenueEntryId)).limit(1);
+      if (!entry) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const today = kstDate();
+      const contract = Math.max(0, (entry.amount ?? 0) - (entry.discountAmount ?? 0));
+      const items: {
+        key: string; kind: string; label: string; detail: string;
+        refundable: number; packageId?: number; lockerId?: number;
+      }[] = [];
+
+      // PT: 잔여 세션 × 단가. 이미 쓴 세션은 환불 대상이 아니다.
+      if (entry.memberId) {
+        const pkgs = await db.select().from(ptPackages)
+          .where(and(eq(ptPackages.memberId, entry.memberId), eq(ptPackages.status, "active")));
+        for (const p of pkgs) {
+          const matches = p.revenueEntryId === entry.id
+            || (entry.startDate && p.startDate === entry.startDate && entry.sessions === (p.totalSessions ?? 0) - (p.serviceSessions ?? 0));
+          if (!matches) continue;
+          const remaining = Math.max(0, (p.totalSessions ?? 0) - (p.usedSessions ?? 0));
+          const unit = p.pricePerSession ?? (p.totalSessions ? Math.round((p.paymentAmount ?? 0) / p.totalSessions) : 0);
+          items.push({
+            key: `pt-${p.id}`, kind: "PT", packageId: p.id,
+            label: `${p.packageName ?? "PT"} ${p.totalSessions ?? 0}회`,
+            detail: `${p.usedSessions ?? 0}회 사용 · 잔여 ${remaining}회 · 단가 ${unit.toLocaleString()}원`,
+            refundable: remaining * unit,
+          });
+        }
+      }
+
+      // 헬스(기간제): 잔여일수 비례. 시작 전이면 전액, 종료됐으면 0.
+      if (entry.type === "헬스" && entry.duration) {
+        const start = entry.startDate ?? entry.paymentDate;
+        const s = new Date(start);
+        const end = new Date(s); end.setMonth(end.getMonth() + entry.duration);
+        const totalDays = Math.max(1, Math.round((end.getTime() - s.getTime()) / 86400000));
+        const usedDays = Math.min(totalDays, Math.max(0, Math.round((new Date(today).getTime() - s.getTime()) / 86400000)));
+        const remainDays = Math.max(0, totalDays - usedDays);
+        items.push({
+          key: "health", kind: "헬스",
+          label: `헬스 ${entry.duration}개월`,
+          detail: `${totalDays}일 중 ${usedDays}일 사용 · 잔여 ${remainDays}일`,
+          refundable: Math.round(contract * (remainDays / totalDays)),
+        });
+      }
+
+      // 서비스 항목(락커/운동복): 무상 제공이지만 남은 기간만큼 시세로 환산해 환불액에 포함한다
+      // (월 단가 ÷ 30일 × 잔여일수). 설정된 월 단가가 없으면 회수만 하고 환불액은 0으로 둔다.
+      const gsRows = await db.execute(sql`SELECT "lockerMonthlyPrice", "uniformPrice" FROM gym_settings LIMIT 1`);
+      const gymSettingsRow = (gsRows as any).rows?.[0] ?? {};
+      const lockerMonthlyPrice = Number(gymSettingsRow.lockerMonthlyPrice) || 5000;
+      const uniformMonthlyPrice = Number(gymSettingsRow.uniformPrice) || 10000;
+      const remainingDaysOf = (startDate: string | null, endDate: string | null) => {
+        if (!endDate) return 0;
+        const end = new Date(endDate);
+        const t = new Date(today);
+        return Math.max(0, Math.round((end.getTime() - t.getTime()) / 86400000));
+      };
+
+      const si = (entry.serviceItems ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      for (const raw of si) {
+        const lockerMatch = /^락커\(([^)]+)\)$/.exec(raw);
+        if (lockerMatch) {
+          const [lk] = await db.select({ id: lockers.id, startDate: lockers.startDate, endDate: lockers.endDate }).from(lockers)
+            .where(and(eq(lockers.lockerNumber, lockerMatch[1]), eq(lockers.memberId, entry.memberId ?? -1))).limit(1);
+          const remainDays = lk ? remainingDaysOf(lk.startDate, lk.endDate) : 0;
+          const refundable = Math.round((lockerMonthlyPrice / 30) * remainDays);
+          items.push({
+            key: `locker-${raw}`, kind: "락커", label: raw,
+            detail: lk ? `잔여 ${remainDays}일 · 월 ${lockerMonthlyPrice.toLocaleString()}원 기준 (회수 처리)` : "락커 정보 없음 · 환불액 없음 (회수 처리)",
+            refundable, lockerId: lk?.id,
+          });
+        } else if (raw === "운동복") {
+          const [uf] = await db.select({ startDate: uniforms.startDate, endDate: uniforms.endDate }).from(uniforms)
+            .where(and(eq(uniforms.memberId, entry.memberId ?? -1), eq(uniforms.isActive, 1)))
+            .orderBy(desc(uniforms.id)).limit(1);
+          const remainDays = uf ? remainingDaysOf(uf.startDate, uf.endDate) : 0;
+          const refundable = Math.round((uniformMonthlyPrice / 30) * remainDays);
+          items.push({
+            key: `svc-${raw}`, kind: "운동복", label: raw,
+            detail: uf ? `잔여 ${remainDays}일 · 월 ${uniformMonthlyPrice.toLocaleString()}원 기준 (회수 처리)` : "운동복 정보 없음 · 환불액 없음 (회수 처리)",
+            refundable,
+          });
+        } else {
+          items.push({ key: `svc-${raw}`, kind: "서비스", label: raw, detail: "서비스 제공 · 환불액 없음 (회수 처리)", refundable: 0 });
+        }
+      }
+
+      // PT/헬스 어느 쪽도 안 잡히면(기타 등) 계약금액 전액을 기본 후보로 둔다.
+      if (items.filter(i => i.refundable > 0).length === 0 && contract > 0 && items.length === 0) {
+        items.push({ key: "base", kind: entry.type, label: entry.programDetail ?? entry.type, detail: "계약금액 전액", refundable: contract });
+      }
+
+      const refundableTotal = items.reduce((s, i) => s + i.refundable, 0);
+      return {
+        entryId: entry.id,
+        customerName: entry.customerName,
+        paymentDate: entry.paymentDate,
+        contract,
+        alreadyPaid: entry.paidAmount ?? 0,
+        unpaid: entry.unpaidAmount ?? 0,
+        items,
+        refundableTotal,
+        // 관행상 위약금은 총 계약금액의 10% (체육시설 표준약관 기준). 화면에서 수정 가능.
+        suggestedPenalty: Math.round(contract * 0.1),
+      };
+    }),
+
+  refund: protectedProcedure
+    .input(z.object({
+      revenueEntryId: z.number(),
+      itemKeys: z.array(z.string()),          // 환불 대상으로 선택한 항목
+      itemAmounts: z.record(z.string(), z.number()), // 항목별 환불액(화면에서 조정 가능)
+      penaltyAmount: z.number().min(0).default(0),
+      refundDate: z.string(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 환불할 수 있습니다." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [entry] = await db.select().from(revenueEntries).where(eq(revenueEntries.id, input.revenueEntryId)).limit(1);
+      if (!entry) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const gross = input.itemKeys.reduce((s, k) => s + (input.itemAmounts[k] ?? 0), 0);
+      const net = Math.max(0, gross - input.penaltyAmount);
+
+      // 환불 매출 기록: 실결제를 음수로 남겨 월 매출에서 차감되게 한다.
+      const [rec] = await db.insert(revenueEntries).values({
+        memberId: entry.memberId,
+        trainerId: entry.trainerId,
+        branchId: entry.branchId,
+        createdBy: ctx.user.id,
+        customerName: entry.customerName,
+        phone: entry.phone,
+        programDetail: `${entry.programDetail ?? entry.type} 환불`,
+        type: entry.type,
+        subType: "환불",
+        amount: net,
+        discountAmount: 0,
+        paidAmount: -net,
+        unpaidAmount: 0,
+        refundAmount: net,
+        paymentMethod: entry.paymentMethod,
+        paymentDate: input.refundDate,
+        relatedEntryId: entry.id,
+        memo: [input.memo, input.penaltyAmount > 0 ? `위약금 ${input.penaltyAmount.toLocaleString()}원 차감` : null]
+          .filter(Boolean).join(" / ") || null,
+      }).returning({ id: revenueEntries.id });
+
+      // 선택한 PT 패키지는 환불 처리 — 잔여 세션이 계속 유효한 것처럼 남지 않도록 한다.
+      for (const key of input.itemKeys) {
+        const pt = /^pt-(\d+)$/.exec(key);
+        if (pt) {
+          await db.update(ptPackages)
+            .set({ status: "refunded", updatedAt: new Date().toISOString() })
+            .where(eq(ptPackages.id, parseInt(pt[1])));
+        }
+      }
+      // 서비스로 준 락커는 회수(비우기). 락커 자체는 자산이라 삭제하지 않는다.
+      if (entry.memberId && input.itemKeys.some(k => k.startsWith("locker-"))) {
+        await db.update(lockers)
+          .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: new Date().toISOString() })
+          .where(eq(lockers.memberId, entry.memberId));
+      }
+      // 서비스로 준 운동복도 반납 처리
+      if (entry.memberId && input.itemKeys.includes("svc-운동복")) {
+        await db.update(uniforms)
+          .set({ isActive: 0, updatedAt: new Date().toISOString() })
+          .where(and(eq(uniforms.memberId, entry.memberId), eq(uniforms.isActive, 1)));
+      }
+
+      return { success: true, refundEntryId: rec?.id, gross, penalty: input.penaltyAmount, net };
     }),
 
   update: protectedProcedure
@@ -344,6 +885,7 @@ const revenueRouter = t.router({
       programDetail: z.string().optional(),
       sessions: z.number().optional(),
       duration: z.number().optional(),
+      serviceHealthDuration: z.number().nullable().optional(),
       memberId: z.number().optional(),
       trainerId: z.number().optional(),
       consultantId: z.number().optional(),
@@ -361,6 +903,9 @@ const revenueRouter = t.router({
       startDate: z.string().optional(),
       installments: z.number().optional(),
       memo: z.string().optional(),
+      serviceItems: z.string().optional(),
+      transferAmount: z.number().nullable().optional(),
+      cardAmount: z.number().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -392,6 +937,137 @@ const revenueRouter = t.router({
       }
 
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
+
+      // PT 타입이고 회원이 연결되어 있으면 ptPackage 전체 필드 동기화
+      if (row.type === "PT" && row.memberId) {
+        const oldSessions = existing[0]?.sessions;
+        const oldStartDate = existing[0]?.startDate;
+
+        // OLD 값으로 패키지 검색 — sessions/startDate 변경 시에도 기존 패키지를 찾을 수 있도록
+        const pkgCandidates = await db.select()
+          .from(ptPackages)
+          .where(eq(ptPackages.memberId, row.memberId))
+          .orderBy(desc(ptPackages.id));
+
+        // 이 매출을 뒷받침하는 패키지를 확실하게 특정할 수 있을 때만 골라야 한다.
+        // 예전에는 startDate+세션수가 매칭 안 되면 "회원의 아무 패키지나(가장 최근 것)"로
+        // 폴백해서, 패키지가 여러 개인 회원(박종범 사례)은 전혀 무관한 매출 수정이 엉뚱한
+        // 패키지의 결제금액을 덮어써버리는 사고로 이어졌다. 회원에게 패키지가 정확히 1개뿐일
+        // 때만 "그 패키지겠거니" 하고 폴백하고, 그 외엔 새 패키지를 만든다(기존 것을 절대
+        // 건드리지 않음 — 잘못 만들어진 여분 패키지는 기존 "빈 복제 패키지 정리" 백필이 치운다).
+        const existingPkg = pkgCandidates.find(p =>
+          (oldStartDate ? p.startDate === oldStartDate : true) &&
+          (oldSessions ? p.totalSessions === oldSessions : true)
+        ) ?? (pkgCandidates.length === 1 ? pkgCandidates[0] : null);
+
+        // 장부(revenue_entries)에 세션수가 없어도(프로그램을 "기타"로 등록한 경우 등) 연결된
+        // 패키지의 totalSessions로 폴백한다. 이게 없으면 newSessions=0이 되어 아래 동기화 블록이
+        // 통째로 스킵되고, 금액을 아무리 고쳐도 패키지 결제금액/단가가 옛값에 묶여 정산이 틀어진다.
+        const newSessions = row.sessions ?? existingPkg?.totalSessions ?? 0;
+        // 패키지 결제금액·단가는 "계약금액"(정가 − 할인) 기준이다. 실수령액(paidAmount)으로
+        // 잡으면 미수금이 있는 회원의 세션 단가가 폭락한다 — 강문영: 960,000 계약인데 실수령
+        // 100,000만 반영돼 단가가 48,000원이어야 할 게 5,000원으로 찍혔다. 아직 수업도 시작
+        // 안 한 회원이 "정산 단가 이상"으로 잡히는 원인이었다. 미수금은 unpaidAmount로 따로 관리한다.
+        const newAmount = Math.max(0, (row.amount ?? row.paidAmount ?? 0) - (row.discountAmount ?? 0));
+
+        // pricePerSession 재계산
+        const tAmt = (row as any).transferAmount ?? existingPkg?.transferAmount ?? null;
+        const cAmt = (row as any).cardAmount ?? existingPkg?.cardAmount ?? null;
+        let newPricePerSession: number | undefined;
+        if (newSessions > 0) {
+          if (row.paymentMethod === "혼합" && tAmt != null && cAmt != null) {
+            newPricePerSession = Math.round((tAmt + Math.round(cAmt / 1.1)) / newSessions);
+          }
+          if (newPricePerSession === undefined) {
+            const isTransfer = row.paymentMethod === "이체" || row.paymentMethod === "계좌이체";
+            const base = isTransfer ? newAmount : Math.round(newAmount / 1.1);
+            newPricePerSession = Math.round(base / newSessions);
+          }
+        }
+
+        if (newSessions > 0) {
+          const pkgFields: Record<string, any> = {
+            totalSessions: newSessions,
+            packageName: row.programDetail ?? undefined,
+            startDate: row.startDate ?? undefined,
+            paymentAmount: newAmount,
+            unpaidAmount: row.unpaidAmount ?? 0,
+            paymentMethod: row.paymentMethod ?? undefined,
+            paymentDate: row.paymentDate ?? undefined,
+            paymentMemo: row.memo ?? undefined,
+            transferAmount: tAmt,
+            cardAmount: cAmt,
+            updatedAt: new Date().toISOString(),
+          };
+          if (newPricePerSession !== undefined) pkgFields.pricePerSession = newPricePerSession;
+
+          if (existingPkg) {
+            await db.update(ptPackages).set(pkgFields).where(eq(ptPackages.id, existingPkg.id));
+          } else {
+            await db.insert(ptPackages).values({
+              memberId: row.memberId,
+              trainerId: row.trainerId ?? undefined,
+              usedSessions: 0,
+              totalSessions: newSessions,
+              packageName: row.programDetail ?? undefined,
+              startDate: row.startDate ?? undefined,
+              paymentAmount: newAmount,
+              unpaidAmount: row.unpaidAmount ?? 0,
+              paymentMethod: row.paymentMethod ?? undefined,
+              paymentDate: row.paymentDate ?? undefined,
+              paymentMemo: row.memo ?? undefined,
+              ...(newPricePerSession !== undefined ? { pricePerSession: newPricePerSession } : {}),
+            });
+          }
+        }
+
+        // members 날짜 동기화
+        const memberUpdate: Record<string, string> = {};
+        if (row.startDate) memberUpdate.membershipStart = row.startDate;
+        const baseDate = row.startDate ?? existing[0]?.startDate;
+        const totalSess = row.sessions ?? existing[0]?.sessions;
+        if (baseDate && totalSess && totalSess > 0) {
+          const weeks = Math.round(totalSess / 2);
+          const d = new Date(baseDate);
+          d.setDate(d.getDate() + weeks * 7);
+          memberUpdate.membershipEnd = d.toISOString().substring(0, 10);
+        }
+        if (Object.keys(memberUpdate).length > 0) {
+          await db.update(members)
+            .set({ ...memberUpdate, updatedAt: new Date().toISOString() })
+            .where(eq(members.id, row.memberId));
+        }
+      }
+
+      // 헬스 타입이고 회원이 연결되어 있으면 membershipEnd 재계산
+      if (row.type === "헬스" && row.memberId && row.startDate) {
+        let months = row.duration ?? 0;
+        if (!months) {
+          const m = /^헬스\s*(\d+)개월/.exec(row.programDetail ?? "");
+          if (m) months = parseInt(m[1]);
+        }
+        if (months) {
+          const [yr, mo, dy] = row.startDate.split("-").map(Number);
+          const d = new Date(yr, mo - 1, dy);
+          d.setMonth(d.getMonth() + months);
+          if (row.serviceItems) {
+            for (const part of row.serviceItems.split(",").map((s: string) => s.trim())) {
+              const moM = /^헬스\((\d+)개월\)$/.exec(part);
+              if (moM) { d.setMonth(d.getMonth() + parseInt(moM[1])); continue; }
+              const dyM = /^헬스\((\d+)일\)$/.exec(part);
+              if (dyM) { d.setDate(d.getDate() + parseInt(dyM[1])); }
+            }
+          }
+          const newMembershipEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          // 옛 헬스 엔트리 수정이 만료일을 앞으로 당기지 않도록, 더 뒤 날짜일 때만 갱신
+          await pool.query(
+            `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
+             WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
+            [newMembershipEnd, row.memberId]
+          );
+        }
+      }
+
       return row;
     }),
 
@@ -410,13 +1086,309 @@ const revenueRouter = t.router({
       return { success: true };
     }),
 
+  recomputeMembershipEnd: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const healthRows = await db.select().from(revenueEntries).where(eq(revenueEntries.type, "헬스"));
+      // memberId별 가장 최신 헬스 등록 entry를 기준으로 membershipEnd 재계산
+      const latestByMember = new Map<number, typeof healthRows[0]>();
+      for (const row of healthRows) {
+        if (!row.memberId || !row.startDate) continue;
+        const prev = latestByMember.get(row.memberId);
+        if (!prev || (row.startDate > prev.startDate!)) latestByMember.set(row.memberId, row);
+      }
+      // 현재 membershipEnd 값 한 번에 로드
+      const memberIds = Array.from(latestByMember.keys());
+      const currentEnds = memberIds.length > 0
+        ? await db.select({ id: members.id, membershipEnd: members.membershipEnd })
+            .from(members).where(inArray(members.id, memberIds))
+        : [];
+      const currentEndMap = new Map(currentEnds.map(m => [m.id, m.membershipEnd]));
+
+      let updated = 0;
+      for (const [memberId, row] of latestByMember) {
+        let months = row.duration ?? 0;
+        if (!months) {
+          const m = /^헬스\s*(\d+)개월/.exec(row.programDetail ?? "");
+          if (m) months = parseInt(m[1]);
+        }
+        if (!months) continue;
+        const [yr, mo, dy] = row.startDate!.split("-").map(Number);
+        const d = new Date(yr, mo - 1, dy);
+        d.setMonth(d.getMonth() + months);
+        if (row.serviceItems) {
+          for (const part of row.serviceItems.split(",").map((s: string) => s.trim())) {
+            const moM = /^헬스\((\d+)개월\)$/.exec(part);
+            if (moM) { d.setMonth(d.getMonth() + parseInt(moM[1])); continue; }
+            const dyM = /^헬스\((\d+)일\)$/.exec(part);
+            if (dyM) { d.setDate(d.getDate() + parseInt(dyM[1])); }
+          }
+        }
+        const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (currentEndMap.get(memberId) === newEnd) continue;
+        await db.update(members).set({ membershipEnd: newEnd }).where(eq(members.id, memberId));
+        updated++;
+      }
+      return { updated };
+    }),
+
+  syncPtPackages: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // PT 타입이고 memberId + sessions 있는 revenue entries 조회
+      const ptRevs = await db.select().from(revenueEntries)
+        .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
+      // 기존 ptPackages 전체 로드 (memberId + startDate + totalSessions 조합으로 중복 체크)
+      const existingPkgs = await db.select({
+        id: ptPackages.id,
+        memberId: ptPackages.memberId,
+        startDate: ptPackages.startDate,
+        totalSessions: ptPackages.totalSessions,
+        paymentAmount: ptPackages.paymentAmount,
+      }).from(ptPackages);
+      const pkgKey = (memberId: number, startDate: string | null, sessions: number) =>
+        `${memberId}|${startDate ?? ""}|${sessions}`;
+      const existingMap = new Map(existingPkgs.map(p => [pkgKey(p.memberId, p.startDate, p.totalSessions), p]));
+
+      let created = 0;
+      let updated = 0;
+      for (const rev of ptRevs) {
+        if (!rev.memberId || !rev.sessions || rev.sessions <= 0) continue;
+        const key = pkgKey(rev.memberId, rev.startDate, rev.sessions);
+        const newAmount = rev.paidAmount ?? rev.amount ?? undefined;
+        const existing = existingMap.get(key);
+        if (!existing) {
+          await db.insert(ptPackages).values({
+            memberId: rev.memberId,
+            trainerId: rev.trainerId ?? undefined,
+            packageName: rev.programDetail ?? undefined,
+            totalSessions: rev.sessions,
+            usedSessions: 0,
+            startDate: rev.startDate ?? undefined,
+            paymentAmount: newAmount,
+            unpaidAmount: rev.unpaidAmount ?? 0,
+            paymentMethod: rev.paymentMethod ?? undefined,
+            paymentDate: rev.paymentDate ?? undefined,
+            paymentMemo: rev.memo ?? undefined,
+          });
+          existingMap.set(key, { id: -1, memberId: rev.memberId, startDate: rev.startDate, totalSessions: rev.sessions, paymentAmount: newAmount ?? null });
+          created++;
+        } else if (newAmount != null && existing.paymentAmount !== newAmount) {
+          // 장부 금액이 다르면 패키지 금액 동기화
+          await db.update(ptPackages).set({
+            paymentAmount: newAmount,
+            unpaidAmount: rev.unpaidAmount ?? 0,
+            paymentMethod: rev.paymentMethod ?? undefined,
+            paymentDate: rev.paymentDate ?? undefined,
+          }).where(eq(ptPackages.id, existing.id));
+          updated++;
+        }
+      }
+      return { created, updated };
+    }),
+
+  // PT 패키지가 있는데 장부 항목이 없는 기존 회원 장부 항목 역방향 생성
+  syncRevenueFromPackages: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // ── Phase 1: memberId 없는 장부 항목 → 이름+전화번호로 회원 연결 ──────────
+      const orphanRevs = await db.select({
+        id: revenueEntries.id,
+        customerName: revenueEntries.customerName,
+        phone: revenueEntries.phone,
+      }).from(revenueEntries)
+        .where(sql`${revenueEntries.memberId} IS NULL AND ${revenueEntries.customerName} IS NOT NULL`);
+
+      let linked = 0;
+      for (const rev of orphanRevs) {
+        if (!rev.customerName) continue;
+        let found: { id: number } | undefined;
+        if (rev.phone) {
+          const rows = await db.select({ id: members.id })
+            .from(members)
+            .where(and(eq(members.name, rev.customerName), samePhone(members.phone, rev.phone)))
+            .limit(1);
+          found = rows[0];
+        }
+        if (!found) {
+          const rows = await db.select({ id: members.id })
+            .from(members)
+            .where(eq(members.name, rev.customerName))
+            .limit(1);
+          found = rows[0];
+        }
+        if (found) {
+          await db.update(revenueEntries).set({ memberId: found.id })
+            .where(eq(revenueEntries.id, rev.id));
+          linked++;
+        }
+      }
+
+      // ── Phase 2: PT 패키지 있는데 장부 항목 없는 회원 → 장부 생성 ─────────────
+      const pkgs = await db.select().from(ptPackages)
+        .where(isNotNull(ptPackages.memberId));
+
+      const existingRevs = await db.select({
+        memberId: revenueEntries.memberId,
+        paymentDate: revenueEntries.paymentDate,
+      }).from(revenueEntries)
+        .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
+
+      const revKey = (memberId: number, paymentDate: string) => `${memberId}|${paymentDate}`;
+      const existingRevSet = new Set(existingRevs.map(r => revKey(r.memberId!, r.paymentDate)));
+      const memberIdsWithRev = new Set(existingRevs.map(r => r.memberId!));
+
+      const allMemberIds = [...new Set(pkgs.map(p => p.memberId))];
+      const memberRows = allMemberIds.length > 0
+        ? await db.select({ id: members.id, name: members.name, phone: members.phone, branchId: members.branchId, membershipStart: members.membershipStart, createdAt: members.createdAt })
+            .from(members).where(inArray(members.id, allMemberIds))
+        : [];
+      const memberMap = new Map(memberRows.map(m => [m.id, m]));
+
+      let created = 0;
+      for (const pkg of pkgs) {
+        if (!pkg.memberId) continue;
+        if (memberIdsWithRev.has(pkg.memberId)) continue;
+
+        const mem = memberMap.get(pkg.memberId);
+        // 결제일: 패키지 결제일 → 패키지 시작일 → 회원 가입 시작일 → 회원 생성일
+        // 날짜를 확정할 수 없으면 생성 건너뜀 (오늘 날짜로 잘못 찍히는 것 방지)
+        const payDate = pkg.paymentDate ?? pkg.startDate ?? mem?.membershipStart ?? mem?.createdAt?.substring(0, 10);
+        if (!payDate) continue;
+
+        const key = revKey(pkg.memberId, payDate);
+        if (existingRevSet.has(key)) continue;
+
+        const amount = pkg.paymentAmount ?? 0;
+        await db.insert(revenueEntries).values({
+          memberId: pkg.memberId,
+          trainerId: pkg.trainerId ?? null,
+          branchId: mem?.branchId ?? null,
+          createdBy: ctx.user.id,
+          customerName: mem?.name ?? null,
+          phone: mem?.phone ?? null,
+          programDetail: pkg.packageName ?? undefined,
+          sessions: pkg.totalSessions,
+          type: "PT",
+          subType: "신규",
+          amount,
+          discountAmount: 0,
+          paidAmount: amount - (pkg.unpaidAmount ?? 0),
+          unpaidAmount: pkg.unpaidAmount ?? 0,
+          paymentMethod: pkg.paymentMethod ?? undefined,
+          paymentDate: payDate,
+          startDate: pkg.startDate ?? undefined,
+          memo: pkg.paymentMemo ?? null,
+        });
+        existingRevSet.add(key);
+        memberIdsWithRev.add(pkg.memberId);
+        created++;
+      }
+      return { linked, created };
+    }),
+
+  // 장부 역동기화로 잘못 생성된 항목 롤백 (생성일 기준)
+  rollbackSyncRevenue: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // createdAt 기준으로 삭제 (역동기화로 생성된 항목은 같은 날 일괄 생성됨)
+      const result = await db.delete(revenueEntries)
+        .where(and(
+          like(revenueEntries.createdAt, `${input.date}%`),
+          eq(revenueEntries.type, "PT"),
+          eq(revenueEntries.subType, "신규"),
+          eq(revenueEntries.createdBy, ctx.user.id),
+        ))
+        .returning({ id: revenueEntries.id });
+      return { deleted: result.length };
+    }),
+
+  deduplicateRevenue: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 같은 memberId + type + paymentDate + paidAmount 조합에서 id가 가장 큰 것(최신)을 제외하고 삭제
+      const all = await db.select({
+        id: revenueEntries.id,
+        memberId: revenueEntries.memberId,
+        type: revenueEntries.type,
+        paymentDate: revenueEntries.paymentDate,
+        paidAmount: revenueEntries.paidAmount,
+      }).from(revenueEntries)
+        .where(isNotNull(revenueEntries.memberId))
+        .orderBy(revenueEntries.id);
+
+      const seen = new Map<string, number>();
+      const toDelete: number[] = [];
+      for (const r of all) {
+        const key = `${r.memberId}|${r.type}|${r.paymentDate}|${r.paidAmount}`;
+        if (seen.has(key)) {
+          toDelete.push(r.id);
+        } else {
+          seen.set(key, r.id);
+        }
+      }
+      if (toDelete.length === 0) return { deleted: 0 };
+      await db.delete(revenueEntries).where(inArray(revenueEntries.id, toDelete));
+      return { deleted: toDelete.length };
+    }),
+
+  deleteNullNameEntries: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const result = await db.delete(revenueEntries)
+        .where(sql`${revenueEntries.customerName} IS NULL OR ${revenueEntries.customerName} = ''`)
+        .returning({ id: revenueEntries.id });
+      return { deleted: result.length };
+    }),
+
+  cumulativeUnpaid: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({
+        id: revenueEntries.id,
+        customerName: revenueEntries.customerName,
+        programDetail: revenueEntries.programDetail,
+        unpaidAmount: revenueEntries.unpaidAmount,
+        paymentDate: revenueEntries.paymentDate,
+        branchId: revenueEntries.branchId,
+        memberId: revenueEntries.memberId,
+      }).from(revenueEntries)
+        .where(sql`${revenueEntries.unpaidAmount} > 0`);
+      const filtered = input?.branchId ? rows.filter(r => r.branchId === input.branchId) : rows;
+      const total = filtered.reduce((s, r) => s + (r.unpaidAmount ?? 0), 0);
+      return { total, count: filtered.length, entries: filtered };
+    }),
+
   monthlySummary: protectedProcedure
-    .input(z.object({ year: z.number() }))
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const allEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${input.year}%`));
+      const rawEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${input.year}%`));
+      const allEntries = input.branchId
+        ? rawEntries.filter(r => r.branchId === input.branchId)
+        : rawEntries;
 
       const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (let m = 1; m <= 12; m++) {
@@ -426,7 +1398,7 @@ const revenueRouter = t.router({
       for (const entry of allEntries) {
         const month = parseInt(entry.paymentDate.substring(5, 7));
         if (!monthly[month]) continue;
-        if (entry.subType === "이전") continue;
+        if (entry.subType === "이전" || entry.subType === "환불") continue;
         monthly[month].total += entry.amount;
         monthly[month].paid += entry.paidAmount;
         monthly[month].unpaid += entry.unpaidAmount;
@@ -441,19 +1413,24 @@ const revenueRouter = t.router({
     }),
 
   trainerSummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
-    .query(async ({ input }) => {
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 트레이너별 매출 요약을 조회할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-      const rows = await db.select({
+      const allRows = await db.select({
         entry: revenueEntries,
         trainerName: trainers.trainerName,
       })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
+
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
       const byTrainer: Record<number, { trainerId: number; trainerName: string; total: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (const row of rows) {
@@ -473,14 +1450,101 @@ const revenueRouter = t.router({
       return Object.values(byTrainer).sort((a, b) => b.total - a.total);
     }),
 
-  channelSummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
-    .query(async ({ input }) => {
+  consultantSummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-      const rows = await db.select({
+
+      const allRows = await db.select({
+        entry: revenueEntries,
+        consultantName: sql<string | null>`COALESCE(
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${revenueEntries.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${members.consultantId} LIMIT 1),
+          (SELECT t."trainerName" FROM trainers t WHERE t.id = (SELECT l."assignedTrainerId" FROM leads l WHERE l."registeredMemberId" = ${revenueEntries.memberId} LIMIT 1) LIMIT 1)
+        )`,
+        memberConsultantId: members.consultantId,
+      })
+        .from(revenueEntries)
+        .leftJoin(members, eq(revenueEntries.memberId, members.id))
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
+
+      type ConsultantStats = {
+        consultantId: number;
+        consultantName: string;
+        total: number;
+        ptNew: number;
+        ptRenewal: number;
+        health: number;
+        etc: number;
+        count: number;
+        leadCount: number;
+        registeredCount: number;
+        conversionRate: number;
+      };
+      const byConsultant: Record<number, ConsultantStats> = {};
+
+      for (const row of rows) {
+        const cid = row.entry.consultantId ?? (row as any).memberConsultantId ?? 0;
+        if (!byConsultant[cid]) {
+          byConsultant[cid] = {
+            consultantId: cid,
+            consultantName: row.consultantName ?? "미배정",
+            total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
+            leadCount: 0, registeredCount: 0, conversionRate: 0,
+          };
+        }
+        if (row.entry.subType === "이전") continue;
+        const amt = row.entry.paidAmount;
+        byConsultant[cid].total += amt;
+        byConsultant[cid].count += 1;
+        if (row.entry.type === "PT" && row.entry.subType === "신규") byConsultant[cid].ptNew += amt;
+        else if (row.entry.type === "PT" && row.entry.subType === "재등록") byConsultant[cid].ptRenewal += amt;
+        else if (row.entry.type === "헬스") byConsultant[cid].health += amt;
+        else byConsultant[cid].etc += amt;
+      }
+
+      const allLeads = await db.select().from(leads);
+      const monthLeads = allLeads.filter(l => (l.consultationDate ?? "").startsWith(prefix));
+
+      for (const lead of monthLeads) {
+        const cid = lead.assignedConsultantId ?? 0;
+        if (!byConsultant[cid]) {
+          const consultant = cid ? await db.select({ trainerName: trainers.trainerName }).from(trainers).where(eq(trainers.userId, cid)).limit(1) : [];
+          byConsultant[cid] = {
+            consultantId: cid,
+            consultantName: consultant[0]?.trainerName ?? "미배정",
+            total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
+            leadCount: 0, registeredCount: 0, conversionRate: 0,
+          };
+        }
+        byConsultant[cid].leadCount += 1;
+        if (lead.status === "registered") byConsultant[cid].registeredCount += 1;
+      }
+
+      for (const c of Object.values(byConsultant)) {
+        c.conversionRate = c.leadCount > 0 ? Math.round((c.registeredCount / c.leadCount) * 100) : 0;
+      }
+
+      return Object.values(byConsultant)
+        .filter(c => c.total > 0 || c.leadCount > 0)
+        .sort((a, b) => b.total - a.total);
+    }),
+
+  channelSummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number().optional(), branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
+      const allRows = await db.select({
         entry: revenueEntries,
         channelName: channels.name,
       })
@@ -488,17 +1552,106 @@ const revenueRouter = t.router({
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
 
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
+
       const byChannel: Record<string, { channelId: number | null; channelName: string; total: number; count: number }> = {};
       for (const row of rows) {
-        const key = String(row.entry.channelId ?? "none");
+        if (!row.channelName) continue;
+        const key = String(row.entry.channelId);
         if (!byChannel[key]) {
-          byChannel[key] = { channelId: row.entry.channelId, channelName: row.channelName ?? "채널 미상", total: 0, count: 0 };
+          byChannel[key] = { channelId: row.entry.channelId, channelName: row.channelName, total: 0, count: 0 };
         }
         byChannel[key].total += row.entry.paidAmount;
         byChannel[key].count += 1;
       }
 
       return Object.values(byChannel).sort((a, b) => b.total - a.total);
+    }),
+
+  channelAnnual: protectedProcedure
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const prefix = `${input.year}-`;
+      const allRows = await db.select({ entry: revenueEntries, channelName: channels.name })
+        .from(revenueEntries)
+        .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
+
+      const allLeads = await db.select().from(leads);
+      const channelList = await db.select().from(channels);
+
+      // 채널별 월별 매출/건수/리드
+      type MonthData = { revenue: number; count: number; leads: number; registered: number };
+      const result: Record<string, { name: string; months: Record<number, MonthData> }> = {};
+
+      for (const ch of channelList) {
+        result[ch.name] = { name: ch.name, months: {} };
+        for (let m = 1; m <= 12; m++) result[ch.name].months[m] = { revenue: 0, count: 0, leads: 0, registered: 0 };
+      }
+
+      for (const row of rows) {
+        if (!row.channelName) continue;
+        const chName = row.channelName;
+        const m = parseInt(row.entry.paymentDate?.substring(5, 7) ?? "0");
+        if (!m) continue;
+        if (!result[chName]) { result[chName] = { name: chName, months: {} }; for (let i = 1; i <= 12; i++) result[chName].months[i] = { revenue: 0, count: 0, leads: 0, registered: 0 }; }
+        result[chName].months[m].revenue += row.entry.paidAmount;
+        result[chName].months[m].count += 1;
+      }
+
+      // 리드 통계
+      for (const lead of allLeads) {
+        const d = lead.consultationDate ?? "";
+        if (!d.startsWith(prefix)) continue;
+        const m = parseInt(d.substring(5, 7));
+        const ch = channelList.find(c => c.id === lead.channelId);
+        if (!ch) continue;
+        const chName = ch.name;
+        if (!result[chName]) { result[chName] = { name: chName, months: {} }; for (let i = 1; i <= 12; i++) result[chName].months[i] = { revenue: 0, count: 0, leads: 0, registered: 0 }; }
+        result[chName].months[m].leads += 1;
+        if (lead.status === "registered") result[chName].months[m].registered += 1;
+      }
+
+      // 연간 합계
+      const channels_out = Object.values(result).filter(ch => {
+        return Object.values(ch.months).some(m => m.revenue > 0 || m.leads > 0);
+      }).map(ch => ({
+        name: ch.name,
+        months: ch.months,
+        totalRevenue: Object.values(ch.months).reduce((s, m) => s + m.revenue, 0),
+        totalLeads: Object.values(ch.months).reduce((s, m) => s + m.leads, 0),
+        totalRegistered: Object.values(ch.months).reduce((s, m) => s + m.registered, 0),
+      })).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+      // 월별 합계
+      const monthTotals: Record<number, { revenue: number; leads: number; registered: number }> = {};
+      for (let m = 1; m <= 12; m++) {
+        monthTotals[m] = { revenue: 0, leads: 0, registered: 0 };
+        for (const ch of channels_out) {
+          monthTotals[m].revenue += ch.months[m].revenue;
+          monthTotals[m].leads += ch.months[m].leads;
+          monthTotals[m].registered += ch.months[m].registered;
+        }
+      }
+
+      return { channels: channels_out, monthTotals };
+    }),
+
+  byLead: protectedProcedure
+    .input(z.object({ leadId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({ entry: revenueEntries })
+        .from(revenueEntries)
+        .where(eq(revenueEntries.leadId, input.leadId))
+        .orderBy(desc(revenueEntries.paymentDate))
+        .limit(1);
+      return rows[0]?.entry ?? null;
     }),
 
   targets: protectedProcedure.query(async () => {
@@ -525,13 +1678,158 @@ const revenueRouter = t.router({
         return row;
       }
     }),
+
+  // 이달 PT 프로그램별 통계 (이벤트피티 포함)
+  programStats: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number().optional(), branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const prefix = input.month ? `${input.year}-${String(input.month).padStart(2, "0")}` : `${input.year}-`;
+      const allEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${prefix}%`));
+      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불" && e.subType !== "미수금"
+        && e.paidAmount > 0 && (!input.branchId || e.branchId === input.branchId));
+
+      // 웨이트피티/케어피티/학생피티/체험권은 같은 이름끼리 묶고
+      // 이벤트피티는 원래 programDetail을 그대로 표시 (어떤 이벤트인지가 중요)
+      const MERGE_PROGRAMS = ["웨이트피티", "케어피티", "학생피티", "체험권"];
+      function normalizeProgram(raw: string | null): string {
+        if (!raw) return "기타PT";
+        for (const p of MERGE_PROGRAMS) {
+          if (raw.includes(p)) return p;
+        }
+        return raw;
+      }
+
+      const byProgram: Record<string, { name: string; count: number; revenue: number; newCount: number; renewalCount: number; isEvent: boolean; subItems: Record<string, { count: number; revenue: number }> }> = {};
+      for (const e of entries) {
+        const raw = e.programDetail;
+        const isEvent = !!(raw && raw.includes("이벤트피티"));
+        const groupKey = isEvent ? "이벤트피티" : normalizeProgram(raw);
+        const subKey = raw ?? "기타PT";
+
+        if (!byProgram[groupKey]) byProgram[groupKey] = { name: groupKey, count: 0, revenue: 0, newCount: 0, renewalCount: 0, isEvent, subItems: {} };
+        byProgram[groupKey].count++;
+        byProgram[groupKey].revenue += e.paidAmount;
+        if (e.subType === "신규") byProgram[groupKey].newCount++;
+        if (e.subType === "재등록") byProgram[groupKey].renewalCount++;
+
+        if (isEvent) {
+          if (!byProgram[groupKey].subItems[subKey]) byProgram[groupKey].subItems[subKey] = { count: 0, revenue: 0 };
+          byProgram[groupKey].subItems[subKey].count++;
+          byProgram[groupKey].subItems[subKey].revenue += e.paidAmount;
+        }
+      }
+      return Object.values(byProgram).sort((a, b) => b.revenue - a.revenue);
+    }),
+
+  // 연간 월별 PT 프로그램별 추이
+  programAnnual: protectedProcedure
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const allEntries = await db.select().from(revenueEntries)
+        .where(like(revenueEntries.paymentDate, `${input.year}%`));
+      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전" && e.subType !== "환불" && e.subType !== "미수금"
+        && (!input.branchId || e.branchId === input.branchId));
+
+      const programs = new Set<string>();
+      const monthly: Record<number, Record<string, { count: number; revenue: number }>> = {};
+      for (let m = 1; m <= 12; m++) monthly[m] = {};
+
+      const KNOWN_PROGRAMS = ["웨이트피티", "케어피티", "이벤트피티", "학생피티", "체험권"];
+      function normalizeProgram(raw: string | null): string {
+        if (!raw) return "기타PT";
+        for (const p of KNOWN_PROGRAMS) {
+          if (raw.includes(p)) return p;
+        }
+        return raw;
+      }
+
+      for (const e of entries) {
+        const m = parseInt(e.paymentDate.substring(5, 7));
+        const prog = normalizeProgram(e.programDetail);
+        programs.add(prog);
+        if (!monthly[m][prog]) monthly[m][prog] = { count: 0, revenue: 0 };
+        monthly[m][prog].count++;
+        monthly[m][prog].revenue += e.paidAmount;
+      }
+
+      const programList = Array.from(programs);
+      const monthlyData = Array.from({ length: 12 }, (_, i) => {
+        const m = i + 1;
+        const row: Record<string, any> = { month: m, label: `${m}월` };
+        for (const prog of programList) {
+          row[prog + "_count"] = monthly[m][prog]?.count ?? 0;
+          row[prog + "_revenue"] = monthly[m][prog]?.revenue ?? 0;
+        }
+        return row;
+      });
+
+      return { programs: programList, monthlyData };
+    }),
+
+  listServiceItems: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    await db.execute(sql`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
+    const result = await db.execute(sql`
+      SELECT
+        re.id,
+        COALESCE(re."memberId", m_match.id) AS "memberId",
+        re."customerName",
+        re."phone",
+        re."serviceItems",
+        re."programDetail",
+        re."paymentDate",
+        re."startDate",
+        COALESCE(m.name, m_match.name, re."customerName") AS "memberName",
+        COALESCE(m."membershipStart", m_match."membershipStart") AS "membershipStart",
+        COALESCE(m."membershipEnd",   m_match."membershipEnd")   AS "membershipEnd",
+        COALESCE(m.phone, m_match.phone, re.phone) AS "memberPhone"
+      FROM revenue_entries re
+      LEFT JOIN members m ON m.id = re."memberId"
+      LEFT JOIN LATERAL (
+        SELECT id, name, phone, "membershipStart", "membershipEnd"
+        FROM members
+        WHERE re."memberId" IS NULL
+          AND name = re."customerName"
+          AND phone IS NOT NULL
+          AND re.phone IS NOT NULL
+          AND REPLACE(REPLACE(phone, '-', ''), ' ', '') = REPLACE(REPLACE(re.phone, '-', ''), ' ', '')
+        ORDER BY id DESC
+        LIMIT 1
+      ) m_match ON true
+      WHERE (re."serviceItems" IS NOT NULL AND re."serviceItems" != '')
+         OR (re."programDetail" ILIKE '%운동복%' OR re."programDetail" ILIKE '%유니폼%' OR re."programDetail" ILIKE '%uniform%')
+      ORDER BY re."paymentDate" DESC
+    `);
+    return (result as any).rows ?? [];
+  }),
+
+  getByMember: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      return await db.select()
+        .from(revenueEntries)
+        .where(eq(revenueEntries.memberId, input.memberId))
+        .orderBy(desc(revenueEntries.paymentDate));
+    }),
 });
 
 // ─── Expense Entries (지출 장부) ──────────────────────────────────────────────
 const expenseRouter = t.router({
   list: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional(), category: z.string().optional() }).optional())
-    .query(async ({ input }) => {
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), category: z.string().optional(), branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출 내역을 조회할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -549,6 +1847,7 @@ const expenseRouter = t.router({
         result = result.filter(r => r.entry.expenseDate.startsWith(prefix));
       }
       if (input?.category) result = result.filter(r => r.entry.category === input.category);
+      if (input?.branchId) result = result.filter(r => r.entry.branchId === input.branchId);
 
       return result;
     }),
@@ -558,17 +1857,28 @@ const expenseRouter = t.router({
       branchId: z.number().optional(),
       category: z.string(),
       subCategory: z.string().optional(),
+      subCategories: z.array(z.string()).optional(),
       amount: z.number().min(0),
       paymentMethod: z.string().optional(),
       vendor: z.string().optional(),
       expenseDate: z.string(),
       memo: z.string().optional(),
+      isRecurring: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출을 등록할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [row] = await db.insert(expenseEntries).values(input).returning();
-      return row;
+      const subs = input.subCategories?.length ? input.subCategories : (input.subCategory ? [input.subCategory] : [""]);
+      const { subCategories: _sc, subCategory: _s, ...rest } = input;
+      const created = [];
+      for (const sub of subs) {
+        const [row] = await db.insert(expenseEntries).values({ ...rest, subCategory: sub }).returning();
+        created.push(row);
+      }
+      return created[0];
     }),
 
   update: protectedProcedure
@@ -581,8 +1891,12 @@ const expenseRouter = t.router({
       vendor: z.string().optional(),
       expenseDate: z.string().optional(),
       memo: z.string().optional(),
+      isRecurring: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출을 수정할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...data } = input;
@@ -592,21 +1906,56 @@ const expenseRouter = t.router({
 
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출을 삭제할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(expenseEntries).where(eq(expenseEntries.id, input.id));
       return { success: true };
     }),
 
-  categorySummary: protectedProcedure
+  copyRecurring: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const prevMonth = input.month === 1 ? 12 : input.month - 1;
+      const prevYear = input.month === 1 ? input.year - 1 : input.year;
+      const prevPrefix = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+      const curPrefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const prevRows = await db.select().from(expenseEntries)
+        .where(and(like(expenseEntries.expenseDate, `${prevPrefix}%`), eq(expenseEntries.isRecurring, 1)));
+      const existRows = await db.select().from(expenseEntries)
+        .where(like(expenseEntries.expenseDate, `${curPrefix}%`));
+      const existKey = new Set(existRows.map(r => `${r.category}|${r.subCategory}|${r.amount}`));
+      let count = 0;
+      for (const r of prevRows) {
+        const key = `${r.category}|${r.subCategory}|${r.amount}`;
+        if (existKey.has(key)) continue;
+        const newDate = r.expenseDate.replace(prevPrefix, curPrefix);
+        await db.insert(expenseEntries).values({
+          branchId: r.branchId, category: r.category, subCategory: r.subCategory,
+          amount: r.amount, paymentMethod: r.paymentMethod, vendor: r.vendor,
+          expenseDate: newDate, memo: r.memo, isRecurring: 1,
+        });
+        count++;
+      }
+      return { copied: count };
+    }),
+
+  categorySummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-      const rows = await db.select().from(expenseEntries).where(like(expenseEntries.expenseDate, `${prefix}%`));
+      let rows = await db.select().from(expenseEntries).where(like(expenseEntries.expenseDate, `${prefix}%`));
+      if (input.branchId) rows = rows.filter(r => r.branchId === input.branchId);
 
       const byCategory: Record<string, number> = {};
       for (const row of rows) {
@@ -619,6 +1968,88 @@ const expenseRouter = t.router({
 
 // ─── KPI Dashboard ───────────────────────────────────────────────────────────
 const kpiRouter = t.router({
+  financialDetail: protectedProcedure
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [allRevenueRaw2, allExpensesRaw2] = await Promise.all([
+        db.select().from(revenueEntries),
+        db.select().from(expenseEntries),
+      ]);
+
+      const allRevenue = input.branchId
+        ? allRevenueRaw2.filter(r => r.branchId === input.branchId)
+        : allRevenueRaw2;
+      const allExpenses = input.branchId
+        ? allExpensesRaw2.filter(e => e.branchId === input.branchId)
+        : allExpensesRaw2;
+
+      const computeMonth = (m: number) => {
+        const prefix = `${input.year}-${String(m).padStart(2, "0")}`;
+        const rev = allRevenue.filter(r => r.paymentDate.startsWith(prefix) && r.subType !== "이전");
+        const exp = allExpenses.filter(e => e.expenseDate.startsWith(prefix));
+
+        const ptNew      = rev.filter(r => r.type === "PT"    && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
+        const ptRenewal  = rev.filter(r => r.type === "PT"    && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
+        const hlNew      = rev.filter(r => r.type === "헬스"  && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
+        const hlRenewal  = rev.filter(r => r.type === "헬스"  && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
+        const other      = rev.filter(r => r.type !== "PT"    && r.type !== "헬스").reduce((s, r) => s + r.paidAmount, 0);
+        const refund     = rev.reduce((s, r) => s + r.refundAmount, 0);
+
+        const gs  = rev.reduce((s, r) => s + r.paidAmount, 0);
+        const vat = Math.round(gs / 11); // 부가세 (GS에 포함된 10% VAT)
+        const ns  = gs - vat;
+
+        const fc  = exp.filter(e => e.category === "고정관리비").reduce((s, e) => s + e.amount, 0);
+        const vc  = exp.filter(e => e.category === "인건비" || e.category === "유동관리비").reduce((s, e) => s + e.amount, 0);
+        const cac = exp.filter(e => e.subCategory === "마케팅비").reduce((s, e) => s + e.amount, 0);
+        const totalExp = exp.reduce((s, e) => s + e.amount, 0);
+
+        const gp  = ns - vc;
+        const op  = gp - fc;
+        const np  = op - cac;
+
+        const ptCnt = rev.filter(r => r.type === "PT").length;
+        const hlCnt = rev.filter(r => r.type === "헬스").length;
+
+        const card     = rev.filter(r => r.paymentMethod === "카드").reduce((s, r) => s + r.paidAmount, 0);
+        const transfer = rev.filter(r => r.paymentMethod === "이체" || r.paymentMethod === "계좌이체").reduce((s, r) => s + r.paidAmount, 0);
+        const cash     = rev.filter(r => r.paymentMethod === "현금" || r.paymentMethod === "현금영수증").reduce((s, r) => s + r.paidAmount, 0);
+        const local    = rev.filter(r => r.paymentMethod === "지역화폐").reduce((s, r) => s + r.paidAmount, 0);
+
+        return {
+          month: m, gs, ns, vat, refund,
+          ptNew, ptRenewal, hlNew, hlRenewal, other,
+          gp, op, np, totalExp,
+          opm: ns > 0 ? Math.round((op / ns) * 1000) / 10 : 0,
+          npm: ns > 0 ? Math.round((np / ns) * 1000) / 10 : 0,
+          fc, vc, cac,
+          ptCnt, hlCnt, totalCnt: ptCnt + hlCnt,
+          ptUnit: ptCnt > 0 ? Math.round((ptNew + ptRenewal) / ptCnt) : 0,
+          hlUnit: hlCnt > 0 ? Math.round((hlNew + hlRenewal) / hlCnt) : 0,
+          card, transfer, cash, local,
+        };
+      };
+
+      const monthlyData = Array.from({ length: 12 }, (_, i) => computeMonth(i + 1));
+
+      // 연간 합계
+      const total = monthlyData.reduce((acc, m) => ({
+        gs: acc.gs + m.gs, ns: acc.ns + m.ns, vat: acc.vat + m.vat, refund: acc.refund + m.refund,
+        ptNew: acc.ptNew + m.ptNew, ptRenewal: acc.ptRenewal + m.ptRenewal,
+        hlNew: acc.hlNew + m.hlNew, hlRenewal: acc.hlRenewal + m.hlRenewal, other: acc.other + m.other,
+        gp: acc.gp + m.gp, op: acc.op + m.op, np: acc.np + m.np, totalExp: acc.totalExp + m.totalExp,
+        fc: acc.fc + m.fc, vc: acc.vc + m.vc, cac: acc.cac + m.cac,
+        ptCnt: acc.ptCnt + m.ptCnt, hlCnt: acc.hlCnt + m.hlCnt, totalCnt: acc.totalCnt + m.totalCnt,
+        card: acc.card + m.card, transfer: acc.transfer + m.transfer, cash: acc.cash + m.cash, local: acc.local + m.local,
+      }), { gs:0,ns:0,vat:0,refund:0,ptNew:0,ptRenewal:0,hlNew:0,hlRenewal:0,other:0,gp:0,op:0,np:0,totalExp:0,fc:0,vc:0,cac:0,ptCnt:0,hlCnt:0,totalCnt:0,card:0,transfer:0,cash:0,local:0 });
+
+      return { monthlyData, total, year: input.year };
+    }),
+
   overview: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
@@ -626,18 +2057,24 @@ const kpiRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const today = new Date().toISOString().substring(0, 10);
+      const today = kstDate();
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
-      const revenueWhere = input.branchId ? eq(revenueEntries.branchId, input.branchId) : undefined;
-      const expenseWhere = input.branchId ? eq(expenseEntries.branchId, input.branchId) : undefined;
-
-      const [allRevenue, allExpenses, allLeads, allTargets] = await Promise.all([
-        revenueWhere ? db.select().from(revenueEntries).where(revenueWhere) : db.select().from(revenueEntries),
-        expenseWhere ? db.select().from(expenseEntries).where(expenseWhere) : db.select().from(expenseEntries),
+      // 지점 필터: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속 지점으로 판단
+      const [allRevenueRaw, allExpensesRaw, allLeads, allTargets] = await Promise.all([
+        db.select().from(revenueEntries),
+        db.select().from(expenseEntries),
         db.select().from(leads),
         db.select().from(revenueTargets),
       ]);
+
+      const allRevenue = input.branchId
+        ? allRevenueRaw.filter(r => r.branchId === input.branchId)
+        : allRevenueRaw;
+
+      const allExpenses = input.branchId
+        ? allExpensesRaw.filter(e => e.branchId === input.branchId)
+        : allExpensesRaw;
 
       // 오늘 매출 (이전 제외)
       const todayRevenue = allRevenue.filter(r => r.paymentDate === today && r.subType !== "이전").reduce((s, r) => s + r.paidAmount, 0);
@@ -670,9 +2107,11 @@ const kpiRouter = t.router({
         ? Math.round((monthLeads.filter(l => l.status === "registered").length / monthLeads.length) * 100)
         : 0;
 
-      // 재등록률 (이번달 재등록 건수 / 전체 이번달 건수)
-      const renewalRate = monthRevenue.length > 0
-        ? Math.round((monthRevenue.filter(r => r.subType === "재등록").length / monthRevenue.length) * 100)
+      // 재등록률 (이번달 재등록 건수 / 전체 이번달 건수). 미수금 수납 기록은 신규 등록 이벤트가
+      // 아니므로 분모에서 제외 — 안 그러면 미수금 받을 때마다 재등록률이 희석되어 낮아진다.
+      const monthRegistrationEvents = monthRevenue.filter(r => r.subType !== "미수금");
+      const renewalRate = monthRegistrationEvents.length > 0
+        ? Math.round((monthRegistrationEvents.filter(r => r.subType === "재등록").length / monthRegistrationEvents.length) * 100)
         : 0;
 
       // 전월 대비
@@ -702,26 +2141,158 @@ const kpiRouter = t.router({
       };
     }),
 
-  recentActivity: protectedProcedure.query(async () => {
+  // 미수금 내역 — 매출(revenue_entries) 기준. 미수금 KPI 카드(overview.totalUnpaid)와
+  // 동일한 소스라 두 숫자가 항상 일치한다. (예전 팝업은 ptPackages 기준이라 패키지만 처리되고
+  // 매출은 안 처리된 건에서 카드와 목록 합계가 어긋나는 사고가 있었다.)
+  // 이번달 포인트 회원권 연장 현황. 매출 0원이지만 실질은 무상 제공(비용)이라,
+  // 매출 지표와 별개로 "이번달 며칠이나 나갔는지"를 볼 수 있어야 통제가 된다.
+  pointExtensionSummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") return { count: 0, totalDays: 0, rows: [] };
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      try {
+        const r = await pool.query<{ customerName: string | null; extensionDays: number; newEnd: string; createdAt: string }>(
+          `SELECT "customerName", "extensionDays", "newEnd", "createdAt"
+           FROM point_membership_extensions
+           WHERE to_char(("createdAt"::timestamp + interval '9 hours'), 'YYYY-MM') = $1
+           ORDER BY "createdAt" DESC`,
+          [prefix]
+        );
+        const rows = r.rows;
+        return {
+          count: rows.length,
+          totalDays: rows.reduce((s, x) => s + (x.extensionDays ?? 0), 0),
+          rows,
+        };
+      } catch {
+        return { count: 0, totalDays: 0, rows: [] };
+      }
+    }),
+
+  unpaidList: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({
+        id: revenueEntries.id,
+        customerName: revenueEntries.customerName,
+        memberName: members.name,
+        type: revenueEntries.type,
+        programDetail: revenueEntries.programDetail,
+        unpaidAmount: revenueEntries.unpaidAmount,
+        paymentDate: revenueEntries.paymentDate,
+        trainerName: trainers.trainerName,
+        branchId: revenueEntries.branchId,
+      })
+        .from(revenueEntries)
+        .leftJoin(members, eq(revenueEntries.memberId, members.id))
+        .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
+        .where(sql`COALESCE(${revenueEntries.unpaidAmount},0) > 0`)
+        .orderBy(desc(revenueEntries.unpaidAmount));
+      return input?.branchId ? rows.filter(r => r.branchId === input.branchId) : rows;
+    }),
+
+  recentActivity: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const isTrainer = ctx.user?.role === "trainer";
+    const trainerId = ctx.user?.trainerId;
 
     const [recentRevenue, recentLeads] = await Promise.all([
       db.select({ entry: revenueEntries, trainerName: trainers.trainerName, memberName: members.name })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
+        .where(isTrainer && trainerId ? eq(revenueEntries.trainerId, trainerId) : undefined)
         .orderBy(desc(revenueEntries.createdAt))
         .limit(10),
       db.select({ lead: leads, channelName: channels.name })
         .from(leads)
         .leftJoin(channels, eq(leads.channelId, channels.id))
+        .where(isTrainer && trainerId ? eq(leads.assignedTrainerId, trainerId) : undefined)
         .orderBy(desc(leads.createdAt))
         .limit(10),
     ]);
 
     return { recentRevenue, recentLeads };
   }),
+
+  // 회원 운영 트렌드: 최근 N개월 활성회원/신규/만료/재등록률 추이
+  memberTrend: protectedProcedure
+    .input(z.object({ branchId: z.number().optional(), months: z.number().min(1).max(12).default(6) }).optional())
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const monthsCount = input?.months ?? 6;
+      const branchId = input?.branchId ?? null;
+
+      // 최근 N개월 구간 생성 — KST 기준. UTC(toISOString)로 계산하면 한국시간 매월 1일
+      // 오전(00~09시)에 "이번달"이 지난달로 밀린다.
+      const [curY, curM] = kstDate().split("-").map(Number);
+      const periods: { label: string; start: string; end: string }[] = [];
+      for (let i = monthsCount - 1; i >= 0; i--) {
+        const total = curY * 12 + (curM - 1) - i;
+        const y = Math.floor(total / 12);
+        const m = (total % 12) + 1;
+        const nextTotal = total + 1;
+        const ny = Math.floor(nextTotal / 12);
+        const nm = (nextTotal % 12) + 1;
+        periods.push({
+          label: `${m}월`,
+          start: `${y}-${String(m).padStart(2, "0")}-01`,
+          end: `${ny}-${String(nm).padStart(2, "0")}-01`,
+        });
+      }
+
+      const bM = branchId != null;
+      const rows = await Promise.all(periods.map(async (p) => {
+        const [newRes, expiredRes, activeRes, reregRes] = await Promise.all([
+          // 신규 가입 (그 달에 createdAt)
+          pool.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c FROM members WHERE "createdAt" >= $1 AND "createdAt" < $2${bM ? ` AND "branchId" = $3` : ``}`,
+            bM ? [p.start, p.end, branchId] : [p.start, p.end]
+          ),
+          // 만료 (그 달에 membershipEnd 도래)
+          pool.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c FROM members WHERE "membershipEnd" >= $1 AND "membershipEnd" < $2${bM ? ` AND "branchId" = $3` : ``}`,
+            bM ? [p.start, p.end, branchId] : [p.start, p.end]
+          ),
+          // 활성 (월말 시점: 그 전까지 가입했고 회원권이 아직 유효). 회원권 기간(membershipEnd)이
+          // 정의된 회원 기준의 근사치.
+          pool.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c FROM members WHERE "createdAt" < $1 AND "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1${bM ? ` AND "branchId" = $2` : ``}`,
+            bM ? [p.end, branchId] : [p.end]
+          ),
+          // 재등록률용: 그 달 결제 건 중 subType 분포 (이전/환불 제외)
+          pool.query<{ st: string; c: number }>(
+            `SELECT COALESCE("subType",'') AS st, COUNT(*)::int AS c FROM revenue_entries
+             WHERE "paymentDate" >= $1 AND "paymentDate" < $2
+               AND COALESCE("subType",'') NOT IN ('이전','환불')${bM ? ` AND "branchId" = $3` : ``}
+             GROUP BY st`,
+            bM ? [p.start, p.end, branchId] : [p.start, p.end]
+          ),
+        ]);
+        let reg = 0, rereg = 0;
+        for (const r of reregRes.rows) {
+          reg += r.c;
+          if (r.st === "재등록") rereg += r.c;
+        }
+        return {
+          label: p.label,
+          active: activeRes.rows[0]?.c ?? 0,
+          new: newRes.rows[0]?.c ?? 0,
+          expired: expiredRes.rows[0]?.c ?? 0,
+          renewalRate: reg > 0 ? Math.round((rereg / reg) * 100) : 0,
+        };
+      }));
+
+      return rows;
+    }),
 });
 
 // ─── AI Analysis ─────────────────────────────────────────────────────────────
@@ -852,7 +2423,638 @@ ${dataContext}
         };
       }
     }),
+
+  trainerMatch: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // ── 회원 기본 정보
+      const [member] = await db.select().from(members).where(eq(members.id, input.memberId));
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // ── 연결된 리드 (상담 내용, 운동목적, 운동가능시간)
+      const [lead] = await db.select({
+        consultationNote: leads.consultationNote,
+        memo: leads.memo,
+        exercisePurpose: leads.exercisePurpose,
+        interestType: leads.interestType,
+      }).from(leads).where(eq(leads.registeredMemberId, input.memberId)).limit(1);
+
+      // ── 나이 계산
+      const age = member.birthDate
+        ? Math.floor((Date.now() - new Date(member.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+        : null;
+
+      // ── 트레이너 목록
+      const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName })
+        .from(trainers).orderBy(trainers.trainerName);
+
+      // ── 트레이너별 통계 수집
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
+        const tid = trainer.id;
+
+        const [memberCountRes, pkgRows, monthLogsRes, allLogsRes] = await Promise.all([
+          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "active"))),
+          db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)`, packageName: ptPackages.packageName })
+            .from(ptPackages).where(eq(ptPackages.trainerId, tid)).groupBy(ptPackages.memberId, ptPackages.packageName),
+          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(
+            eq(ptSessionLogs.trainerId, tid),
+            sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+          )),
+          db.select({ sessionDate: ptSessionLogs.sessionDate }).from(ptSessionLogs)
+            .where(eq(ptSessionLogs.trainerId, tid)).orderBy(desc(ptSessionLogs.sessionDate)).limit(60),
+        ]);
+
+        // 재등록률
+        const reregMemberCount = pkgRows.filter(r => Number(r.count) > 1).length;
+        const totalMemberCount = new Set(pkgRows.map(r => r.memberId)).size;
+        const reregRate = totalMemberCount > 0 ? Math.round((reregMemberCount / totalMemberCount) * 100) : 0;
+
+        // 주요 프로그램 (전문 분야)
+        const programCounts: Record<string, number> = {};
+        for (const p of pkgRows) {
+          const name = p.packageName ?? "기타";
+          programCounts[name] = (programCounts[name] ?? 0) + 1;
+        }
+        const topPrograms = Object.entries(programCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n);
+
+        // 활동 요일 패턴 (최근 세션)
+        const dayCounts: Record<string, number> = { 월: 0, 화: 0, 수: 0, 목: 0, 금: 0, 토: 0, 일: 0 };
+        const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+        for (const log of allLogsRes) {
+          const day = dayNames[new Date(log.sessionDate).getDay()];
+          dayCounts[day]++;
+        }
+        const activeDays = Object.entries(dayCounts).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]).map(([d]) => d).join("");
+
+        return {
+          trainerName: trainer.trainerName,
+          activeMembers: Number(memberCountRes[0]?.c ?? 0),
+          monthSessions: Number(monthLogsRes[0]?.c ?? 0),
+          reregRate,
+          topPrograms,
+          activeDays,
+        };
+      }));
+
+      // ── AI 프롬프트 구성
+      const structuredInfo = [
+        `이름: ${member.name}`,
+        age ? `나이: ${age}세` : null,
+        member.gender ? `성별: ${member.gender}` : null,
+        lead?.interestType ? `관심 프로그램: ${lead.interestType}` : null,
+        lead?.exercisePurpose ? `운동 목적: ${lead.exercisePurpose}` : null,
+        member.profileNote ? `회원 특이사항: ${member.profileNote}` : null,
+      ].filter(Boolean).join("\n");
+
+      // 상담 내용·등록 진행 내용은 별도로 강조 (키워드가 많이 담겨있음)
+      const freeTextSection = [
+        lead?.consultationNote ? `[상담 내용 원문]\n${lead.consultationNote}` : null,
+        lead?.memo ? `[등록 진행 내용 원문]\n${lead.memo}` : null,
+      ].filter(Boolean).join("\n\n");
+
+      const trainerContext = trainerStats.map(t =>
+        `[${t.trainerName}]\n- 현재 담당 회원: ${t.activeMembers}명\n- 이번달 수업: ${t.monthSessions}회\n- 재등록률: ${t.reregRate}%\n- 주요 프로그램: ${t.topPrograms.join(", ") || "정보없음"}\n- 주요 활동 요일: ${t.activeDays || "정보없음"}`
+      ).join("\n\n");
+
+      const prompt = `당신은 피트니스 센터 트레이너 매칭 전문 AI입니다.
+
+## 회원 기본 정보
+${structuredInfo}
+
+## 상담 기록 (운동 가능 시간·성향·상황 등 핵심 키워드 포함)
+${freeTextSection || "상담 기록 없음"}
+
+## 트레이너 현황
+${trainerContext}
+
+---
+
+### 분석 지침
+상담 기록 원문에는 회원이 말한 다음 정보가 섞여 있을 수 있습니다. 반드시 원문을 꼼꼼히 읽고 키워드를 추출하세요:
+- 운동 가능 요일 (예: 평일만, 주말 포함, 월·수·금 등)
+- 운동 가능 시간대 (예: 오전 10시 이후, 저녁 7시 이후, 점심 시간 등)
+- 회원 성향/성격 (예: 동기부여 필요, 혼자 잘함, 꼼꼼한 설명 선호 등)
+- 건강 상태/주의사항 (예: 허리 통증, 무릎 불편, 임산부 등)
+- 운동 경험 수준 (초보/중급/고급)
+- 특별 요청사항
+
+### 출력 형식
+**[STEP 1: 회원 분석 요약]**
+상담 기록에서 추출한 핵심 키워드를 3~5줄로 정리
+
+**[STEP 2: 트레이너 매칭 추천]**
+1순위~3순위 트레이너를 추천하고, 각각:
+- **N순위. 트레이너명** - 추천 이유 (상담 내용 키워드와 연결하여 설명)
+- 예상 시너지
+- 주의사항 (있다면)
+
+**[종합 의견]** 1~2문장`;
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        // Fallback: 재등록률 기반 단순 추천
+        const sorted = [...trainerStats].sort((a, b) => b.reregRate - a.reregRate);
+        const fallback = sorted.slice(0, 3).map((t, i) =>
+          `**${i + 1}. ${t.trainerName}** - 재등록률 ${t.reregRate}%, 담당 ${t.activeMembers}명`
+        ).join("\n");
+        return { analysis: `## AI 매칭 추천 (기본 분석)\n\n${fallback}\n\n*ANTHROPIC_API_KEY 미설정으로 기본 분석이 제공됩니다.*`, isAI: false, trainerStats };
+      }
+
+      try {
+        const client = new Anthropic({ apiKey });
+        const message = await client.messages.create({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = message.content[0].type === "text" ? message.content[0].text : "";
+        return { analysis: text, isAI: true, trainerStats };
+      } catch {
+        const sorted = [...trainerStats].sort((a, b) => b.reregRate - a.reregRate);
+        const fallback = sorted.slice(0, 3).map((t, i) =>
+          `**${i + 1}. ${t.trainerName}** - 재등록률 ${t.reregRate}%, 담당 ${t.activeMembers}명`
+        ).join("\n");
+        return { analysis: `## AI 매칭 추천 (기본 분석)\n\n${fallback}`, isAI: false, trainerStats };
+      }
+    }),
+
+  generateMemberReport: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [member] = await db.select().from(members).where(eq(members.id, input.memberId));
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [health] = await db.select().from(parQ).where(eq(parQ.memberId, input.memberId));
+      const logs = await db.select().from(ptSessionLogs)
+        .where(eq(ptSessionLogs.memberId, input.memberId))
+        .orderBy(desc(ptSessionLogs.sessionDate)).limit(60);
+      const checks = await db.select().from(attendanceChecks)
+        .where(eq(attendanceChecks.memberId, input.memberId))
+        .orderBy(desc(attendanceChecks.checkDate)).limit(60);
+
+      // ── 트레이닝 통계
+      const bodyPartCounts: Record<string, number> = {};
+      const goalSet: string[] = [];
+      const recentFeedback: string[] = [];
+      for (const log of logs) {
+        if (log.bodyPart) log.bodyPart.split(",").map(p => p.trim()).filter(Boolean).forEach(p => { bodyPartCounts[p] = (bodyPartCounts[p] || 0) + 1; });
+        if (log.goal && !goalSet.includes(log.goal)) goalSet.push(log.goal);
+        if (log.feedback && recentFeedback.length < 3) recentFeedback.push(log.feedback);
+      }
+      const topBodyParts = Object.entries(bodyPartCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([p, c]) => `${p}(${c}회)`);
+      const condScores = checks.filter(c => c.conditionScore != null).map(c => c.conditionScore!);
+      const avgCondition = condScores.length > 0 ? Math.round(condScores.reduce((a, b) => a + b, 0) / condScores.length * 10) / 10 : null;
+      const painLevels = checks.filter(c => c.painLevel != null).map(c => c.painLevel!);
+      const avgPain = painLevels.length > 0 ? Math.round(painLevels.reduce((a, b) => a + b, 0) / painLevels.length * 10) / 10 : null;
+
+      // ── 생활습관 위험도 계산 (A/B/C/D 문자 저장)
+      const DIET_TEXT = [
+        "하루 식사 시간이 일정하지 않거나 끼니를 자주 거른다",
+        "하루 단백질 섭취량이 부족하거나 식단 구성이 한쪽으로 치우친다",
+        "스트레스나 감정 변화로 인해 폭식 또는 과식을 경험한다",
+        "저녁 9시 이후 야식 또는 고칼로리 간식을 자주 섭취한다",
+      ];
+      const ALCOHOL_TEXT = [
+        "주 3회 이상 음주하거나 1회 음주량이 평균 3잔 이상이다",
+        "한 번 술을 마시면 마무리가 잘 안 되어 과음하는 경우가 있다",
+        "스트레스 해소를 술에 의존하는 편이다",
+        "회식·약속 등으로 인해 운동 다음 날 컨디션이 떨어지는 경우가 잦다",
+      ];
+      const SLEEP_TEXT = [
+        "밤에 자주 깨거나(2회 이상) 수면 중단이 반복된다",
+        "아침에 일어나도 개운하지 않고 지속적으로 피곤하다",
+        "잠드는 데 30분 이상 걸리거나 누워도 쉽게 잠들지 못한다",
+        "수면 시간이 일정하지 않거나 6시간 미만으로 자는 날이 많다",
+      ];
+      const ACTIVITY_TEXT = [
+        "하루 활동량(걸음 수)이 5,000보 미만인 날이 많다",
+        "하루 중 앉아 있는 시간이 6시간 이상으로 길다",
+        "주 2회 이상 규칙적인 운동을 하지 않는다",
+        "계단 오르기 등 기본 활동에서도 숨이 차거나 피로를 느낀다",
+      ];
+      const mapLetters = (raw: string | null | undefined, texts: string[]) => {
+        const letters = (raw ?? "").split(",").filter(Boolean);
+        return letters.map(l => texts[["A","B","C","D"].indexOf(l)]).filter(Boolean);
+      };
+      const riskLevel = (count: number): "normal"|"caution"|"warning"|"critical" =>
+        count === 0 ? "normal" : count === 1 ? "caution" : count === 2 ? "warning" : "critical";
+      const riskKo = (level: string) => ({ normal:"양호", caution:"건강관리 필요", warning:"빠른 건강관리 필요", critical:"건강 필수 심각 수준" }[level] ?? level);
+
+      const dietItems = mapLetters(health?.dietIssues, DIET_TEXT);
+      const alcoholItems = mapLetters(health?.alcoholIssues, ALCOHOL_TEXT);
+      const sleepItems = mapLetters(health?.sleepIssues, SLEEP_TEXT);
+      const activityItems = mapLetters(health?.activityIssues, ACTIVITY_TEXT);
+
+      // ── BMI 계산
+      let bmi: string | undefined;
+      if (health?.height && health?.weight) {
+        const h = parseFloat(health.height) / 100;
+        const w = parseFloat(health.weight);
+        if (h > 0 && w > 0) bmi = (w / (h * h)).toFixed(1);
+      }
+
+      // ── 나이 계산
+      let age: number | undefined;
+      if (member.birthDate) {
+        const bd = new Date(member.birthDate);
+        const today = new Date();
+        age = today.getFullYear() - bd.getFullYear() - (today < new Date(today.getFullYear(), bd.getMonth(), bd.getDate()) ? 1 : 0);
+      }
+
+      const goals = [health?.goal1, health?.goal2, health?.goal3].filter(Boolean) as string[];
+
+      // ── ReportData 구조 생성
+      const reportData: ReportData = {
+        generatedAt: new Date().toLocaleDateString("ko-KR"),
+        isAI: false,
+        member: { name: member.name, age, gender: member.gender ?? undefined },
+        health: {
+          height: health?.height ?? undefined,
+          weight: health?.weight ?? undefined,
+          bmi,
+          occupation: health?.occupation ?? undefined,
+          workEnvironment: health?.workEnvironment ?? undefined,
+          exerciseExperience: health?.exerciseExperience ?? undefined,
+          goals,
+          systolicBp: health?.systolicBp ?? undefined,
+          diastolicBp: health?.diastolicBp ?? undefined,
+          waistCircumference: health?.waistCircumference ?? undefined,
+          totalCholesterol: health?.totalCholesterol ?? undefined,
+          hdlCholesterol: health?.hdlCholesterol ?? undefined,
+          ldlCholesterol: health?.ldlCholesterol ?? undefined,
+          triglycerides: health?.triglycerides ?? undefined,
+          fastingBloodSugar: health?.fastingBloodSugar ?? undefined,
+          postMealBloodSugar: health?.postMealBloodSugar ?? undefined,
+          hba1c: health?.hba1c ?? undefined,
+          boneDensity: health?.boneDensity ?? undefined,
+          chronicDiseases: health?.chronicDiseases ?? undefined,
+          musculoskeletalIssues: health?.musculoskeletalIssues ?? undefined,
+          posturalIssues: health?.posturalIssues ?? undefined,
+        },
+        lifestyle: {
+          diet: { items: dietItems, count: dietItems.length, riskLevel: riskLevel(dietItems.length), riskKo: riskKo(riskLevel(dietItems.length)) },
+          alcohol: { items: alcoholItems, count: alcoholItems.length, riskLevel: riskLevel(alcoholItems.length), riskKo: riskKo(riskLevel(alcoholItems.length)) },
+          sleep: { items: sleepItems, count: sleepItems.length, riskLevel: riskLevel(sleepItems.length), riskKo: riskKo(riskLevel(sleepItems.length)) },
+          activity: { items: activityItems, count: activityItems.length, riskLevel: riskLevel(activityItems.length), riskKo: riskKo(riskLevel(activityItems.length)) },
+        },
+        training: { totalSessions: logs.length, topBodyParts, goals: goalSet.slice(0, 3), avgCondition, avgPain, checksCount: checks.length },
+      };
+
+      // ── AI 프롬프트 (위험도 포함)
+      const lifestyleContext = `
+생활습관 위험도 분석:
+- 식단 (${dietItems.length}/4): ${riskKo(riskLevel(dietItems.length))}${dietItems.length > 0 ? "\n  해당 항목: " + dietItems.join(" / ") : ""}
+- 음주 (${alcoholItems.length}/4): ${riskKo(riskLevel(alcoholItems.length))}${alcoholItems.length > 0 ? "\n  해당 항목: " + alcoholItems.join(" / ") : ""}
+- 수면 (${sleepItems.length}/4): ${riskKo(riskLevel(sleepItems.length))}${sleepItems.length > 0 ? "\n  해당 항목: " + sleepItems.join(" / ") : ""}
+- 활동 (${activityItems.length}/4): ${riskKo(riskLevel(activityItems.length))}${activityItems.length > 0 ? "\n  해당 항목: " + activityItems.join(" / ") : ""}`;
+
+      const dataCtx = `회원명: ${member.name}${age ? ` (${age}세)` : ""}
+${health ? `신체: 키 ${health.height || "-"}cm / 체중 ${health.weight || "-"}kg${bmi ? ` / BMI ${bmi}` : ""}
+직업: ${health.occupation || "-"} / 근무환경: ${health.workEnvironment || "-"}
+운동경험: ${health.exerciseExperience || "-"}
+운동 목적: ${goals.join(", ") || "미기재"}
+병원 진단: ${health.chronicDiseases || "없음"}
+근골격계: ${health.musculoskeletalIssues || "없음"}
+
+건강 수치:
+혈압: ${health.systolicBp || "미입력"} / 공복혈당: ${health.fastingBloodSugar || "미입력"} / HbA1c: ${health.hba1c || "미입력"}` : "PAR-Q 미입력"}
+
+${lifestyleContext}
+
+트레이닝: 총 ${logs.length}회 수업 / 주요 부위: ${topBodyParts.join(", ") || "없음"}
+컨디션 평균: ${avgCondition != null ? `${avgCondition}/10` : "없음"} / 통증 평균: ${avgPain != null ? `${avgPain}/10` : "없음"}`;
+
+      const prompt = `당신은 개인 트레이닝 전문 건강 상담사입니다. 회원 건강 보고서를 한국어로 작성해주세요.
+
+${dataCtx}
+
+[위험도 기준: 0항목=양호, 1항목=건강관리 필요, 2항목=빠른 건강관리 필요, 3-4항목=건강 필수 심각 수준]
+
+각 섹션을 2-4문장으로 작성하되, 위험도 수준을 명시하고 해당 항목이 운동과 건강에 미치는 영향을 구체적으로 설명하세요:
+
+**1. 건강 상태 요약**
+현재 건강 수치와 기저질환 상태. 특이 수치가 있으면 그 의미를 설명하고, 없으면 양호하다고 언급.
+
+**2. 생활습관 평가**
+각 카테고리(식단/음주/수면/활동)별 위험도와 구체적 개선 필요 내용. 각 위험도가 운동 효과에 미치는 영향 포함.
+
+**3. 트레이닝 패턴 분석**
+수업 횟수, 주요 운동 부위 분포의 강점과 보완점. 컨디션/통증 데이터 해석 포함.
+
+**4. 맞춤 권장사항**
+이 회원의 위험도와 목표에 맞는 구체적 개선 사항 3가지. 실행 가능한 액션으로 작성.`;
+
+      // ── DB 저장 및 토큰 생성
+      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      let aiText = buildFallbackMemberReport(member.name, reportData.lifestyle, reportData.training);
+      let isAI = false;
+
+      if (apiKey) {
+        try {
+          const client = new Anthropic({ apiKey });
+          const message = await client.messages.create({
+            model: "claude-sonnet-4-6",
+            max_tokens: 2000,
+            messages: [{ role: "user", content: prompt }],
+          });
+          aiText = message.content[0].type === "text" ? message.content[0].text : aiText;
+          isAI = true;
+        } catch { /* fallback */ }
+      }
+
+      reportData.isAI = isAI;
+
+      // 기존 보고서 삭제 후 새로 저장
+      await db.delete(healthReports).where(eq(healthReports.memberId, input.memberId));
+      await db.insert(healthReports).values({
+        token,
+        memberId: input.memberId,
+        generatedBy: ctx.user!.id,
+        reportData: JSON.stringify(reportData),
+        aiText,
+        isAI: isAI ? 1 : 0,
+      });
+
+      const reportUrl = `/api/health-report/${token}`;
+      const stats = { totalSessions: logs.length, topBodyParts, goals: goalSet.slice(0, 3), avgCondition, avgPain, checksCount: checks.length };
+      return { report: aiText, isAI, stats, token, reportUrl };
+    }),
+
+  getPTReports: protectedProcedure
+    .input(z.object({ packageId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(ptReports)
+        .where(eq(ptReports.packageId, input.packageId))
+        .orderBy(ptReports.reportIndex);
+    }),
+
+  generatePTProgressReport: protectedProcedure
+    .input(z.object({
+      packageId: z.number(),
+      memberId: z.number(),
+      milestoneSession: z.number(),
+      fromSession: z.number(),
+      reportIndex: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [pkg] = await db.select().from(ptPackages).where(eq(ptPackages.id, input.packageId));
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [member] = await db.select().from(members).where(eq(members.id, input.memberId));
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // 담당 트레이너명
+      let trainerName: string | undefined;
+      if (pkg.trainerId) {
+        const [tr] = await db.select().from(trainers).where(eq(trainers.id, pkg.trainerId));
+        trainerName = tr?.trainerName ?? undefined;
+      }
+
+      // 이 패키지의 세션 로그 전체 (날짜순)
+      const allLogs = await db.select().from(ptSessionLogs)
+        .where(eq(ptSessionLogs.packageId, input.packageId))
+        .orderBy(ptSessionLogs.sessionDate);
+
+      // 이번 구간 로그 (fromSession~milestoneSession, 0-indexed slice)
+      const periodLogs = allLogs.slice(input.fromSession - 1, input.milestoneSession);
+      // 이전 구간 로그 (있을 경우)
+      const prevLogs = input.fromSession > 1 ? allLogs.slice(0, input.fromSession - 1) : [];
+
+      const fromDate = periodLogs[0]?.sessionDate;
+      const toDate = periodLogs[periodLogs.length - 1]?.sessionDate;
+
+      // 날짜 범위로 컨디션 체크 가져오기
+      const periodChecks = fromDate && toDate
+        ? await db.select().from(attendanceChecks)
+            .where(and(
+              eq(attendanceChecks.memberId, input.memberId),
+              gte(attendanceChecks.checkDate, fromDate),
+              lte(attendanceChecks.checkDate, toDate),
+            ))
+        : [];
+
+      const prevChecks = prevLogs.length > 0 && prevLogs[0].sessionDate && prevLogs[prevLogs.length - 1].sessionDate
+        ? await db.select().from(attendanceChecks)
+            .where(and(
+              eq(attendanceChecks.memberId, input.memberId),
+              gte(attendanceChecks.checkDate, prevLogs[0].sessionDate!),
+              lte(attendanceChecks.checkDate, prevLogs[prevLogs.length - 1].sessionDate!),
+            ))
+        : [];
+
+      // 통계 계산 helper
+      const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10 : null;
+
+      const calcStats = (logs: typeof allLogs, checks: typeof periodChecks) => ({
+        sessionCount: logs.length,
+        avgCondition: avg(checks.filter(c => c.conditionScore != null).map(c => c.conditionScore!)),
+        avgSleep: avg(checks.filter(c => c.sleepHours != null).map(c => parseFloat(c.sleepHours ?? "0")).filter(n => n > 0)),
+        avgPain: avg(checks.filter(c => c.painLevel != null).map(c => c.painLevel!)),
+        attendanceRate: logs.length > 0 ? Math.round(logs.length / (input.milestoneSession - input.fromSession + 1) * 100) : 0,
+      });
+
+      const periodSt = calcStats(periodLogs, periodChecks);
+      const prevSt = prevLogs.length > 0 ? calcStats(prevLogs, prevChecks) : null;
+
+      // 운동 종목별 집계
+      const exerciseMap: Record<string, { entries: { weight: number; reps: number; sets: number; date: string }[] }> = {};
+      for (const log of periodLogs) {
+        if (!log.exercisesJson) continue;
+        try {
+          const exs: Array<{ name: string; sets: Array<{ weight: string; reps: string }> }> = JSON.parse(log.exercisesJson);
+          for (const ex of exs) {
+            if (!ex.name) continue;
+            const validSets = ex.sets.filter(s => s.weight && s.reps);
+            if (validSets.length === 0) continue;
+            const maxW = Math.max(...validSets.map(s => parseFloat(s.weight) || 0));
+            const avgReps = Math.round(validSets.map(s => parseInt(s.reps) || 0).reduce((a, b) => a + b, 0) / validSets.length);
+            if (!exerciseMap[ex.name]) exerciseMap[ex.name] = { entries: [] };
+            exerciseMap[ex.name].entries.push({ weight: maxW, reps: avgReps, sets: validSets.length, date: log.sessionDate });
+          }
+        } catch { /* skip */ }
+      }
+
+      const exercises: ExerciseStat[] = Object.entries(exerciseMap)
+        .map(([name, { entries }]) => {
+          const sorted = entries.sort((a, b) => a.date.localeCompare(b.date));
+          const first = sorted[0] ?? null;
+          const last = sorted[sorted.length - 1] ?? null;
+          let trend: ExerciseStat["trend"] = "insufficient";
+          let changePercent: number | undefined;
+          if (sorted.length >= 2 && first && last) {
+            const weightChange = last.weight - first.weight;
+            if (first.weight > 0) {
+              changePercent = Math.round(Math.abs(weightChange) / first.weight * 100);
+              trend = changePercent < 3 ? "stable" : weightChange > 0 ? "up" : "down";
+            } else {
+              trend = last.sets > first.sets || last.reps > first.reps ? "up" : "stable";
+            }
+          }
+          return { name, sessions: sorted.length, first: first ? { weight: first.weight, reps: first.reps, sets: first.sets } : null, last: last ? { weight: last.weight, reps: last.reps, sets: last.sets } : null, trend, changePercent };
+        })
+        .sort((a, b) => b.sessions - a.sessions)
+        .slice(0, 12);
+
+      // 부위, 피드백, 통증 부위
+      const bodyPartMap: Record<string, number> = {};
+      for (const log of periodLogs) {
+        if (log.bodyPart) log.bodyPart.split(",").map(p => p.trim()).filter(Boolean).forEach(p => { bodyPartMap[p] = (bodyPartMap[p] || 0) + 1; });
+      }
+      const bodyParts = Object.entries(bodyPartMap).sort((a, b) => b[1] - a[1]).map(([p, c]) => `${p}(${c}회)`).slice(0, 6);
+      const feedbacks = periodLogs.filter(l => l.feedback).map(l => l.feedback!).slice(0, 3);
+      const painAreas = [...new Set(periodChecks.filter(c => c.painArea).map(c => c.painArea!))].slice(0, 5);
+
+      // PAR-Q
+      const [health] = await db.select().from(parQ).where(eq(parQ.memberId, input.memberId));
+      const ptGoal = [health?.goal1, health?.goal2, health?.goal3].filter(Boolean).join(", ");
+
+      // ReportData 구조
+      const reportData: PTReportData = {
+        generatedAt: new Date().toLocaleDateString("ko-KR"),
+        isAI: false,
+        member: { name: member.name, trainerName },
+        program: {
+          packageName: pkg.packageName || "PT 프로그램",
+          totalSessions: pkg.totalSessions,
+          usedSessions: pkg.usedSessions,
+          startDate: pkg.startDate ?? undefined,
+          reportIndex: input.reportIndex,
+          milestoneSession: input.milestoneSession,
+          fromSession: input.fromSession,
+          goal: ptGoal || undefined,
+        },
+        periodStats: { ...periodSt, fromDate, toDate },
+        prevStats: prevSt,
+        exercises,
+        bodyParts,
+        feedbacks,
+        painAreas,
+      };
+
+      // AI 프롬프트
+      const exSummary = exercises.slice(0, 6).map(e =>
+        `- ${e.name}: 초기 ${e.first ? `${e.first.weight}kg×${e.first.reps}회×${e.first.sets}세트` : "기록없음"} → 현재 ${e.last ? `${e.last.weight}kg×${e.last.reps}회×${e.last.sets}세트` : "기록없음"} (${e.trend === "up" ? `↑ 향상 ${e.changePercent ?? ""}%` : e.trend === "down" ? "↓ 감소" : "→ 유지"})`
+      ).join("\n");
+
+      const prompt = `당신은 개인 트레이닝 전문 코치입니다. 회원에게 전달할 PT 변화 리포트를 한국어로 작성해주세요.
+
+[회원 정보]
+- 회원명: ${member.name}
+- 담당 트레이너: ${trainerName ?? "미확인"}
+- 계약 PT: ${pkg.totalSessions}회 / ${pkg.packageName || "PT"}
+- 현재 진행 회차: ${pkg.usedSessions}회차
+- 리포트 구간: ${input.fromSession}~${input.milestoneSession}회차 (보고서 ${input.reportIndex})
+- 운동 목적: ${ptGoal || "미기재"}
+
+[이번 구간 데이터]
+- 실제 수업: ${periodSt.sessionCount}회
+- 출석률: ${periodSt.attendanceRate}%
+- 컨디션 평균: ${periodSt.avgCondition != null ? `${periodSt.avgCondition}/10` : "기록부족"}${prevSt?.avgCondition != null ? ` (이전 ${prevSt.avgCondition}/10)` : ""}
+- 통증 평균: ${periodSt.avgPain != null ? `${periodSt.avgPain}/10` : "기록부족"}${prevSt?.avgPain != null ? ` (이전 ${prevSt.avgPain}/10)` : ""}
+- 수면 평균: ${periodSt.avgSleep != null ? `${periodSt.avgSleep}h` : "기록부족"}
+- 통증 부위: ${painAreas.join(", ") || "없음"}
+- 주요 운동 부위: ${bodyParts.join(", ") || "없음"}
+
+[운동 수행 변화]
+${exSummary || "운동 기록 부족"}
+
+[트레이너 피드백 (최근)]
+${feedbacks.join(" / ") || "없음"}
+
+[주의사항]
+1. 의학적 진단이나 치료 확정 표현은 사용하지 않는다
+2. "개선되는 경향", "관리 필요", "추가 확인 필요" 같은 안전한 표현 사용
+3. 데이터 부족 시 "기록 부족으로 정확한 판단은 제한적입니다"라고 표현
+4. 회원이 이해하기 쉬운 문장으로 작성
+5. 긍정적 변화 → 보완점 → 다음 계획 순서
+6. 전문적이지만 따뜻한 톤
+
+다음 순서로 보고서를 작성하세요:
+
+**1. 건강리포트 종합 요약**
+이번 구간의 변화를 5~7줄로 요약. 좋아진 점 3가지 / 관리 필요한 점 2~3가지 / 운동 지속이 필요한 이유를 데이터 기반으로.
+
+**2. 생활습관 변화 분석**
+수면 / 컨디션 / 통증 항목별로 현재 상태, 변화, 운동 결과에 미친 영향, 개선 방향. 데이터 없는 항목은 "기록 부족으로 정확한 판단은 제한적입니다".
+
+**3. 운동 수행 변화 분석**
+주요 종목별 수행 능력 변화. 출석률 평가. 회원이 성과를 느낄 수 있도록 쉽게 설명.
+
+**4. 트레이너 코멘트**
+잘한 점 / 보완이 필요한 점 / 생활습관에서 바꿔야 할 점.
+
+**5. 다음 운동 계획**
+핵심 목표 / 추천 운동 방향 / 운동 강도 / 생활습관 목표.
+
+**6. 회원 전달 메시지**
+회원에게 직접 전달하는 따뜻한 문장. 4~6줄. 꾸준함·변화·다음 목표 포함. 과장된 표현 금지.`;
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      let aiText = buildFallbackPTReport(member.name, reportData);
+      let isAI = false;
+
+      if (apiKey) {
+        try {
+          const client = new Anthropic({ apiKey });
+          const message = await client.messages.create({
+            model: "claude-sonnet-4-6",
+            max_tokens: 2500,
+            messages: [{ role: "user", content: prompt }],
+          });
+          aiText = message.content[0].type === "text" ? message.content[0].text : aiText;
+          isAI = true;
+        } catch { /* fallback */ }
+      }
+
+      reportData.isAI = isAI;
+      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+      // 같은 packageId+reportIndex 기존 보고서 삭제 후 저장
+      await db.delete(ptReports).where(and(eq(ptReports.packageId, input.packageId), eq(ptReports.reportIndex, input.reportIndex)));
+      await db.insert(ptReports).values({
+        token, packageId: input.packageId, memberId: input.memberId,
+        generatedBy: ctx.user!.id, reportIndex: input.reportIndex,
+        milestoneSession: input.milestoneSession, fromSession: input.fromSession,
+        reportData: JSON.stringify(reportData), aiText, isAI: isAI ? 1 : 0,
+      });
+
+      return { token, reportUrl: `/api/pt-report/${token}`, isAI, reportIndex: input.reportIndex };
+    }),
 });
+
+function buildFallbackMemberReport(
+  name: string,
+  lifestyle: ReportData["lifestyle"],
+  training: ReportData["training"],
+) {
+  const ls = lifestyle;
+  const criticals = [ls.diet, ls.alcohol, ls.sleep, ls.activity].filter(c => c.riskLevel === "critical").length;
+  const warnings = [ls.diet, ls.alcohol, ls.sleep, ls.activity].filter(c => c.riskLevel !== "normal").length;
+  return `**1. 건강 상태 요약**\n${name} 회원의 건강 데이터 기반 보고서입니다. PAR-Q 건강검사 수치 데이터를 입력하시면 더 정밀한 평가가 가능합니다.\n\n**2. 생활습관 평가**\n식단 ${ls.diet.riskKo} · 음주 ${ls.alcohol.riskKo} · 수면 ${ls.sleep.riskKo} · 활동 ${ls.activity.riskKo}. ${criticals > 0 ? `${criticals}개 영역이 심각 수준으로 즉각적인 관리가 필요합니다.` : warnings > 0 ? `${warnings}개 영역에서 개선이 필요합니다.` : "전반적으로 양호합니다."}\n\n**3. 트레이닝 패턴 분석**\n총 ${training.totalSessions}회 수업을 진행했습니다. ${training.topBodyParts.length > 0 ? `주요 운동 부위: ${training.topBodyParts.join(", ")}` : "운동 부위 기록을 꾸준히 작성해 주세요."}\n\n**4. 맞춤 권장사항**\n1) 생활습관 위험 항목 개선 우선 실천 2) 규칙적인 수업 참석 및 컨디션 체크 기록 3) PAR-Q 건강검사 수치 업데이트로 맞춤 프로그램 설계`;
+}
+
+function buildFallbackPTReport(name: string, data: PTReportData): string {
+  const ex = data.exercises.slice(0, 3).map(e =>
+    `${e.name}(${e.trend === "up" ? "향상" : e.trend === "down" ? "하락" : "유지"})`
+  ).join(", ");
+  return `**1. 이번 구간 종합 평가**\n${name} 회원의 ${data.program.reportIndex}차 PT 변화 리포트입니다. ${data.periodStats.sessionCount}회 수업에 참여했으며 출석률 ${data.periodStats.attendanceRate}%를 기록했습니다.\n\n**2. 운동 수행 변화 분석**\n주요 운동: ${ex || "기록 없음"}. 꾸준한 세션 참여로 기초 체력 향상에 집중했습니다.\n\n**3. 컨디션 및 생활습관 변화**\n${data.periodStats.avgCondition != null ? `평균 컨디션 ${data.periodStats.avgCondition}/10.` : "컨디션 기록을 꾸준히 작성해 주세요."} ${data.periodStats.avgSleep != null ? `평균 수면 ${data.periodStats.avgSleep}h.` : ""}\n\n**4. 잘한 점 / 보완이 필요한 점**\n꾸준한 출석과 성실한 운동 참여가 긍정적입니다. 식단 및 수면 관리를 함께 실천하면 더 빠른 변화를 기대할 수 있습니다.\n\n**5. 다음 운동 계획**\n현재 운동 강도와 패턴을 유지하면서 단계적으로 부하를 높여가는 방향으로 진행합니다.\n\n**6. 회원 전달 메시지**\n${name} 회원님, 꾸준하게 운동에 참여해 주셔서 감사합니다. 작은 변화들이 쌓여 큰 결과로 이어집니다. 앞으로도 함께 목표를 향해 나아가겠습니다.`;
+}
 
 function generateFallbackAnalysis(data: {
   monthTotal: number;
@@ -904,7 +3106,7 @@ const tasksWorkRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const isAdmin = ctx.user!.role === "admin";
+      const isAdmin = ctx.user!.role === "admin" || ctx.user!.role === "sub_admin";
       const userId = ctx.user!.id;
       const today = new Date().toISOString().substring(0, 10);
       const weekStart = getWeekStart(today);
@@ -939,8 +3141,9 @@ const tasksWorkRouter = t.router({
   listStaff: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: users.id, username: users.username, role: users.role })
+    return db.select({ id: users.id, username: users.username, role: users.role, trainerName: trainers.trainerName })
       .from(users)
+      .leftJoin(trainers, eq(users.id, trainers.userId))
       .orderBy(users.role, users.username);
   }),
 
@@ -963,6 +3166,40 @@ const tasksWorkRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [row] = await db.insert(tasks).values({ ...input, assignedById: ctx.user!.id, updatedAt: new Date().toISOString() }).returning();
       return row;
+    }),
+
+  createForGroup: protectedProcedure
+    .input(z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      category: z.string().default("기타"),
+      priority: z.string().default("normal"),
+      taskType: z.string().default("daily"),
+      assigneeGroup: z.enum(["all", "trainer", "consultant"]),
+      taskDate: z.string().optional(),
+      dueTime: z.string().optional(),
+      isRecurring: z.number().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 대상 그룹에 해당하는 유저(admin 제외) 조회
+      const targetUsers = await db.select({ id: users.id })
+        .from(users)
+        .where(input.assigneeGroup === "all"
+          ? sql`role IN ('trainer','consultant')`
+          : eq(users.role, input.assigneeGroup)
+        );
+
+      if (targetUsers.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "대상 직원이 없습니다" });
+
+      const { assigneeGroup, ...rest } = input;
+      const rows = await db.insert(tasks).values(
+        targetUsers.map(u => ({ ...rest, assigneeId: u.id, assignedById: ctx.user!.id, updatedAt: new Date().toISOString() }))
+      ).returning();
+
+      return { count: rows.length };
     }),
 
   complete: protectedProcedure
@@ -1036,19 +3273,28 @@ const noticesWorkRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const role = ctx.user!.role;
     const userId = ctx.user!.id;
+
+    await db.execute(sql`ALTER TABLE notice_reads ADD COLUMN IF NOT EXISTS "completedAt" TEXT`);
+
     const allNotices = await db.select({ notice: notices, authorName: users.username })
       .from(notices).leftJoin(users, eq(notices.authorId, users.id)).orderBy(desc(notices.createdAt));
-    const reads = await db.select().from(noticeReads).where(eq(noticeReads.userId, userId));
-    const readIds = new Set(reads.map(r => r.noticeId));
+
+    const readsResult = await db.execute(sql`
+      SELECT "noticeId", "readAt", "completedAt" FROM notice_reads WHERE "userId" = ${userId}
+    `);
+    const reads: any[] = (readsResult as any).rows ?? [];
+    const completedIds = new Set(reads.filter((r: any) => r.completedAt).map((r: any) => Number(r.noticeId)));
+    const readIds = new Set(reads.map((r: any) => Number(r.noticeId)));
+
     return allNotices
-      .filter(row => row.notice.targetRole === "all" || row.notice.targetRole === role)
-      .map(row => ({ ...row, isRead: readIds.has(row.notice.id) }));
+      .filter(row => role === "admin" || role === "sub_admin" || row.notice.targetRole === "all" || row.notice.targetRole === role)
+      .map(row => ({ ...row, isRead: readIds.has(row.notice.id), isCompleted: completedIds.has(row.notice.id) }));
   }),
 
   create: protectedProcedure
     .input(z.object({ title: z.string().min(1), content: z.string().min(1), targetRole: z.string().default("all"), priority: z.string().default("normal") }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [row] = await db.insert(notices).values({ ...input, authorId: ctx.user!.id }).returning();
@@ -1068,10 +3314,35 @@ const noticesWorkRouter = t.router({
       return { success: true };
     }),
 
+  markComplete: protectedProcedure
+    .input(z.object({ noticeId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.execute(sql`ALTER TABLE notice_reads ADD COLUMN IF NOT EXISTS "completedAt" TEXT`);
+      const now = new Date().toISOString();
+      const existingResult = await db.execute(sql`
+        SELECT id FROM notice_reads WHERE "noticeId" = ${input.noticeId} AND "userId" = ${ctx.user!.id} LIMIT 1
+      `);
+      const existing: any[] = (existingResult as any).rows ?? [];
+      if (existing.length === 0) {
+        await db.execute(sql`
+          INSERT INTO notice_reads ("noticeId", "userId", "readAt", "completedAt")
+          VALUES (${input.noticeId}, ${ctx.user!.id}, ${now}, ${now})
+        `);
+      } else {
+        await db.execute(sql`
+          UPDATE notice_reads SET "completedAt" = ${now}
+          WHERE "noticeId" = ${input.noticeId} AND "userId" = ${ctx.user!.id}
+        `);
+      }
+      return { success: true };
+    }),
+
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(notices).where(eq(notices.id, input.id));
@@ -1081,12 +3352,44 @@ const noticesWorkRouter = t.router({
   readStatus: protectedProcedure
     .input(z.object({ noticeId: z.number() }))
     .query(async ({ ctx, input }) => {
-      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      return db.select({ read: noticeReads, username: users.username })
-        .from(noticeReads).leftJoin(users, eq(noticeReads.userId, users.id))
-        .where(eq(noticeReads.noticeId, input.noticeId));
+
+      await db.execute(sql`ALTER TABLE notice_reads ADD COLUMN IF NOT EXISTS "completedAt" TEXT`);
+
+      const [notice] = await db.select().from(notices).where(eq(notices.id, input.noticeId));
+      if (!notice) return { completed: [], readOnly: [], nonReaders: [] };
+
+      const allUsers = await db.select({ id: users.id, username: users.username, role: users.role })
+        .from(users)
+        .where(notice.targetRole === "all"
+          ? sql`role IN ('trainer','consultant')`
+          : eq(users.role, notice.targetRole)
+        );
+
+      const readsResult = await db.execute(sql`
+        SELECT nr."userId", nr."readAt", nr."completedAt", u.username
+        FROM notice_reads nr
+        LEFT JOIN users u ON u.id = nr."userId"
+        WHERE nr."noticeId" = ${input.noticeId}
+      `);
+      const reads: any[] = (readsResult as any).rows ?? [];
+
+      const readUserIds = new Set(reads.map((r: any) => Number(r.userId)));
+      const completed = reads.filter((r: any) => r.completedAt).map((r: any) => ({
+        userId: Number(r.userId), username: r.username ?? "알 수 없음",
+        readAt: r.readAt, completedAt: r.completedAt,
+      }));
+      const readOnly = reads.filter((r: any) => !r.completedAt).map((r: any) => ({
+        userId: Number(r.userId), username: r.username ?? "알 수 없음",
+        readAt: r.readAt,
+      }));
+      const nonReaders = allUsers
+        .filter(u => !readUserIds.has(u.id))
+        .map(u => ({ userId: u.id, username: u.username }));
+
+      return { completed, readOnly, nonReaders };
     }),
 });
 
@@ -1097,10 +3400,14 @@ const staffRouter = t.router({
   listConsultants: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: users.id, username: users.username })
-      .from(users)
-      .where(eq(users.role, "consultant"))
-      .orderBy(users.username);
+    const rows = await db.execute(sql`
+      SELECT u.id, u.username FROM users u WHERE u.role = 'consultant'
+      UNION
+      SELECT t."userId" AS id, t."trainerName" AS username
+      FROM trainers t WHERE t."userId" IS NOT NULL
+      ORDER BY username
+    `);
+    return (rows.rows ?? rows) as { id: number; username: string }[];
   }),
   listBranches: protectedProcedure.query(async () => {
     const db = await getDb();
@@ -1109,7 +3416,779 @@ const staffRouter = t.router({
   }),
 });
 
-// ─── App Stats Router ─────────────────────────────────────────────────────────
+// ─── Gym Settings ─────────────────────────────────────────────────────────────
+async function ensureGymSettings(db: any) {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS gym_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      "servicePtUnitPrice" INTEGER DEFAULT 0,
+      "serviceHealthUnitPrice" INTEGER DEFAULT 0,
+      "serviceLockUnitPrice" INTEGER DEFAULT 0,
+      "serviceUniformUnitPrice" INTEGER DEFAULT 0
+    )
+  `);
+  await db.execute(sql`INSERT INTO gym_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+  // 기존 단일 단가 컬럼 (하위 호환)
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "healthMonthlyPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "ptSessionPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "lockerMonthlyPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "uniformPrice" INTEGER DEFAULT 0`);
+  // 헬스 기간별 단가
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health1MonthPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health3MonthPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health6MonthPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health12MonthPrice" INTEGER DEFAULT 0`);
+  // 웨이트PT 횟수별 단가
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt10Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt20Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt30Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt40Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt50Price" INTEGER DEFAULT 0`);
+  // 케어PT 횟수별 단가
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt10Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt20Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt30Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt40Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt50Price" INTEGER DEFAULT 0`);
+}
+
+const gymSettingsRouter = t.router({
+  get: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    await ensureGymSettings(db);
+    const rows = await db.execute(sql`SELECT * FROM gym_settings WHERE id = 1`);
+    const row = (rows as any).rows?.[0] ?? {};
+    return {
+      servicePtUnitPrice: Number(row.servicePtUnitPrice ?? 0),
+      serviceHealthUnitPrice: Number(row.serviceHealthUnitPrice ?? 0),
+      serviceLockUnitPrice: Number(row.serviceLockUnitPrice ?? 0),
+      serviceUniformUnitPrice: Number(row.serviceUniformUnitPrice ?? 0),
+      healthMonthlyPrice: Number(row.healthMonthlyPrice ?? 0),
+      ptSessionPrice: Number(row.ptSessionPrice ?? 0),
+      lockerMonthlyPrice: Number(row.lockerMonthlyPrice ?? 0),
+      uniformPrice: Number(row.uniformPrice ?? 0),
+      health1MonthPrice: Number(row.health1MonthPrice ?? 0),
+      health3MonthPrice: Number(row.health3MonthPrice ?? 0),
+      health6MonthPrice: Number(row.health6MonthPrice ?? 0),
+      health12MonthPrice: Number(row.health12MonthPrice ?? 0),
+      weightPt10Price: Number(row.weightPt10Price ?? 0),
+      weightPt20Price: Number(row.weightPt20Price ?? 0),
+      weightPt30Price: Number(row.weightPt30Price ?? 0),
+      weightPt40Price: Number(row.weightPt40Price ?? 0),
+      weightPt50Price: Number(row.weightPt50Price ?? 0),
+      carePt10Price: Number(row.carePt10Price ?? 0),
+      carePt20Price: Number(row.carePt20Price ?? 0),
+      carePt30Price: Number(row.carePt30Price ?? 0),
+      carePt40Price: Number(row.carePt40Price ?? 0),
+      carePt50Price: Number(row.carePt50Price ?? 0),
+    };
+  }),
+
+  update: protectedProcedure
+    .input(z.object({
+      servicePtUnitPrice: z.number().min(0).optional(),
+      serviceHealthUnitPrice: z.number().min(0).optional(),
+      serviceLockUnitPrice: z.number().min(0).optional(),
+      serviceUniformUnitPrice: z.number().min(0).optional(),
+      healthMonthlyPrice: z.number().min(0).optional(),
+      ptSessionPrice: z.number().min(0).optional(),
+      lockerMonthlyPrice: z.number().min(0).optional(),
+      uniformPrice: z.number().min(0).optional(),
+      health1MonthPrice: z.number().min(0).optional(),
+      health3MonthPrice: z.number().min(0).optional(),
+      health6MonthPrice: z.number().min(0).optional(),
+      health12MonthPrice: z.number().min(0).optional(),
+      weightPt10Price: z.number().min(0).optional(),
+      weightPt20Price: z.number().min(0).optional(),
+      weightPt30Price: z.number().min(0).optional(),
+      weightPt40Price: z.number().min(0).optional(),
+      weightPt50Price: z.number().min(0).optional(),
+      carePt10Price: z.number().min(0).optional(),
+      carePt20Price: z.number().min(0).optional(),
+      carePt30Price: z.number().min(0).optional(),
+      carePt40Price: z.number().min(0).optional(),
+      carePt50Price: z.number().min(0).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await ensureGymSettings(db);
+      const sets: string[] = [];
+      if (input.servicePtUnitPrice !== undefined) sets.push(`"servicePtUnitPrice" = ${input.servicePtUnitPrice}`);
+      if (input.serviceHealthUnitPrice !== undefined) sets.push(`"serviceHealthUnitPrice" = ${input.serviceHealthUnitPrice}`);
+      if (input.serviceLockUnitPrice !== undefined) sets.push(`"serviceLockUnitPrice" = ${input.serviceLockUnitPrice}`);
+      if (input.serviceUniformUnitPrice !== undefined) sets.push(`"serviceUniformUnitPrice" = ${input.serviceUniformUnitPrice}`);
+      if (input.healthMonthlyPrice !== undefined) sets.push(`"healthMonthlyPrice" = ${input.healthMonthlyPrice}`);
+      if (input.ptSessionPrice !== undefined) sets.push(`"ptSessionPrice" = ${input.ptSessionPrice}`);
+      if (input.lockerMonthlyPrice !== undefined) sets.push(`"lockerMonthlyPrice" = ${input.lockerMonthlyPrice}`);
+      if (input.uniformPrice !== undefined) sets.push(`"uniformPrice" = ${input.uniformPrice}`);
+      if (input.health1MonthPrice !== undefined) sets.push(`"health1MonthPrice" = ${input.health1MonthPrice}`);
+      if (input.health3MonthPrice !== undefined) sets.push(`"health3MonthPrice" = ${input.health3MonthPrice}`);
+      if (input.health6MonthPrice !== undefined) sets.push(`"health6MonthPrice" = ${input.health6MonthPrice}`);
+      if (input.health12MonthPrice !== undefined) sets.push(`"health12MonthPrice" = ${input.health12MonthPrice}`);
+      if (input.weightPt10Price !== undefined) sets.push(`"weightPt10Price" = ${input.weightPt10Price}`);
+      if (input.weightPt20Price !== undefined) sets.push(`"weightPt20Price" = ${input.weightPt20Price}`);
+      if (input.weightPt30Price !== undefined) sets.push(`"weightPt30Price" = ${input.weightPt30Price}`);
+      if (input.weightPt40Price !== undefined) sets.push(`"weightPt40Price" = ${input.weightPt40Price}`);
+      if (input.weightPt50Price !== undefined) sets.push(`"weightPt50Price" = ${input.weightPt50Price}`);
+      if (input.carePt10Price !== undefined) sets.push(`"carePt10Price" = ${input.carePt10Price}`);
+      if (input.carePt20Price !== undefined) sets.push(`"carePt20Price" = ${input.carePt20Price}`);
+      if (input.carePt30Price !== undefined) sets.push(`"carePt30Price" = ${input.carePt30Price}`);
+      if (input.carePt40Price !== undefined) sets.push(`"carePt40Price" = ${input.carePt40Price}`);
+      if (input.carePt50Price !== undefined) sets.push(`"carePt50Price" = ${input.carePt50Price}`);
+      if (sets.length > 0) {
+        await db.execute(sql.raw(`UPDATE gym_settings SET ${sets.join(", ")} WHERE id = 1`));
+      }
+      return { success: true };
+    }),
+});
+
+// ─── 환불 계약서 ──────────────────────────────────────────────────────────────
+const refundContractRouter = t.router({
+  // 회원이 보통 나갈 땐 PT·헬스·락커·운동복을 한꺼번에 정리하지, 종목별로 따로 처리하지
+  // 않는다. 그래서 항목을 여러 개 담아 계약서 하나·매출 반영 한 번으로 처리한다.
+  // (예전엔 종목마다 별도 버튼→별도 계약서였다.)
+  createRefundContract: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      memberName: z.string(),
+      memberPhone: z.string().optional(),
+      paymentMethod: z.string().optional(),
+      taxAmount: z.number().default(0),
+      penaltyAmount: z.number().default(0),
+      // 서비스 항목 차감 내역(락커 사용분, 밸런스체크 등 임의 항목) — 계약서에 항목별로 표시된다.
+      serviceItems: z.array(z.object({ label: z.string(), amount: z.number() })).optional(),
+      // 실제로 환불되는 항목들. 항목마다 자기 매출 타입으로 별도 환불 매출을 남기고
+      // (PT매출/헬스매출 등 유형별 집계가 안 깨지도록), 각자 해당하는 실물 상태도 정리한다.
+      refundItems: z.array(z.object({
+        type: z.enum(["pt", "health", "locker", "uniform"]),
+        label: z.string(),
+        amount: z.number(),
+        packageId: z.number().optional(),
+        originalRevenueEntryId: z.number().optional(),
+        lockerId: z.number().optional(),
+        uniformId: z.number().optional(),
+        totalSessions: z.number().optional(),
+        usedSessions: z.number().optional(),
+      })).min(1),
+      refundAmount: z.number().default(0),
+      reason: z.string().optional(),
+      gymName: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 환불 계약서를 발급할 수 있습니다." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS refund_contracts (
+          id SERIAL PRIMARY KEY,
+          token TEXT NOT NULL UNIQUE,
+          "memberId" INTEGER,
+          "packageId" INTEGER,
+          "memberName" TEXT,
+          "memberPhone" TEXT,
+          "programName" TEXT NOT NULL,
+          "paymentAmount" INTEGER NOT NULL DEFAULT 0,
+          "totalSessions" INTEGER NOT NULL DEFAULT 0,
+          "usedSessions" INTEGER NOT NULL DEFAULT 0,
+          "paymentMethod" TEXT,
+          "taxAmount" INTEGER NOT NULL DEFAULT 0,
+          "penaltyAmount" INTEGER NOT NULL DEFAULT 0,
+          "serviceItems" TEXT,
+          "refundAmount" INTEGER NOT NULL DEFAULT 0,
+          reason TEXT,
+          "gymName" TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          "createdAt" TEXT NOT NULL
+        )
+      `);
+      await pool.query(`ALTER TABLE refund_contracts ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
+      await pool.query(`ALTER TABLE refund_contracts ADD COLUMN IF NOT EXISTS "refundItems" TEXT`);
+      const token = randomUUID();
+      const now = new Date().toISOString();
+      const firstPt = input.refundItems.find(i => i.type === "pt");
+      const programName = input.refundItems.map(i => i.label).join(" · ");
+      const grossAmount = input.refundItems.reduce((s, i) => s + i.amount, 0);
+      await pool.query(
+        `INSERT INTO refund_contracts (token,"memberId","packageId","memberName","memberPhone","programName","paymentAmount","totalSessions","usedSessions","paymentMethod","taxAmount","penaltyAmount","serviceItems","refundItems","refundAmount",reason,"gymName",status,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'pending',$18)`,
+        [token, input.memberId, firstPt?.packageId ?? null, input.memberName, input.memberPhone ?? null, programName, grossAmount, firstPt?.totalSessions ?? 0, firstPt?.usedSessions ?? 0, input.paymentMethod ?? null, input.taxAmount, input.penaltyAmount, JSON.stringify(input.serviceItems ?? []), JSON.stringify(input.refundItems), input.refundAmount, input.reason ?? null, input.gymName ?? "자이언트짐", now]
+      );
+
+      // ── 실제 환불 반영 ──────────────────────────────────────────────────────
+      // 매출(환불 건 기록) + PT 패키지/락커/운동복 상태 정리. 계약서는 서류일 뿐이고
+      // 이게 있어야 매출·정산·잔여 세션·락커 현황이 실제로 맞아떨어진다.
+      // 위약금·부가세·서비스차감은 전체 합계에서 한 번만 빼되, 항목별 매출은 총액 대비
+      // 그 항목이 차지하는 비중만큼 배분한다(유형별 매출 집계가 정확하도록).
+      const [memberRow] = await db.select({ branchId: members.branchId }).from(members)
+        .where(eq(members.id, input.memberId)).limit(1);
+      const memberBranchId = memberRow?.branchId ?? null;
+
+      for (const item of input.refundItems) {
+        const share = grossAmount > 0 ? item.amount / grossAmount : 0;
+        const itemNet = Math.round(input.refundAmount * share);
+        if (itemNet <= 0) continue;
+
+        let trainerId: number | null = null;
+        if (item.packageId) {
+          const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages)
+            .where(eq(ptPackages.id, item.packageId)).limit(1);
+          trainerId = pkg?.trainerId ?? null;
+        }
+        await db.insert(revenueEntries).values({
+          memberId: input.memberId,
+          trainerId,
+          branchId: memberBranchId,
+          createdBy: ctx.user!.id,
+          customerName: input.memberName,
+          phone: input.memberPhone ?? null,
+          programDetail: `${item.label} 환불`,
+          type: item.type === "pt" ? "PT" : item.type === "health" ? "헬스" : "기타",
+          subType: "환불",
+          amount: itemNet,
+          discountAmount: 0,
+          paidAmount: -itemNet,
+          unpaidAmount: 0,
+          refundAmount: itemNet,
+          paymentMethod: input.paymentMethod || undefined,
+          paymentDate: kstDate(),
+          relatedEntryId: item.originalRevenueEntryId ?? null,
+          memo: input.reason || `${programName} 환불 계약서 발급 (${token})`,
+        });
+      }
+      let hasHealth = false;
+      for (const item of input.refundItems) {
+        if (item.packageId) {
+          await db.update(ptPackages).set({ status: "refunded", updatedAt: now }).where(eq(ptPackages.id, item.packageId));
+        }
+        if (item.lockerId) {
+          await db.update(lockers)
+            .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: now })
+            .where(eq(lockers.id, item.lockerId));
+        }
+        if (item.uniformId) {
+          await db.update(uniforms).set({ isActive: 0, updatedAt: now }).where(eq(uniforms.id, item.uniformId));
+        }
+        if (item.type === "health") hasHealth = true;
+      }
+
+      // 헬스 환불 시 회원권 종료일 처리
+      if (hasHealth) {
+        await db.update(members).set({ membershipEnd: kstDate(), updatedAt: now })
+          .where(eq(members.id, input.memberId));
+      }
+
+      // 전체 환불인지 확인: 남은 활성 PT 패키지가 없고 헬스도 만료됐으면 종료 처리
+      const remainActive = await db.select({ id: ptPackages.id }).from(ptPackages)
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active"))).limit(1);
+      const [mem] = await db.select({ membershipEnd: members.membershipEnd }).from(members)
+        .where(eq(members.id, input.memberId)).limit(1);
+      const today = kstDate();
+      if (remainActive.length === 0 && (!mem?.membershipEnd || mem.membershipEnd <= today)) {
+        await db.update(members).set({ status: "ended", updatedAt: now })
+          .where(eq(members.id, input.memberId));
+      }
+
+      // 계약서 상태 완료 처리
+      await pool.query(`UPDATE refund_contracts SET status = 'completed' WHERE token = $1`, [token]);
+
+      return { token, contractUrl: `/refund/${token}` };
+    }),
+
+  getRefundContract: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const result = await pool.query(`SELECT * FROM refund_contracts WHERE token = $1`, [input.token]);
+      if (!result.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "계약서를 찾을 수 없습니다." });
+      return result.rows[0] as {
+        id: number; token: string; memberId: number | null; packageId: number | null;
+        memberName: string | null; memberPhone: string | null; programName: string;
+        paymentAmount: number; totalSessions: number; usedSessions: number;
+        paymentMethod: string | null; taxAmount: number; penaltyAmount: number;
+        serviceItems: string | null; refundItems: string | null;
+        refundAmount: number; reason: string | null; gymName: string | null;
+        status: string; createdAt: string;
+      };
+    }),
+
+  listRefundContracts: protectedProcedure
+    .input(z.object({ yearMonth: z.string().optional() }))
+    .query(async ({ input }) => {
+      const result = input.yearMonth
+        ? await pool.query(
+            `SELECT id, token, "memberId", "memberName", "memberPhone", "programName",
+                    "paymentAmount", "refundAmount", reason, status, "createdAt"
+             FROM refund_contracts WHERE "createdAt" LIKE $1 ORDER BY "createdAt" DESC LIMIT 100`,
+            [`${input.yearMonth}%`]
+          )
+        : await pool.query(
+            `SELECT id, token, "memberId", "memberName", "memberPhone", "programName",
+                    "paymentAmount", "refundAmount", reason, status, "createdAt"
+             FROM refund_contracts ORDER BY "createdAt" DESC LIMIT 100`
+          );
+      return result.rows as {
+        id: number; token: string; memberId: number | null;
+        memberName: string | null; memberPhone: string | null; programName: string;
+        paymentAmount: number; refundAmount: number; reason: string | null;
+        status: string; createdAt: string;
+      }[];
+    }),
+});
+
+// ─── Unified Registration ─────────────────────────────────────────────────────
+const registerMutation = protectedProcedure
+  .input(z.object({
+    // 회원 식별 (있으면 재등록, 없으면 신규)
+    memberId: z.number().optional(),
+
+    // 기본 회원 정보
+    name: z.string().min(1),
+    phone: z.string().optional(),
+    email: z.string().email().optional(),
+    birthDate: z.string().optional(),
+    gender: z.enum(["male", "female", "other"]).optional(),
+    grade: z.enum(["basic", "premium", "vip"]).default("basic"),
+    status: z.enum(["active", "paused"]).default("active"),
+    profileNote: z.string().optional(),
+    visitRoute: z.string().optional(),
+    signatureDataUrl: z.string().optional(),
+
+    // 트레이너 / 상담담당자 / 지점 / 리드
+    trainerId: z.number().optional(),
+    consultantId: z.number().optional(),
+    branchId: z.number().optional(),
+    leadId: z.number().optional(),
+
+    // 회원권 날짜
+    membershipStart: z.string().optional(),
+    membershipEnd: z.string().optional(),
+
+    // 등록 유형
+    subType: z.enum(["신규", "재등록"]).default("신규"),
+
+    // 헬스권
+    addHealth: z.boolean().optional(),
+    healthMonths: z.number().optional(),
+    healthPrice: z.number().optional(),
+
+    // PT
+    addPt: z.boolean().optional(),
+    ptProgram: z.string().optional(),
+    ptSessions: z.number().optional(),
+    ptPrice: z.number().optional(),
+    isServiceSession: z.boolean().optional(),
+    serviceSessions: z.number().optional(),
+    serviceSessionPrice: z.number().optional(),
+    serviceSamePrice: z.number().optional(),
+    eventId: z.number().optional(),   // 적용 이벤트 (성과 추적)
+
+    // 기타 (단일 타입 등록용, 예: MemberForm에서 "기타" 선택)
+    addOther: z.boolean().optional(),
+    otherDetail: z.string().optional(),
+    otherPrice: z.number().optional(),
+
+    // 락커
+    lockerId: z.number().optional(),
+    lockerStartDate: z.string().optional(),
+    lockerEndDate: z.string().optional(),
+    lockerRentalType: z.string().optional(),
+
+    // 운동복
+    addUniform: z.boolean().optional(),
+    uniformStartDate: z.string().optional(),
+    uniformEndDate: z.string().optional(),
+    uniformRentalType: z.string().optional(),
+    uniformPrice: z.number().optional(),
+
+    // 결제 공통
+    paymentMethod: z.string().optional(),
+    paymentDate: z.string().optional(),
+    unpaidAmount: z.number().optional(),
+    discountAmount: z.number().optional(),
+    paymentMemo: z.string().optional(),
+
+    // 혼합결제 분할 금액 (PT 패키지용)
+    ptTransferAmount: z.number().optional(),
+    ptCardAmount: z.number().optional(),
+
+    // 서비스 항목 (배지용)
+    serviceItems: z.string().optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const now = new Date().toISOString();
+    const today = kstDate();
+
+    // 1. 담당 트레이너(trainerId) 결정.
+    //    ⚠ 상담 담당자 ≠ 담당 트레이너 (CLAUDE.md 데이터 무결성 원칙 6).
+    //    - 트레이너가 등록을 진행하면 그 트레이너는 '상담 담당자'(consultantId)다.
+    //      담당 트레이너(trainerId)는 별개이며, 폼에서 명시적으로 선택한 경우에만 설정.
+    //    - 재등록 시에는 회원의 기존 담당 트레이너를 유지한다.
+    //    - PT가 없는 등록(헬스권/락커/운동복만)은 담당 트레이너 개념이 없으므로 비운다.
+    const hasPt = !!input.addPt && (input.ptSessions ?? 0) > 0;
+    let resolvedTrainerId: number | null = input.trainerId ?? null;
+    if (!resolvedTrainerId && hasPt && input.memberId) {
+      const [existingMember] = await db.select({ trainerId: members.trainerId })
+        .from(members).where(eq(members.id, input.memberId)).limit(1);
+      resolvedTrainerId = existingMember?.trainerId ?? null;
+    }
+    if (!hasPt) resolvedTrainerId = null;
+
+    // 2. Resolve branch ID
+    let resolvedBranchId: number | null = input.branchId ?? null;
+    if (!resolvedBranchId && resolvedTrainerId) {
+      const [tr] = await db.select({ branchId: trainers.branchId })
+        .from(trainers).where(eq(trainers.id, resolvedTrainerId)).limit(1);
+      if (tr?.branchId) resolvedBranchId = tr.branchId;
+    }
+
+    // 3. Find or create/update member
+    let memberId = input.memberId ?? null;
+    if (!memberId) {
+      // 신규: 이름+전화번호 중복 확인 (전화번호는 숫자만 비교)
+      if (input.phone) {
+        const [dup] = await db.select({ id: members.id })
+          .from(members)
+          .where(and(eq(members.name, input.name), samePhone(members.phone, input.phone)))
+          .limit(1);
+        if (dup) memberId = dup.id;
+      }
+      if (!memberId) {
+        const [created] = await db.insert(members).values({
+          name: input.name,
+          phone: input.phone ?? undefined,
+          email: input.email ?? undefined,
+          birthDate: input.birthDate ?? undefined,
+          gender: input.gender ?? undefined,
+          grade: input.grade ?? "basic",
+          status: input.status ?? "active",
+          profileNote: input.profileNote ?? undefined,
+          visitRoute: input.visitRoute ?? undefined,
+          signatureDataUrl: input.signatureDataUrl ?? undefined,
+          membershipStart: input.membershipStart ?? undefined,
+          membershipEnd: input.membershipEnd ?? undefined,
+          trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? undefined,
+          branchId: resolvedBranchId,
+          createdAt: now,
+          updatedAt: now,
+        }).returning({ id: members.id });
+        memberId = created.id;
+      }
+    } else {
+      // 재등록: 날짜 및 기본 정보 업데이트
+      const upd: Record<string, any> = { updatedAt: now };
+      if (input.membershipStart) upd.membershipStart = input.membershipStart;
+      if (input.membershipEnd) upd.membershipEnd = input.membershipEnd;
+      if (input.profileNote !== undefined) upd.profileNote = input.profileNote;
+      if (input.branchId !== undefined) upd.branchId = resolvedBranchId;
+      await db.update(members).set(upd).where(eq(members.id, memberId));
+    }
+
+    const revenueEntryIds: number[] = [];
+
+    // 4. 헬스권 처리
+    if (input.addHealth) {
+      const healthPrice = input.healthPrice ?? 0;
+      const discAmt = input.discountAmount ?? 0;
+      const unpaid = input.unpaidAmount ?? 0;
+      const paid = Math.max(0, healthPrice - discAmt - unpaid);
+      const months = input.healthMonths ?? 1;
+
+      // 서비스 헬스(개월/일)를 만료일에 반영해 정확한 membershipEnd 계산 (클라이언트 값 무시)
+      const healthEnd: string | undefined = (() => {
+        const start = input.membershipStart;
+        if (!start) return input.membershipEnd ?? undefined;
+        const [yr, mo, dy] = start.split("-").map(Number);
+        const end = new Date(yr, mo - 1, dy);
+        end.setMonth(end.getMonth() + months);
+        if (input.serviceItems) {
+          for (const part of input.serviceItems.split(",").map((s: string) => s.trim())) {
+            const moM = /^헬스\((\d+)개월\)$/.exec(part);
+            if (moM) { end.setMonth(end.getMonth() + parseInt(moM[1])); continue; }
+            const dyM = /^헬스\((\d+)일\)$/.exec(part);
+            if (dyM) { end.setDate(end.getDate() + parseInt(dyM[1])); }
+          }
+        }
+        return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+      })();
+
+      // 신규/재등록 모두 서비스 일수 포함된 만료일로 회원 갱신
+      if (memberId && healthEnd) {
+        await db.update(members)
+          .set({ membershipEnd: healthEnd, updatedAt: now })
+          .where(eq(members.id, memberId!));
+      }
+
+      if (healthPrice > 0 || input.serviceItems) {
+        // 중복 방지: 같은 회원 + 헬스 + 결제일 + 금액이 이미 있으면 스킵
+        const [existingHealth] = await db.select({ id: revenueEntries.id })
+          .from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, memberId!),
+            eq(revenueEntries.type, "헬스"),
+            eq(revenueEntries.paymentDate, input.paymentDate ?? today),
+            eq(revenueEntries.paidAmount, paid),
+          )).limit(1);
+        if (!existingHealth) {
+        const [healthRev] = await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
+          branchId: resolvedBranchId,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: `헬스 ${months}개월`,
+          duration: months,
+          type: "헬스",
+          subType: input.subType ?? "신규",
+          amount: healthPrice,
+          discountAmount: discAmt,
+          paidAmount: paid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.membershipStart ?? undefined,
+          memo: input.paymentMemo ?? null,
+          serviceItems: input.serviceItems || undefined,
+        }).returning({ id: revenueEntries.id });
+        if (healthRev) revenueEntryIds.push(healthRev.id);
+        } // end existingHealth check
+      }
+    }
+
+    // 5. PT 처리
+    if (input.addPt && input.ptSessions && input.ptSessions > 0) {
+      const sessionCount = input.ptSessions;
+      const svcSessions = input.isServiceSession ? sessionCount : (input.serviceSessions ?? 0);
+      const ptPaid = input.isServiceSession ? 0 : (input.ptPrice ?? 0);
+      const discAmt = input.discountAmount ?? 0;
+      const unpaid = input.unpaidAmount ?? 0;
+      const paid = Math.max(0, ptPaid - discAmt - unpaid);
+      const totalSessions = input.isServiceSession ? sessionCount : sessionCount + svcSessions;
+
+      // ptPackage 생성 (중복 방지: memberId+startDate+totalSessions)
+      const [existingPkg] = await db.select()
+        .from(ptPackages)
+        .where(and(
+          eq(ptPackages.memberId, memberId!),
+          eq(ptPackages.startDate, input.membershipStart ?? ""),
+          eq(ptPackages.totalSessions, totalSessions),
+        )).limit(1);
+
+      // 혼합결제 pricePerSession 계산
+      let ptPricePerSession: number | undefined;
+      if (input.paymentMethod === "혼합" && input.ptTransferAmount != null && input.ptCardAmount != null && sessionCount > 0) {
+        ptPricePerSession = Math.round((input.ptTransferAmount + Math.round(input.ptCardAmount / 1.1)) / sessionCount);
+      } else if (ptPaid && sessionCount > 0) {
+        const isTransfer = input.paymentMethod === "이체" || input.paymentMethod === "계좌이체";
+        const base = isTransfer ? ptPaid : Math.round(ptPaid / 1.1);
+        ptPricePerSession = Math.round(base / sessionCount);
+      }
+
+      if (!existingPkg) {
+        await db.insert(ptPackages).values({
+          memberId: memberId!,
+          trainerId: resolvedTrainerId,
+          packageName: input.isServiceSession ? "서비스세션" : (input.ptProgram ?? undefined),
+          totalSessions,
+          serviceSessions: svcSessions,
+          serviceSessionPrice: input.serviceSessionPrice ?? undefined,
+          serviceSamePrice: input.serviceSamePrice ?? undefined,
+          eventId: input.eventId ?? undefined,
+          usedSessions: 0,
+          startDate: input.membershipStart ?? undefined,
+          paymentAmount: ptPaid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          transferAmount: input.ptTransferAmount ?? undefined,
+          cardAmount: input.ptCardAmount ?? undefined,
+          pricePerSession: ptPricePerSession,
+          paymentDate: input.paymentDate ?? today,
+          paymentMemo: input.paymentMemo ?? undefined,
+        });
+      } else if ((existingPkg.paymentAmount ?? 0) !== ptPaid) {
+        // 같은 회원·시작일·횟수로 이미 패키지가 있는데 결제금액이 다르면(예: 자동입력된 금액으로
+        // 한 번 저장 후 실제 금액으로 다시 저장) 중복 생성 대신 기존 패키지를 새 금액으로 갱신한다.
+        // 예전에는 무조건 스킵해서, 매출은 새 금액으로 남는데 패키지는 예전 금액에 묶여 정산
+        // 단가가 틀어지는 사고(양희정 사례)로 이어졌다.
+        await db.update(ptPackages).set({
+          paymentAmount: ptPaid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          transferAmount: input.ptTransferAmount ?? undefined,
+          cardAmount: input.ptCardAmount ?? undefined,
+          pricePerSession: ptPricePerSession,
+          paymentDate: input.paymentDate ?? today,
+          paymentMemo: input.paymentMemo ?? undefined,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(ptPackages.id, existingPkg.id));
+      }
+
+      // 장부 항목 생성 (서비스세션이 아닐 때만, 중복 방지)
+      if (!input.isServiceSession) {
+        const [existingPtRev] = await db.select({ id: revenueEntries.id })
+          .from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, memberId!),
+            eq(revenueEntries.type, "PT"),
+            eq(revenueEntries.paymentDate, input.paymentDate ?? today),
+            eq(revenueEntries.paidAmount, Math.max(0, (input.ptPrice ?? 0) - (input.discountAmount ?? 0) - (input.unpaidAmount ?? 0))),
+          )).limit(1);
+        if (existingPtRev) { /* 이미 존재 — 스킵 */ } else {
+        const [ptRev] = await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
+          branchId: resolvedBranchId,
+          eventId: input.eventId ?? undefined,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: input.ptProgram ?? `PT ${sessionCount}회`,
+          sessions: sessionCount,
+          type: "PT",
+          subType: input.subType ?? "신규",
+          amount: ptPaid,
+          discountAmount: discAmt,
+          paidAmount: paid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.membershipStart ?? undefined,
+          memo: input.paymentMemo ?? null,
+          serviceItems: input.serviceItems || undefined,
+        }).returning({ id: revenueEntries.id });
+        if (ptRev) revenueEntryIds.push(ptRev.id);
+        } // end existingPtRev check
+      }
+    }
+
+    // 6. 기타 처리 (헬스/PT 아닌 단일 항목)
+    if (input.addOther) {
+      // 항목명(otherDetail)이 있으면 실제 기타 결제, 없으면 서비스 항목 배지만 담는 0원 항목.
+      // 항목명이 없는데 금액을 넣으면 헬스/PT 결제금액이 그대로 복제돼 중복 매출이 됨 → 금액 0 처리.
+      const hasDetail = (input.otherDetail ?? "").trim().length > 0;
+      const price = hasDetail ? (input.otherPrice ?? 0) : 0;
+      const discAmt = hasDetail ? (input.discountAmount ?? 0) : 0;
+      const unpaid = hasDetail ? (input.unpaidAmount ?? 0) : 0;
+      const paid = Math.max(0, price - discAmt - unpaid);
+
+      if (hasDetail || input.serviceItems) {
+        const [otherRev] = await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
+          branchId: resolvedBranchId,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: input.otherDetail ?? undefined,
+          type: "기타",
+          subType: input.subType ?? "신규",
+          amount: price,
+          discountAmount: discAmt,
+          paidAmount: paid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.membershipStart ?? undefined,
+          memo: input.paymentMemo ?? null,
+          serviceItems: input.serviceItems || undefined,
+        }).returning({ id: revenueEntries.id });
+        if (otherRev) revenueEntryIds.push(otherRev.id);
+      }
+    }
+
+    // 7. 락커 배정
+    if (input.lockerId) {
+      await db.update(lockers).set({
+        memberId,
+        memberName: input.name,
+        memberPhone: input.phone ?? null,
+        isOccupied: 1,
+        startDate: input.lockerStartDate ?? input.membershipStart ?? undefined,
+        endDate: input.lockerEndDate ?? undefined,
+        rentalType: input.lockerRentalType ?? "service",
+        updatedAt: now,
+      }).where(eq(lockers.id, input.lockerId));
+    }
+
+    // 7-2. 이미 배정된 락커 기간 연장 (재등록 시 만료된 락커 재활성화)
+    // 이번에 새로 배정한 락커(input.lockerId)는 제외하고, 회원에게 배정된 락커의
+    // 만료일이 새 회원권 종료일보다 이르면 새 종료일로 연장하여 다시 활성화한다.
+    if (memberId && input.membershipEnd) {
+      const conds = [
+        eq(lockers.memberId, memberId),
+        eq(lockers.isOccupied, 1),
+        sql`(${lockers.endDate} IS NULL OR ${lockers.endDate} < ${input.membershipEnd})`,
+      ];
+      if (input.lockerId) conds.push(sql`${lockers.id} <> ${input.lockerId}`);
+      await db.update(lockers)
+        .set({ endDate: input.membershipEnd, updatedAt: now })
+        .where(and(...conds));
+    }
+
+    // 8. 운동복 생성
+    if (input.addUniform) {
+      const uniformPrice = input.uniformPrice ?? 0;
+      const rentalType = input.uniformRentalType ?? (uniformPrice > 0 ? "paid" : "service");
+      await db.insert(uniforms).values({
+        memberId,
+        memberName: input.name,
+        memberPhone: input.phone ?? null,
+        startDate: input.uniformStartDate ?? input.membershipStart ?? undefined,
+        endDate: input.uniformEndDate ?? undefined,
+        rentalType,
+        isPaid: uniformPrice > 0 ? 1 : 0,
+        paymentAmount: uniformPrice,
+        paymentDate: input.paymentDate ?? today,
+        isActive: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 유료 운동복이면 장부 자동 생성
+      if (rentalType === "paid" && uniformPrice > 0) {
+        await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
+          branchId: resolvedBranchId,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: "운동복",
+          type: "기타",
+          subType: "신규",
+          amount: uniformPrice,
+          discountAmount: 0,
+          paidAmount: uniformPrice,
+          unpaidAmount: 0,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.uniformStartDate ?? input.membershipStart ?? undefined,
+        });
+      }
+    }
+
+    // 9. 리드 상태 업데이트
+    if (input.leadId) {
+      await db.update(leads).set({
+        status: "registered",
+        registeredMemberId: memberId,
+        updatedAt: now,
+      }).where(eq(leads.id, input.leadId));
+    }
+
+    return { memberId: memberId!, revenueEntryIds };
+  });
+
 const appStatsRouter = t.router({
   summary: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number().optional() }))
@@ -1291,6 +4370,10 @@ export const gymRouter = t.router({
   ai: aiRouter,
   work: workRouter,
   staff: staffRouter,
+  settings: gymSettingsRouter,
+  register: registerMutation,
+  createRefundContract: refundContractRouter.createRefundContract,
+  getRefundContract: refundContractRouter.getRefundContract,
   appStats: appStatsRouter,
 });
 
