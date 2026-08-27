@@ -4708,9 +4708,11 @@ const adminRouter = t.router({
         const completed = expiredMemberIds.size;
         const newMembers = newMemberIds.size;
         const reregMembers = reregMemberIds.size;
-        // 재등록률 = 종료 회원 중 재등록한 회원 수 / 종료 회원 수
         const reregAfterExpired = [...expiredMemberIds].filter(id => reregMemberIds.has(id)).length;
-        const reregRate = completed > 0 ? Math.round((reregAfterExpired / completed) * 100) : 0;
+        // 재등록률 = 기간 내 재등록 회원 / (신규 + 재등록 회원)
+        // — 헬스 전용 회원·트레이너 불일치로 종료수가 0이 돼도 올바른 값 표시
+        const totalReg = reregMembers + newMembers;
+        const reregRate = totalReg > 0 ? Math.round((reregMembers / totalReg) * 100) : 0;
 
         const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
         for (let i = 0; i < monthCount; i++) {
@@ -4752,7 +4754,8 @@ const adminRouter = t.router({
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      const totalReregRate = total.completed > 0 ? Math.round((total.reregAfterExpired / total.completed) * 100) : 0;
+      const totalTotalReg = total.reregMembers + total.newMembers;
+      const totalReregRate = totalTotalReg > 0 ? Math.round((total.reregMembers / totalTotalReg) * 100) : 0;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
     }),
