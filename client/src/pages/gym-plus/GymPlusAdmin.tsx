@@ -763,7 +763,7 @@ export function GymPlusEventsAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [scheduleData, setScheduleData] = useState<ScheduleData>(defaultSchedule);
-  const [sendPush, setSendPush] = useState(false);
+  const [sendPush, setSendPush] = useState(true);
   const [form, setForm] = useState({
     title: "", content: "", imageUrl: "", linkUrl: "",
     eventType: "notice" as "notice" | "event" | "promotion" | "points" | "schedule",
