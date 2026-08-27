@@ -763,6 +763,7 @@ export function GymPlusEventsAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [scheduleData, setScheduleData] = useState<ScheduleData>(defaultSchedule);
+  const [sendPush, setSendPush] = useState(false);
   const [form, setForm] = useState({
     title: "", content: "", imageUrl: "", linkUrl: "",
     eventType: "notice" as "notice" | "event" | "promotion" | "points" | "schedule",
@@ -788,6 +789,7 @@ export function GymPlusEventsAdmin() {
   function resetForm() {
     setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", pointAmount: "0", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
     setScheduleData(defaultSchedule());
+    setSendPush(false);
   }
 
   function openEdit(e: any) {
@@ -808,7 +810,7 @@ export function GymPlusEventsAdmin() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate({ ...data, sendPush: !editingId && sendPush });
     }
   }
 
@@ -937,6 +939,18 @@ export function GymPlusEventsAdmin() {
                 </Select>
               </div>
             </div>
+            {!editingId && (
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={sendPush}
+                  onChange={e => setSendPush(e.target.checked)}
+                  className="w-4 h-4 accent-primary rounded"
+                />
+                <span className="text-xs text-foreground font-medium">앱 푸시 알림 발송</span>
+                <span className="text-[10px] text-muted-foreground">(앱 알림 허용 회원에게 즉시 발송)</span>
+              </label>
+            )}
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setShowForm(false)}>취소</Button>
               <Button className="flex-1 h-8 text-sm" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
