@@ -4698,14 +4698,20 @@ const adminRouter = t.router({
         ]);
 
         const revResultRows: any[] = (revRows as any).rows ?? revRows;
+        const assignedMemberIdSet = new Set(assignedMemberIds);
         const newMemberIds = new Set<number>();
         const reregMemberIds = new Set<number>();
         let reregCount = 0;
         for (const r of revResultRows) {
           if (r.subType === "신규" || r.subType === "신규배정") {
-            // 신규 배정 = 이 트레이너가 PT 담당 트레이너로 배정된 신규 회원
-            // (consultantId 기준 → trainerId 기준으로 변경: 상담은 달라도 배정된 회원은 포함)
-            if (r.subType === "신규" && Number(r.trainerId) !== tid) continue;
+            // PT 신규 배정만 카운트 (헬스 제외)
+            // 신규 등록 시 hasPt=false 이면 revenue entry의 trainerId=null이므로
+            // trainerId 직접 비교 OR assignedMemberIds(현재 배정된 PT 회원) 포함 여부로 판단
+            if (r.subType === "신규") {
+              const isDirectPt = Number(r.trainerId) === tid;
+              const isAssignedPt = r.memberId != null && assignedMemberIdSet.has(Number(r.memberId));
+              if (!isDirectPt && !isAssignedPt) continue;
+            }
             if (r.memberId) newMemberIds.add(r.memberId);
           } else if (r.subType === "재등록") {
             reregCount++;
