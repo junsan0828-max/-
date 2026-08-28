@@ -4622,6 +4622,18 @@ const adminRouter = t.router({
 
       const today = kstDate();
 
+      // 실제 경과 개월 수 (현재 진행 중인 기간이면 경과월만, 과거 기간이면 전체 monthCount)
+      const elapsedMonths = (() => {
+        const periodStart = `${year}-${String(startMonth).padStart(2, "0")}-01`;
+        const periodEnd = period === "annual"
+          ? `${year}-12-31`
+          : period === "H1" ? `${year}-06-30` : `${year}-12-31`;
+        if (today > periodEnd) return monthCount; // 지난 기간: 전체
+        if (today < periodStart) return 1;         // 미래 기간: 최소 1
+        const [ty, tm] = today.split("-").map(Number);
+        return Math.min(monthCount, Math.max(1, (ty - year) * 12 + (tm - startMonth) + 1));
+      })();
+
       const trainerRows = await Promise.all(trainerList.map(async (trainer) => {
         const tid = trainer.id;
         const trainerUserId = (await db.select({ userId: trainers.userId }).from(trainers).where(eq(trainers.id, tid)).limit(1))[0]?.userId;
@@ -4727,7 +4739,7 @@ const adminRouter = t.router({
           trainerId: tid,
           trainerName: trainer.trainerName,
           sessions,
-          avgMonthly: Math.round((sessions / monthCount) * 10) / 10,
+          avgMonthly: Math.round((sessions / elapsedMonths) * 10) / 10,
           noShows,
           completed,
           newMembers,
