@@ -670,7 +670,7 @@ function PeriodReportTab() {
               <StatCard label="종료 회원" value={`${fmt(data.total.completed)}명`} />
               <StatCard label="신규 배정" value={`${fmt(data.total.newMembers)}명`} />
               <StatCard label="재등록" value={`${fmt(data.total.reregCount)}건`} sub={`${data.total.reregMembers}명`} />
-              <StatCard label="재등록률" value={`${data.total.reregRate}%`} />
+              <StatCard label="재등록률" value={data.total.reregRate == null ? "-" : `${data.total.reregRate}%`} />
               <StatCard label="노쇼" value={`${fmt(data.total.noShows)}회`} />
             </CardContent>
           </Card>
@@ -701,8 +701,8 @@ function PeriodReportTab() {
                       <td className={tdNum(t.completed, t.completed > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.completed}명</td>
                       <td className={tdNum(t.newMembers, t.newMembers > 0 ? "text-cyan-400" : "text-muted-foreground")}>{t.newMembers}명</td>
                       <td className={tdNum(t.reregCount, "text-primary")}>{t.reregCount}건</td>
-                      <td className={tdNum(t.reregRate, t.reregRate >= 50 ? "text-emerald-400" : t.reregRate >= 30 ? "text-yellow-400" : "text-red-400")}>
-                        {t.reregRate}%
+                      <td className={t.reregRate == null ? td : tdNum(t.reregRate, t.reregRate >= 50 ? "text-emerald-400" : t.reregRate >= 30 ? "text-yellow-400" : "text-red-400")}>
+                        {t.reregRate == null ? <span className="text-muted-foreground">-</span> : `${t.reregRate}%`}
                       </td>
                       <td className={tdNum(t.noShows, t.noShows > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.noShows}회</td>
                     </tr>
@@ -716,7 +716,7 @@ function PeriodReportTab() {
                     <td className={`${td} font-bold`}>{fmt(data.total.completed)}명</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.newMembers)}명</td>
                     <td className={`${td} font-bold text-primary`}>{fmt(data.total.reregCount)}건</td>
-                    <td className={`${td} font-bold`}>{data.total.reregRate}%</td>
+                    <td className={`${td} font-bold`}>{data.total.reregRate == null ? "-" : `${data.total.reregRate}%`}</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.noShows)}회</td>
                   </tr>
                 </tfoot>
