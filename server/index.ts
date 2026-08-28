@@ -1063,6 +1063,19 @@ async function initDatabase() {
     )`,
     `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "appInstalledAt" TEXT`,
     `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "appInstalledDevice" TEXT`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_workout_logs (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "logDate" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "exercisesJson" TEXT,
+      "durationMinutes" INTEGER,
+      "caloriesBurned" INTEGER,
+      "bodyWeight" TEXT,
+      "notes" TEXT,
+      "mood" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of accessTables) {
     await pool.query(stmt);
