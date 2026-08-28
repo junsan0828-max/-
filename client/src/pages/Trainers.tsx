@@ -785,7 +785,7 @@ function PeriodReportTab() {
               </table>
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground text-center pb-2">* 재등록률 = 재등록 회원 / 종료 회원 · 종료 = 패키지 완료+만료 기준</p>
+          <p className="text-[10px] text-muted-foreground text-center pb-2">* 재등록률 = PT 패키지 완료(종료) 회원 중 재등록한 비율 · 종료=0명이면 '-' · 재등록 건수는 헬스/PT 전체</p>
         </>
       )}
     </div>
