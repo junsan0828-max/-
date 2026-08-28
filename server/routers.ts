@@ -4649,12 +4649,13 @@ const adminRouter = t.router({
             sql`${attendanceChecks.checkDate} >= ${periodStart}`,
             sql`${attendanceChecks.checkDate} < ${periodEnd}`,
           )),
-          // 만료자: 담당 트레이너가 tid이고 membershipEnd가 해당 기간에 속하는 회원
+          // 만료자: 담당 트레이너가 tid이고 membershipEnd가 해당 기간에 속하며 이미 만료된 회원
           db.execute(sql`
             SELECT DISTINCT id AS "memberId" FROM members
             WHERE "trainerId" = ${tid}
               AND "membershipEnd" >= ${periodStart}
               AND "membershipEnd" < ${periodEnd}
+              AND "membershipEnd" <= ${today}
           `),
           db.execute(sql`
             SELECT r."subType", r."memberId", r."consultantId", r."trainerId"
