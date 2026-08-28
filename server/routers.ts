@@ -4649,13 +4649,16 @@ const adminRouter = t.router({
             sql`${attendanceChecks.checkDate} >= ${periodStart}`,
             sql`${attendanceChecks.checkDate} < ${periodEnd}`,
           )),
-          // 만료자: 담당 트레이너가 tid이고 membershipEnd가 해당 기간에 속하며 이미 만료된 회원
+          // 종료: PT 패키지가 이 기간에 완료된 회원 (membershipEnd는 재등록 시 갱신돼 사용 불가)
           db.execute(sql`
-            SELECT DISTINCT id AS "memberId" FROM members
+            SELECT DISTINCT "memberId" FROM pt_packages
             WHERE "trainerId" = ${tid}
-              AND "membershipEnd" >= ${periodStart}
-              AND "membershipEnd" < ${periodEnd}
-              AND "membershipEnd" <= ${today}
+              AND (
+                (status = 'completed' AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd})
+                OR (status = 'active' AND "expiryDate" IS NOT NULL
+                    AND "expiryDate" >= ${periodStart} AND "expiryDate" < ${periodEnd}
+                    AND "expiryDate" <= ${today})
+              )
           `),
           db.execute(sql`
             SELECT r."subType", r."memberId", r."consultantId", r."trainerId"
@@ -4706,8 +4709,10 @@ const adminRouter = t.router({
         const newMembers = newMemberIds.size;
         const reregMembers = reregMemberIds.size;
         const reregAfterExpired = [...expiredMemberIds].filter(id => reregMemberIds.has(id)).length;
-        // 재등록률 = 해당 기간 만료자 중 재등록한 회원 수 / 만료자 수
-        const reregRate = completed > 0 ? Math.round((reregAfterExpired / completed) * 100) : 0;
+        // 재등록률 = 재등록 회원 / (신규 + 재등록 회원)
+        // membershipEnd는 재등록 시 갱신되므로 만료자 교집합 방식은 항상 0%가 나옴
+        const totalReg = reregMembers + newMembers;
+        const reregRate = totalReg > 0 ? Math.round((reregMembers / totalReg) * 100) : 0;
 
         const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
         for (let i = 0; i < monthCount; i++) {
@@ -4749,7 +4754,8 @@ const adminRouter = t.router({
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      const totalReregRate = total.completed > 0 ? Math.round((total.reregAfterExpired / total.completed) * 100) : 0;
+      const totalReg = total.reregMembers + total.newMembers;
+      const totalReregRate = totalReg > 0 ? Math.round((total.reregMembers / totalReg) * 100) : 0;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
     }),
