@@ -4661,21 +4661,16 @@ const adminRouter = t.router({
             sql`${attendanceChecks.checkDate} >= ${periodStart}`,
             sql`${attendanceChecks.checkDate} < ${periodEnd}`,
           )),
-          // 종료: 이 기간에 이 트레이너의 PT가 실제로 끝난 회원
+          // 종료: 이 기간에 PT 세션을 모두 소진한 회원 (잔여 0회)
+          // 만료일 경과는 종료 아님 — 세션 0회 소진만 종료로 판정
           // 조건1: 세션 소진으로 status='completed' (useSession 시 자동 설정)
-          // 조건2: 만료일(expiryDate)이 기간 시작 이후이고 오늘 이전 경과
-          // 조건3: status='active'지만 usedSessions >= totalSessions (status 미갱신 안전망)
+          // 조건2: status='active'지만 usedSessions >= totalSessions (status 미갱신 안전망)
           db.execute(sql`
             SELECT DISTINCT "memberId" FROM pt_packages
             WHERE "trainerId" = ${tid}
-              AND (
-                (status = 'completed' AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd})
-                OR ("expiryDate" IS NOT NULL
-                    AND "expiryDate" >= ${periodStart} AND "expiryDate" <= ${today})
-                OR (status = 'active' AND "totalSessions" > 0
-                    AND "usedSessions" >= "totalSessions"
-                    AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd})
-              )
+              AND "totalSessions" > 0
+              AND "usedSessions" >= "totalSessions"
+              AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd}
           `),
           db.execute(sql`
             SELECT r."subType", r."memberId", r."consultantId", r."trainerId"
