@@ -4703,7 +4703,9 @@ const adminRouter = t.router({
         let reregCount = 0;
         for (const r of revResultRows) {
           if (r.subType === "신규" || r.subType === "신규배정") {
-            if (r.subType === "신규" && r.consultantId !== trainerUserId) continue;
+            // 신규 배정 = 이 트레이너가 PT 담당 트레이너로 배정된 신규 회원
+            // (consultantId 기준 → trainerId 기준으로 변경: 상담은 달라도 배정된 회원은 포함)
+            if (r.subType === "신규" && Number(r.trainerId) !== tid) continue;
             if (r.memberId) newMemberIds.add(r.memberId);
           } else if (r.subType === "재등록") {
             reregCount++;
