@@ -4746,8 +4746,11 @@ const adminRouter = t.router({
           reregAfterExpired = expiredList.filter(id => reregSet.has(id)).length;
         }
 
-        // 재등록률 = PT 완료자(종료) 중 재등록한 비율. 종료=0이면 null(-) 표시
-        const reregRate = completed > 0 ? Math.round((reregAfterExpired / completed) * 100) : null;
+        // 재등록률 = 재등록 회원 ÷ (신규 배정 + 재등록 회원)
+        // 이번 기간 전체 PT 거래 중 재등록 비율. H1 종료 후 H2 재등록도 포함.
+        const reregRate = (newMembers + reregMembers) > 0
+          ? Math.round((reregMembers / (newMembers + reregMembers)) * 100)
+          : null;
 
         const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
         for (let i = 0; i < monthCount; i++) {
@@ -4789,7 +4792,9 @@ const adminRouter = t.router({
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      const totalReregRate = total.completed > 0 ? Math.round((total.reregAfterExpired / total.completed) * 100) : null;
+      const totalReregRate = (total.newMembers + total.reregMembers) > 0
+        ? Math.round((total.reregMembers / (total.newMembers + total.reregMembers)) * 100)
+        : null;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
     }),
