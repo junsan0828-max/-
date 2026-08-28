@@ -4723,12 +4723,29 @@ const adminRouter = t.router({
         const noShows = noShowRes[0]?.c ?? 0;
         // 기간 내 종료된 회원 ID 목록
         const expiredMemberIds = new Set<number>(
-          ((completedPkgRes as any).rows ?? completedPkgRes).map((r: any) => r.memberId).filter(Boolean)
+          ((completedPkgRes as any).rows ?? completedPkgRes).map((r: any) => Number(r.memberId)).filter(Boolean)
         );
         const completed = expiredMemberIds.size;
         const newMembers = newMemberIds.size;
         const reregMembers = reregMemberIds.size;
-        const reregAfterExpired = [...expiredMemberIds].filter(id => reregMemberIds.has(id)).length;
+
+        // 재등록률: 종료된 회원이 이 기간에 재등록했는지 직접 확인
+        // revOwnerFilter에 의존하지 않음 (재등록 시 hasPt=false → trainerId=null 문제 우회)
+        let reregAfterExpired = 0;
+        if (completed > 0) {
+          const expiredList = Array.from(expiredMemberIds);
+          const reregCheckRes = await db.execute(sql`
+            SELECT DISTINCT "memberId" FROM revenue_entries
+            WHERE "memberId" IN (${sql.join(expiredList.map(id => sql`${id}`), sql`, `)})
+              AND "paymentDate" >= ${periodStart} AND "paymentDate" < ${periodEnd}
+              AND "subType" = '재등록'
+          `);
+          const reregSet = new Set<number>(
+            ((reregCheckRes as any).rows ?? reregCheckRes).map((r: any) => Number(r.memberId)).filter(Boolean)
+          );
+          reregAfterExpired = expiredList.filter(id => reregSet.has(id)).length;
+        }
+
         // 재등록률 = PT 완료자(종료) 중 재등록한 비율. 종료=0이면 null(-) 표시
         const reregRate = completed > 0 ? Math.round((reregAfterExpired / completed) * 100) : null;
 
