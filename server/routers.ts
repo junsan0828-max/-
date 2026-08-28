@@ -4649,21 +4649,17 @@ const adminRouter = t.router({
             sql`${attendanceChecks.checkDate} >= ${periodStart}`,
             sql`${attendanceChecks.checkDate} < ${periodEnd}`,
           )),
+          // 만료자: 담당 트레이너가 tid이고 membershipEnd가 해당 기간에 속하는 회원
           db.execute(sql`
-            SELECT DISTINCT "memberId" FROM pt_packages
+            SELECT DISTINCT id AS "memberId" FROM members
             WHERE "trainerId" = ${tid}
-              AND (
-                (status = 'completed' AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd})
-                OR (status = 'active' AND "expiryDate" IS NOT NULL
-                    AND "expiryDate" >= ${periodStart} AND "expiryDate" < ${periodEnd}
-                    AND "expiryDate" < ${today})
-              )
+              AND "membershipEnd" >= ${periodStart}
+              AND "membershipEnd" < ${periodEnd}
           `),
           db.execute(sql`
             SELECT r."subType", r."memberId", r."consultantId", r."trainerId"
             FROM revenue_entries r
-            WHERE r.type = 'PT'
-              AND ${revOwnerFilter}
+            WHERE ${revOwnerFilter}
               AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}
               AND r."subType" IN ('신규', '신규배정', '재등록')
           `),
@@ -4678,7 +4674,7 @@ const adminRouter = t.router({
           db.execute(sql`
             SELECT EXTRACT(MONTH FROM r."paymentDate"::date)::int AS m, COUNT(*)::int AS c
             FROM revenue_entries r
-            WHERE r.type = 'PT' AND r."subType" = '재등록'
+            WHERE r."subType" = '재등록'
               AND ${revOwnerFilter}
               AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}
             GROUP BY m ORDER BY m
@@ -4709,10 +4705,8 @@ const adminRouter = t.router({
         const newMembers = newMemberIds.size;
         const reregMembers = reregMemberIds.size;
         const reregAfterExpired = [...expiredMemberIds].filter(id => reregMemberIds.has(id)).length;
-        // 재등록률 = 기간 내 재등록 회원 / (신규 + 재등록 회원)
-        // — 헬스 전용 회원·트레이너 불일치로 종료수가 0이 돼도 올바른 값 표시
-        const totalReg = reregMembers + newMembers;
-        const reregRate = totalReg > 0 ? Math.round((reregMembers / totalReg) * 100) : 0;
+        // 재등록률 = 해당 기간 만료자 중 재등록한 회원 수 / 만료자 수
+        const reregRate = completed > 0 ? Math.round((reregAfterExpired / completed) * 100) : 0;
 
         const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
         for (let i = 0; i < monthCount; i++) {
@@ -4754,8 +4748,7 @@ const adminRouter = t.router({
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      const totalTotalReg = total.reregMembers + total.newMembers;
-      const totalReregRate = totalTotalReg > 0 ? Math.round((total.reregMembers / totalTotalReg) * 100) : 0;
+      const totalReregRate = total.completed > 0 ? Math.round((total.reregAfterExpired / total.completed) * 100) : 0;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
     }),
