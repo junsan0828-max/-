@@ -1599,8 +1599,33 @@ const ptRouter = t.router({
         null;
 
       const { overrideTrainerId: _, isDraft, ...logFields } = input;
+      const targetDate = input.sessionDate ?? kstDate();
+
+      // 같은 날 이미 세션 로그가 있으면 UPDATE (출석 체크로 자동 생성된 로그 포함)
+      const [existingForDate] = await db.select({ id: ptSessionLogs.id })
+        .from(ptSessionLogs)
+        .where(and(eq(ptSessionLogs.memberId, input.memberId), eq(ptSessionLogs.sessionDate, targetDate)))
+        .limit(1);
+
+      if (existingForDate) {
+        const [row] = await db.update(ptSessionLogs)
+          .set({
+            goal: logFields.goal, bodyPart: logFields.bodyPart,
+            exercisesJson: logFields.exercisesJson, feedback: logFields.feedback,
+            notes: logFields.notes,
+            packageId: resolvedPackageId ?? undefined,
+            memberName: memberNameSnapshot,
+            trainerId: trainerId ?? 0,
+            isDraft: isDraft ? 1 : 0,
+          })
+          .where(eq(ptSessionLogs.id, existingForDate.id))
+          .returning();
+        return row;
+      }
+
       const [row] = await db.insert(ptSessionLogs).values({
         ...logFields,
+        sessionDate: targetDate,
         packageId: resolvedPackageId ?? undefined,
         memberName: memberNameSnapshot,
         trainerId: trainerId ?? 0,
@@ -1734,7 +1759,11 @@ const ptRouter = t.router({
         )
         .limit(1);
       if (dupCheck) {
-        throw new TRPCError({ code: "CONFLICT", message: "해당 날짜에 이미 세션이 기록되어 있습니다." });
+        // 이미 세션 로그 있으면 내용만 업데이트 (중복 차감 없음)
+        await db.update(ptSessionLogs)
+          .set({ notes: input.notes, bodyPart: input.bodyPart, exercisesJson: input.exercisesJson, goal: input.goal, feedback: input.feedback })
+          .where(eq(ptSessionLogs.id, dupCheck.id));
+        return { success: true, remaining: pkg.totalSessions - pkg.usedSessions };
       }
 
       await db

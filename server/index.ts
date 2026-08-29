@@ -918,6 +918,27 @@ async function initDatabase() {
     await pool.query(stmt);
   }
 
+  // 세션 로그 기준으로 usedSessions 재동기화 (이전 데이터 포함, 매 시작 시 일관성 보장)
+  await pool.query(`
+    UPDATE pt_packages
+    SET
+      "usedSessions" = (
+        SELECT COUNT(*) FROM pt_session_logs
+        WHERE "packageId" = pt_packages.id
+        AND ("isDraft" IS NULL OR "isDraft" = 0)
+      ),
+      status = CASE
+        WHEN (
+          SELECT COUNT(*) FROM pt_session_logs
+          WHERE "packageId" = pt_packages.id
+          AND ("isDraft" IS NULL OR "isDraft" = 0)
+        ) >= "totalSessions" THEN 'completed'
+        WHEN status = 'paused' THEN 'paused'
+        ELSE 'active'
+      END
+    WHERE status IN ('active', 'completed')
+  `);
+
   // ─── 출입 관리 테이블 ──────────────────────────────────────────────────────────
   const accessTables = [
     `CREATE TABLE IF NOT EXISTS locker_categories (
