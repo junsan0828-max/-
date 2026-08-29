@@ -725,11 +725,19 @@ export default function TrainerDetail({ trainerId }: Props) {
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-sm font-medium">{m.name}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
-                          m.status === "active"
+                          daysLeft !== null && daysLeft < 0
+                            ? "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                            : m.status === "active"
                             ? "bg-green-500/20 text-green-400 border-green-500/30"
+                            : m.status === "paused"
+                            ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
                             : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
                         }`}>
-                          {m.status === "active" ? "활성" : "정지"}
+                          {daysLeft !== null && daysLeft < 0
+                            ? "마감"
+                            : m.status === "active" ? "활성"
+                            : m.status === "paused" ? "정지"
+                            : "비활성"}
                         </span>
                         {isExpiringSoon && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
