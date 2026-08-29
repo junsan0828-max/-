@@ -4332,7 +4332,7 @@ const adminRouter = t.router({
       const memberList = await db
         .select()
         .from(members)
-        .where(and(eq(members.trainerId, input.trainerId), hasPtPackage))
+        .where(eq(members.trainerId, input.trainerId))
         .orderBy(asc(members.name));
 
       const memberIds = memberList.map(m => m.id);
