@@ -356,7 +356,7 @@ function CustomerTab() {
                     <p className="text-xs text-muted-foreground">{m.phone ?? "-"} · {m.status === "active" ? "활성" : m.status === "ended" ? "마감" : m.status === "inactive" ? "비활성" : m.status}</p>
                   </div>
                   <p className={`text-xs font-semibold ${gradeOpen === "vvip" ? "text-rose-400" : "text-yellow-400"}`}>
-                    {(m.total_payment ?? 0).toLocaleString()}원
+                    {Number(m.total_payment ?? 0).toLocaleString()}원
                   </p>
                 </button>
               ))}

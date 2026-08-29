@@ -1146,7 +1146,7 @@ export const accessRouter = t.router({
          ORDER BY r.total DESC`,
       );
 
-      return result.rows as { id: number; name: string; phone: string | null; status: string; grade: string; membershipEnd: string | null; total_payment: number }[];
+      return (result.rows as any[]).map(r => ({ ...r, total_payment: Number(r.total_payment) }));
     }),
 
   // 관리자용 만료 임박 회원 목록 (N일 이내 또는 특정 월)
