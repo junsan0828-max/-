@@ -896,7 +896,28 @@ export default function MemberDetail({ memberId }: Props) {
               {member.name.charAt(0)}
             </div>
             <div>
-              <h1 className="text-lg font-bold">{member.name}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg font-bold">{member.name}</h1>
+                {(() => {
+                  const completedTransfer = transferHistory?.find((tc: any) => tc.status === "completed" && tc.transferorMemberId === memberId);
+                  const receivedTransfer = transferHistory?.find((tc: any) => tc.status === "completed" && tc.transfereeMemberId === memberId);
+                  if (completedTransfer) {
+                    return (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30 whitespace-nowrap">
+                        양도완료 → {completedTransfer.transfereeName ?? "-"}
+                      </span>
+                    );
+                  }
+                  if (receivedTransfer) {
+                    return (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/30 whitespace-nowrap">
+                        양수 ← {receivedTransfer.transferorName ?? "-"}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {membershipLabels[member.grade]} · {statusLabels[member.status]}
               </p>
