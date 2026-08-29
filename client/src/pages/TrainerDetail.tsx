@@ -719,13 +719,15 @@ export default function TrainerDetail({ trainerId }: Props) {
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
-                      m.grade === "vip"
+                      m.grade === "vvip"
+                        ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                        : m.grade === "vip"
                         ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40"
                         : m.grade === "premium"
                         ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
                         : "bg-primary/20 text-primary border border-primary/20"
                     }`}>
-                      {m.grade === "vip" ? "VIP" : m.grade === "premium" ? "특별" : "일반"}
+                      {m.grade === "vvip" ? "VVIP" : m.grade === "vip" ? "VIP" : m.grade === "premium" ? "특별" : "일반"}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">

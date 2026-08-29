@@ -4358,16 +4358,15 @@ const adminRouter = t.router({
         ((paymentRows as any).rows ?? paymentRows).map((r: any) => [Number(r.memberId), Number(r.total)])
       );
 
-      // 누적 300만원 이상이면 vip로 자동 승급
-      const vipUpgrades = memberList.filter(m => {
-        const total = paymentMap.get(m.id) ?? 0;
-        return total >= 3000000 && m.grade !== "vip";
-      });
+      // 누적 결제금액 기준 자동 등급 승급 (500만↑ vvip, 300만↑ vip)
+      const now = new Date().toISOString();
+      const vvipUpgrades = memberList.filter(m => (paymentMap.get(m.id) ?? 0) >= 5000000 && m.grade !== "vvip");
+      const vipUpgrades = memberList.filter(m => { const t = paymentMap.get(m.id) ?? 0; return t >= 3000000 && t < 5000000 && m.grade !== "vip" && m.grade !== "vvip"; });
+      if (vvipUpgrades.length > 0) {
+        await db.execute(sql`UPDATE members SET grade = 'vvip', "updatedAt" = ${now} WHERE id IN (${sql.join(vvipUpgrades.map(m => sql`${m.id}`), sql`, `)})`);
+      }
       if (vipUpgrades.length > 0) {
-        await db.execute(sql`
-          UPDATE members SET grade = 'vip', "updatedAt" = ${new Date().toISOString()}
-          WHERE id IN (${sql.join(vipUpgrades.map(m => sql`${m.id}`), sql`, `)})
-        `);
+        await db.execute(sql`UPDATE members SET grade = 'vip', "updatedAt" = ${now} WHERE id IN (${sql.join(vipUpgrades.map(m => sql`${m.id}`), sql`, `)})`);
       }
 
       const withPt = memberList.map(m => {
@@ -4375,7 +4374,7 @@ const adminRouter = t.router({
         const remainingPt = pkgs.reduce((s, p) => s + (p.totalSessions - p.usedSessions), 0);
         const hasUnpaid = pkgs.some(p => p.unpaidAmount && p.unpaidAmount > 0);
         const totalPayment = paymentMap.get(m.id) ?? 0;
-        const grade = totalPayment >= 3000000 ? "vip" : m.grade;
+        const grade = totalPayment >= 5000000 ? "vvip" : totalPayment >= 3000000 ? "vip" : m.grade;
         return { ...m, grade, remainingPt, hasUnpaid, totalPayment };
       });
 
