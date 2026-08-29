@@ -4325,15 +4325,15 @@ const adminRouter = t.router({
   getMembersByTrainer: protectedProcedure
     .input(z.object({ trainerId: z.number() }))
     .query(async ({ ctx, input }) => {
-      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const memberList = await db
-        .select()
-        .from(members)
-        .where(eq(members.trainerId, input.trainerId))
-        .orderBy(asc(members.name));
+      const memberListRes = await pool.query(
+        `SELECT * FROM members WHERE "trainerId" = $1 ORDER BY name`,
+        [input.trainerId]
+      );
+      const memberList = memberListRes.rows as typeof members.$inferSelect[];
 
       const memberIds = memberList.map(m => m.id);
 
