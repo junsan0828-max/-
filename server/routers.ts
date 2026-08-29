@@ -4333,56 +4333,47 @@ const adminRouter = t.router({
         `SELECT * FROM members WHERE "trainerId" = $1 ORDER BY name`,
         [input.trainerId]
       );
-      const memberList = memberListRes.rows as typeof members.$inferSelect[];
-      console.log(`[getMembersByTrainer] trainerId=${input.trainerId} role=${ctx.user?.role} count=${memberList.length}`);
-      // 실제 저장된 trainerId 샘플 확인
-      const sampleRes = await pool.query(`SELECT DISTINCT "trainerId" FROM members WHERE "trainerId" IS NOT NULL LIMIT 10`);
-      console.log(`[getMembersByTrainer] DB trainer IDs sample:`, sampleRes.rows.map((r:any) => r.trainerId));
+      const memberList = memberListRes.rows as (typeof members.$inferSelect)[];
+
+      if (memberList.length === 0) return [];
 
       const memberIds = memberList.map(m => m.id);
 
-      // 회원별 누적 결제금액 및 PT 패키지 일괄 조회
-      const [paymentRows, allPkgs] = await Promise.all([
-        memberIds.length > 0
-          ? db.execute(sql`
-              SELECT "memberId", COALESCE(SUM("paymentAmount"), 0)::int AS total
-              FROM revenue_entries
-              WHERE "memberId" IN (${sql.join(memberIds.map(id => sql`${id}`), sql`, `)})
-              GROUP BY "memberId"
-            `)
-          : Promise.resolve({ rows: [] }),
-        memberIds.length > 0
-          ? db.select({ memberId: ptPackages.memberId, totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions, unpaidAmount: ptPackages.unpaidAmount })
-              .from(ptPackages)
-              .where(and(inArray(ptPackages.memberId, memberIds), eq(ptPackages.status, "active")))
-          : Promise.resolve([]),
+      // PT 패키지 및 누적 결제 일괄 조회
+      const [pkgRes, payRes] = await Promise.all([
+        pool.query(
+          `SELECT "memberId", SUM("totalSessions") as ts, SUM("usedSessions") as us,
+                  SUM(COALESCE("unpaidAmount",0)) as unpaid
+           FROM pt_packages WHERE "memberId" = ANY($1) AND status = 'active'
+           GROUP BY "memberId"`,
+          [memberIds]
+        ),
+        pool.query(
+          `SELECT "memberId", COALESCE(SUM("paymentAmount"),0)::bigint AS total
+           FROM revenue_entries WHERE "memberId" = ANY($1)
+           GROUP BY "memberId"`,
+          [memberIds]
+        ),
       ]);
 
-      const paymentMap = new Map<number, number>(
-        ((paymentRows as any).rows ?? paymentRows).map((r: any) => [Number(r.memberId), Number(r.total)])
-      );
+      const pkgMap = new Map(pkgRes.rows.map((r: any) => [Number(r.memberId), r]));
+      const payMap = new Map(payRes.rows.map((r: any) => [Number(r.memberId), Number(r.total)]));
 
-      // 누적 결제금액 기준 자동 등급 승급 (500만↑ vvip, 300만↑ vip)
+      // 누적결제 기준 등급 자동승급
       const now = new Date().toISOString();
-      const vvipUpgrades = memberList.filter(m => (paymentMap.get(m.id) ?? 0) >= 5000000 && m.grade !== "vvip");
-      const vipUpgrades = memberList.filter(m => { const t = paymentMap.get(m.id) ?? 0; return t >= 3000000 && t < 5000000 && m.grade !== "vip" && m.grade !== "vvip"; });
-      if (vvipUpgrades.length > 0) {
-        await db.execute(sql`UPDATE members SET grade = 'vvip', "updatedAt" = ${now} WHERE id IN (${sql.join(vvipUpgrades.map(m => sql`${m.id}`), sql`, `)})`);
-      }
-      if (vipUpgrades.length > 0) {
-        await db.execute(sql`UPDATE members SET grade = 'vip', "updatedAt" = ${now} WHERE id IN (${sql.join(vipUpgrades.map(m => sql`${m.id}`), sql`, `)})`);
-      }
+      const vvipIds = memberList.filter(m => (payMap.get(m.id) ?? 0) >= 5000000 && m.grade !== "vvip").map(m => m.id);
+      const vipIds = memberList.filter(m => { const t = payMap.get(m.id) ?? 0; return t >= 3000000 && t < 5000000 && m.grade !== "vip" && m.grade !== "vvip"; }).map(m => m.id);
+      if (vvipIds.length > 0) await pool.query(`UPDATE members SET grade='vvip',"updatedAt"=$1 WHERE id=ANY($2)`, [now, vvipIds]);
+      if (vipIds.length > 0) await pool.query(`UPDATE members SET grade='vip',"updatedAt"=$1 WHERE id=ANY($2)`, [now, vipIds]);
 
-      const withPt = memberList.map(m => {
-        const pkgs = allPkgs.filter(p => p.memberId === m.id);
-        const remainingPt = pkgs.reduce((s, p) => s + (p.totalSessions - p.usedSessions), 0);
-        const hasUnpaid = pkgs.some(p => p.unpaidAmount && p.unpaidAmount > 0);
-        const totalPayment = paymentMap.get(m.id) ?? 0;
-        const grade = totalPayment >= 5000000 ? "vvip" : totalPayment >= 3000000 ? "vip" : m.grade;
+      return memberList.map(m => {
+        const pkg = pkgMap.get(m.id) as any;
+        const totalPayment = payMap.get(m.id) ?? 0;
+        const remainingPt = pkg ? Number(pkg.ts) - Number(pkg.us) : 0;
+        const hasUnpaid = pkg ? Number(pkg.unpaid) > 0 : false;
+        const grade = totalPayment >= 5000000 ? "vvip" : totalPayment >= 3000000 ? "vip" : (m.grade ?? "basic");
         return { ...m, grade, remainingPt, hasUnpaid, totalPayment };
       });
-
-      return withPt;
     }),
 
   // 관리자: 전체 트레이너 마감 임박 회원 요약.
