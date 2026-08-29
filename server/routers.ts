@@ -5,7 +5,7 @@ import { consultantRecordsRouter } from "./consultantRecordsRouter";
 import { consultantDataRouter } from "./consultantDataRouter";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, or, desc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats, pool } from "./db";
 import {
@@ -4333,7 +4333,7 @@ const adminRouter = t.router({
         .select()
         .from(members)
         .where(and(eq(members.trainerId, input.trainerId), hasPtPackage))
-        .orderBy(desc(members.createdAt));
+        .orderBy(asc(members.name));
 
       const withPt = await Promise.all(memberList.map(async (m) => {
         const pkgs = await db
