@@ -269,6 +269,12 @@ function CustomerTab() {
   type CustCat = "expiring" | "lowPt" | "unpaid";
   const [custCat, setCustCat] = useState<CustCat>("expiring");
 
+  const [gradeOpen, setGradeOpen] = useState<"vvip" | "vip" | null>(null);
+  const { data: gradeMembers } = trpc.access.getMembersByGrade.useQuery(
+    { grade: gradeOpen!, ...(branchFilter ? { branchId: branchFilter } : {}) },
+    { enabled: !!gradeOpen }
+  );
+
   const expiringLabel = viewMode === "annual" ? `${selYear}년 만료` : isCurrentMonth ? "만료 임박" : `${selMonth}월 만료`;
   const CUST_CATS: { key: CustCat; label: string; count: number; icon: React.ReactNode; color: string; activeClass: string }[] = [
     { key: "expiring", label: expiringLabel, count: expiring?.length ?? 0, icon: <AlertCircle className="h-3.5 w-3.5" />, color: "text-amber-400", activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
@@ -307,15 +313,55 @@ function CustomerTab() {
 
       {/* VIP/VVIP 카드 */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-card border border-rose-500/30 rounded-xl p-3">
-          <p className="text-xs text-rose-400/70 mb-1">VVIP 회원 <span className="text-[10px]">(누적 500만↑)</span></p>
-          <p className="text-lg font-bold text-rose-400">{stats?.vvip_count ?? 0}<span className="text-xs font-normal ml-1">명</span></p>
-        </div>
-        <div className="bg-card border border-yellow-500/30 rounded-xl p-3">
-          <p className="text-xs text-yellow-400/70 mb-1">VIP 회원 <span className="text-[10px]">(누적 300만↑)</span></p>
-          <p className="text-lg font-bold text-yellow-400">{stats?.vip_count ?? 0}<span className="text-xs font-normal ml-1">명</span></p>
-        </div>
+        {([
+          { key: "vvip" as const, label: "VVIP 회원", sub: "누적 500만↑", count: stats?.vvip_count ?? 0, border: "border-rose-500/30", text: "text-rose-400", textMuted: "text-rose-400/70", activeBg: "bg-rose-500/10" },
+          { key: "vip" as const, label: "VIP 회원", sub: "누적 300만↑", count: stats?.vip_count ?? 0, border: "border-yellow-500/30", text: "text-yellow-400", textMuted: "text-yellow-400/70", activeBg: "bg-yellow-500/10" },
+        ]).map(c => (
+          <button
+            key={c.key}
+            onClick={() => setGradeOpen(gradeOpen === c.key ? null : c.key)}
+            className={`text-left bg-card border ${c.border} rounded-xl p-3 transition-colors ${gradeOpen === c.key ? c.activeBg : "hover:opacity-80"}`}
+          >
+            <p className={`text-xs ${c.textMuted} mb-1`}>{c.label} <span className="text-[10px]">({c.sub})</span></p>
+            <p className={`text-lg font-bold ${c.text}`}>{c.count}<span className="text-xs font-normal ml-1">명</span></p>
+          </button>
+        ))}
       </div>
+
+      {/* 등급별 회원 목록 */}
+      {gradeOpen && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className={`px-4 py-2.5 border-b border-border flex items-center justify-between ${gradeOpen === "vvip" ? "bg-rose-500/10" : "bg-yellow-500/10"}`}>
+            <span className={`text-sm font-semibold ${gradeOpen === "vvip" ? "text-rose-400" : "text-yellow-400"}`}>
+              {gradeOpen === "vvip" ? "VVIP" : "VIP"} 회원 목록
+            </span>
+            <button onClick={() => setGradeOpen(null)} className="text-muted-foreground hover:text-foreground text-xs">닫기</button>
+          </div>
+          {!gradeMembers ? (
+            <p className="text-xs text-muted-foreground text-center py-6">불러오는 중…</p>
+          ) : gradeMembers.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-6">해당 등급 회원이 없습니다.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {gradeMembers.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setLocation(`/members/${m.id}`)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/30 transition-colors text-left"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.phone ?? "-"} · {m.status === "active" ? "활성" : m.status === "ended" ? "마감" : m.status}</p>
+                  </div>
+                  <p className={`text-xs font-semibold ${gradeOpen === "vvip" ? "text-rose-400" : "text-yellow-400"}`}>
+                    {(m.total_payment ?? 0).toLocaleString()}원
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* PT 회원 비율 */}
       {stats && stats.active > 0 && (

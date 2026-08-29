@@ -1117,6 +1117,21 @@ export const accessRouter = t.router({
       };
     }),
 
+  // 등급별 회원 목록
+  getMembersByGrade: protectedProcedure
+    .input(z.object({ grade: z.enum(["vvip", "vip"]), branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const bCond = input.branchId ? `AND "branchId" = ${Number(input.branchId)}` : "";
+      const result = await pool.query(`
+        SELECT id, name, phone, status, grade, "membershipEnd",
+               COALESCE((SELECT SUM(r."paymentAmount") FROM revenue_entries r WHERE r."memberId" = m.id), 0)::int AS total_payment
+        FROM members m
+        WHERE grade = $1 ${bCond}
+        ORDER BY total_payment DESC, name
+      `, [input.grade]);
+      return result.rows as { id: number; name: string; phone: string | null; status: string; grade: string; membershipEnd: string | null; total_payment: number }[];
+    }),
+
   // 관리자용 만료 임박 회원 목록 (N일 이내 또는 특정 월)
   getAdminExpiringMembers: protectedProcedure
     .input(z.object({ days: z.number().default(30), month: z.string().optional(), branchId: z.number().optional() }))
