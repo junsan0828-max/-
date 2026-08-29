@@ -279,7 +279,22 @@ function setupTray() {
   }
 }
 
-app.whenReady().then(() => {
+// 로그온 시 자동 실행 등록 후 앱이 실수로 두 번 켜지는 걸 막는다 — 안 막으면 cron이 이중으로
+// 돌면서 auto_message_log 확인 전에 같은 대상에게 알림톡/SMS가 두 번 나갈 수 있다.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    } else {
+      createWindow();
+    }
+  });
+
+  app.whenReady().then(() => {
   createWindow();
   setupTray();
 
@@ -408,8 +423,9 @@ app.whenReady().then(() => {
   });
 });
 
-// 트레이 상주: 창을 닫아도 백그라운드에서 24시간 유지.
-// 핸들러를 등록하고 app.quit()을 호출하지 않으면 자동 종료가 막힌다.
-app.on("window-all-closed", () => {
-  // 의도적으로 종료하지 않음 (트레이에서 종료 선택)
-});
+  // 트레이 상주: 창을 닫아도 백그라운드에서 24시간 유지.
+  // 핸들러를 등록하고 app.quit()을 호출하지 않으면 자동 종료가 막힌다.
+  app.on("window-all-closed", () => {
+    // 의도적으로 종료하지 않음 (트레이에서 종료 선택)
+  });
+}
