@@ -1466,7 +1466,7 @@ export default function MemberDetail({ memberId }: Props) {
                               className="w-full gap-2 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30"
                               onClick={() => {
                                 const today = new Date().toISOString().split("T")[0];
-                                setLocation(`/attendance/${memberId}?date=${today}`);
+                                setLocation(`/attendance/${memberId}?date=${today}&from=member`);
                               }}
                             >
                               <Dumbbell className="h-3.5 w-3.5" />
@@ -2440,7 +2440,7 @@ export default function MemberDetail({ memberId }: Props) {
                 ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                 : ""
             }`}
-            onClick={() => setLocation(`/attendance/${memberId}?date=${todayStr}`)}
+            onClick={() => setLocation(`/attendance/${memberId}?date=${todayStr}&from=member`)}
           >
             <CheckCircle className="h-4 w-4" />
             {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
@@ -2489,7 +2489,7 @@ export default function MemberDetail({ memberId }: Props) {
                   return (
                     <button
                       key={i}
-                      onClick={() => setLocation(`/attendance/${memberId}?date=${dateStr}`)}
+                      onClick={() => setLocation(`/attendance/${memberId}?date=${dateStr}&from=member`)}
                       className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 relative ${bgClass}`}
                     >
                       {day}

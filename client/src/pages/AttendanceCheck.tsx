@@ -57,6 +57,8 @@ export default function AttendanceCheck({ memberId }: Props) {
   const search = useSearch();
   const params = new URLSearchParams(search);
   const dateParam = params.get("date") ?? new Date().toISOString().split("T")[0];
+  const fromMember = params.get("from") === "member";
+  const backTarget = fromMember ? `/members/${memberId}` : `/attendance?date=${dateParam}`;
 
   const [status, setStatus] = useState<Status>("attended");
   const [checkDate, setCheckDate] = useState(dateParam);
@@ -128,7 +130,7 @@ export default function AttendanceCheck({ memberId }: Props) {
   const deleteMutation = trpc.attendanceChecks.delete.useMutation({
     onSuccess: () => {
       toast.success("출석이 취소되었습니다.");
-      setLocation(`/attendance?date=${dateParam}`);
+      setLocation(backTarget);
     },
     onError: (err) => toast.error(err.message || "취소 실패"),
   });
@@ -146,14 +148,14 @@ export default function AttendanceCheck({ memberId }: Props) {
             onSettled: () => {
               savingRef.current = false;
               toast.success("출석 및 세션이 저장되었습니다.");
-              setLocation(`/attendance?date=${checkDate}`);
+              setLocation(fromMember ? `/members/${memberId}` : `/attendance?date=${checkDate}`);
             },
           }
         );
       } else {
         savingRef.current = false;
         toast.success("출석이 저장되었습니다.");
-        setLocation(`/attendance?date=${checkDate}`);
+        setLocation(fromMember ? `/members/${memberId}` : `/attendance?date=${checkDate}`);
       }
     },
     onError: (err) => { savingRef.current = false; toast.error(err.message || "저장 실패"); },
@@ -199,7 +201,7 @@ export default function AttendanceCheck({ memberId }: Props) {
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => setLocation(`/attendance?date=${dateParam}`)}
+          onClick={() => window.history.back()}
           className="text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -508,7 +510,7 @@ export default function AttendanceCheck({ memberId }: Props) {
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? "저장 중..." : "저장"}
           </Button>
-          <Button variant="outline" onClick={() => setLocation(`/attendance?date=${dateParam}`)}>
+          <Button variant="outline" onClick={() => setLocation(backTarget)}>
             취소
           </Button>
         </div>
