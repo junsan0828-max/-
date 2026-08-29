@@ -496,8 +496,10 @@ export default function MemberDetail({ memberId }: Props) {
   const quickAttendMutation = trpc.attendanceChecks.upsert.useMutation({
     onSuccess: () => {
       refetchAttendance();
+      refetchPt();
       setCalQuickLoading(null);
       try { utils.dashboard.getStats.invalidate(); } catch {}
+      try { utils.pt.sessionLogs.invalidate({ memberId }); } catch {}
       // 활성 패키지 세션 날짜순 재정렬
       ptPackages?.filter(p => p.status === "active").forEach(pkg => {
         try { reorderMutation.mutate({ packageId: pkg.id }); } catch {}
