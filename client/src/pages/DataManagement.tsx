@@ -270,8 +270,8 @@ function CustomerTab() {
   const [custCat, setCustCat] = useState<CustCat>("expiring");
 
   const [gradeOpen, setGradeOpen] = useState<"vvip" | "vip" | null>(null);
-  const { data: gradeMembers } = trpc.access.getMembersByGrade.useQuery(
-    { grade: gradeOpen!, ...(branchFilter ? { branchId: branchFilter } : {}) },
+  const { data: gradeMembers, isLoading: gradeMembersLoading, error: gradeMembersError } = trpc.access.getMembersByGrade.useQuery(
+    { grade: gradeOpen ?? "vip", ...(branchFilter ? { branchId: branchFilter } : {}) },
     { enabled: !!gradeOpen }
   );
 
@@ -337,9 +337,11 @@ function CustomerTab() {
             </span>
             <button onClick={() => setGradeOpen(null)} className="text-muted-foreground hover:text-foreground text-xs">닫기</button>
           </div>
-          {!gradeMembers ? (
+          {gradeMembersError ? (
+            <p className="text-xs text-red-400 text-center py-6">오류: {(gradeMembersError as any)?.message ?? "조회 실패"}</p>
+          ) : gradeMembersLoading ? (
             <p className="text-xs text-muted-foreground text-center py-6">불러오는 중…</p>
-          ) : gradeMembers.length === 0 ? (
+          ) : !gradeMembers || gradeMembers.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-6">해당 등급 회원이 없습니다.</p>
           ) : (
             <div className="divide-y divide-border">
