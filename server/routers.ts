@@ -4353,7 +4353,7 @@ const adminRouter = t.router({
         `),
         db.execute(sql`
           SELECT "memberId",
-                 COALESCE(SUM("paymentAmount"),0)::bigint AS total
+                 COALESCE(SUM("paidAmount"),0)::bigint AS total
           FROM revenue_entries
           WHERE "memberId" IN (${sql.join(memberIds.map(id => sql`${id}`), sql`,`)})
           GROUP BY "memberId"
