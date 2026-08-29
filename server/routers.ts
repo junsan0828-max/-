@@ -5214,27 +5214,35 @@ const attendanceChecksRouter = t.router({
     .query(async ({ ctx, input }) => {
       const db = getDb();
       const trainerId = ctx.user.trainerId;
-      if (!trainerId) return [];
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
 
-      const hasActivePtWithTrainer = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id} AND p."trainerId" = ${trainerId} AND p.status = 'active')`;
-      const hasAnyActivePt = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id} AND p.status = 'active')`;
+      const hasActivePt = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id} AND p.status = 'active')`;
+      const hasActivePtWithTrainer = trainerId
+        ? sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id} AND p."trainerId" = ${trainerId} AND p.status = 'active')`
+        : sql`false`;
 
+      // 관리자: 활성 PT 있는 전체 활성 회원 / 트레이너: 담당 회원
       const memberList = await db
         .select({ id: members.id, name: members.name, status: members.status })
         .from(members)
         .where(and(
           eq(members.status, "active"),
-          or(
-            and(eq(members.trainerId, trainerId), hasAnyActivePt),
-            hasActivePtWithTrainer
-          )
+          isAdmin
+            ? hasActivePt
+            : trainerId
+              ? or(and(eq(members.trainerId, trainerId), hasActivePt), hasActivePtWithTrainer)
+              : sql`false`
         ))
         .orderBy(members.name);
 
       const checks = await db
         .select()
         .from(attendanceChecks)
-        .where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.checkDate, input.date)));
+        .where(
+          isAdmin && !trainerId
+            ? eq(attendanceChecks.checkDate, input.date)
+            : and(eq(attendanceChecks.trainerId, trainerId!), eq(attendanceChecks.checkDate, input.date))
+        );
 
       // 잔여 PT 횟수 조회
       const memberIds = memberList.map(m => m.id);
