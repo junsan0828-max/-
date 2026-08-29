@@ -437,6 +437,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: leadInfo } = trpc.gym.leads.getByMemberId.useQuery({ memberId });
   const { data: parQData } = trpc.parQ.get.useQuery({ memberId });
   const { data: memberPrograms } = trpc.access.getMemberPrograms.useQuery({ memberId });
+  const { data: transferHistory } = trpc.transfer.getMyTransfers.useQuery({ memberId });
 
   // 모달에서 접근할 수 있도록 component 레벨에서 파생
   const healthRevsForModal = useMemo(() =>
@@ -2005,6 +2006,55 @@ export default function MemberDetail({ memberId }: Props) {
               </>
             );
           })()}
+
+          {/* ── 양도양수 내역 ── */}
+          {transferHistory && transferHistory.length > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader className="px-4 pb-2 pt-4">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <ArrowRightLeft className="h-4 w-4 text-orange-400" />
+                  양도양수 내역
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-3">
+                {transferHistory.map((tc: any) => {
+                  const isTransferor = tc.transferorMemberId === memberId;
+                  const statusLabel =
+                    tc.status === "completed" ? "완료" :
+                    tc.status === "pending_transferee" ? "양수인 서명 대기" :
+                    tc.status === "pending_transferor" ? "양도인 서명 대기" :
+                    tc.status === "cancelled" ? "취소" : tc.status;
+                  const statusColor =
+                    tc.status === "completed" ? "text-green-400 border-green-500/30 bg-green-500/10" :
+                    tc.status === "cancelled" ? "text-gray-400 border-gray-500/30 bg-gray-500/10" :
+                    "text-amber-400 border-amber-500/30 bg-amber-500/10";
+                  return (
+                    <div key={tc.id} className="border border-border rounded-lg p-3 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-foreground">
+                          {isTransferor ? "양도" : "양수"} · {tc.itemDescription}
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${statusColor}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-0.5">
+                        {isTransferor ? (
+                          <p>양수인: <span className="text-foreground">{tc.transfereeName ?? "-"}</span></p>
+                        ) : (
+                          <p>양도인: <span className="text-foreground">{tc.transferorName ?? "-"}</span></p>
+                        )}
+                        <p>계약일: {tc.createdAt ? fmtDate(tc.createdAt, "yyyy.MM.dd") : "-"}</p>
+                        {tc.completedAt && (
+                          <p>완료일: {fmtDate(tc.completedAt, "yyyy.MM.dd")}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
         </TabsContent>
 
