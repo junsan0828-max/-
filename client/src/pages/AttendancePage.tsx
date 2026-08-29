@@ -3,11 +3,17 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { CheckCircle, XCircle, Clock, ChevronRight, ChevronLeft } from "lucide-react";
+import { CheckCircle, XCircle, Clock, ChevronRight, ChevronLeft, Check } from "lucide-react";
 import { ATTENDANCE_STATUS } from "@/lib/memberServices";
+import { toast } from "sonner";
 
 function todayStr() {
   return new Date().toISOString().split("T")[0];
+}
+
+function nowTimeStr() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function formatDateLabel(dateStr: string) {
@@ -27,7 +33,6 @@ function nextDay(dateStr: string) {
   return d.toISOString().split("T")[0];
 }
 
-// 출석 상태 아이콘은 로컬에서만 필요
 const STATUS_ICON = {
   attended:  CheckCircle,
   noshow:    XCircle,
@@ -37,13 +42,30 @@ const STATUS_ICON = {
 export default function AttendancePage() {
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [quickLoading, setQuickLoading] = useState<number | null>(null);
 
-  const { data: members } = trpc.attendanceChecks.listByDate.useQuery({ date: selectedDate });
+  const { data: user } = trpc.auth.me.useQuery();
+  const isAdmin = user?.role === "admin" || user?.role === "sub_admin";
+
+  const { data: members, refetch } = trpc.attendanceChecks.listByDate.useQuery({ date: selectedDate });
   const { data: recent } = trpc.attendanceChecks.recentSummary.useQuery();
+
+  const quickAttend = trpc.attendanceChecks.upsert.useMutation({
+    onSuccess: () => { refetch(); },
+    onError: (err) => toast.error(err.message || "출석 처리 실패"),
+    onSettled: () => setQuickLoading(null),
+  });
 
   const total = members?.length ?? 0;
   const attended = members?.filter(m => m.check?.status === "attended").length ?? 0;
   const unchecked = members?.filter(m => !m.check).length ?? 0;
+
+  function handleQuickAttend(e: React.MouseEvent, memberId: number) {
+    e.stopPropagation();
+    if (quickLoading !== null) return;
+    setQuickLoading(memberId);
+    quickAttend.mutate({ memberId, checkDate: selectedDate, checkTime: nowTimeStr(), status: "attended" });
+  }
 
   return (
     <div className="space-y-4">
@@ -97,44 +119,66 @@ export default function AttendancePage() {
               const st = (m.check?.status ?? null) as "attended" | "noshow" | "cancelled" | null;
               const cfg = st ? ATTENDANCE_STATUS[st] : null;
               const Icon = st ? STATUS_ICON[st] : null;
+              const isLoadingThis = quickLoading === m.id;
 
               return (
-                <button
-                  key={m.id}
-                  onClick={() => setLocation(`/attendance/${m.id}?date=${selectedDate}`)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
-                >
-                  {/* 아바타 */}
-                  <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
-                    st ? `${cfg!.bg} ${cfg!.text}` : "bg-primary/20 text-primary"
-                  }`}>
-                    {m.name.charAt(0)}
-                  </div>
-
-                  {/* 이름 + 잔여 PT */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{m.name}</p>
-                    {m.remainingSessions != null ? (
-                      <p className="text-xs text-muted-foreground">잔여 PT {m.remainingSessions}회</p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/50">PT 없음</p>
-                    )}
-                  </div>
-
-                  {/* 출석 상태 / 출석하기 */}
-                  {cfg && Icon ? (
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
-                      <Icon className="h-3.5 w-3.5" />
-                      {cfg.label}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full">
-                      출석하기
-                    </div>
+                <div key={m.id} className="flex items-center gap-2 px-3 py-2.5 hover:bg-muted/30 transition-colors">
+                  {/* 어드민: 빠른 출석 체크 버튼 */}
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => handleQuickAttend(e, m.id)}
+                      disabled={isLoadingThis || st === "attended"}
+                      className={`shrink-0 h-8 w-8 rounded-full border flex items-center justify-center transition-colors ${
+                        st === "attended"
+                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                          : isLoadingThis
+                          ? "bg-muted border-border text-muted-foreground animate-pulse"
+                          : "border-border text-muted-foreground hover:bg-emerald-500/10 hover:border-emerald-500/40 hover:text-emerald-400"
+                      }`}
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
                   )}
 
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </button>
+                  {/* 행 클릭 → 상세 폼 */}
+                  <button
+                    onClick={() => setLocation(`/attendance/${m.id}?date=${selectedDate}`)}
+                    className="flex-1 flex items-center gap-3 text-left min-w-0"
+                  >
+                    {/* 아바타 */}
+                    <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
+                      st ? `${cfg!.bg} ${cfg!.text}` : "bg-primary/20 text-primary"
+                    }`}>
+                      {m.name.charAt(0)}
+                    </div>
+
+                    {/* 이름 + 잔여 PT */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{m.name}</p>
+                      {m.remainingSessions != null ? (
+                        <p className="text-xs text-muted-foreground">잔여 PT {m.remainingSessions}회</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/50">PT 없음</p>
+                      )}
+                    </div>
+
+                    {/* 출석 상태 */}
+                    {cfg && Icon ? (
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
+                        <Icon className="h-3.5 w-3.5" />
+                        {cfg.label}
+                      </div>
+                    ) : (
+                      !isAdmin && (
+                        <div className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full">
+                          출석하기
+                        </div>
+                      )
+                    )}
+
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </button>
+                </div>
               );
             })}
           </div>
