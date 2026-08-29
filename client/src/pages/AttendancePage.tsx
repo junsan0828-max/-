@@ -64,7 +64,9 @@ export default function AttendancePage() {
     e.stopPropagation();
     if (quickLoading !== null) return;
     setQuickLoading(memberId);
-    quickAttend.mutate({ memberId, checkDate: selectedDate, checkTime: nowTimeStr(), status: "attended" });
+    // 오늘이면 현재 시간, 과거 날짜면 시간 미기록
+    const checkTime = selectedDate === todayStr() ? nowTimeStr() : undefined;
+    quickAttend.mutate({ memberId, checkDate: selectedDate, checkTime, status: "attended" });
   }
 
   return (
