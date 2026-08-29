@@ -726,7 +726,9 @@ export default function TrainerDetail({ trainerId }: Props) {
                         <p className="text-sm font-medium">{m.name}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
                           daysLeft !== null && daysLeft < 0
-                            ? "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                            ? (m.remainingPt > 0
+                                ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                : "bg-gray-500/20 text-gray-400 border-gray-500/30")
                             : m.status === "active"
                             ? "bg-green-500/20 text-green-400 border-green-500/30"
                             : m.status === "paused"
@@ -734,7 +736,7 @@ export default function TrainerDetail({ trainerId }: Props) {
                             : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
                         }`}>
                           {daysLeft !== null && daysLeft < 0
-                            ? "마감"
+                            ? (m.remainingPt > 0 ? "기간만료" : "마감")
                             : m.status === "active" ? "활성"
                             : m.status === "paused" ? "정지"
                             : "비활성"}
