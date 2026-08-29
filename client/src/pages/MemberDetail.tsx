@@ -488,6 +488,13 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  // 캘린더 빠른 출석 처리
+  const [calQuickLoading, setCalQuickLoading] = useState<string | null>(null);
+  const quickAttendMutation = trpc.attendanceChecks.upsert.useMutation({
+    onSuccess: () => { refetchAttendance(); setCalQuickLoading(null); },
+    onError: (err) => { toast.error(err.message || "출석 처리 실패"); setCalQuickLoading(null); },
+  });
+
   // 출석 체크인
   const checkInMutation = trpc.attendances.checkIn.useMutation({
     onSuccess: () => {
@@ -2486,11 +2493,27 @@ export default function MemberDetail({ memberId }: Props) {
                   else if (isToday) bgClass = "border border-primary text-primary";
                   else bgClass = "text-foreground";
 
+                  const isCalLoading = calQuickLoading === dateStr;
                   return (
                     <button
                       key={i}
-                      onClick={() => setLocation(`/attendance/${memberId}?date=${dateStr}&from=member`)}
-                      className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 relative ${bgClass}`}
+                      disabled={isCalLoading}
+                      onClick={() => {
+                        if (ptStatus) {
+                          // 이미 기록 있으면 폼으로 이동
+                          setLocation(`/attendance/${memberId}?date=${dateStr}&from=member`);
+                        } else {
+                          // 기록 없으면 바로 출석 처리
+                          setCalQuickLoading(dateStr);
+                          const now = new Date();
+                          const todayDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+                          const checkTime = dateStr === todayDateStr
+                            ? `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`
+                            : undefined;
+                          quickAttendMutation.mutate({ memberId, checkDate: dateStr, checkTime, status: "attended" });
+                        }
+                      }}
+                      className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 relative ${isCalLoading ? "opacity-50" : ""} ${bgClass}`}
                     >
                       {day}
                       {hasPt && hasKiosk && ptStatus === "attended" && (
