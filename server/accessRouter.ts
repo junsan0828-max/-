@@ -1133,7 +1133,7 @@ export const accessRouter = t.router({
       // 2단계: 해당 회원 ID만 결제 합산
       const ids = memberList.map(m => m.id);
       const payRes = await pool.query(
-        `SELECT "memberId", COALESCE(SUM("paymentAmount"),0)::bigint AS total FROM revenue_entries WHERE "memberId" = ANY($1) GROUP BY "memberId"`,
+        `SELECT "memberId", COALESCE(SUM("paidAmount"),0)::bigint AS total FROM revenue_entries WHERE "memberId" = ANY($1) GROUP BY "memberId"`,
         [ids]
       );
       const payMap = new Map<number, number>(payRes.rows.map((r: any) => [Number(r.memberId), Number(r.total)]));
