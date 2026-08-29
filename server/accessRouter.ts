@@ -1106,8 +1106,14 @@ export const accessRouter = t.router({
           (SELECT COALESCE(SUM(p."unpaidAmount"),0)::int FROM pt_packages p JOIN members m ON m.id = p."memberId" WHERE p."unpaidAmount" > 0 ${mBCond}) AS total_unpaid,
           COUNT(*) FILTER (WHERE gender = '남')::int AS male,
           COUNT(*) FILTER (WHERE gender = '여')::int AS female,
-          COUNT(*) FILTER (WHERE grade = 'vvip')::int AS vvip_count,
-          COUNT(*) FILTER (WHERE grade = 'vip')::int AS vip_count
+          (SELECT COUNT(*)::int FROM (
+            SELECT r."memberId" FROM revenue_entries r ${mBCond ? `JOIN members m ON m.id = r."memberId" WHERE 1=1 ${mBCond}` : ""}
+            GROUP BY r."memberId" HAVING COALESCE(SUM(r."paidAmount"),0) >= 5000000
+          ) x) AS vvip_count,
+          (SELECT COUNT(*)::int FROM (
+            SELECT r."memberId" FROM revenue_entries r ${mBCond ? `JOIN members m ON m.id = r."memberId" WHERE 1=1 ${mBCond}` : ""}
+            GROUP BY r."memberId" HAVING COALESCE(SUM(r."paidAmount"),0) >= 3000000 AND COALESCE(SUM(r."paidAmount"),0) < 5000000
+          ) x) AS vip_count
         FROM members WHERE 1=1 ${bCond}
       `, [today, in30]);
       return result.rows[0] as {
