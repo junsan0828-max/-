@@ -5325,12 +5325,20 @@ const attendanceChecksRouter = t.router({
       const db = getDb();
       let trainerId = ctx.user.trainerId;
 
-      // admin/sub_admin: 회원의 담당 트레이너 ID 사용
+      // admin/sub_admin: 회원 담당 트레이너 → 없으면 활성 PT 패키지 트레이너 순서로 fallback
       if (!trainerId && (ctx.user.role === "admin" || ctx.user.role === "sub_admin")) {
         const memberRow = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
         trainerId = memberRow[0]?.trainerId ?? undefined;
+        if (!trainerId) {
+          const pkgRow = await db.select({ trainerId: ptPackages.trainerId })
+            .from(ptPackages)
+            .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active")))
+            .orderBy(desc(ptPackages.id))
+            .limit(1);
+          trainerId = pkgRow[0]?.trainerId ?? undefined;
+        }
       }
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "담당 트레이너를 찾을 수 없습니다." });
 
       const { memberId, checkDate, ...fields } = input;
       const existing = await db
