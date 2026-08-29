@@ -488,10 +488,21 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  // 세션 날짜순 재정렬 (조용히 호출)
+  const reorderMutation = trpc.pt.reorderSessionsByDate.useMutation();
+
   // 캘린더 빠른 출석 처리
   const [calQuickLoading, setCalQuickLoading] = useState<string | null>(null);
   const quickAttendMutation = trpc.attendanceChecks.upsert.useMutation({
-    onSuccess: () => { refetchAttendance(); setCalQuickLoading(null); },
+    onSuccess: () => {
+      refetchAttendance();
+      setCalQuickLoading(null);
+      try { utils.dashboard.getStats.invalidate(); } catch {}
+      // 활성 패키지 세션 날짜순 재정렬
+      ptPackages?.filter(p => p.status === "active").forEach(pkg => {
+        try { reorderMutation.mutate({ packageId: pkg.id }); } catch {}
+      });
+    },
     onError: (err) => { toast.error(err.message || "출석 처리 실패"); setCalQuickLoading(null); },
   });
 
@@ -810,6 +821,26 @@ export default function MemberDetail({ memberId }: Props) {
 
   const accessDateSet = useMemo(() => new Set(accessDates ?? []), [accessDates]);
 
+  // 패키지별 첫 세션 / 마지막 세션 날짜 집합 계산
+  const { firstSessionDates, lastSessionDates } = useMemo(() => {
+    const firstSet = new Set<string>();
+    const lastSet = new Set<string>();
+    if (!sessionLogs) return { firstSessionDates: firstSet, lastSessionDates: lastSet };
+    // packageId 기준으로 그룹핑
+    const byPackage: Record<number, string[]> = {};
+    for (const log of sessionLogs) {
+      if (!log.packageId || !log.sessionDate) continue;
+      if (!byPackage[log.packageId]) byPackage[log.packageId] = [];
+      byPackage[log.packageId].push(log.sessionDate);
+    }
+    for (const dates of Object.values(byPackage)) {
+      const sorted = [...dates].sort();
+      if (sorted.length > 0) firstSet.add(sorted[0]);
+      if (sorted.length > 1) lastSet.add(sorted[sorted.length - 1]);
+    }
+    return { firstSessionDates: firstSet, lastSessionDates: lastSet };
+  }, [sessionLogs]);
+
   const calendarDays = useMemo(() => {
     const { year, month } = calendarDate;
     const firstDay = new Date(year, month, 1).getDay();
@@ -884,8 +915,8 @@ export default function MemberDetail({ memberId }: Props) {
   const remainingPt = ptPackages
     ?.filter(p => p.status === "active")
     .reduce((sum, p) => sum + (p.totalSessions - p.usedSessions), 0) ?? 0;
-  const totalAttendance = (accessCount ?? 0);
-  const totalPtDone = attendanceList?.filter(a => a.status === "attended").length ?? 0;
+  const totalAttendance = attendanceList?.filter(a => a.status === "attended").length ?? 0;
+  const totalPtDone = sessionLogs?.length ?? 0;
   const memoCount = memoList?.length ?? 0;
 
   return (
@@ -2494,6 +2525,8 @@ export default function MemberDetail({ memberId }: Props) {
                   else bgClass = "text-foreground";
 
                   const isCalLoading = calQuickLoading === dateStr;
+                  const isFirstSession = firstSessionDates.has(dateStr);
+                  const isLastSession = lastSessionDates.has(dateStr);
                   return (
                     <button
                       key={i}
@@ -2516,11 +2549,19 @@ export default function MemberDetail({ memberId }: Props) {
                       className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 relative ${isCalLoading ? "opacity-50" : ""} ${bgClass}`}
                     >
                       {day}
-                      {hasPt && hasKiosk && ptStatus === "attended" && (
-                        <div className="absolute -bottom-0.5 flex gap-0.5">
-                          <div className="w-1 h-1 rounded-full bg-blue-300" />
+                      {(hasPt && hasKiosk && ptStatus === "attended") || isFirstSession || isLastSession ? (
+                        <div className="absolute bottom-0.5 flex gap-0.5">
+                          {hasPt && hasKiosk && ptStatus === "attended" && (
+                            <div className="w-1 h-1 rounded-full bg-blue-300" />
+                          )}
+                          {isFirstSession && (
+                            <div className="w-1 h-1 rounded-full bg-orange-400" />
+                          )}
+                          {isLastSession && (
+                            <div className="w-1 h-1 rounded-full bg-yellow-400" />
+                          )}
                         </div>
-                      )}
+                      ) : null}
                     </button>
                   );
                 })}
@@ -2538,6 +2579,14 @@ export default function MemberDetail({ memberId }: Props) {
                     <span className="text-xs text-muted-foreground">{item.label}</span>
                   </div>
                 ))}
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-orange-400" />
+                  <span className="text-xs text-muted-foreground">1회차</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                  <span className="text-xs text-muted-foreground">마지막 세션</span>
+                </div>
               </div>
               <div className="text-xs text-muted-foreground text-center mt-2 space-x-3">
                 <span>헬스 출석 {accessDates?.length ?? 0}회</span>

@@ -172,6 +172,7 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   isServiceSession: integer("isServiceSession").default(0).notNull(),
   sharedToMember: integer("sharedToMember").default(0).notNull(),
   sharedAt: text("sharedAt"),
+  sessionNumber: integer("sessionNumber"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 

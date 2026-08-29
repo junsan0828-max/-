@@ -1778,6 +1778,22 @@ const ptRouter = t.router({
         .orderBy(desc(ptSessionLogs.isDraft), desc(ptSessionLogs.sessionDate));
     }),
 
+  // 세션 날짜순 재정렬 (sessionNumber 재할당)
+  reorderSessionsByDate: protectedProcedure
+    .input(z.object({ packageId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const logs = await db.select().from(ptSessionLogs)
+        .where(eq(ptSessionLogs.packageId, input.packageId))
+        .orderBy(asc(ptSessionLogs.sessionDate));
+      for (let i = 0; i < logs.length; i++) {
+        await db.update(ptSessionLogs)
+          .set({ sessionNumber: i + 1 })
+          .where(eq(ptSessionLogs.id, logs[i].id));
+      }
+      return { reordered: logs.length };
+    }),
+
   shareLog: protectedProcedure
     .input(z.object({ id: z.number(), share: z.boolean() }))
     .mutation(async ({ input }) => {
@@ -5342,10 +5358,14 @@ const attendanceChecksRouter = t.router({
 
       const { memberId, checkDate, ...fields } = input;
       const existing = await db
-        .select({ id: attendanceChecks.id })
+        .select({ id: attendanceChecks.id, status: attendanceChecks.status })
         .from(attendanceChecks)
         .where(and(eq(attendanceChecks.memberId, memberId), eq(attendanceChecks.checkDate, checkDate)))
         .limit(1);
+
+      const wasAttended = existing[0]?.status === "attended";
+      const willAttend = input.status === "attended";
+      const isNew = !existing[0];
 
       if (existing[0]) {
         await db.update(attendanceChecks)
@@ -5367,6 +5387,60 @@ const attendanceChecksRouter = t.router({
         await db.update(attendances).set({ status: attStatus }).where(eq(attendances.id, existingAtt[0].id));
       } else {
         await db.insert(attendances).values({ memberId, trainerId, attendDate: today, status: attStatus });
+      }
+
+      // PT 세션 소비/복구
+      if (isNew && willAttend) {
+        // 같은 날 이미 세션 로그가 있으면 중복 소비하지 않음
+        const [existingLog] = await db.select({ id: ptSessionLogs.id })
+          .from(ptSessionLogs)
+          .where(and(eq(ptSessionLogs.memberId, memberId), eq(ptSessionLogs.sessionDate, checkDate)))
+          .limit(1);
+        if (!existingLog) {
+          const [activePkg] = await db.select()
+            .from(ptPackages)
+            .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "active")))
+            .orderBy(desc(ptPackages.id))
+            .limit(1);
+          if (activePkg && activePkg.usedSessions < activePkg.totalSessions) {
+            const newUsed = activePkg.usedSessions + 1;
+            const newStatus = newUsed >= activePkg.totalSessions ? "completed" : "active";
+            await db.update(ptPackages)
+              .set({ usedSessions: newUsed, status: newStatus as any })
+              .where(eq(ptPackages.id, activePkg.id));
+            const [memRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, memberId)).limit(1);
+            await db.insert(ptSessionLogs).values({
+              memberId,
+              memberName: memRow?.name ?? null,
+              trainerId,
+              packageId: activePkg.id,
+              sessionDate: checkDate,
+            });
+          }
+        }
+      } else if (!isNew && wasAttended && !willAttend) {
+        // attended → 취소: 세션 로그가 자동 생성된 것(내용 없는 것)이면 되돌리기
+        const [autoLog] = await db.select({ id: ptSessionLogs.id, packageId: ptSessionLogs.packageId })
+          .from(ptSessionLogs)
+          .where(and(
+            eq(ptSessionLogs.memberId, memberId),
+            eq(ptSessionLogs.sessionDate, checkDate),
+            isNull(ptSessionLogs.goal),
+            isNull(ptSessionLogs.bodyPart),
+            isNull(ptSessionLogs.exercisesJson),
+          ))
+          .limit(1);
+        if (autoLog?.packageId) {
+          await db.delete(ptSessionLogs).where(eq(ptSessionLogs.id, autoLog.id));
+          const [pkg] = await db.select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+            .from(ptPackages).where(eq(ptPackages.id, autoLog.packageId)).limit(1);
+          if (pkg) {
+            const newUsed = Math.max(0, pkg.usedSessions - 1);
+            await db.update(ptPackages)
+              .set({ usedSessions: newUsed, status: newUsed < pkg.totalSessions ? "active" : "completed" })
+              .where(eq(ptPackages.id, autoLog.packageId));
+          }
+        }
       }
 
       return { success: true };

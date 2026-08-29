@@ -912,6 +912,7 @@ async function initDatabase() {
       note TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sessionNumber" INTEGER`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
