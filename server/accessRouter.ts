@@ -1121,13 +1121,18 @@ export const accessRouter = t.router({
   getMembersByGrade: protectedProcedure
     .input(z.object({ grade: z.enum(["vvip", "vip"]), branchId: z.number().optional() }))
     .query(async ({ input }) => {
-      const bCond = input.branchId ? `AND "branchId" = ${Number(input.branchId)}` : "";
+      const bCond = input.branchId ? `AND m."branchId" = ${Number(input.branchId)}` : "";
       const result = await pool.query(`
-        SELECT id, name, phone, status, grade, "membershipEnd",
-               COALESCE((SELECT SUM(r."paymentAmount") FROM revenue_entries r WHERE r."memberId" = m.id), 0)::int AS total_payment
+        SELECT m.id, m.name, m.phone, m.status, m.grade, m."membershipEnd",
+               COALESCE(r.total, 0)::int AS total_payment
         FROM members m
-        WHERE grade = $1 ${bCond}
-        ORDER BY total_payment DESC, name
+        LEFT JOIN (
+          SELECT "memberId", SUM("paymentAmount") AS total
+          FROM revenue_entries
+          GROUP BY "memberId"
+        ) r ON r."memberId" = m.id
+        WHERE m.grade = $1 ${bCond}
+        ORDER BY total_payment DESC, m.name
       `, [input.grade]);
       return result.rows as { id: number; name: string; phone: string | null; status: string; grade: string; membershipEnd: string | null; total_payment: number }[];
     }),
