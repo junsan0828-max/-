@@ -1105,13 +1105,15 @@ export const accessRouter = t.router({
           (SELECT COUNT(DISTINCT p."memberId")::int FROM pt_packages p JOIN members m ON m.id = p."memberId" WHERE p.status = 'active' ${mBCond}) AS pt_members,
           (SELECT COALESCE(SUM(p."unpaidAmount"),0)::int FROM pt_packages p JOIN members m ON m.id = p."memberId" WHERE p."unpaidAmount" > 0 ${mBCond}) AS total_unpaid,
           COUNT(*) FILTER (WHERE gender = '남')::int AS male,
-          COUNT(*) FILTER (WHERE gender = '여')::int AS female
+          COUNT(*) FILTER (WHERE gender = '여')::int AS female,
+          COUNT(*) FILTER (WHERE grade = 'vvip')::int AS vvip_count,
+          COUNT(*) FILTER (WHERE grade = 'vip')::int AS vip_count
         FROM members WHERE 1=1 ${bCond}
       `, [today, in30]);
       return result.rows[0] as {
         total: number; active: number; inactive: number; expiring30: number;
         expired_but_active: number; active_pt_packages: number; pt_members: number; total_unpaid: number;
-        male: number; female: number;
+        male: number; female: number; vvip_count: number; vip_count: number;
       };
     }),
 

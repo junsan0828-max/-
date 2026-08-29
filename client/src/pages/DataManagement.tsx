@@ -305,6 +305,18 @@ function CustomerTab() {
         ))}
       </div>
 
+      {/* VIP/VVIP 카드 */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-card border border-rose-500/30 rounded-xl p-3">
+          <p className="text-xs text-rose-400/70 mb-1">VVIP 회원 <span className="text-[10px]">(누적 500만↑)</span></p>
+          <p className="text-lg font-bold text-rose-400">{stats?.vvip_count ?? 0}<span className="text-xs font-normal ml-1">명</span></p>
+        </div>
+        <div className="bg-card border border-yellow-500/30 rounded-xl p-3">
+          <p className="text-xs text-yellow-400/70 mb-1">VIP 회원 <span className="text-[10px]">(누적 300만↑)</span></p>
+          <p className="text-lg font-bold text-yellow-400">{stats?.vip_count ?? 0}<span className="text-xs font-normal ml-1">명</span></p>
+        </div>
+      </div>
+
       {/* PT 회원 비율 */}
       {stats && stats.active > 0 && (
         <div className="bg-card border border-border rounded-xl p-4 space-y-2">
