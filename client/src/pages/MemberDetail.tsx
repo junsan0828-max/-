@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import { MEMBER_STATUS, SERVICE_COLORS, PT_STATUS, ATTENDANCE_STATUS, STAFF_LABELS, STATUS_COLORS } from "@/lib/memberServices";
 import { format } from "date-fns";
@@ -1202,7 +1203,7 @@ export default function MemberDetail({ memberId }: Props) {
                     <p className="text-xs text-muted-foreground">연락처</p>
                     {member.phone ? (
                       <a href={`tel:${member.phone}`} className="text-sm font-medium text-primary underline underline-offset-2">
-                        {member.phone}
+                        {fmtPhone(member.phone)}
                       </a>
                     ) : (
                       <p className="text-sm font-medium text-foreground">-</p>

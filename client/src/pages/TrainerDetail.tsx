@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -292,7 +293,7 @@ export default function TrainerDetail({ trainerId }: Props) {
             <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground">연락처</p>
-              <p className="text-sm font-medium">{trainer.phone || "-"}</p>
+              <p className="text-sm font-medium">{fmtPhone(trainer.phone)}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

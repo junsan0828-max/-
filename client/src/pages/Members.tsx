@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -414,7 +415,7 @@ export default function Members() {
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <p className="text-xs text-muted-foreground truncate">
-                          {member.phone ?? (member as any).email ?? "연락처 없음"}
+                          {member.phone ? fmtPhone(member.phone) : ((member as any).email ?? "연락처 없음")}
                         </p>
                         {remainingSessions !== undefined && !isLowSessions && (
                           <span className={`text-xs shrink-0 ${SERVICE_COLORS.PT.text}`}>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
+import { fmtPhone } from "../lib/utils";
 import { toast } from "sonner";
 import { GymPlusRenewalsAdmin } from "./gym-plus/GymPlusAdmin";
 import {
@@ -969,7 +970,7 @@ export default function LeadsPage() {
                     {row.lead.phone && (
                       <div className="flex items-center gap-1 mt-0.5">
                         <Phone className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{row.lead.phone}</span>
+                        <span className="text-xs text-muted-foreground">{fmtPhone(row.lead.phone)}</span>
                       </div>
                     )}
                   </div>
@@ -1066,7 +1067,7 @@ export default function LeadsPage() {
                               {row.lead.ageGroup && <span className="text-xs text-muted-foreground">{row.lead.ageGroup}</span>}
                             </div>
                             {row.lead.phone && (
-                              <p className="text-xs text-muted-foreground mt-0.5">{row.lead.phone}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{fmtPhone(row.lead.phone)}</p>
                             )}
                             <div className="flex flex-wrap gap-1 mt-1.5">
                               {mainTypes.map(mt => (
@@ -1860,7 +1861,7 @@ export default function LeadsPage() {
                       >
                         <div>
                           <p className="text-sm font-medium text-foreground">{m.name}</p>
-                          {m.phone && <p className="text-xs text-muted-foreground mt-0.5">{m.phone}</p>}
+                          {m.phone && <p className="text-xs text-muted-foreground mt-0.5">{fmtPhone(m.phone)}</p>}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full border ${m.status === "active" ? "border-green-500/30 text-green-400" : "border-border text-muted-foreground"}`}>
@@ -1883,7 +1884,7 @@ export default function LeadsPage() {
                   {selectedMem && (
                     <div className="px-5 py-3 border-b border-border bg-accent/30 shrink-0">
                       <p className="text-sm font-semibold text-foreground">{selectedMem.name}</p>
-                      {selectedMem.phone && <p className="text-xs text-muted-foreground">{selectedMem.phone}</p>}
+                      {selectedMem.phone && <p className="text-xs text-muted-foreground">{fmtPhone(selectedMem.phone)}</p>}
                     </div>
                   )}
                   <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">

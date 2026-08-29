@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
+import { fmtPhone } from "../lib/utils";
 import { toast } from "sonner";
 import {
   DoorOpen,
@@ -920,7 +921,7 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
                               <button key={m.id} type="button"
                                 onClick={() => { setUniformForm(f => ({ ...f, memberId: String(m.id), memberName: m.name, memberPhone: m.phone ?? "" })); setUniformMemberSearch(m.name); }}
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b border-border last:border-0">
-                                {m.name} {m.phone ? <span className="text-muted-foreground text-xs">{m.phone}</span> : null}
+                                {m.name} {m.phone ? <span className="text-muted-foreground text-xs">{fmtPhone(m.phone)}</span> : null}
                               </button>
                             ))}
                           </div>

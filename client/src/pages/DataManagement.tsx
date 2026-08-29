@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import {
   Database, TrendingUp, Users, Megaphone, Building2,
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
@@ -353,7 +354,7 @@ function CustomerTab() {
                 >
                   <div>
                     <p className="text-sm font-medium">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.phone ?? "-"} · {m.status === "active" ? "활성" : m.status === "ended" ? "마감" : m.status === "inactive" ? "비활성" : m.status}</p>
+                    <p className="text-xs text-muted-foreground">{fmtPhone(m.phone)} · {m.status === "active" ? "활성" : m.status === "ended" ? "마감" : m.status === "inactive" ? "비활성" : m.status}</p>
                   </div>
                   <p className={`text-xs font-semibold ${gradeOpen === "vvip" ? "text-rose-400" : "text-yellow-400"}`}>
                     {Number(m.total_payment ?? 0).toLocaleString()}원
@@ -1557,7 +1558,7 @@ function OperationsTab() {
                         className="flex items-center justify-between bg-background border border-border rounded-xl px-3 py-2.5 cursor-pointer hover:border-amber-500/30 active:scale-[0.99] transition-all">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground">{m.name}</p>
-                          {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
+                          {m.phone && <p className="text-xs text-muted-foreground">{fmtPhone(m.phone)}</p>}
                         </div>
                         <p className="text-[11px] text-muted-foreground shrink-0 ml-2">
                           {m.last_visit ? m.last_visit.substring(0, 10) : "방문 기록 없음"}
@@ -1755,7 +1756,7 @@ function AppTab() {
                   <div key={m.id} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-foreground">{m.name}</p>
-                      {m.phone && <p className="text-[11px] text-muted-foreground">{m.phone}</p>}
+                      {m.phone && <p className="text-[11px] text-muted-foreground">{fmtPhone(m.phone)}</p>}
                     </div>
                     <p className="text-sm font-bold text-amber-400">{m.points.toLocaleString()}P</p>
                   </div>

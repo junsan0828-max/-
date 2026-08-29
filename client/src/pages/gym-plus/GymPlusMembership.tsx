@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 
 const membershipTypeLabel: Record<string, string> = {
   general: "일반회원",
@@ -170,7 +171,7 @@ export default function GymPlusMembership() {
         <div className="space-y-2">
           {[
             { label: "아이디", value: member?.username },
-            { label: "연락처", value: member?.phone ?? "-" },
+            { label: "연락처", value: fmtPhone(member?.phone) },
             { label: "이메일", value: member?.email ?? "-" },
           ].map((item) => (
             <div key={item.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">

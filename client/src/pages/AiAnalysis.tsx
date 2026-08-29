@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
+import { fmtPhone } from "../lib/utils";
 import { toast } from "sonner";
 import { Sparkles, RefreshCw, ChevronLeft, ChevronRight, BrainCircuit, AlertTriangle, Users } from "lucide-react";
 
@@ -175,7 +176,7 @@ function MatchTab() {
           <option value="">트레이너 미배정 회원 중 선택</option>
           {allMembers?.length === 0 && <option disabled>미배정 회원이 없습니다</option>}
           {allMembers?.map(m => (
-            <option key={m.id} value={m.id}>{m.name}{m.phone ? ` · ${m.phone}` : ""}</option>
+            <option key={m.id} value={m.id}>{m.name}{m.phone ? ` · ${fmtPhone(m.phone)}` : ""}</option>
           ))}
         </select>
 

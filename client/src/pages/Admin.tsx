@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -885,7 +886,7 @@ export default function Admin() {
                   <div className="min-w-0">
                     <p className="font-medium text-sm">{m.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {m.phone ?? "연락처 없음"}
+                      {fmtPhone(m.phone)}
                       {m.remainingPt > 0 && ` · 잔여 PT ${m.remainingPt}회`}
                     </p>
                   </div>
@@ -946,7 +947,7 @@ export default function Admin() {
                   <div className="min-w-0">
                     <p className="font-medium text-sm">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {p.phone ?? "연락처 없음"}
+                      {fmtPhone(p.phone)}
                       {p.membershipEnd && ` · 종료 ${p.membershipEnd}`}
                       {p.ptSessions && ` · PT ${p.ptSessions}회`}
                     </p>
@@ -1015,7 +1016,7 @@ export default function Admin() {
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div>
                     <p className="font-medium text-sm">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
+                    <p className="text-xs text-muted-foreground">{m.trainerName} · {fmtPhone(m.phone)}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -1053,7 +1054,7 @@ export default function Admin() {
                   <div className="min-w-0">
                     <p className="font-medium text-sm">{m.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {m.phone ?? "연락처 없음"}
+                      {fmtPhone(m.phone)}
                       {m.trainerName && ` · ${m.trainerName}`}
                     </p>
                   </div>
@@ -1265,7 +1266,7 @@ export default function Admin() {
                         {bulkRows.map((r, i) => (
                           <tr key={i} className="border-t border-border hover:bg-accent/10">
                             <td className="px-2 py-1.5 font-medium text-foreground whitespace-nowrap">{r.name}</td>
-                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.phone ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{fmtPhone(r.phone)}</td>
                             <td className="px-2 py-1.5 whitespace-nowrap">
                               {r.branchId
                                 ? <span className="text-xs text-blue-400">{branchList?.find(b => b.id === r.branchId)?.name ?? `${r.branchHint}호점`}</span>

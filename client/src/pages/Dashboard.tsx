@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -201,7 +202,7 @@ function AdminDashboard() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{p.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {[p.phone, p.gender, p.ptSessions ? `PT ${p.ptSessions}회` : null].filter(Boolean).join(" · ")}
+                  {[p.phone ? fmtPhone(p.phone) : null, p.gender, p.ptSessions ? `PT ${p.ptSessions}회` : null].filter(Boolean).join(" · ")}
                 </p>
               </div>
               <div className="flex gap-1.5 ml-2 shrink-0">
@@ -360,7 +361,7 @@ function AdminDashboard() {
                 <div key={m.id} className="flex items-center justify-between px-1 py-2.5">
                   <div>
                     <p className="text-sm font-medium">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
+                    <p className="text-xs text-muted-foreground">{m.trainerName} · {fmtPhone(m.phone)}</p>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${m.status === "active" ? "bg-green-500/10 text-green-400" : "bg-muted/50 text-muted-foreground"}`}>
                     {m.status === "active" ? "활성" : "비활성"}

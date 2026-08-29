@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +76,7 @@ export function GymPlusMembersAdmin() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {m.phone ?? "연락처 없음"}
+                    {fmtPhone(m.phone)}
                     {m.gymPlus && <span className="ml-2 text-primary/70">@{m.gymPlus.username}</span>}
                   </p>
                   {m.membershipEnd && (
@@ -108,7 +109,7 @@ export function GymPlusMembersAdmin() {
             {/* 자동 설정 안내 */}
             <div className="bg-muted/60 rounded-xl p-3 space-y-1">
               <p className="text-xs font-semibold">자동 설정 정보</p>
-              <p className="text-xs text-muted-foreground">아이디: <span className="text-foreground font-medium">{linkTarget?.phone ?? "전화번호 없음"}</span></p>
+              <p className="text-xs text-muted-foreground">아이디: <span className="text-foreground font-medium">{linkTarget?.phone ? fmtPhone(linkTarget.phone) : "전화번호 없음"}</span></p>
               <p className="text-xs text-muted-foreground">비밀번호: <span className="text-foreground font-medium">전화번호 뒷자리 4자리</span></p>
             </div>
             {!linkTarget?.phone && (

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Portal } from "@/components/Portal";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Lock,
@@ -1321,7 +1322,7 @@ export default function RegistrationManagement() {
                           <button key={m.id} type="button"
                             onClick={() => setLockerForm(f => ({ ...f, memberId: String(m.id), memberName: m.name, memberPhone: m.phone ?? "", memberSearch: m.name }))}
                             className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b border-border last:border-0">
-                            {m.name} {m.phone && <span className="text-xs text-muted-foreground">{m.phone}</span>}
+                            {m.name} {m.phone && <span className="text-xs text-muted-foreground">{fmtPhone(m.phone)}</span>}
                           </button>
                         ))}
                       </div>
@@ -1451,7 +1452,7 @@ export default function RegistrationManagement() {
                           <button key={m.id} type="button"
                             onClick={() => setUniformQForm(f => ({ ...f, memberId: String(m.id), memberName: m.name, memberPhone: m.phone ?? "", memberSearch: m.name }))}
                             className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b border-border last:border-0">
-                            {m.name} {m.phone && <span className="text-xs text-muted-foreground">{m.phone}</span>}
+                            {m.name} {m.phone && <span className="text-xs text-muted-foreground">{fmtPhone(m.phone)}</span>}
                           </button>
                         ))}
                       </div>
@@ -1999,7 +2000,7 @@ export default function RegistrationManagement() {
                               <button key={m.id} type="button"
                                 onClick={() => { setUniformForm(f => ({ ...f, memberId: String(m.id), memberName: m.name, memberPhone: m.phone ?? "" })); setUniformMemberSearch(m.name); }}
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b border-border last:border-0">
-                                {m.name} {m.phone ? <span className="text-muted-foreground text-xs">{m.phone}</span> : null}
+                                {m.name} {m.phone ? <span className="text-muted-foreground text-xs">{fmtPhone(m.phone)}</span> : null}
                               </button>
                             ))}
                           </div>

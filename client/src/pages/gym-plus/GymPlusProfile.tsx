@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -178,7 +179,7 @@ export default function GymPlusProfile() {
             {[
               { label: "아이디", value: member?.username },
               { label: "이름", value: member?.name ?? "-" },
-              { label: "연락처", value: member?.phone ?? "-" },
+              { label: "연락처", value: fmtPhone(member?.phone) },
               { label: "이메일", value: member?.email ?? "-" },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">

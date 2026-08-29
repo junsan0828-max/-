@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChevronDown, ChevronUp, Phone, User, Calendar, Check } from "lucide-react";
 
@@ -80,7 +81,7 @@ export default function BodyAnalysisAdmin() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{r.phone}</span>
+                    <span>{fmtPhone(r.phone)}</span>
                     <span>·</span>
                     <span>{formatDate(r.createdAt)}</span>
                     {r.experience && <><span>·</span><span>{r.experience}</span></>}
@@ -182,7 +183,7 @@ export default function BodyAnalysisAdmin() {
                     className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <Phone className="h-4 w-4" />
-                    {r.phone} 전화하기
+                    {fmtPhone(r.phone)} 전화하기
                   </a>
                 </div>
               )}

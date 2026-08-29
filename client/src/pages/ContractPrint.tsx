@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fmtPhone } from "@/lib/utils";
 
 const CONTRACT_TERMS = `제1조 (목적)
 본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
@@ -199,7 +200,7 @@ export default function ContractPrint() {
             </div>
             <div>
               <span className="text-gray-500">연락처</span>
-              <span className="ml-3 font-semibold border-b border-gray-400 pb-0.5 px-2">{phone || "_____________"}</span>
+              <span className="ml-3 font-semibold border-b border-gray-400 pb-0.5 px-2">{phone ? fmtPhone(phone) : "_____________"}</span>
             </div>
             <div>
               <span className="text-gray-500">계약일</span>

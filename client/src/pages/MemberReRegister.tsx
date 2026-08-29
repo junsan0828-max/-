@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -326,7 +327,7 @@ export default function MemberReRegister() {
                         onMouseDown={() => { setSelectedMemberId(String(m.id)); setShowSuggestions(false); setMemberSearch(""); }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors flex items-center justify-between">
                         <span className="font-medium">{m.name}</span>
-                        {m.phone && <span className="text-xs text-muted-foreground">{m.phone}</span>}
+                        {m.phone && <span className="text-xs text-muted-foreground">{fmtPhone(m.phone)}</span>}
                       </button>
                     ))}
                   {members.filter(m => m.name.includes(memberSearch) || (m.phone ?? "").includes(memberSearch)).length === 0 && (

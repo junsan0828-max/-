@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
@@ -398,7 +399,7 @@ export default function ParQ({ memberId }: Props) {
         <div>
           <div className="flex items-baseline gap-2">
             <h1 className="text-base font-bold">{member?.name ?? "..."}</h1>
-            {member?.phone && <span className="text-xs text-muted-foreground">{member.phone}</span>}
+            {member?.phone && <span className="text-xs text-muted-foreground">{fmtPhone(member.phone)}</span>}
           </div>
           <p className="text-xs text-muted-foreground">사전건강검사 (PAR-Q)</p>
         </div>
