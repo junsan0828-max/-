@@ -4335,7 +4335,55 @@ const adminRouter = t.router({
         .where(eq(members.trainerId, input.trainerId))
         .orderBy(asc(members.name));
 
-      return rawList.map(m => ({ ...m, remainingPt: 0, hasUnpaid: false, totalPayment: 0 }));
+      if (rawList.length === 0) return [];
+
+      const memberIds = rawList.map(m => m.id);
+
+      // PT 패키지 및 누적 결제 일괄 조회
+      const [pkgRows, payRows] = await Promise.all([
+        db.execute(sql`
+          SELECT "memberId",
+                 COALESCE(SUM("totalSessions"),0)::int AS ts,
+                 COALESCE(SUM("usedSessions"),0)::int  AS us,
+                 COALESCE(SUM("unpaidAmount"),0)::int  AS unpaid
+          FROM pt_packages
+          WHERE "memberId" IN (${sql.join(memberIds.map(id => sql`${id}`), sql`,`)})
+            AND status = 'active'
+          GROUP BY "memberId"
+        `),
+        db.execute(sql`
+          SELECT "memberId",
+                 COALESCE(SUM("paymentAmount"),0)::bigint AS total
+          FROM revenue_entries
+          WHERE "memberId" IN (${sql.join(memberIds.map(id => sql`${id}`), sql`,`)})
+          GROUP BY "memberId"
+        `),
+      ]);
+
+      const pkgMap = new Map(
+        ((pkgRows as any).rows ?? pkgRows).map((r: any) => [Number(r.memberId), r])
+      );
+      const payMap = new Map(
+        ((payRows as any).rows ?? payRows).map((r: any) => [Number(r.memberId), Number(r.total)])
+      );
+
+      // 누적결제 기준 등급 자동승급 (예외 차단)
+      try {
+        const now = new Date().toISOString();
+        const vvipIds = rawList.filter(m => (payMap.get(m.id) ?? 0) >= 5000000 && m.grade !== "vvip").map(m => m.id);
+        const vipIds  = rawList.filter(m => { const t = payMap.get(m.id) ?? 0; return t >= 3000000 && t < 5000000 && m.grade !== "vip" && m.grade !== "vvip"; }).map(m => m.id);
+        if (vvipIds.length > 0) await db.execute(sql`UPDATE members SET grade='vvip',"updatedAt"=${now} WHERE id IN (${sql.join(vvipIds.map(id => sql`${id}`), sql`,`)})`);
+        if (vipIds.length  > 0) await db.execute(sql`UPDATE members SET grade='vip', "updatedAt"=${now} WHERE id IN (${sql.join(vipIds.map(id => sql`${id}`), sql`,`)})`);
+      } catch (_) { /* 등급 업그레이드 실패 시 목록 조회는 계속 */ }
+
+      return rawList.map(m => {
+        const pkg        = pkgMap.get(m.id) as any;
+        const totalPayment = payMap.get(m.id) ?? 0;
+        const remainingPt  = pkg ? Number(pkg.ts) - Number(pkg.us) : 0;
+        const hasUnpaid    = pkg ? Number(pkg.unpaid) > 0 : false;
+        const grade        = totalPayment >= 5000000 ? "vvip" : totalPayment >= 3000000 ? "vip" : (m.grade ?? "basic");
+        return { ...m, grade, remainingPt, hasUnpaid, totalPayment };
+      });
     }),
 
   // 관리자: 전체 트레이너 마감 임박 회원 요약.
