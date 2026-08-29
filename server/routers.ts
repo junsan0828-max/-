@@ -4367,21 +4367,24 @@ const adminRouter = t.router({
         ((payRows as any).rows ?? payRows).map((r: any) => [Number(r.memberId), Number(r.total)])
       );
 
-      // 누적결제 기준 등급 자동승급 (예외 차단)
+      // 누적결제 기준 등급 자동승급/강등 (예외 차단)
       try {
         const now = new Date().toISOString();
-        const vvipIds = rawList.filter(m => (payMap.get(m.id) ?? 0) >= 5000000 && m.grade !== "vvip").map(m => m.id);
-        const vipIds  = rawList.filter(m => { const t = payMap.get(m.id) ?? 0; return t >= 3000000 && t < 5000000 && m.grade !== "vip" && m.grade !== "vvip"; }).map(m => m.id);
-        if (vvipIds.length > 0) await db.execute(sql`UPDATE members SET grade='vvip',"updatedAt"=${now} WHERE id IN (${sql.join(vvipIds.map(id => sql`${id}`), sql`,`)})`);
-        if (vipIds.length  > 0) await db.execute(sql`UPDATE members SET grade='vip', "updatedAt"=${now} WHERE id IN (${sql.join(vipIds.map(id => sql`${id}`), sql`,`)})`);
-      } catch (_) { /* 등급 업그레이드 실패 시 목록 조회는 계속 */ }
+        const vvipIds     = rawList.filter(m => (payMap.get(m.id) ?? 0) >= 5000000 && m.grade !== "vvip").map(m => m.id);
+        const vipIds      = rawList.filter(m => { const t = payMap.get(m.id) ?? 0; return t >= 3000000 && t < 5000000 && m.grade !== "vip" && m.grade !== "vvip"; }).map(m => m.id);
+        const downgradeIds = rawList.filter(m => (payMap.get(m.id) ?? 0) < 3000000 && (m.grade === "vip" || m.grade === "vvip")).map(m => m.id);
+        if (vvipIds.length > 0)     await db.execute(sql`UPDATE members SET grade='vvip', "updatedAt"=${now} WHERE id IN (${sql.join(vvipIds.map(id => sql`${id}`), sql`,`)})`);
+        if (vipIds.length  > 0)     await db.execute(sql`UPDATE members SET grade='vip',  "updatedAt"=${now} WHERE id IN (${sql.join(vipIds.map(id => sql`${id}`), sql`,`)})`);
+        if (downgradeIds.length > 0) await db.execute(sql`UPDATE members SET grade='basic',"updatedAt"=${now} WHERE id IN (${sql.join(downgradeIds.map(id => sql`${id}`), sql`,`)})`);
+      } catch (_) { /* 등급 변경 실패 시 목록 조회는 계속 */ }
 
       return rawList.map(m => {
-        const pkg        = pkgMap.get(m.id) as any;
+        const pkg          = pkgMap.get(m.id) as any;
         const totalPayment = payMap.get(m.id) ?? 0;
         const remainingPt  = pkg ? Number(pkg.ts) - Number(pkg.us) : 0;
         const hasUnpaid    = pkg ? Number(pkg.unpaid) > 0 : false;
-        const grade        = totalPayment >= 5000000 ? "vvip" : totalPayment >= 3000000 ? "vip" : (m.grade ?? "basic");
+        // 항상 실제 누적결제 기준으로 등급 결정 (DB grade 무시)
+        const grade        = totalPayment >= 5000000 ? "vvip" : totalPayment >= 3000000 ? "vip" : (m.grade === "vip" || m.grade === "vvip" ? "basic" : (m.grade ?? "basic"));
         return { ...m, grade, remainingPt, hasUnpaid, totalPayment };
       });
     }),
