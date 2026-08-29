@@ -66,7 +66,7 @@ export default function AttendancePage() {
     setQuickLoading(memberId);
     // 오늘이면 현재 시간, 과거 날짜면 시간 미기록
     const checkTime = selectedDate === todayStr() ? nowTimeStr() : undefined;
-    quickAttend.mutate({ memberId, checkDate: selectedDate, checkTime, status: "attended" });
+    quickAttend.mutate({ memberId, checkDate: selectedDate, checkTime, status: "attended", markPtSession: true });
   }
 
   return (

@@ -843,6 +843,13 @@ export default function MemberDetail({ memberId }: Props) {
     return { firstSessionDates: firstSet, lastSessionDates: lastSet };
   }, [sessionLogs]);
 
+  // PT 세션 완료 날짜 집합 (이중 원 표시용)
+  const sessionLogDateSet = useMemo(() => {
+    const s = new Set<string>();
+    sessionLogs?.forEach(l => { if (l.sessionDate && !l.isDraft) s.add(l.sessionDate); });
+    return s;
+  }, [sessionLogs]);
+
   const calendarDays = useMemo(() => {
     const { year, month } = calendarDate;
     const firstDay = new Date(year, month, 1).getDay();
@@ -2516,8 +2523,9 @@ export default function MemberDetail({ memberId }: Props) {
                   const ptStatus = attendanceMap[dateStr];
                   const hasKiosk = accessDateSet.has(dateStr);
                   const isToday = dateStr === todayStr;
-                  const hasPt = !!ptStatus;
+                  const hasPtLog = sessionLogDateSet.has(dateStr); // PT 세션 완료 여부
 
+                  // 배경 색상: PT 로그 있으면 이중 원(ring), 출석만이면 단순 녹색
                   let bgClass = "";
                   if (ptStatus === "attended") bgClass = "bg-green-500 text-white";
                   else if (ptStatus === "noshow") bgClass = "bg-red-500/80 text-white";
@@ -2526,34 +2534,43 @@ export default function MemberDetail({ memberId }: Props) {
                   else if (isToday) bgClass = "border border-primary text-primary";
                   else bgClass = "text-foreground";
 
+                  // 이중 원: PT 세션 완료된 날짜
+                  const ringClass = hasPtLog ? "ring-2 ring-offset-1 ring-green-300 ring-offset-background" : "";
+
                   const isCalLoading = calQuickLoading === dateStr;
                   const isFirstSession = firstSessionDates.has(dateStr);
                   const isLastSession = lastSessionDates.has(dateStr);
+
+                  const now2 = new Date();
+                  const todayDateStr2 = `${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,"0")}-${String(now2.getDate()).padStart(2,"0")}`;
+                  const checkTime2 = dateStr === todayDateStr2
+                    ? `${String(now2.getHours()).padStart(2,"0")}:${String(now2.getMinutes()).padStart(2,"0")}`
+                    : undefined;
+
                   return (
                     <button
                       key={i}
                       disabled={isCalLoading}
                       onClick={() => {
-                        if (ptStatus) {
-                          // 이미 기록 있으면 폼으로 이동
-                          setLocation(`/attendance/${memberId}?date=${dateStr}&from=member`);
-                        } else {
-                          // 기록 없으면 바로 출석 처리
+                        if (!ptStatus) {
+                          // 1클릭: 출석만 (PT 차감 없음)
                           setCalQuickLoading(dateStr);
-                          const now = new Date();
-                          const todayDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
-                          const checkTime = dateStr === todayDateStr
-                            ? `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`
-                            : undefined;
-                          quickAttendMutation.mutate({ memberId, checkDate: dateStr, checkTime, status: "attended" });
+                          quickAttendMutation.mutate({ memberId, checkDate: dateStr, checkTime: checkTime2, status: "attended", markPtSession: false });
+                        } else if (ptStatus === "attended" && !hasPtLog) {
+                          // 2클릭: PT 세션 완료 (이중 원 + 차감)
+                          setCalQuickLoading(dateStr);
+                          quickAttendMutation.mutate({ memberId, checkDate: dateStr, status: "attended", markPtSession: true });
+                        } else {
+                          // 3클릭 또는 이미 PT 완료: 상세 폼으로 이동
+                          setLocation(`/attendance/${memberId}?date=${dateStr}&from=member`);
                         }
                       }}
-                      className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 relative ${isCalLoading ? "opacity-50" : ""} ${bgClass}`}
+                      className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 relative ${isCalLoading ? "opacity-50" : ""} ${bgClass} ${ringClass}`}
                     >
                       {day}
-                      {(hasPt && hasKiosk && ptStatus === "attended") || isFirstSession || isLastSession ? (
+                      {(hasKiosk && ptStatus === "attended") || isFirstSession || isLastSession ? (
                         <div className="absolute bottom-0.5 flex gap-0.5">
-                          {hasPt && hasKiosk && ptStatus === "attended" && (
+                          {hasKiosk && ptStatus === "attended" && (
                             <div className="w-1 h-1 rounded-full bg-blue-300" />
                           )}
                           {isFirstSession && (
@@ -2572,9 +2589,10 @@ export default function MemberDetail({ memberId }: Props) {
               <div className="flex items-center gap-3 mt-3 justify-center flex-wrap">
                 {[
                   { color: "bg-blue-500", label: "헬스" },
-                  { color: "bg-green-500", label: "PT 출석" },
-                  { color: "bg-red-500/80", label: "PT 노쇼" },
-                  { color: "bg-yellow-500/60", label: "PT 결석" },
+                  { color: "bg-green-500", label: "출석" },
+                  { color: "bg-green-500 ring-2 ring-green-300 ring-offset-1", label: "출석+PT" },
+                  { color: "bg-red-500/80", label: "노쇼" },
+                  { color: "bg-yellow-500/60", label: "결석" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-1">
                     <div className={`w-3 h-3 rounded-full ${item.color}`} />

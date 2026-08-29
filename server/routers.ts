@@ -5357,6 +5357,7 @@ const attendanceChecksRouter = t.router({
       checkDate: z.string(),
       checkTime: z.string().optional(),
       status: z.enum(["attended", "noshow", "cancelled"]).default("attended"),
+      markPtSession: z.boolean().optional().default(false),
       conditionScore: z.number().min(1).max(5).optional(),
       sleepHours: z.string().optional(),
       energyLevel: z.string().optional(),
@@ -5418,9 +5419,8 @@ const attendanceChecksRouter = t.router({
         await db.insert(attendances).values({ memberId, trainerId, attendDate: today, status: attStatus });
       }
 
-      // PT 세션 소비/복구
-      if (isNew && willAttend) {
-        // 같은 날 이미 세션 로그가 있으면 중복 소비하지 않음
+      // PT 세션 소비: markPtSession=true 이고 attended 일 때만
+      if (input.markPtSession && willAttend) {
         const [existingLog] = await db.select({ id: ptSessionLogs.id })
           .from(ptSessionLogs)
           .where(and(eq(ptSessionLogs.memberId, memberId), eq(ptSessionLogs.sessionDate, checkDate)))
@@ -5445,29 +5445,6 @@ const attendanceChecksRouter = t.router({
               packageId: activePkg.id,
               sessionDate: checkDate,
             });
-          }
-        }
-      } else if (!isNew && wasAttended && !willAttend) {
-        // attended → 취소: 세션 로그가 자동 생성된 것(내용 없는 것)이면 되돌리기
-        const [autoLog] = await db.select({ id: ptSessionLogs.id, packageId: ptSessionLogs.packageId })
-          .from(ptSessionLogs)
-          .where(and(
-            eq(ptSessionLogs.memberId, memberId),
-            eq(ptSessionLogs.sessionDate, checkDate),
-            isNull(ptSessionLogs.goal),
-            isNull(ptSessionLogs.bodyPart),
-            isNull(ptSessionLogs.exercisesJson),
-          ))
-          .limit(1);
-        if (autoLog?.packageId) {
-          await db.delete(ptSessionLogs).where(eq(ptSessionLogs.id, autoLog.id));
-          const [pkg] = await db.select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
-            .from(ptPackages).where(eq(ptPackages.id, autoLog.packageId)).limit(1);
-          if (pkg) {
-            const newUsed = Math.max(0, pkg.usedSessions - 1);
-            await db.update(ptPackages)
-              .set({ usedSessions: newUsed, status: newUsed < pkg.totalSessions ? "active" : "completed" })
-              .where(eq(ptPackages.id, autoLog.packageId));
           }
         }
       }
