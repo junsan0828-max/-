@@ -4335,15 +4335,49 @@ const adminRouter = t.router({
         .where(and(eq(members.trainerId, input.trainerId), hasPtPackage))
         .orderBy(asc(members.name));
 
-      const withPt = await Promise.all(memberList.map(async (m) => {
-        const pkgs = await db
-          .select({ totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions, unpaidAmount: ptPackages.unpaidAmount })
-          .from(ptPackages)
-          .where(and(eq(ptPackages.memberId, m.id), eq(ptPackages.status, "active")));
+      const memberIds = memberList.map(m => m.id);
+
+      // 회원별 누적 결제금액 및 PT 패키지 일괄 조회
+      const [paymentRows, allPkgs] = await Promise.all([
+        memberIds.length > 0
+          ? db.execute(sql`
+              SELECT "memberId", COALESCE(SUM("paymentAmount"), 0)::int AS total
+              FROM revenue_entries
+              WHERE "memberId" IN (${sql.join(memberIds.map(id => sql`${id}`), sql`, `)})
+              GROUP BY "memberId"
+            `)
+          : Promise.resolve({ rows: [] }),
+        memberIds.length > 0
+          ? db.select({ memberId: ptPackages.memberId, totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions, unpaidAmount: ptPackages.unpaidAmount })
+              .from(ptPackages)
+              .where(and(inArray(ptPackages.memberId, memberIds), eq(ptPackages.status, "active")))
+          : Promise.resolve([]),
+      ]);
+
+      const paymentMap = new Map<number, number>(
+        ((paymentRows as any).rows ?? paymentRows).map((r: any) => [Number(r.memberId), Number(r.total)])
+      );
+
+      // 누적 300만원 이상이면 vip로 자동 승급
+      const vipUpgrades = memberList.filter(m => {
+        const total = paymentMap.get(m.id) ?? 0;
+        return total >= 3000000 && m.grade !== "vip";
+      });
+      if (vipUpgrades.length > 0) {
+        await db.execute(sql`
+          UPDATE members SET grade = 'vip', "updatedAt" = ${new Date().toISOString()}
+          WHERE id IN (${sql.join(vipUpgrades.map(m => sql`${m.id}`), sql`, `)})
+        `);
+      }
+
+      const withPt = memberList.map(m => {
+        const pkgs = allPkgs.filter(p => p.memberId === m.id);
         const remainingPt = pkgs.reduce((s, p) => s + (p.totalSessions - p.usedSessions), 0);
         const hasUnpaid = pkgs.some(p => p.unpaidAmount && p.unpaidAmount > 0);
-        return { ...m, remainingPt, hasUnpaid };
-      }));
+        const totalPayment = paymentMap.get(m.id) ?? 0;
+        const grade = totalPayment >= 3000000 ? "vip" : m.grade;
+        return { ...m, grade, remainingPt, hasUnpaid, totalPayment };
+      });
 
       return withPt;
     }),
