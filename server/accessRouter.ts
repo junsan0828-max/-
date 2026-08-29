@@ -1117,30 +1117,30 @@ export const accessRouter = t.router({
       };
     }),
 
-  // 등급별 회원 목록
+  // 등급별 회원 목록 — grade 컬럼이 아닌 실제 누적 결제액 기준
   getMembersByGrade: protectedProcedure
     .input(z.object({ grade: z.enum(["vvip", "vip"]), branchId: z.number().optional() }))
     .query(async ({ input }) => {
-      const bCond = input.branchId ? `AND "branchId" = ${Number(input.branchId)}` : "";
-      // 1단계: grade 회원만 조회
-      const memberRes = await pool.query(
-        `SELECT id, name, phone, status, grade, "membershipEnd" FROM members WHERE grade = $1 ${bCond} ORDER BY name`,
-        [input.grade]
-      );
-      const memberList = memberRes.rows as { id: number; name: string; phone: string | null; status: string; grade: string; membershipEnd: string | null }[];
-      if (memberList.length === 0) return [];
+      const bCond = input.branchId ? `AND m."branchId" = ${Number(input.branchId)}` : "";
+      // VVIP: 500만원↑, VIP: 300만원↑ ~ 500만원 미만
+      const minAmount = input.grade === "vvip" ? 5000000 : 3000000;
+      const maxAmount = input.grade === "vvip" ? null : 5000000;
+      const maxCond = maxAmount ? `AND total < ${maxAmount}` : "";
 
-      // 2단계: 해당 회원 ID만 결제 합산
-      const ids = memberList.map(m => m.id);
-      const payRes = await pool.query(
-        `SELECT "memberId", COALESCE(SUM("paidAmount"),0)::bigint AS total FROM revenue_entries WHERE "memberId" = ANY($1) GROUP BY "memberId"`,
-        [ids]
+      const result = await pool.query(
+        `SELECT m.id, m.name, m.phone, m.status, m.grade, m."membershipEnd",
+                r.total AS total_payment
+         FROM members m
+         JOIN (
+           SELECT "memberId", COALESCE(SUM("paidAmount"),0)::bigint AS total
+           FROM revenue_entries
+           GROUP BY "memberId"
+         ) r ON r."memberId" = m.id
+         WHERE r.total >= ${minAmount} ${maxCond} ${bCond}
+         ORDER BY r.total DESC`,
       );
-      const payMap = new Map<number, number>(payRes.rows.map((r: any) => [Number(r.memberId), Number(r.total)]));
 
-      return memberList
-        .map(m => ({ ...m, total_payment: payMap.get(m.id) ?? 0 }))
-        .sort((a, b) => b.total_payment - a.total_payment);
+      return result.rows as { id: number; name: string; phone: string | null; status: string; grade: string; membershipEnd: string | null; total_payment: number }[];
     }),
 
   // 관리자용 만료 임박 회원 목록 (N일 이내 또는 특정 월)
