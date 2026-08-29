@@ -2678,7 +2678,15 @@ const trainersRouter = t.router({
       db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), hasPtPackage)),
       db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, trainerId)),
       db.select({ count: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.status, "noshow"))),
-      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), eq(members.status, "inactive"), hasPtPackage)),
+      db.execute(sql`
+        SELECT COUNT(DISTINCT "memberId")::int AS count FROM pt_packages
+        WHERE "trainerId" = ${trainerId}
+          AND "totalSessions" > 0 AND "usedSessions" >= "totalSessions"
+          AND "memberId" NOT IN (
+            SELECT "memberId" FROM pt_packages
+            WHERE "trainerId" = ${trainerId} AND "usedSessions" < "totalSessions"
+          )
+      `),
       db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
         .from(ptPackages)
         .where(and(eq(ptPackages.trainerId, trainerId), eq(ptPackages.status, "active"))),
@@ -2702,7 +2710,7 @@ const trainersRouter = t.router({
     const totalMembers = Number(totalMembersResult[0]?.count ?? 0);
     const totalSessions = Number(totalSessionsResult[0]?.count ?? 0);
     const totalNoShow = Number(noShowResult[0]?.count ?? 0);
-    const totalChurned = Number(churnedResult[0]?.count ?? 0);
+    const totalChurned = Number(((churnedResult as any).rows ?? churnedResult)[0]?.count ?? 0);
     const remainingPt = Number(remainingPtResult[0]?.total ?? 0);
 
     return {
@@ -4520,7 +4528,15 @@ const adminRouter = t.router({
             SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended'
           ) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"))),
-          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "inactive"), hasPtPackage)),
+          db.execute(sql`
+            SELECT COUNT(DISTINCT "memberId")::int AS c FROM pt_packages
+            WHERE "trainerId" = ${tid}
+              AND "totalSessions" > 0 AND "usedSessions" >= "totalSessions"
+              AND "memberId" NOT IN (
+                SELECT "memberId" FROM pt_packages
+                WHERE "trainerId" = ${tid} AND "usedSessions" < "totalSessions"
+              )
+          `),
           db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
             .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), eq(ptPackages.status, "active"))),
           db.execute(sql`SELECT COUNT(*)::int AS c FROM (
@@ -4581,7 +4597,7 @@ const adminRouter = t.router({
           totalMembers,
           totalSessions: totalSessionsNum,
           totalNoShow: Number(totalNoShowRes[0]?.c ?? 0),
-          totalChurned: Number(totalChurnedRes[0]?.c ?? 0),
+          totalChurned: Number(((totalChurnedRes as any).rows ?? totalChurnedRes)[0]?.c ?? 0),
           remainingPt: Number(remainingPtRes[0]?.total ?? 0),
           totalRereg,
           reregRate: totalMembers > 0 ? Math.round((reregMemberCount / totalMembers) * 1000) / 10 : 0,
