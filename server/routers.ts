@@ -4334,6 +4334,10 @@ const adminRouter = t.router({
         [input.trainerId]
       );
       const memberList = memberListRes.rows as typeof members.$inferSelect[];
+      console.log(`[getMembersByTrainer] trainerId=${input.trainerId} role=${ctx.user?.role} count=${memberList.length}`);
+      // 실제 저장된 trainerId 샘플 확인
+      const sampleRes = await pool.query(`SELECT DISTINCT "trainerId" FROM members WHERE "trainerId" IS NOT NULL LIMIT 10`);
+      console.log(`[getMembersByTrainer] DB trainer IDs sample:`, sampleRes.rows.map((r:any) => r.trainerId));
 
       const memberIds = memberList.map(m => m.id);
 
