@@ -1460,18 +1460,14 @@ const revenueRouter = t.router({
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
+      // ① 매출: revenueEntries.consultantId가 명시된 것만 집계 (members.consultantId 폴백 제거)
+      //    → 트레이너가 상담 담당자로 오인되는 문제 방지
       const allRows = await db.select({
         entry: revenueEntries,
-        consultantName: sql<string | null>`COALESCE(
-          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${revenueEntries.consultantId} LIMIT 1),
-          (SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${members.consultantId} LIMIT 1),
-          (SELECT t."trainerName" FROM trainers t WHERE t.id = (SELECT l."assignedTrainerId" FROM leads l WHERE l."registeredMemberId" = ${revenueEntries.memberId} LIMIT 1) LIMIT 1)
-        )`,
-        memberConsultantId: members.consultantId,
+        consultantName: sql<string | null>`(SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${revenueEntries.consultantId} LIMIT 1)`,
       })
         .from(revenueEntries)
-        .leftJoin(members, eq(revenueEntries.memberId, members.id))
-        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+        .where(and(like(revenueEntries.paymentDate, `${prefix}%`), sql`${revenueEntries.consultantId} IS NOT NULL`));
 
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
@@ -1491,16 +1487,16 @@ const revenueRouter = t.router({
       const byConsultant: Record<number, ConsultantStats> = {};
 
       for (const row of rows) {
-        const cid = row.entry.consultantId ?? (row as any).memberConsultantId ?? 0;
+        if (row.entry.subType === "이전") continue;
+        const cid = row.entry.consultantId!;
         if (!byConsultant[cid]) {
           byConsultant[cid] = {
             consultantId: cid,
-            consultantName: row.consultantName ?? "미배정",
+            consultantName: row.consultantName ?? `ID:${cid}`,
             total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
             leadCount: 0, registeredCount: 0, conversionRate: 0,
           };
         }
-        if (row.entry.subType === "이전") continue;
         const amt = row.entry.paidAmount;
         byConsultant[cid].total += amt;
         byConsultant[cid].count += 1;
@@ -1510,16 +1506,20 @@ const revenueRouter = t.router({
         else byConsultant[cid].etc += amt;
       }
 
+      // ② 상담 건수: leads.assignedConsultantId가 명시된 것만 집계
       const allLeads = await db.select().from(leads);
-      const monthLeads = allLeads.filter(l => (l.consultationDate ?? "").startsWith(prefix));
+      const monthLeads = allLeads.filter(l =>
+        (l.consultationDate ?? "").startsWith(prefix) && l.assignedConsultantId
+      );
 
       for (const lead of monthLeads) {
-        const cid = lead.assignedConsultantId ?? 0;
+        const cid = lead.assignedConsultantId!;
         if (!byConsultant[cid]) {
-          const consultant = cid ? await db.select({ trainerName: trainers.trainerName }).from(trainers).where(eq(trainers.userId, cid)).limit(1) : [];
+          const [consultant] = await db.select({ trainerName: trainers.trainerName })
+            .from(trainers).where(eq(trainers.userId, cid)).limit(1);
           byConsultant[cid] = {
             consultantId: cid,
-            consultantName: consultant[0]?.trainerName ?? "미배정",
+            consultantName: consultant?.trainerName ?? `ID:${cid}`,
             total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
             leadCount: 0, registeredCount: 0, conversionRate: 0,
           };
@@ -1528,29 +1528,11 @@ const revenueRouter = t.router({
         if (lead.status === "registered") byConsultant[cid].registeredCount += 1;
       }
 
-      // 같은 이름의 담당자가 다른 ID로 중복 집계되는 경우 이름 기준으로 합산
-      const byName: Record<string, ConsultantStats> = {};
       for (const c of Object.values(byConsultant)) {
-        const name = c.consultantName;
-        if (!byName[name]) {
-          byName[name] = { ...c };
-        } else {
-          byName[name].total += c.total;
-          byName[name].ptNew += c.ptNew;
-          byName[name].ptRenewal += c.ptRenewal;
-          byName[name].health += c.health;
-          byName[name].etc += c.etc;
-          byName[name].count += c.count;
-          byName[name].leadCount += c.leadCount;
-          byName[name].registeredCount += c.registeredCount;
-        }
-      }
-
-      for (const c of Object.values(byName)) {
         c.conversionRate = c.leadCount > 0 ? Math.round((c.registeredCount / c.leadCount) * 100) : 0;
       }
 
-      return Object.values(byName)
+      return Object.values(byConsultant)
         .filter(c => c.total > 0 || c.leadCount > 0)
         .sort((a, b) => b.total - a.total);
     }),
