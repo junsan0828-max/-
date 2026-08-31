@@ -768,28 +768,28 @@ export default function GymDashboard() {
                     <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.min((t.total / maxTotal) * 100, 100)}%` }} />
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
-                    {t.renewal > 0 && (
+                    {(t as any).ptRenewal > 0 && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">PT 재등록</span>
-                        <span className="text-violet-400">{fmt(t.renewal)}원</span>
+                        <span className="text-violet-400">{fmt((t as any).ptRenewal)}원</span>
                       </div>
                     )}
-                    {t.newSales > 0 && (
+                    {(t as any).ptNew > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">신규</span>
-                        <span className="text-blue-400">{fmt(t.newSales)}원</span>
+                        <span className="text-muted-foreground">PT 신규</span>
+                        <span className="text-blue-400">{fmt((t as any).ptNew)}원</span>
                       </div>
                     )}
-                    {t.health > 0 && (
+                    {(t as any).health > 0 && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">헬스</span>
-                        <span className="text-amber-400">{fmt(t.health)}원</span>
+                        <span className="text-amber-400">{fmt((t as any).health)}원</span>
                       </div>
                     )}
-                    {(t.total - t.renewal - t.newSales - t.health) > 0 && (
+                    {(t as any).etc > 0 && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">기타</span>
-                        <span className="text-muted-foreground">{fmt(t.total - t.renewal - t.newSales - t.health)}원</span>
+                        <span className="text-muted-foreground">{fmt((t as any).etc)}원</span>
                       </div>
                     )}
                   </div>

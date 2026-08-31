@@ -1453,38 +1453,45 @@ const revenueRouter = t.router({
 
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
-      const byTrainer: Record<number, { trainerId: number; trainerName: string; total: number; pt: number; health: number; newSales: number; renewal: number; count: number; unassigned: number }> = {};
-      let unassignedTotal = 0; let unassignedPt = 0; let unassignedHealth = 0; let unassignedNew = 0; let unassignedRenewal = 0; let unassignedCount = 0;
+      // 뮤추얼 익스클루시브 버킷: ptRenewal + ptNew + health + etc = total
+      type TrainerStats = {
+        trainerId: number; trainerName: string;
+        total: number; ptRenewal: number; ptNew: number; health: number; etc: number;
+        count: number; isUnassigned: boolean;
+      };
+      const byTrainer: Record<number, TrainerStats> = {};
+
+      const mkEntry = (tid: number, name: string, unassigned = false): TrainerStats => ({
+        trainerId: tid, trainerName: name,
+        total: 0, ptRenewal: 0, ptNew: 0, health: 0, etc: 0,
+        count: 0, isUnassigned: unassigned,
+      });
+      const addAmt = (s: TrainerStats, row: typeof rows[number]) => {
+        const amt = row.entry.paidAmount;
+        s.total += amt; s.count += 1;
+        if (row.entry.type === "PT" && row.entry.subType === "재등록") s.ptRenewal += amt;
+        else if (row.entry.type === "PT") s.ptNew += amt;
+        else if (row.entry.type === "헬스") s.health += amt;
+        else s.etc += amt;
+      };
 
       for (const row of rows) {
         if (row.entry.subType === "이전") continue;
         const rawId = row.entry.trainerId ?? row.memberTrainerId;
         const tid = normTrainer(rawId);
-        const amt = row.entry.paidAmount;
         if (!tid) {
-          unassignedTotal += amt; unassignedCount += 1;
-          if (row.entry.type === "PT") unassignedPt += amt;
-          if (row.entry.type === "헬스") unassignedHealth += amt;
-          if (row.entry.subType === "신규") unassignedNew += amt;
-          if (row.entry.subType === "재등록") unassignedRenewal += amt;
+          if (!byTrainer[0]) byTrainer[0] = mkEntry(0, "미배정", true);
+          addAmt(byTrainer[0], row);
           continue;
         }
-        if (!byTrainer[tid]) {
-          byTrainer[tid] = { trainerId: tid, trainerName: tToName.get(tid) ?? `ID:${tid}`, total: 0, pt: 0, health: 0, newSales: 0, renewal: 0, count: 0, unassigned: 0 };
-        }
-        byTrainer[tid].total += amt;
-        byTrainer[tid].count += 1;
-        if (row.entry.type === "PT") byTrainer[tid].pt += amt;
-        if (row.entry.type === "헬스") byTrainer[tid].health += amt;
-        if (row.entry.subType === "신규") byTrainer[tid].newSales += amt;
-        if (row.entry.subType === "재등록") byTrainer[tid].renewal += amt;
+        if (!byTrainer[tid]) byTrainer[tid] = mkEntry(tid, tToName.get(tid) ?? `ID:${tid}`);
+        addAmt(byTrainer[tid], row);
       }
 
-      const result = Object.values(byTrainer).sort((a, b) => b.total - a.total);
-      if (unassignedTotal > 0 || unassignedCount > 0) {
-        result.push({ trainerId: 0, trainerName: "미배정", total: unassignedTotal, pt: unassignedPt, health: unassignedHealth, newSales: unassignedNew, renewal: unassignedRenewal, count: unassignedCount, unassigned: 1 });
-      }
-      return result;
+      const all = Object.values(byTrainer);
+      const assigned = all.filter(x => !x.isUnassigned).sort((a, b) => b.total - a.total);
+      const unassigned = all.filter(x => x.isUnassigned);
+      return [...assigned, ...unassigned];
     }),
 
   consultantSummary: protectedProcedure
