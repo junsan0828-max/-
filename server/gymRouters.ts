@@ -1528,11 +1528,29 @@ const revenueRouter = t.router({
         if (lead.status === "registered") byConsultant[cid].registeredCount += 1;
       }
 
+      // 같은 이름의 담당자가 다른 ID로 중복 집계되는 경우 이름 기준으로 합산
+      const byName: Record<string, ConsultantStats> = {};
       for (const c of Object.values(byConsultant)) {
+        const name = c.consultantName;
+        if (!byName[name]) {
+          byName[name] = { ...c };
+        } else {
+          byName[name].total += c.total;
+          byName[name].ptNew += c.ptNew;
+          byName[name].ptRenewal += c.ptRenewal;
+          byName[name].health += c.health;
+          byName[name].etc += c.etc;
+          byName[name].count += c.count;
+          byName[name].leadCount += c.leadCount;
+          byName[name].registeredCount += c.registeredCount;
+        }
+      }
+
+      for (const c of Object.values(byName)) {
         c.conversionRate = c.leadCount > 0 ? Math.round((c.registeredCount / c.leadCount) * 100) : 0;
       }
 
-      return Object.values(byConsultant)
+      return Object.values(byName)
         .filter(c => c.total > 0 || c.leadCount > 0)
         .sort((a, b) => b.total - a.total);
     }),
