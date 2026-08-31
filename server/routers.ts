@@ -2786,12 +2786,21 @@ const gymPlusRouter = t.router({
       phone: z.string().min(1),
       membershipPeriod: z.enum(["1개월", "3개월", "6개월", "12개월"]),
       amount: z.number().int().positive(),
+      signatureData: z.string().optional(),
+      agreedMarketing: z.boolean().optional(),
+      contractDate: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       await pool.query(
-        `INSERT INTO gym_plus_registration_requests (name, phone, "membershipPeriod", amount, status, "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, 'pending', now()::text, now()::text)`,
-        [input.name, input.phone, input.membershipPeriod, input.amount]
+        `INSERT INTO gym_plus_registration_requests
+          (name, phone, "membershipPeriod", amount, status, "signatureData", "agreedMarketing", "contractDate", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, now()::text, now()::text)`,
+        [
+          input.name, input.phone, input.membershipPeriod, input.amount,
+          input.signatureData ?? "",
+          input.agreedMarketing ? 1 : 0,
+          input.contractDate ?? new Date().toLocaleDateString("ko-KR"),
+        ]
       );
       return { success: true };
     }),

@@ -1233,6 +1233,12 @@ function GymPlusRegistrationsAdmin() {
                   <span className="font-medium text-foreground">{Number(req.amount).toLocaleString()}원</span>
                   <span>{req.createdAt?.slice(0, 10)}</span>
                 </div>
+                {req.signatureData && (
+                  <details className="mt-1">
+                    <summary className="text-xs text-primary cursor-pointer">서명 보기</summary>
+                    <img src={req.signatureData} alt="서명" className="mt-1 w-full border border-border rounded-lg" />
+                  </details>
+                )}
                 {req.status === "pending" && (
                   <div className="flex gap-2 pt-1">
                     <button
