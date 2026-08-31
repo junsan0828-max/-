@@ -1460,14 +1460,36 @@ const revenueRouter = t.router({
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
-      // ① 매출: revenueEntries.consultantId가 명시된 것만 집계 (members.consultantId 폴백 제거)
-      //    → 트레이너가 상담 담당자로 오인되는 문제 방지
+      // trainerId ↔ userId 정규화 맵 (같은 사람이 두 ID로 잡히는 문제 해결)
+      const allTrainerRows = await db.select({
+        id: trainers.id, userId: trainers.userId, trainerName: trainers.trainerName,
+      }).from(trainers);
+      const toUserId = new Map<number, number>(); // trainerId or userId → canonical userId
+      const toName = new Map<number, string>();   // canonical userId → 이름
+      for (const t of allTrainerRows) {
+        const name = t.trainerName ?? "";
+        if (t.userId) {
+          toUserId.set(t.userId, t.userId);
+          toUserId.set(t.id, t.userId);
+          toName.set(t.userId, name);
+        } else {
+          toUserId.set(t.id, t.id);
+          toName.set(t.id, name);
+        }
+      }
+      const normalize = (rawId: number | null | undefined): number | null => {
+        if (!rawId) return null;
+        return toUserId.get(rawId) ?? rawId;
+      };
+
+      // ① 매출 집계: consultantId → members.consultantId 순 폴백, 모두 userId로 정규화
       const allRows = await db.select({
         entry: revenueEntries,
-        consultantName: sql<string | null>`(SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${revenueEntries.consultantId} LIMIT 1)`,
+        memberConsultantId: members.consultantId,
       })
         .from(revenueEntries)
-        .where(and(like(revenueEntries.paymentDate, `${prefix}%`), sql`${revenueEntries.consultantId} IS NOT NULL`));
+        .leftJoin(members, eq(revenueEntries.memberId, members.id))
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
 
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
@@ -1488,11 +1510,13 @@ const revenueRouter = t.router({
 
       for (const row of rows) {
         if (row.entry.subType === "이전") continue;
-        const cid = row.entry.consultantId!;
+        const rawId = row.entry.consultantId ?? row.memberConsultantId;
+        const cid = normalize(rawId);
+        if (!cid) continue;
         if (!byConsultant[cid]) {
           byConsultant[cid] = {
             consultantId: cid,
-            consultantName: row.consultantName ?? `ID:${cid}`,
+            consultantName: toName.get(cid) ?? `ID:${cid}`,
             total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
             leadCount: 0, registeredCount: 0, conversionRate: 0,
           };
@@ -1506,20 +1530,19 @@ const revenueRouter = t.router({
         else byConsultant[cid].etc += amt;
       }
 
-      // ② 상담 건수: leads.assignedConsultantId가 명시된 것만 집계
+      // ② 상담 건수: leads.assignedConsultantId, userId로 정규화
       const allLeads = await db.select().from(leads);
       const monthLeads = allLeads.filter(l =>
         (l.consultationDate ?? "").startsWith(prefix) && l.assignedConsultantId
       );
 
       for (const lead of monthLeads) {
-        const cid = lead.assignedConsultantId!;
+        const cid = normalize(lead.assignedConsultantId);
+        if (!cid) continue;
         if (!byConsultant[cid]) {
-          const [consultant] = await db.select({ trainerName: trainers.trainerName })
-            .from(trainers).where(eq(trainers.userId, cid)).limit(1);
           byConsultant[cid] = {
             consultantId: cid,
-            consultantName: consultant?.trainerName ?? `ID:${cid}`,
+            consultantName: toName.get(cid) ?? `ID:${cid}`,
             total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
             leadCount: 0, registeredCount: 0, conversionRate: 0,
           };
