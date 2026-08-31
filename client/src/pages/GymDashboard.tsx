@@ -729,6 +729,11 @@ export default function GymDashboard() {
                       </div>
                     )}
                   </div>
+                  {(c as any).ptRenewal > 0 && (
+                    <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                      PT 재등록 {(c as any).ptRenewal}건 ({fmt((c as any).ptRenewalAmount)}원) — 성과 미포함
+                    </div>
+                  )}
                   {c.leadCount > 0 && (
                     <div className="flex items-center gap-3 text-[11px] mt-1 pt-1 border-t border-border/50">
                       <span className="text-muted-foreground">상담 {c.leadCount}건</span>

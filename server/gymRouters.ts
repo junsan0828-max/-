@@ -1482,7 +1482,7 @@ const revenueRouter = t.router({
         return toUserId.get(rawId) ?? rawId;
       };
 
-      // ① 매출 집계: consultantId → members.consultantId 순 폴백, 모두 userId로 정규화
+      // ① 매출 집계: consultantId → members.consultantId → leads(registered) 순 폴백
       const allRows = await db.select({
         entry: revenueEntries,
         memberConsultantId: members.consultantId,
@@ -1493,12 +1493,28 @@ const revenueRouter = t.router({
 
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
+      // 3번째 폴백: leads 테이블에서 memberId → 담당 상담자 맵 (registered 우선, 전체 기간)
+      const allLeads = await db.select().from(leads);
+      const memberLeadConsultantMap = new Map<number, number>();
+      // registered 건을 먼저 처리해 우선순위 확보
+      for (const lead of allLeads.filter(l => l.status === "registered")) {
+        if (lead.memberId && lead.assignedConsultantId && !memberLeadConsultantMap.has(lead.memberId)) {
+          memberLeadConsultantMap.set(lead.memberId, lead.assignedConsultantId);
+        }
+      }
+      for (const lead of allLeads) {
+        if (lead.memberId && lead.assignedConsultantId && !memberLeadConsultantMap.has(lead.memberId)) {
+          memberLeadConsultantMap.set(lead.memberId, lead.assignedConsultantId);
+        }
+      }
+
       type ConsultantStats = {
         consultantId: number;
         consultantName: string;
         total: number;
         ptNew: number;
         ptRenewal: number;
+        ptRenewalAmount: number;
         health: number;
         etc: number;
         count: number;
@@ -1508,31 +1524,40 @@ const revenueRouter = t.router({
       };
       const byConsultant: Record<number, ConsultantStats> = {};
 
-      for (const row of rows) {
-        // 재등록·이전은 상담 성과 아님 (기존 회원 자동 재구매)
-        if (row.entry.subType === "이전" || row.entry.subType === "재등록") continue;
-        const rawId = row.entry.consultantId ?? row.memberConsultantId;
-        const cid = normalize(rawId);
-        if (!cid) continue;
+      const ensureEntry = (cid: number) => {
         if (!byConsultant[cid]) {
           byConsultant[cid] = {
             consultantId: cid,
             consultantName: toName.get(cid) ?? `ID:${cid}`,
-            total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
+            total: 0, ptNew: 0, ptRenewal: 0, ptRenewalAmount: 0, health: 0, etc: 0, count: 0,
             leadCount: 0, registeredCount: 0, conversionRate: 0,
           };
         }
+      };
+
+      for (const row of rows) {
+        if (row.entry.subType === "이전") continue;
+        const isRenewal = row.entry.subType === "재등록";
+        const rawId = row.entry.consultantId ?? row.memberConsultantId ??
+          (row.entry.memberId ? memberLeadConsultantMap.get(row.entry.memberId) : null);
+        const cid = normalize(rawId);
+        if (!cid) continue;
+        ensureEntry(cid);
         const amt = row.entry.paidAmount;
+        if (isRenewal) {
+          // 재등록은 합계에 포함 안 하고 참고 수치만 누적
+          byConsultant[cid].ptRenewal += 1;
+          byConsultant[cid].ptRenewalAmount += amt;
+          continue;
+        }
         byConsultant[cid].total += amt;
         byConsultant[cid].count += 1;
-        if (row.entry.type === "PT" && row.entry.subType === "신규") byConsultant[cid].ptNew += amt;
-        else if (row.entry.type === "PT" && row.entry.subType === "재등록") byConsultant[cid].ptRenewal += amt;
+        if (row.entry.type === "PT") byConsultant[cid].ptNew += amt;
         else if (row.entry.type === "헬스") byConsultant[cid].health += amt;
         else byConsultant[cid].etc += amt;
       }
 
       // ② 상담 건수: leads.assignedConsultantId, userId로 정규화
-      const allLeads = await db.select().from(leads);
       const monthLeads = allLeads.filter(l =>
         (l.consultationDate ?? "").startsWith(prefix) && l.assignedConsultantId
       );
@@ -1540,14 +1565,7 @@ const revenueRouter = t.router({
       for (const lead of monthLeads) {
         const cid = normalize(lead.assignedConsultantId);
         if (!cid) continue;
-        if (!byConsultant[cid]) {
-          byConsultant[cid] = {
-            consultantId: cid,
-            consultantName: toName.get(cid) ?? `ID:${cid}`,
-            total: 0, ptNew: 0, ptRenewal: 0, health: 0, etc: 0, count: 0,
-            leadCount: 0, registeredCount: 0, conversionRate: 0,
-          };
-        }
+        ensureEntry(cid);
         byConsultant[cid].leadCount += 1;
         if (lead.status === "registered") byConsultant[cid].registeredCount += 1;
       }
