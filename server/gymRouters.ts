@@ -1422,32 +1422,69 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+
+      // trainerId ↔ userId 정규화 맵
+      const trainerRows = await db.select({ id: trainers.id, userId: trainers.userId, trainerName: trainers.trainerName }).from(trainers);
+      const tToUserId = new Map<number, number>();
+      const tToName = new Map<number, string>();
+      for (const t of trainerRows) {
+        const name = t.trainerName ?? "";
+        if (t.userId) {
+          tToUserId.set(t.userId, t.userId);
+          tToUserId.set(t.id, t.userId);
+          tToName.set(t.userId, name);
+        } else {
+          tToUserId.set(t.id, t.id);
+          tToName.set(t.id, name);
+        }
+      }
+      const normTrainer = (rawId: number | null | undefined): number | null => {
+        if (!rawId) return null;
+        return tToUserId.get(rawId) ?? rawId;
+      };
+
       const allRows = await db.select({
         entry: revenueEntries,
-        trainerName: trainers.trainerName,
+        memberTrainerId: members.trainerId,
       })
         .from(revenueEntries)
-        .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
+        .leftJoin(members, eq(revenueEntries.memberId, members.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
 
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
-      const byTrainer: Record<number, { trainerId: number; trainerName: string; total: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
+      const byTrainer: Record<number, { trainerId: number; trainerName: string; total: number; pt: number; health: number; newSales: number; renewal: number; count: number; unassigned: number }> = {};
+      let unassignedTotal = 0; let unassignedPt = 0; let unassignedHealth = 0; let unassignedNew = 0; let unassignedRenewal = 0; let unassignedCount = 0;
+
       for (const row of rows) {
-        const tid = row.entry.trainerId ?? 0;
-        if (!byTrainer[tid]) {
-          byTrainer[tid] = { trainerId: tid, trainerName: row.trainerName ?? "미배정", total: 0, pt: 0, health: 0, newSales: 0, renewal: 0, count: 0 };
-        }
         if (row.entry.subType === "이전") continue;
-        byTrainer[tid].total += row.entry.paidAmount;
+        const rawId = row.entry.trainerId ?? row.memberTrainerId;
+        const tid = normTrainer(rawId);
+        const amt = row.entry.paidAmount;
+        if (!tid) {
+          unassignedTotal += amt; unassignedCount += 1;
+          if (row.entry.type === "PT") unassignedPt += amt;
+          if (row.entry.type === "헬스") unassignedHealth += amt;
+          if (row.entry.subType === "신규") unassignedNew += amt;
+          if (row.entry.subType === "재등록") unassignedRenewal += amt;
+          continue;
+        }
+        if (!byTrainer[tid]) {
+          byTrainer[tid] = { trainerId: tid, trainerName: tToName.get(tid) ?? `ID:${tid}`, total: 0, pt: 0, health: 0, newSales: 0, renewal: 0, count: 0, unassigned: 0 };
+        }
+        byTrainer[tid].total += amt;
         byTrainer[tid].count += 1;
-        if (row.entry.type === "PT") byTrainer[tid].pt += row.entry.paidAmount;
-        if (row.entry.type === "헬스") byTrainer[tid].health += row.entry.paidAmount;
-        if (row.entry.subType === "신규") byTrainer[tid].newSales += row.entry.paidAmount;
-        if (row.entry.subType === "재등록") byTrainer[tid].renewal += row.entry.paidAmount;
+        if (row.entry.type === "PT") byTrainer[tid].pt += amt;
+        if (row.entry.type === "헬스") byTrainer[tid].health += amt;
+        if (row.entry.subType === "신규") byTrainer[tid].newSales += amt;
+        if (row.entry.subType === "재등록") byTrainer[tid].renewal += amt;
       }
 
-      return Object.values(byTrainer).sort((a, b) => b.total - a.total);
+      const result = Object.values(byTrainer).sort((a, b) => b.total - a.total);
+      if (unassignedTotal > 0 || unassignedCount > 0) {
+        result.push({ trainerId: 0, trainerName: "미배정", total: unassignedTotal, pt: unassignedPt, health: unassignedHealth, newSales: unassignedNew, renewal: unassignedRenewal, count: unassignedCount, unassigned: 1 });
+      }
+      return result;
     }),
 
   consultantSummary: protectedProcedure
