@@ -756,15 +756,42 @@ export default function GymDashboard() {
           <h2 className="text-sm font-semibold text-foreground mb-3">트레이너별 매출</h2>
           <div className="space-y-2">
             {(trainerSummary ?? []).map((t, i) => {
-              const maxTotal = trainerSummary?.[0]?.total ?? 1;
+              const maxTotal = (trainerSummary ?? []).filter(x => x.trainerName !== "미배정")[0]?.total ?? 1;
+              const isUnassigned = t.trainerName === "미배정";
               return (
-                <div key={i} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-foreground font-medium">{t.trainerName}</span>
-                    <span className="text-muted-foreground">{fmt(t.total)}원 ({t.count}건)</span>
+                <div key={i} className={`space-y-1.5 pb-2 border-b border-border last:border-0 last:pb-0 ${isUnassigned ? "opacity-50" : ""}`}>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-sm font-medium ${isUnassigned ? "text-muted-foreground" : "text-foreground"}`}>{t.trainerName}</span>
+                    <span className="text-sm font-semibold text-foreground">{fmt(t.total)}원</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5">
-                    <div className="h-1.5 rounded-full bg-primary" style={{ width: `${(t.total / maxTotal) * 100}%` }} />
+                    <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.min((t.total / maxTotal) * 100, 100)}%` }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                    {t.renewal > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">PT 재등록</span>
+                        <span className="text-violet-400">{fmt(t.renewal)}원</span>
+                      </div>
+                    )}
+                    {t.newSales > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">신규</span>
+                        <span className="text-blue-400">{fmt(t.newSales)}원</span>
+                      </div>
+                    )}
+                    {t.health > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">헬스</span>
+                        <span className="text-amber-400">{fmt(t.health)}원</span>
+                      </div>
+                    )}
+                    {(t.total - t.renewal - t.newSales - t.health) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">기타</span>
+                        <span className="text-muted-foreground">{fmt(t.total - t.renewal - t.newSales - t.health)}원</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
