@@ -1124,7 +1124,7 @@ export function GymPlusWorkoutLogsAdmin() {
 }
 
 // ─── 메인 어드민 짐+ 섹션 ─────────────────────────────────────────────────────
-type GymPlusTab = "members" | "videos" | "events" | "logs";
+type GymPlusTab = "members" | "videos" | "events" | "logs" | "registrations";
 
 export default function GymPlusAdminSection() {
   const [activeTab, setActiveTab] = useState<GymPlusTab>("members");
@@ -1134,6 +1134,7 @@ export default function GymPlusAdminSection() {
     { key: "videos", label: "운동영상" },
     { key: "events", label: "이벤트/공지" },
     { key: "logs", label: "운동기록" },
+    { key: "registrations", label: "등록신청" },
   ];
 
   return (
@@ -1156,6 +1157,103 @@ export default function GymPlusAdminSection() {
       {activeTab === "videos" && <GymPlusVideosAdmin />}
       {activeTab === "events" && <GymPlusEventsAdmin />}
       {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
+      {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
+    </div>
+  );
+}
+
+function GymPlusRegistrationsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: requests = [], isLoading } = trpc.gymPlus.admin_listRegistrationRequests.useQuery();
+  const { data: bankData } = trpc.gymPlus.getRegistrationBankAccount.useQuery();
+  const updateMut = trpc.gymPlus.admin_updateRegistrationRequest.useMutation({ onSuccess: () => utils.gymPlus.admin_listRegistrationRequests.invalidate() });
+  const setBankMut = trpc.gymPlus.admin_setRegistrationBankAccount.useMutation({ onSuccess: () => utils.gymPlus.getRegistrationBankAccount.invalidate() });
+  const [bankInput, setBankInput] = useState("");
+  const [bankEditing, setBankEditing] = useState(false);
+
+  const statusLabel: Record<string, string> = { pending: "대기중", approved: "승인", rejected: "거절" };
+  const statusColor: Record<string, string> = { pending: "text-yellow-600 bg-yellow-50", approved: "text-green-600 bg-green-50", rejected: "text-red-600 bg-red-50" };
+
+  const startEditBank = () => {
+    setBankInput(bankData?.bankAccount ?? "");
+    setBankEditing(true);
+  };
+
+  const saveBank = () => {
+    setBankMut.mutate({ bankAccount: bankInput });
+    setBankEditing(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 계좌 설정 */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <h3 className="text-sm font-bold">입금 계좌 설정</h3>
+        {bankEditing ? (
+          <div className="flex gap-2">
+            <input
+              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-input"
+              value={bankInput}
+              onChange={(e) => setBankInput(e.target.value)}
+              placeholder="예: 국민은행 123-456-789012 자이언트짐"
+            />
+            <button onClick={saveBank} className="px-3 py-2 text-xs rounded-lg bg-primary text-white font-medium">저장</button>
+            <button onClick={() => setBankEditing(false)} className="px-3 py-2 text-xs rounded-lg border border-border text-muted-foreground">취소</button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-foreground">{bankData?.bankAccount || "계좌번호 미설정"}</span>
+            <button onClick={startEditBank} className="text-xs text-primary font-medium">수정</button>
+          </div>
+        )}
+      </div>
+
+      {/* 신청 목록 */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-bold">등록 신청 목록</h3>
+        </div>
+        {isLoading ? (
+          <p className="p-4 text-sm text-muted-foreground">로딩 중...</p>
+        ) : requests.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground text-center">신청 내역이 없습니다</p>
+        ) : (
+          <div className="divide-y divide-border">
+            {requests.map((req: any) => (
+              <div key={req.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-semibold">{req.name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{req.phone}</span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[req.status]}`}>{statusLabel[req.status]}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>{req.membershipPeriod}</span>
+                  <span className="font-medium text-foreground">{Number(req.amount).toLocaleString()}원</span>
+                  <span>{req.createdAt?.slice(0, 10)}</span>
+                </div>
+                {req.status === "pending" && (
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => updateMut.mutate({ id: req.id, status: "approved" })}
+                      className="flex-1 py-1.5 text-xs rounded-lg bg-green-50 text-green-600 font-medium hover:bg-green-100"
+                    >
+                      승인
+                    </button>
+                    <button
+                      onClick={() => updateMut.mutate({ id: req.id, status: "rejected" })}
+                      className="flex-1 py-1.5 text-xs rounded-lg bg-red-50 text-red-500 font-medium hover:bg-red-100"
+                    >
+                      거절
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

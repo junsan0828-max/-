@@ -658,6 +658,17 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_registration_requests (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      "membershipPeriod" TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      memo TEXT NOT NULL DEFAULT '',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     try {

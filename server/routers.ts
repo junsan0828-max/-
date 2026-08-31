@@ -2780,6 +2780,27 @@ const gymPlusRouter = t.router({
     return { success: true };
   }),
 
+  submitRegistrationRequest: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      phone: z.string().min(1),
+      membershipPeriod: z.enum(["1개월", "3개월", "6개월", "12개월"]),
+      amount: z.number().int().positive(),
+    }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO gym_plus_registration_requests (name, phone, "membershipPeriod", amount, status, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, 'pending', now()::text, now()::text)`,
+        [input.name, input.phone, input.membershipPeriod, input.amount]
+      );
+      return { success: true };
+    }),
+
+  getRegistrationBankAccount: publicProcedure.query(async () => {
+    const res = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'registration_bank_account'`);
+    return { bankAccount: res.rows[0]?.value ?? "" };
+  }),
+
   memberMe: publicProcedure.query(async ({ ctx }) => {
     const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
     if (!gymMemberId) return null;
@@ -4992,6 +5013,39 @@ ${dataContext}
       recentAttendances,
     };
   }),
+
+  // ─── 비회원 등록 신청 관리 ──────────────────────────────────────────────────
+  admin_listRegistrationRequests: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT * FROM gym_plus_registration_requests ORDER BY "createdAt" DESC`
+    );
+    return res.rows;
+  }),
+
+  admin_updateRegistrationRequest: adminOnlyGymPlus
+    .input(z.object({
+      id: z.number().int(),
+      status: z.enum(["pending", "approved", "rejected"]),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `UPDATE gym_plus_registration_requests SET status = $1, memo = COALESCE($2, memo), "updatedAt" = now()::text WHERE id = $3`,
+        [input.status, input.memo ?? null, input.id]
+      );
+      return { success: true };
+    }),
+
+  admin_setRegistrationBankAccount: adminOnlyGymPlus
+    .input(z.object({ bankAccount: z.string() }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('registration_bank_account', $1, now()::text)
+         ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
+        [input.bankAccount]
+      );
+      return { success: true };
+    }),
 });
 
 // ─── Landing ──────────────────────────────────────────────────────────────────
