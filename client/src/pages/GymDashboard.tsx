@@ -719,17 +719,15 @@ export default function GymDashboard() {
                       <span className="text-blue-400">{fmt(c.ptNew)}원</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">PT 재등록</span>
-                      <span className="text-green-400">{fmt(c.ptRenewal)}원</span>
-                    </div>
-                    <div className="flex justify-between">
                       <span className="text-muted-foreground">헬스</span>
                       <span className="text-amber-400">{fmt(c.health)}원</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">기타</span>
-                      <span className="text-muted-foreground">{fmt(c.etc)}원</span>
-                    </div>
+                    {c.etc > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">기타</span>
+                        <span className="text-muted-foreground">{fmt(c.etc)}원</span>
+                      </div>
+                    )}
                   </div>
                   {c.leadCount > 0 && (
                     <div className="flex items-center gap-3 text-[11px] mt-1 pt-1 border-t border-border/50">

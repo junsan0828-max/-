@@ -1509,7 +1509,8 @@ const revenueRouter = t.router({
       const byConsultant: Record<number, ConsultantStats> = {};
 
       for (const row of rows) {
-        if (row.entry.subType === "이전") continue;
+        // 재등록·이전은 상담 성과 아님 (기존 회원 자동 재구매)
+        if (row.entry.subType === "이전" || row.entry.subType === "재등록") continue;
         const rawId = row.entry.consultantId ?? row.memberConsultantId;
         const cid = normalize(rawId);
         if (!cid) continue;
