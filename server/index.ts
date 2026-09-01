@@ -675,6 +675,24 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "signatureData" TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "agreedMarketing" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "contractDate" TEXT NOT NULL DEFAULT ''`,
+    // ─── 미션 시스템 (12주 다이어트페이백) ───────────────────────────────────────
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "programName" TEXT`,
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "programStartDate" TEXT`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_weight_logs (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      weight NUMERIC(5,1) NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      "loggedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_mission_rewards (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "programName" TEXT NOT NULL,
+      "periodKey" TEXT NOT NULL,
+      "rewardMonths" INTEGER NOT NULL DEFAULT 1,
+      "awardedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     try {

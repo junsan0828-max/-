@@ -2820,6 +2820,7 @@ const gymPlusRouter = t.router({
       membershipType: gymPlusMembers.membershipType,
       membershipStart: gymPlusMembers.membershipStart, membershipEnd: gymPlusMembers.membershipEnd,
       points: gymPlusMembers.points, memberId: gymPlusMembers.memberId,
+      programName: gymPlusMembers.programName,
     }).from(gymPlusMembers).where(eq(gymPlusMembers.id, gymMemberId)).limit(1);
     const me = result[0];
     if (!me) return null;
@@ -5043,6 +5044,121 @@ ${dataContext}
       );
       return { success: true };
     }),
+
+  // ─── 미션 시스템 (회원 앱) ────────────────────────────────────────────────────
+  getMissionStatus: gymPlusProtected.query(async ({ ctx }) => {
+    const memberId = ctx.gymMember.id;
+    const memberRes = await pool.query(
+      `SELECT "programName", "programStartDate", "membershipEnd" FROM gym_plus_members WHERE id = $1`,
+      [memberId]
+    );
+    const member = memberRes.rows[0];
+    if (!member?.programName) return { programName: null, programStartDate: null, weightLogs: [], rewards: [] };
+
+    const logsRes = await pool.query(
+      `SELECT id, weight::float, note, "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" DESC LIMIT 20`,
+      [memberId]
+    );
+    const rewardsRes = await pool.query(
+      `SELECT id, "periodKey", "rewardMonths", "awardedAt" FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "programName" = $2 ORDER BY "periodKey" ASC`,
+      [memberId, member.programName]
+    );
+    return {
+      programName: member.programName as string,
+      programStartDate: member.programStartDate as string,
+      membershipEnd: member.membershipEnd as string,
+      weightLogs: logsRes.rows,
+      rewards: rewardsRes.rows,
+    };
+  }),
+
+  logWeight: gymPlusProtected
+    .input(z.object({ weight: z.number().min(20).max(300), note: z.string().max(100).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const memberId = ctx.gymMember.id;
+      const now = new Date();
+
+      await pool.query(
+        `INSERT INTO gym_plus_weight_logs ("gymPlusMemberId", weight, note, "loggedAt") VALUES ($1, $2, $3, $4)`,
+        [memberId, input.weight, input.note || '', now.toISOString()]
+      );
+
+      const memberRes = await pool.query(
+        `SELECT "programName", "programStartDate", "membershipEnd" FROM gym_plus_members WHERE id = $1`,
+        [memberId]
+      );
+      const member = memberRes.rows[0];
+      if (!member?.programName || !member?.programStartDate) return { rewarded: false };
+
+      // 이번 달 YYYY-MM 키
+      const periodKey = now.toISOString().slice(0, 7);
+
+      // 이미 이번 달 보상 지급됐는지 확인
+      const existingReward = await pool.query(
+        `SELECT id FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "periodKey" = $2`,
+        [memberId, periodKey]
+      );
+      if (existingReward.rows.length > 0) return { rewarded: false };
+
+      // 지난달 YYYY-MM
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevPeriodKey = prevMonth.toISOString().slice(0, 7);
+
+      // 지난달 최신 체중 조회
+      const prevLogRes = await pool.query(
+        `SELECT weight::float FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2 AND "loggedAt" < $3 ORDER BY "loggedAt" DESC LIMIT 1`,
+        [memberId, prevPeriodKey + "-01", periodKey + "-01"]
+      );
+      if (!prevLogRes.rows[0]) return { rewarded: false };
+
+      const prevWeight = parseFloat(prevLogRes.rows[0].weight);
+      const diff = prevWeight - input.weight;
+      if (diff < 1.0) return { rewarded: false };
+
+      // 1kg 이상 감량 → 보상 지급
+      await pool.query(
+        `INSERT INTO gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey", "rewardMonths") VALUES ($1, $2, $3, 1)`,
+        [memberId, member.programName, periodKey]
+      );
+
+      const currentEnd = new Date(member.membershipEnd);
+      if (isNaN(currentEnd.getTime())) currentEnd.setTime(now.getTime());
+      currentEnd.setMonth(currentEnd.getMonth() + 1);
+      await pool.query(
+        `UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`,
+        [currentEnd.toISOString().split('T')[0], memberId]
+      );
+
+      return { rewarded: true, extensionUntil: currentEnd.toISOString().split('T')[0] };
+    }),
+
+  // ─── 미션 시스템 (관리자) ──────────────────────────────────────────────────────
+  admin_setMemberProgram: adminOnlyGymPlus
+    .input(z.object({
+      memberId: z.number().int(),
+      programName: z.string().nullable(),
+      programStartDate: z.string().nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `UPDATE gym_plus_members SET "programName" = $1, "programStartDate" = $2 WHERE id = $3`,
+        [input.programName, input.programStartDate, input.memberId]
+      );
+      return { success: true };
+    }),
+
+  admin_listMissionProgress: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT m.id, m.name, m.phone, m."programName", m."programStartDate", m."membershipEnd",
+              (SELECT weight::float FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS latestWeight,
+              (SELECT "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS latestLogDate,
+              (SELECT COUNT(*) FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = m.id AND "programName" = m."programName") AS rewardCount
+       FROM gym_plus_members m
+       WHERE m."programName" IS NOT NULL AND m."programName" != ''
+       ORDER BY m."programStartDate" DESC`
+    );
+    return res.rows;
+  }),
 
 });
 
