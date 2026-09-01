@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, powerMonitor } from "electron";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import * as dotenv from "dotenv";
@@ -18,7 +18,7 @@ import { runMonthlyOverview, saveMonthlyOverview, loadMonthlyOverview, buildMont
 import { runJournal } from "./journal";
 import { runIfkJob } from "./ifk";
 import { runBlogEventJob } from "./blogEvent";
-import { runAutoMessageJob } from "./autoMessage";
+import { runAutoMessageJob, todayStr } from "./autoMessage";
 import { processPendingPointClaims } from "./pointClaims";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
@@ -246,6 +246,22 @@ async function runAutoMessageJobWrapper(reason: string) {
   }
 }
 
+// 노트북이 13시 정각에 절전(Modern Standby) 중이면 node-cron의 "0 13 * * *" 틱 자체가
+// 통째로 씹혀서 그날 발송이 전부 누락된다(2026-08-30/31 실측 확인). 절전에서 깨어날 때와
+// 앱 시작 시 "오늘 13시가 지났는데 아직 안 돌았으면" 보정 실행한다. runAutoMessageJob은
+// auto_message_log 성공 이력으로 대상별 중복발송을 막으므로 여러 번 걸려도 안전하다.
+let autoMessageCaughtUpDate: string | null = null;
+function maybeCatchUpAutoMessage(reason: string) {
+  const now = new Date();
+  const kstHour = Number(
+    now.toLocaleString("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false })
+  );
+  const today = todayStr();
+  if (kstHour < 13 || autoMessageCaughtUpDate === today) return;
+  autoMessageCaughtUpDate = today;
+  runAutoMessageJobWrapper(`보정 실행 — ${reason}`);
+}
+
 async function runPointClaimsJobWrapper() {
   try {
     const results = await processPendingPointClaims();
@@ -409,6 +425,11 @@ if (!app.requestSingleInstanceLock()) {
   if (cron.validate(autoMessageSpec)) {
     cron.schedule(autoMessageSpec, () => runAutoMessageJobWrapper("매일 13시 예약"));
   }
+
+  // 절전(Modern Standby) 중에는 위 cron 틱이 그냥 씹혀서 그날 발송이 통째로 누락될 수 있다.
+  // 앱 시작 시점과 절전에서 깨어난 시점에 "오늘 13시 지났는데 아직 안 돌았으면" 보정한다.
+  maybeCatchUpAutoMessage("앱 시작");
+  powerMonitor.on("resume", () => maybeCatchUpAutoMessage("절전 복귀"));
 
   // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
   // 매번 브라우저를 새로 설치하는 클라우드 예약작업과 달리, 상주 중인 이 앱에서만 돈다
