@@ -4,6 +4,7 @@ import { getNaverAdsAccounts, fetchRangeSummary, fetchKeywordSummary, NaverAdsAc
 import { pushKakaoText } from "./kakao";
 import { sendSms } from "./aligo";
 import { ADMIN_PHONE, addDays, todayStr } from "./autoMessage";
+import { createNotionPage } from "./notion";
 
 const ACCOUNT_LABEL: Record<string, string> = { ziantgym1: "ziantgym1(1호점)", dreamfitt: "dreamfitt(2호점)" };
 
@@ -39,6 +40,8 @@ export interface NaverAdsReportResult {
   ok: boolean;
   error?: string;
   text?: string;
+  notionUrl?: string;
+  notionError?: string;
 }
 
 export async function runNaverAdsReportJob(): Promise<NaverAdsReportResult> {
@@ -54,10 +57,20 @@ export async function runNaverAdsReportJob(): Promise<NaverAdsReportResult> {
   const sections = await Promise.all(accounts.map((a) => buildAccountSection(a, since, until)));
   const text = `[네이버 광고 주간 리포트 ${since}~${until}]\n\n${sections.join("\n\n")}`;
 
+  // 노션 기록은 카카오 발송 성패와 무관하게 항상 시도한다 — 리포트 아카이브 목적이라 이력이
+  // 남는 게 더 중요하고, 실패해도 카카오 발송(대표 알림)은 그대로 진행되게 한다.
+  const notion = await createNotionPage(`네이버 광고 주간 리포트 - ${since}~${until}`, text);
+
   const kakao = await pushKakaoText(text);
-  if (kakao.ok) return { ok: true, text };
+  if (kakao.ok) return { ok: true, text, notionUrl: notion.url, notionError: notion.ok ? undefined : notion.error };
 
   const sms = await sendSms(ADMIN_PHONE, text);
-  if (sms.ok) return { ok: true, text };
-  return { ok: false, error: `카카오 실패(${kakao.error}) / SMS 대체도 실패(${sms.error})`, text };
+  if (sms.ok) return { ok: true, text, notionUrl: notion.url, notionError: notion.ok ? undefined : notion.error };
+  return {
+    ok: false,
+    error: `카카오 실패(${kakao.error}) / SMS 대체도 실패(${sms.error})`,
+    text,
+    notionUrl: notion.url,
+    notionError: notion.ok ? undefined : notion.error,
+  };
 }
