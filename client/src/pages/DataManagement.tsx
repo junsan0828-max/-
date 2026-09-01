@@ -978,6 +978,8 @@ function OperationsTab() {
   const opsDateRange = viewMode === "annual"
     ? { startDate: `${selYear}-01-01`, endDate: `${selYear}-12-31` }
     : { startDate: `${selPrefix}-01`, endDate: `${selPrefix}-${String(new Date(selYear, selMonth, 0).getDate()).padStart(2, "0")}` };
+  const { data: me } = trpc.auth.me.useQuery();
+  const isAdmin = ["admin", "sub_admin"].includes((me as any)?.role ?? "");
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: dashboard, isLoading: dashLoading } = trpc.access.getOpsVisitDashboard.useQuery(
     { ...(branchFilter ? { branchId: branchFilter } : {}), month: opsMonthParam }
@@ -993,6 +995,10 @@ function OperationsTab() {
   const { data: inspectionPending } = trpc.consultantData.getInspectionPending.useQuery(opsDateRange);
   const { data: inspectionTrend } = trpc.consultantData.getInspectionTrend.useQuery(opsDateRange);
   const { data: inspectionAreaStats } = trpc.consultantData.getInspectionAreaStats.useQuery(opsDateRange);
+  const { data: inspectionDateStatuses, refetch: refetchDateStatuses } = trpc.consultantData.getInspectionDateStatuses.useQuery(opsDateRange);
+  const setInspectionReview = trpc.consultantData.setInspectionDateReview.useMutation({
+    onSuccess: () => { refetchDateStatuses(); },
+  });
 
 
   if (dashLoading || !dashboard) {
@@ -1143,6 +1149,38 @@ function OperationsTab() {
             <span className="text-xs text-muted-foreground font-normal">({inspectionSummary.totalDays}일 점검)</span>
           )}
         </h3>
+
+        {/* 날짜별 점검 완료 상태 */}
+        {inspectionDateStatuses && inspectionDateStatuses.length > 0 && (
+          <div className="mb-3 space-y-1.5">
+            {inspectionDateStatuses.map((ds: any) => {
+              const reviewed = ds.reviewStatus === "점검완료";
+              return (
+                <div key={ds.date} className={`bg-card border rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${reviewed ? "border-border" : "border-amber-500/30"}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${reviewed ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+                      {ds.reviewStatus}
+                    </span>
+                    <span className="text-xs text-foreground">{ds.date}</span>
+                    {ds.issue_count > 0 && (
+                      <span className="text-[10px] text-red-400">이상 {ds.issue_count}건</span>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setInspectionReview.mutate({ date: ds.date, status: reviewed ? "미점검" : "점검완료" })}
+                      disabled={setInspectionReview.isPending}
+                      className={`text-[10px] px-2 py-1 rounded border transition-colors shrink-0 ${reviewed ? "border-border text-muted-foreground hover:border-amber-500/40 hover:text-amber-400" : "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"}`}
+                    >
+                      {reviewed ? "미점검으로" : "점검완료"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {inspectionSummary && inspectionSummary.issueCount > 0 && (!inspectionPending || inspectionPending.length === 0) && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-2 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />

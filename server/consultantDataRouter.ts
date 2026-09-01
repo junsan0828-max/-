@@ -87,6 +87,7 @@ async function ensureTables() {
   _tablesReady = true;
   await pool.query(`ALTER TABLE consultant_data_fields ADD COLUMN IF NOT EXISTS description TEXT`);
   await pool.query(`ALTER TABLE consultant_data_fields ADD COLUMN IF NOT EXISTS assignee TEXT`);
+  await pool.query(`ALTER TABLE center_inspection_entries ADD COLUMN IF NOT EXISTS "reviewStatus" TEXT NOT NULL DEFAULT '미점검'`);
 }
 
 export const consultantDataRouter = t.router({
@@ -533,5 +534,54 @@ export const consultantDataRouter = t.router({
         area: string; total_checks: number;
         facility_issues: number; hygiene_issues: number; total_issues: number;
       }>;
+    }),
+
+  // ── 센터 점검: 날짜별 점검 완료 상태 ────────────────────────────────────────
+  getInspectionDateStatuses: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const res = await pool.query(
+        `SELECT date,
+                CASE WHEN bool_and(COALESCE("reviewStatus", '미점검') = '점검완료') THEN '점검완료' ELSE '미점검' END AS "reviewStatus",
+                COUNT(*)::int AS entry_count,
+                COUNT(*) FILTER (WHERE "facilityStatus" != '정상' OR "hygieneStatus" != '양호')::int AS issue_count
+         FROM center_inspection_entries
+         WHERE date >= $1 AND date <= $2
+         GROUP BY date
+         ORDER BY date DESC`,
+        [input.startDate, input.endDate]
+      );
+      return res.rows as Array<{ date: string; reviewStatus: string; entry_count: number; issue_count: number }>;
+    }),
+
+  // ── 센터 점검: 날짜 점검 상태 단건 조회 (자기 날짜) ──────────────────────────
+  getInspectionDateReviewStatus: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .query(async ({ input }) => {
+      await ensureTables();
+      const res = await pool.query(
+        `SELECT CASE WHEN bool_and(COALESCE("reviewStatus", '미점검') = '점검완료') THEN '점검완료' ELSE '미점검' END AS "reviewStatus"
+         FROM center_inspection_entries WHERE date = $1`,
+        [input.date]
+      );
+      return { reviewStatus: (res.rows[0]?.reviewStatus ?? '미점검') as string };
+    }),
+
+  // ── 센터 점검: 날짜 점검 상태 설정 (관리자) ────────────────────────────────
+  setInspectionDateReview: protectedProcedure
+    .input(z.object({
+      date: z.string(),
+      status: z.enum(["미점검", "점검완료"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!["admin", "sub_admin"].includes(ctx.user.role ?? ""))
+        throw new TRPCError({ code: "FORBIDDEN" });
+      await ensureTables();
+      await pool.query(
+        `UPDATE center_inspection_entries SET "reviewStatus" = $1 WHERE date = $2`,
+        [input.status, input.date]
+      );
+      return { ok: true };
     }),
 });

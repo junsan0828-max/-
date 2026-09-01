@@ -420,6 +420,14 @@ function InspectionForm({ date }: { date: string }) {
   const utils = trpc.useUtils();
   const { data: existing, isLoading } = trpc.consultantData.getInspectionEntries.useQuery({ date });
   const { data: staffList } = trpc.consultantData.listStaff.useQuery();
+  const { data: me } = trpc.auth.me.useQuery();
+  const isAdmin = ["admin", "sub_admin"].includes((me as any)?.role ?? "");
+  const { data: reviewData, refetch: refetchReview } = trpc.consultantData.getInspectionDateReviewStatus.useQuery({ date });
+  const reviewStatus = reviewData?.reviewStatus ?? "미점검";
+  const setReviewMutation = trpc.consultantData.setInspectionDateReview.useMutation({
+    onSuccess: () => { refetchReview(); toast.success("점검 상태 업데이트됨"); },
+    onError: () => toast.error("업데이트 실패"),
+  });
 
   const emptyValues = (): InspectionValues => {
     const v: InspectionValues = {};
@@ -515,8 +523,23 @@ function InspectionForm({ date }: { date: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-foreground">{dateLabel} 센터 점검</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-semibold text-foreground">{dateLabel} 센터 점검</p>
+          {isAdmin ? (
+            <button
+              onClick={() => setReviewMutation.mutate({ date, status: reviewStatus === "점검완료" ? "미점검" : "점검완료" })}
+              disabled={setReviewMutation.isPending}
+              className={`text-[10px] px-2 py-0.5 rounded border font-medium transition-colors ${reviewStatus === "점검완료" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25" : "bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25"}`}
+            >
+              {reviewStatus}
+            </button>
+          ) : (
+            <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${reviewStatus === "점검완료" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "bg-amber-500/15 text-amber-400 border-amber-500/30"}`}>
+              {reviewStatus}
+            </span>
+          )}
+        </div>
         {dirty && (
           <button
             onClick={handleSave}
