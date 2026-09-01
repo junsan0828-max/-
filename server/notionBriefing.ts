@@ -72,11 +72,12 @@ async function createNotionPage(title: string, blocks: any[]): Promise<boolean> 
 // ── 지표 수집 (기존 KPI 라우터들과 동일한 계산 기준을 그대로 따른다 — 화면에 보이는
 //    숫자와 브리핑 숫자가 어긋나지 않도록) ────────────────────────────────────────
 async function getRevenueTotals(startDate: string, endDate: string) {
-  const r = await pool.query<{ total: string; ptTotal: string; healthTotal: string; newTotal: string; renewalTotal: string; cnt: string }>(
+  const r = await pool.query<{ total: string; ptTotal: string; healthTotal: string; dietTotal: string; newTotal: string; renewalTotal: string; cnt: string }>(
     `SELECT
        COALESCE(SUM("paidAmount"),0) AS total,
        COALESCE(SUM("paidAmount") FILTER (WHERE type = 'PT'), 0) AS "ptTotal",
        COALESCE(SUM("paidAmount") FILTER (WHERE type = '헬스'), 0) AS "healthTotal",
+       COALESCE(SUM("paidAmount") FILTER (WHERE type = '다이어트'), 0) AS "dietTotal",
        COALESCE(SUM("paidAmount") FILTER (WHERE "subType" = '신규'), 0) AS "newTotal",
        COALESCE(SUM("paidAmount") FILTER (WHERE "subType" = '재등록'), 0) AS "renewalTotal",
        COUNT(*) AS cnt
@@ -89,6 +90,7 @@ async function getRevenueTotals(startDate: string, endDate: string) {
     total: Number(row?.total ?? 0),
     ptTotal: Number(row?.ptTotal ?? 0),
     healthTotal: Number(row?.healthTotal ?? 0),
+    dietTotal: Number(row?.dietTotal ?? 0),
     newTotal: Number(row?.newTotal ?? 0),
     renewalTotal: Number(row?.renewalTotal ?? 0),
     cnt: Number(row?.cnt ?? 0),
@@ -175,7 +177,7 @@ export async function sendWeeklyBriefing() {
     heading("📅 최근 7일 매출"),
     bullet(`${weekStart} ~ ${today}: ${fmtWon(thisWeek.total)} (${thisWeek.cnt}건)`),
     bullet(`신규: ${fmtWon(thisWeek.newTotal)} · 재등록: ${fmtWon(thisWeek.renewalTotal)}`),
-    bullet(`PT: ${fmtWon(thisWeek.ptTotal)} · 헬스: ${fmtWon(thisWeek.healthTotal)}`),
+    bullet(`PT: ${fmtWon(thisWeek.ptTotal)} · 헬스: ${fmtWon(thisWeek.healthTotal)} · 다이어트: ${fmtWon(thisWeek.dietTotal)}`),
     bullet(growth != null ? `전주 대비: ${growth >= 0 ? "+" : ""}${growth}%` : "전주 대비 비교 불가(전주 매출 0원)"),
     divider(),
     heading("📋 요약"),
@@ -213,7 +215,7 @@ export async function sendMonthlyBriefing() {
     heading(`📆 ${monthPrefix} 월간 매출`),
     bullet(`총 매출: ${fmtWon(monthTotals.total)} (${monthTotals.cnt}건)`),
     bullet(`신규: ${fmtWon(monthTotals.newTotal)} · 재등록: ${fmtWon(monthTotals.renewalTotal)}`),
-    bullet(`PT: ${fmtWon(monthTotals.ptTotal)} · 헬스: ${fmtWon(monthTotals.healthTotal)}`),
+    bullet(`PT: ${fmtWon(monthTotals.ptTotal)} · 헬스: ${fmtWon(monthTotals.healthTotal)} · 다이어트: ${fmtWon(monthTotals.dietTotal)}`),
     bullet(growth != null ? `전월 대비: ${growth >= 0 ? "+" : ""}${growth}%` : "전월 대비 비교 불가(전월 매출 0원)"),
     divider(),
     heading("👥 회원 현황"),

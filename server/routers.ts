@@ -542,7 +542,7 @@ const membersRouter = t.router({
         paymentMemo: z.string().optional(),
         adminTrainerId: z.number().optional(),
         branchId: z.number().optional(),
-        primaryType: z.enum(["PT", "헬스", "기타"]).optional(),
+        primaryType: z.enum(["PT", "헬스", "다이어트", "기타"]).optional(),
         subType: z.enum(["신규", "재등록"]).default("신규"),
         signatureDataUrl: z.string().optional(),
         serviceItems: z.string().optional(),
@@ -4253,7 +4253,7 @@ const adminRouter = t.router({
           channelId: revenueEntries.channelId,
           branchId: revenueEntries.branchId,
         }).from(revenueEntries).where(and(
-          sql`(${revenueEntries.type} = 'PT' OR ${revenueEntries.type} = '헬스')`,
+          sql`(${revenueEntries.type} = 'PT' OR ${revenueEntries.type} = '헬스' OR ${revenueEntries.type} = '다이어트')`,
           sql`(
             ${revenueEntries.trainerId} = ${trainer.id}
             OR ${revenueEntries.consultantId} = ${trainerUserId}
@@ -4290,7 +4290,7 @@ const adminRouter = t.router({
           const mName = r.memberId ? (revMemberNames[r.memberId] ?? `회원#${r.memberId}`) : "미지정";
           const chName = r.channelId ? (channelNames[r.channelId] ?? "") : "";
 
-          if (r.type === "헬스") {
+          if (r.type === "헬스" || r.type === "다이어트") {
             healthRevenue += amt;
             healthMembers.push({ name: mName, amount: amt });
             continue;
@@ -6542,7 +6542,7 @@ const gymPlusRouter = t.router({
       paidAmount: z.number().min(0).optional(),
       paymentMethod: z.string().optional(),
       paymentDate: z.string().optional(),
-      type: z.enum(["헬스", "PT", "기타"]).optional(),
+      type: z.enum(["헬스", "PT", "다이어트", "기타"]).optional(),
       programDetail: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

@@ -329,7 +329,8 @@ export default function GymDashboard() {
   const typeChartData = [
     { name: "PT", value: kpi?.monthPT ?? 0 },
     { name: "헬스", value: kpi?.monthHealth ?? 0 },
-    { name: "기타", value: Math.max(0, (kpi?.monthTotal ?? 0) - (kpi?.monthPT ?? 0) - (kpi?.monthHealth ?? 0)) },
+    { name: "다이어트", value: kpi?.monthDiet ?? 0 },
+    { name: "기타", value: Math.max(0, (kpi?.monthTotal ?? 0) - (kpi?.monthPT ?? 0) - (kpi?.monthHealth ?? 0) - (kpi?.monthDiet ?? 0)) },
   ].filter(d => d.value > 0);
 
   return (
@@ -741,7 +742,7 @@ export default function GymDashboard() {
             </div>
             <div className="overflow-y-auto flex-1 divide-y divide-border">
               {[...trainerModal.items].sort((a, b) => a.date.localeCompare(b.date)).map((item, idx) => {
-                const typeColor = item.subType === "재등록" ? "text-violet-400" : item.type === "PT" ? "text-blue-400" : item.type === "헬스" ? "text-amber-400" : "text-muted-foreground";
+                const typeColor = item.subType === "재등록" ? "text-violet-400" : item.type === "PT" ? "text-blue-400" : item.type === "헬스" ? "text-amber-400" : item.type === "다이어트" ? "text-emerald-400" : "text-muted-foreground";
                 const typeLabel = item.type === "PT" ? `PT ${item.subType || ""}`.trim() : item.type || item.subType || "기타";
                 return (
                   <div key={idx} className="px-4 py-2.5 space-y-1.5">

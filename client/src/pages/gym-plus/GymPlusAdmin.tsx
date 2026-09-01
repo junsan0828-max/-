@@ -677,7 +677,7 @@ export function GymPlusRenewalsAdmin() {
   const [adminNote, setAdminNote] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("");
-  const [payType, setPayType] = useState<"헬스" | "PT" | "기타">("헬스");
+  const [payType, setPayType] = useState<"헬스" | "PT" | "다이어트" | "기타">("헬스");
   const [payDate, setPayDate] = useState("");
 
   const approveMutation = trpc.gymPlus.admin_approveRenewal.useMutation({
@@ -786,6 +786,7 @@ export function GymPlusRenewalsAdmin() {
                   <select value={payType} onChange={e => setPayType(e.target.value as any)} className="w-full h-8 rounded-md px-2 text-sm bg-input border border-border">
                     <option value="헬스">헬스</option>
                     <option value="PT">PT</option>
+                    <option value="다이어트">다이어트</option>
                     <option value="기타">기타</option>
                   </select>
                 </div>

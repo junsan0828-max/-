@@ -23,7 +23,7 @@ const CONSULT_TYPES: Record<string, string[]> = {
   "온라인예약": ["체형분석예약"],
 };
 const MAIN_TYPES = Object.keys(CONSULT_TYPES);
-const INTEREST_OPTIONS = ["PT", "헬스", "기타"];
+const INTEREST_OPTIONS = ["PT", "헬스", "다이어트", "기타"];
 const AGE_OPTIONS = ["10대", "20대", "30대", "40대", "50대이상"];
 const EXERCISE_PURPOSES = [
   "다이어트 (체중 감량)",
@@ -435,6 +435,7 @@ export default function LeadsPage() {
     if (!directForm.name.trim()) return toast.error("이름을 입력해주세요.");
     const isPT = directForm.programTypes.includes("PT");
     const isHealth = directForm.programTypes.includes("헬스");
+    const isDiet = directForm.programTypes.includes("다이어트");
     const isOther = directForm.programTypes.includes("기타");
     // PT 등록 시 세션수·프로그램명 필수 (정산 단가 0원·"기타" 오분류 사고 예방)
     if (isPT) {
@@ -577,6 +578,7 @@ export default function LeadsPage() {
     if (reg.itemTypes.includes("PT") && !reg.programKey) return toast.error("PT 프로그램을 선택해주세요");
     if (reg.itemTypes.includes("PT") && !reg.sessions) return toast.error("PT 횟수를 선택해주세요");
     if (reg.itemTypes.includes("헬스") && !reg.duration) return toast.error("헬스 이용 기간을 선택해주세요");
+    if (reg.itemTypes.includes("다이어트") && !reg.duration) return toast.error("다이어트 이용 기간을 선택해주세요");
     if (reg.itemTypes.includes("기타") && !reg.otherItem) return toast.error("기타 항목을 선택해주세요");
     const amount = Number(reg.amount);
     if (!amount) return toast.error("금액을 입력해주세요");
@@ -633,7 +635,7 @@ export default function LeadsPage() {
         adminTrainerId: f.trainerId ? parseInt(f.trainerId) : undefined,
         branchId: f.branchId ? parseInt(f.branchId) : undefined,
         subType: "신규" as const,
-        primaryType: isPT ? "PT" : isHealth ? "헬스" : isOther ? "기타" : undefined,
+        primaryType: isPT ? "PT" : isHealth ? "헬스" : isDiet ? "다이어트" : isOther ? "기타" : undefined,
         signatureDataUrl: sig || undefined,
       });
       // 상담 CRM에도 등록완료 리드 생성
@@ -643,7 +645,7 @@ export default function LeadsPage() {
         gender: f.gender || undefined,
         status: "registered",
         consultationDate: f.paymentDate || new Date().toISOString().substring(0, 10),
-        interestType: isPT ? "PT" : isHealth ? "헬스" : isOther ? "기타" : undefined,
+        interestType: isPT ? "PT" : isHealth ? "헬스" : isDiet ? "다이어트" : isOther ? "기타" : undefined,
         signatureDataUrl: sig || undefined,
         memo: f.paymentMemo || undefined,
         branchId: f.branchId ? parseInt(f.branchId) : undefined,
@@ -697,9 +699,10 @@ export default function LeadsPage() {
   }
 
   function fireRevenueSave(reg: RegForm, leadId: number) {
-    // 대표 type: PT 있으면 PT, 없으면 헬스, 없으면 기타
+    // 대표 type: PT 있으면 PT, 없으면 헬스, 없으면 다이어트, 없으면 기타
     const primary = reg.itemTypes.includes("PT") ? "PT"
-      : reg.itemTypes.includes("헬스") ? "헬스" : "기타";
+      : reg.itemTypes.includes("헬스") ? "헬스"
+      : reg.itemTypes.includes("다이어트") ? "다이어트" : "기타";
 
     // programDetail: 선택된 항목들 조합
     const parts: string[] = [];
@@ -709,6 +712,9 @@ export default function LeadsPage() {
     if (reg.itemTypes.includes("헬스") && reg.duration) {
       parts.push(`헬스 ${reg.duration}개월`);
     }
+    if (reg.itemTypes.includes("다이어트") && reg.duration) {
+      parts.push(`다이어트 ${reg.duration}개월`);
+    }
     if (reg.itemTypes.includes("기타") && reg.otherItem) {
       parts.push(reg.otherItem);
     }
@@ -717,13 +723,13 @@ export default function LeadsPage() {
       leadId,
       customerName: form.name,
       phone: form.phone || undefined,
-      type: primary as "PT" | "헬스" | "기타",
+      type: primary as "PT" | "헬스" | "다이어트" | "기타",
       subType: reg.subType,
       programDetail: parts.length > 0 ? parts.join(" + ") : undefined,
       sessions: reg.itemTypes.includes("PT") ? reg.sessions : undefined,
       serviceSessions: reg.itemTypes.includes("PT") ? (reg.serviceSessions ?? 0) : undefined,
       eventId: reg.itemTypes.includes("PT") ? reg.eventId : undefined,
-      duration: reg.itemTypes.includes("헬스") ? reg.duration : undefined,
+      duration: (reg.itemTypes.includes("헬스") || reg.itemTypes.includes("다이어트")) ? reg.duration : undefined,
       amount: Number(reg.amount) || 0,
       discountAmount: Number(reg.discountAmount) || 0,
       paidAmount: Number(reg.paidAmount) || 0,
@@ -1511,6 +1517,31 @@ export default function LeadsPage() {
                           <button key={d} type="button"
                             onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
                             className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                            {d}개월
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 다이어트 */}
+                <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("다이어트") ? "border-lime-500/60 bg-lime-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setRegForm(f => {
+                    const has = f.itemTypes.includes("다이어트");
+                    return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== "다이어트") : [...f.itemTypes, "다이어트"] };
+                  })} className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={regForm.itemTypes.includes("다이어트") ? "text-lime-400" : "text-muted-foreground"}>다이어트</span>
+                    {regForm.itemTypes.includes("다이어트") && <span className="text-[10px] text-lime-400 bg-lime-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {regForm.itemTypes.includes("다이어트") && (
+                    <div className="px-4 pb-4 border-t border-lime-500/20">
+                      <label className="text-xs text-muted-foreground block pt-3">이용 기간</label>
+                      <div className="flex gap-2 mt-1">
+                        {DURATIONS.map(d => (
+                          <button key={d} type="button"
+                            onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-lime-500 text-white border-lime-500" : "bg-background border-border text-muted-foreground"}`}>
                             {d}개월
                           </button>
                         ))}

@@ -9,7 +9,7 @@ import {
 import { parseServiceItems, SERVICE_COLORS, type ServiceType } from "@/lib/memberServices";
 
 const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제", "혼합"];
-const PRODUCT_TYPES = ["전체", "PT", "헬스", "운동복", "락커", "1일권", "기타"];
+const PRODUCT_TYPES = ["전체", "PT", "헬스", "다이어트", "운동복", "락커", "1일권", "기타"];
 const SUB_TYPE_FILTERS = ["전체", "신규", "재등록"];
 
 function fmt(n: number) { return n.toLocaleString(); }
@@ -39,6 +39,7 @@ function computeRevenueEndDate(entry: any): string | null {
 function getProductType(entry: any): string {
   if (entry.type === "PT") return "PT";
   if (entry.type === "헬스") return "헬스";
+  if (entry.type === "다이어트") return "다이어트";
   const d = (entry.programDetail ?? "") as string;
   if (d.includes("운동복") || d === "운동복 대여") return "운동복";
   if (d.includes("락커")) return "락커";

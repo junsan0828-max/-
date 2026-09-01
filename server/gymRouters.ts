@@ -471,7 +471,7 @@ const revenueRouter = t.router({
       branchId: z.number().optional(),
       channelId: z.number().optional(),
       eventId: z.number().optional(),   // 적용 이벤트 (성과 추적)
-      type: z.enum(["PT", "헬스", "기타"]),
+      type: z.enum(["PT", "헬스", "다이어트", "기타"]),
       subType: z.enum(["신규", "재등록", "이전", "환불"]),
       amount: z.number().min(0),
       discountAmount: z.number().min(0).default(0),
@@ -670,8 +670,8 @@ const revenueRouter = t.router({
         }
       }
 
-      // 헬스 등록 시 회원 자동 생성
-      if (input.type === "헬스" && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
+      // 헬스/다이어트 등록 시 회원 자동 생성 (둘 다 기간제이므로 membershipEnd 공유)
+      if ((input.type === "헬스" || input.type === "다이어트") && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
         let membershipEnd: string | undefined;
         if (input.startDate && input.duration) {
           const [yr, mo, dy] = input.startDate.split("-").map(Number);
@@ -731,8 +731,8 @@ const revenueRouter = t.router({
         }
       }
 
-      // 헬스(기간제): 잔여일수 비례. 시작 전이면 전액, 종료됐으면 0.
-      if (entry.type === "헬스" && entry.duration) {
+      // 헬스/다이어트(기간제): 잔여일수 비례. 시작 전이면 전액, 종료됐으면 0.
+      if ((entry.type === "헬스" || entry.type === "다이어트") && entry.duration) {
         const start = entry.startDate ?? entry.paymentDate;
         const s = new Date(start);
         const end = new Date(s); end.setMonth(end.getMonth() + entry.duration);
@@ -1039,8 +1039,8 @@ const revenueRouter = t.router({
         }
       }
 
-      // 헬스 타입이고 회원이 연결되어 있으면 membershipEnd 재계산
-      if (row.type === "헬스" && row.memberId && row.startDate) {
+      // 헬스/다이어트 타입이고 회원이 연결되어 있으면 membershipEnd 재계산 (두 타입 모두 기간제)
+      if ((row.type === "헬스" || row.type === "다이어트") && row.memberId && row.startDate) {
         let months = row.duration ?? 0;
         if (!months) {
           const m = /^헬스\s*(\d+)개월/.exec(row.programDetail ?? "");
@@ -1091,7 +1091,7 @@ const revenueRouter = t.router({
       if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const healthRows = await db.select().from(revenueEntries).where(eq(revenueEntries.type, "헬스"));
+      const healthRows = await db.select().from(revenueEntries).where(inArray(revenueEntries.type, ["헬스", "다이어트"]));
       // memberId별 가장 최신 헬스 등록 entry를 기준으로 membershipEnd 재계산
       const latestByMember = new Map<number, typeof healthRows[0]>();
       for (const row of healthRows) {
@@ -1390,9 +1390,9 @@ const revenueRouter = t.router({
         ? rawEntries.filter(r => r.branchId === input.branchId)
         : rawEntries;
 
-      const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
+      const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; diet: number; newSales: number; renewal: number; count: number }> = {};
       for (let m = 1; m <= 12; m++) {
-        monthly[m] = { month: m, total: 0, paid: 0, unpaid: 0, pt: 0, health: 0, newSales: 0, renewal: 0, count: 0 };
+        monthly[m] = { month: m, total: 0, paid: 0, unpaid: 0, pt: 0, health: 0, diet: 0, newSales: 0, renewal: 0, count: 0 };
       }
 
       for (const entry of allEntries) {
@@ -1405,6 +1405,7 @@ const revenueRouter = t.router({
         monthly[month].count += 1;
         if (entry.type === "PT") monthly[month].pt += entry.paidAmount;
         if (entry.type === "헬스") monthly[month].health += entry.paidAmount;
+        if (entry.type === "다이어트") monthly[month].diet += entry.paidAmount;
         if (entry.subType === "신규") monthly[month].newSales += entry.paidAmount;
         if (entry.subType === "재등록") monthly[month].renewal += entry.paidAmount;
       }
@@ -1459,7 +1460,7 @@ const revenueRouter = t.router({
       // PT 재등록: entry.trainerId ?? members.trainerId (트레이너가 회원 유지한 결과)
       const byTrainer: Record<number, {
         trainerId: number; trainerName: string; isUnassigned: boolean;
-        total: number; ptRenewal: number; ptNew: number; health: number; etc: number; count: number;
+        total: number; ptRenewal: number; ptNew: number; health: number; diet: number; etc: number; count: number;
         items: { name: string; date: string; amount: number; type: string; subType: string }[];
       }> = {};
 
@@ -1476,7 +1477,7 @@ const revenueRouter = t.router({
             trainerId: tid,
             trainerName: tid === 0 ? "미배정" : (tToName.get(tid) ?? `ID:${tid}`),
             isUnassigned: tid === 0,
-            total: 0, ptRenewal: 0, ptNew: 0, health: 0, etc: 0, count: 0,
+            total: 0, ptRenewal: 0, ptNew: 0, health: 0, diet: 0, etc: 0, count: 0,
             items: [],
           };
         }
@@ -1495,6 +1496,7 @@ const revenueRouter = t.router({
         if (row.entry.type === "PT" && isRenewal) s.ptRenewal += amt;
         else if (row.entry.type === "PT") s.ptNew += amt;
         else if (row.entry.type === "헬스") s.health += amt;
+        else if (row.entry.type === "다이어트") s.diet += amt;
         else s.etc += amt;
       }
 
@@ -1570,6 +1572,7 @@ const revenueRouter = t.router({
         ptRenewal: number;
         ptRenewalAmount: number;
         health: number;
+        diet: number;
         etc: number;
         count: number;
         leadCount: number;
@@ -1583,7 +1586,7 @@ const revenueRouter = t.router({
           byConsultant[cid] = {
             consultantId: cid,
             consultantName: toName.get(cid) ?? `ID:${cid}`,
-            total: 0, ptNew: 0, ptRenewal: 0, ptRenewalAmount: 0, health: 0, etc: 0, count: 0,
+            total: 0, ptNew: 0, ptRenewal: 0, ptRenewalAmount: 0, health: 0, diet: 0, etc: 0, count: 0,
             leadCount: 0, registeredCount: 0, conversionRate: 0,
           };
         }
@@ -1608,6 +1611,7 @@ const revenueRouter = t.router({
         byConsultant[cid].count += 1;
         if (row.entry.type === "PT") byConsultant[cid].ptNew += amt;
         else if (row.entry.type === "헬스") byConsultant[cid].health += amt;
+        else if (row.entry.type === "다이어트") byConsultant[cid].diet += amt;
         else byConsultant[cid].etc += amt;
       }
 
@@ -1687,21 +1691,21 @@ const revenueRouter = t.router({
       type StaffEntry = {
         uid: number; name: string;
         // 상담 실적 (신규 영업)
-        consultNew: number; consultHealth: number; consultEtc: number;
+        consultNew: number; consultHealth: number; consultDiet: number; consultEtc: number;
         consultPtRenewal: number; consultPtRenewalAmount: number;
         leadCount: number; registeredCount: number; conversionRate: number;
         // 트레이너 매출 (본인 회원 PT)
-        trainerPtRenewal: number; trainerPtNew: number; trainerHealth: number; trainerEtc: number;
+        trainerPtRenewal: number; trainerPtNew: number; trainerHealth: number; trainerDiet: number; trainerEtc: number;
         trainerItems: { revenueId: number; memberId: number | null; name: string; date: string; amount: number; type: string; subType: string }[];
       };
       const byStaff: Record<number, StaffEntry> = {};
       const ensureStaff = (uid: number) => {
         if (!byStaff[uid]) byStaff[uid] = {
           uid, name: toName.get(uid) ?? `ID:${uid}`,
-          consultNew: 0, consultHealth: 0, consultEtc: 0,
+          consultNew: 0, consultHealth: 0, consultDiet: 0, consultEtc: 0,
           consultPtRenewal: 0, consultPtRenewalAmount: 0,
           leadCount: 0, registeredCount: 0, conversionRate: 0,
-          trainerPtRenewal: 0, trainerPtNew: 0, trainerHealth: 0, trainerEtc: 0,
+          trainerPtRenewal: 0, trainerPtNew: 0, trainerHealth: 0, trainerDiet: 0, trainerEtc: 0,
           trainerItems: [],
         };
       };
@@ -1722,6 +1726,7 @@ const revenueRouter = t.router({
             byStaff[cid].consultPtRenewalAmount += amt;
           } else if (row.entry.type === "PT") byStaff[cid].consultNew += amt;
           else if (row.entry.type === "헬스") byStaff[cid].consultHealth += amt;
+          else if (row.entry.type === "다이어트") byStaff[cid].consultDiet += amt;
           else byStaff[cid].consultEtc += amt;
         }
 
@@ -1741,6 +1746,7 @@ const revenueRouter = t.router({
           if (row.entry.type === "PT" && isRenewal) byStaff[tid].trainerPtRenewal += amt;
           else if (row.entry.type === "PT") byStaff[tid].trainerPtNew += amt;
           else if (row.entry.type === "헬스") byStaff[tid].trainerHealth += amt;
+          else if (row.entry.type === "다이어트") byStaff[tid].trainerDiet += amt;
           else byStaff[tid].trainerEtc += amt;
         }
       }
@@ -1757,8 +1763,8 @@ const revenueRouter = t.router({
       for (const s of Object.values(byStaff))
         s.conversionRate = s.leadCount > 0 ? Math.round((s.registeredCount / s.leadCount) * 100) : 0;
 
-      const consultTotal = (s: StaffEntry) => s.consultNew + s.consultHealth + s.consultEtc;
-      const trainerTotal = (s: StaffEntry) => s.trainerPtRenewal + s.trainerPtNew + s.trainerHealth + s.trainerEtc;
+      const consultTotal = (s: StaffEntry) => s.consultNew + s.consultHealth + s.consultDiet + s.consultEtc;
+      const trainerTotal = (s: StaffEntry) => s.trainerPtRenewal + s.trainerPtNew + s.trainerHealth + s.trainerDiet + s.trainerEtc;
       return Object.values(byStaff)
         .filter(s => consultTotal(s) + trainerTotal(s) + s.leadCount > 0)
         .sort((a, b) => (consultTotal(b) + trainerTotal(b)) - (consultTotal(a) + trainerTotal(a)));
@@ -2219,11 +2225,13 @@ const kpiRouter = t.router({
         const rev = allRevenue.filter(r => r.paymentDate.startsWith(prefix) && r.subType !== "이전");
         const exp = allExpenses.filter(e => e.expenseDate.startsWith(prefix));
 
-        const ptNew      = rev.filter(r => r.type === "PT"    && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
-        const ptRenewal  = rev.filter(r => r.type === "PT"    && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
-        const hlNew      = rev.filter(r => r.type === "헬스"  && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
-        const hlRenewal  = rev.filter(r => r.type === "헬스"  && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
-        const other      = rev.filter(r => r.type !== "PT"    && r.type !== "헬스").reduce((s, r) => s + r.paidAmount, 0);
+        const ptNew      = rev.filter(r => r.type === "PT"      && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
+        const ptRenewal  = rev.filter(r => r.type === "PT"      && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
+        const hlNew      = rev.filter(r => r.type === "헬스"    && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
+        const hlRenewal  = rev.filter(r => r.type === "헬스"    && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
+        const dietNew    = rev.filter(r => r.type === "다이어트" && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
+        const dietRenewal = rev.filter(r => r.type === "다이어트" && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
+        const other      = rev.filter(r => r.type !== "PT" && r.type !== "헬스" && r.type !== "다이어트").reduce((s, r) => s + r.paidAmount, 0);
         const refund     = rev.reduce((s, r) => s + r.refundAmount, 0);
 
         const gs  = rev.reduce((s, r) => s + r.paidAmount, 0);
@@ -2239,8 +2247,9 @@ const kpiRouter = t.router({
         const op  = gp - fc;
         const np  = op - cac;
 
-        const ptCnt = rev.filter(r => r.type === "PT").length;
-        const hlCnt = rev.filter(r => r.type === "헬스").length;
+        const ptCnt   = rev.filter(r => r.type === "PT").length;
+        const hlCnt   = rev.filter(r => r.type === "헬스").length;
+        const dietCnt = rev.filter(r => r.type === "다이어트").length;
 
         const card     = rev.filter(r => r.paymentMethod === "카드").reduce((s, r) => s + r.paidAmount, 0);
         const transfer = rev.filter(r => r.paymentMethod === "이체" || r.paymentMethod === "계좌이체").reduce((s, r) => s + r.paidAmount, 0);
@@ -2249,14 +2258,15 @@ const kpiRouter = t.router({
 
         return {
           month: m, gs, ns, vat, refund,
-          ptNew, ptRenewal, hlNew, hlRenewal, other,
+          ptNew, ptRenewal, hlNew, hlRenewal, dietNew, dietRenewal, other,
           gp, op, np, totalExp,
           opm: ns > 0 ? Math.round((op / ns) * 1000) / 10 : 0,
           npm: ns > 0 ? Math.round((np / ns) * 1000) / 10 : 0,
           fc, vc, cac,
-          ptCnt, hlCnt, totalCnt: ptCnt + hlCnt,
+          ptCnt, hlCnt, dietCnt, totalCnt: ptCnt + hlCnt + dietCnt,
           ptUnit: ptCnt > 0 ? Math.round((ptNew + ptRenewal) / ptCnt) : 0,
           hlUnit: hlCnt > 0 ? Math.round((hlNew + hlRenewal) / hlCnt) : 0,
+          dietUnit: dietCnt > 0 ? Math.round((dietNew + dietRenewal) / dietCnt) : 0,
           card, transfer, cash, local,
         };
       };
@@ -2270,9 +2280,10 @@ const kpiRouter = t.router({
         hlNew: acc.hlNew + m.hlNew, hlRenewal: acc.hlRenewal + m.hlRenewal, other: acc.other + m.other,
         gp: acc.gp + m.gp, op: acc.op + m.op, np: acc.np + m.np, totalExp: acc.totalExp + m.totalExp,
         fc: acc.fc + m.fc, vc: acc.vc + m.vc, cac: acc.cac + m.cac,
-        ptCnt: acc.ptCnt + m.ptCnt, hlCnt: acc.hlCnt + m.hlCnt, totalCnt: acc.totalCnt + m.totalCnt,
+        ptCnt: acc.ptCnt + m.ptCnt, hlCnt: acc.hlCnt + m.hlCnt, dietCnt: acc.dietCnt + m.dietCnt, totalCnt: acc.totalCnt + m.totalCnt,
+        dietNew: acc.dietNew + m.dietNew, dietRenewal: acc.dietRenewal + m.dietRenewal,
         card: acc.card + m.card, transfer: acc.transfer + m.transfer, cash: acc.cash + m.cash, local: acc.local + m.local,
-      }), { gs:0,ns:0,vat:0,refund:0,ptNew:0,ptRenewal:0,hlNew:0,hlRenewal:0,other:0,gp:0,op:0,np:0,totalExp:0,fc:0,vc:0,cac:0,ptCnt:0,hlCnt:0,totalCnt:0,card:0,transfer:0,cash:0,local:0 });
+      }), { gs:0,ns:0,vat:0,refund:0,ptNew:0,ptRenewal:0,hlNew:0,hlRenewal:0,dietNew:0,dietRenewal:0,other:0,gp:0,op:0,np:0,totalExp:0,fc:0,vc:0,cac:0,ptCnt:0,hlCnt:0,dietCnt:0,totalCnt:0,card:0,transfer:0,cash:0,local:0 });
 
       return { monthlyData, total, year: input.year };
     }),
@@ -2313,6 +2324,7 @@ const kpiRouter = t.router({
       const monthRenewal = monthRevenue.filter(r => r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
       const monthPT = monthRevenue.filter(r => r.type === "PT").reduce((s, r) => s + r.paidAmount, 0);
       const monthHealth = monthRevenue.filter(r => r.type === "헬스").reduce((s, r) => s + r.paidAmount, 0);
+      const monthDiet = monthRevenue.filter(r => r.type === "다이어트").reduce((s, r) => s + r.paidAmount, 0);
 
       // 이번달 지출
       const monthExpenses = allExpenses.filter(e => e.expenseDate.startsWith(prefix)).reduce((s, e) => s + e.amount, 0);
@@ -2355,6 +2367,7 @@ const kpiRouter = t.router({
         monthRenewal,
         monthPT,
         monthHealth,
+        monthDiet,
         monthExpenses,
         monthProfit: monthTotal - monthExpenses,
         totalUnpaid,
@@ -2592,6 +2605,7 @@ const aiRouter = t.router({
 - 재등록 매출: ${monthRevenue.filter(r => r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0).toLocaleString()}원
 - PT 매출: ${monthRevenue.filter(r => r.type === "PT").reduce((s, r) => s + r.paidAmount, 0).toLocaleString()}원
 - 헬스 매출: ${monthRevenue.filter(r => r.type === "헬스").reduce((s, r) => s + r.paidAmount, 0).toLocaleString()}원
+- 다이어트 매출: ${monthRevenue.filter(r => r.type === "다이어트").reduce((s, r) => s + r.paidAmount, 0).toLocaleString()}원
 - 순이익(매출-지출): ${(monthTotal - monthExpenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}원
 - 전체 미수금: ${totalUnpaid.toLocaleString()}원
 

@@ -208,7 +208,7 @@ export default function RegistrationManagement() {
   const searchParams = useSearch();
   const initialQ = new URLSearchParams(searchParams).get("q") ?? "";
   const [regSearch, setRegSearch] = useState(initialQ);
-  const [regTypeFilter, setRegTypeFilter] = useState<"all" | "PT" | "헬스" | "기타">("all");
+  const [regTypeFilter, setRegTypeFilter] = useState<"all" | "PT" | "헬스" | "다이어트" | "기타">("all");
   const [regShowNullOnly, setRegShowNullOnly] = useState(false);
   const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
   const [editRev, setEditRev] = useState<any | null>(null);
@@ -732,7 +732,7 @@ export default function RegistrationManagement() {
               return nameMatch && typeMatch && nullMatch;
             });
             const nullCount = allRevs.filter(r => !r.customerName && !r.memberName).length;
-            const typeColor: Record<string, string> = { PT: "bg-blue-500/10 text-blue-400", "헬스": "bg-green-500/10 text-green-400", "기타": "bg-muted text-muted-foreground" };
+            const typeColor: Record<string, string> = { PT: "bg-blue-500/10 text-blue-400", "헬스": "bg-green-500/10 text-green-400", "다이어트": "bg-emerald-500/10 text-emerald-400", "기타": "bg-muted text-muted-foreground" };
             return (
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -752,6 +752,7 @@ export default function RegistrationManagement() {
                     <option value="all">전체</option>
                     <option value="PT">PT</option>
                     <option value="헬스">헬스</option>
+                    <option value="다이어트">다이어트</option>
                     <option value="기타">기타</option>
                   </select>
                   </div>
@@ -995,8 +996,8 @@ export default function RegistrationManagement() {
                         </div>
                       </div>
                     )}
-                    {/* 헬스 기간 */}
-                    {editRev.type === "헬스" && (
+                    {/* 헬스/다이어트 기간 */}
+                    {(editRev.type === "헬스" || editRev.type === "다이어트") && (
                       <div>
                         <label className="text-xs text-muted-foreground">이용 기간</label>
                         <div className="flex gap-2 mt-1">
