@@ -371,8 +371,14 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-500">입금자명</span>
-                <span className="text-sm font-medium text-[#1a2b4b]">{name}</span>
+                <span className="text-sm font-semibold text-[#1D4ED8]">{name}</span>
               </div>
+            </div>
+            {/* 입금자명 강조 안내 */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+              <p className="font-bold">⚠️ 입금 시 반드시 확인해 주세요</p>
+              <p>입금자명을 반드시 <span className="font-bold underline">{name}</span>(으)로 해주세요.</p>
+              <p className="text-amber-600">다른 이름으로 입금 시 확인이 지연될 수 있습니다.</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 text-center">
               입금 확인 후 문자로 안내해 드립니다<br/>문의: 헬스장 데스크
