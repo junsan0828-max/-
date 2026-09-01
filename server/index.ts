@@ -1014,13 +1014,15 @@ async function initDatabase() {
 
   // ── 자동 생성된 미래 시작 phantom 패키지 자동 삭제 ───────────────────────────
   // 조건: ① 시작일이 오늘 이후 ② usedSessions=0 (세션 로그 이동 후) ③ revenueEntryId 있음
-  //       ④ 같은 회원에 현재 진행 중(시작일≤오늘, usedSessions>0) 패키지가 존재
-  // → 이 4가지를 모두 만족하는 것만 phantom으로 판정해 삭제
+  //       ④ 같은 회원에 완료 또는 현재 진행 중(시작일≤오늘, usedSessions>0) 패키지가 존재
+  // 삭제 전 revenueEntryId를 실 패키지로 이전해 재시작 시 phantom 재생성 방지
   try {
     const phantoms = await pool.query<{
       id: number; member_name: string; pkg_name: string | null; start_date: string | null;
+      revenue_entry_id: number | null;
     }>(`
-      SELECT p.id, m.name AS member_name, p."packageName" AS pkg_name, p."startDate" AS start_date
+      SELECT p.id, m.name AS member_name, p."packageName" AS pkg_name, p."startDate" AS start_date,
+             p."revenueEntryId" AS revenue_entry_id
       FROM pt_packages p
       JOIN members m ON m.id = p."memberId"
       WHERE p.status = 'active'
@@ -1031,14 +1033,37 @@ async function initDatabase() {
         AND EXISTS (
           SELECT 1 FROM pt_packages q
           WHERE q."memberId" = p."memberId"
-            AND q.status = 'active'
             AND q.id <> p.id
             AND q."usedSessions" > 0
-            AND (q."startDate" IS NULL OR q."startDate" <= CURRENT_DATE::text)
+            AND (
+              -- 현재 진행 중인 활성 패키지
+              (q.status = 'active' AND (q."startDate" IS NULL OR q."startDate" <= CURRENT_DATE::text))
+              OR
+              -- 이미 완료된 패키지 (만료 회원)
+              q.status = 'completed'
+            )
         )
     `);
     if (phantoms.rows.length > 0) {
       const ids = phantoms.rows.map(r => r.id);
+      // 삭제 전: revenueEntryId를 실 패키지(revenueEntryId 없는 것 우선)에 이전
+      for (const ph of phantoms.rows) {
+        if (!ph.revenue_entry_id) continue;
+        await pool.query(`
+          UPDATE pt_packages
+          SET "revenueEntryId" = $1
+          WHERE id = (
+            SELECT q.id FROM pt_packages q
+            WHERE q."memberId" = (SELECT "memberId" FROM pt_packages WHERE id = $2)
+              AND q.id <> $2
+              AND q."usedSessions" > 0
+              AND q.status IN ('active', 'completed')
+              AND q."revenueEntryId" IS NULL
+            ORDER BY q."usedSessions" DESC, q.id DESC
+            LIMIT 1
+          )
+        `, [ph.revenue_entry_id, ph.id]);
+      }
       await pool.query(`DELETE FROM pt_packages WHERE id = ANY($1)`, [ids]);
       console.log(`🗑️ Phantom PT 패키지 자동 삭제 ${phantoms.rows.length}건:`);
       for (const r of phantoms.rows) {
