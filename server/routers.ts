@@ -2806,7 +2806,7 @@ const gymPlusRouter = t.router({
     }),
 
   getRegistrationBankAccount: publicProcedure.query(() => {
-    return { bankAccount: "카카오뱅크 3333-05-2664409 (자이언트짐)" };
+    return { bankAccount: "카카오뱅크 3333-05-2664409 이준산" };
   }),
 
   memberMe: publicProcedure.query(async ({ ctx }) => {
