@@ -93,6 +93,36 @@ app.get("/api/expiring-members", async (req, res) => {
   }
 });
 
+// 관리자 진단: 트레이너별 PT 패키지 조회 (관리자 전용)
+app.get("/api/admin/debug/trainer-packages", async (req, res) => {
+  if (!(req.session as any)?.user) return res.status(401).json({ error: "unauthorized" });
+  const user = (req.session as any).user;
+  if (user.role !== "admin" && user.role !== "sub_admin") return res.status(403).json({ error: "forbidden" });
+  try {
+    const trainerName = (req.query.name as string) || "";
+    const rows = await pool.query(`
+      SELECT
+        u.id as user_id, u.name as user_name,
+        p.id as pkg_id, p."packageName", p."totalSessions", p."usedSessions",
+        p."serviceSessions", p.status, p."startDate", p."paymentDate",
+        p."paymentAmount", p."revenueEntryId",
+        to_char(p."createdAt"::timestamp, 'YYYY-MM-DD HH24:MI') as pkg_created,
+        m.name as member_name, m.id as member_id,
+        re.id as rev_id, re.sessions as rev_sessions, re."paymentDate" as rev_paydate
+      FROM users u
+      JOIN pt_packages p ON p."trainerId" = u.id
+      LEFT JOIN members m ON m.id = p."memberId"
+      LEFT JOIN revenue_entries re ON re.id = p."revenueEntryId"
+      WHERE u.name LIKE $1
+      ORDER BY p."createdAt" DESC
+      LIMIT 50
+    `, [`%${trainerName}%`]);
+    res.json({ count: rows.rowCount, rows: rows.rows });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // tRPC API
 app.use(
   "/trpc",
@@ -1641,25 +1671,35 @@ async function initDatabase() {
       const now = new Date().toISOString();
       const svcSessions = (rev as any).serviceSessions ?? 0;
 
-      // 같은 회원에게 세션 수·시작일이 비슷한 패키지가 이미 있으면 건너뜀 (복제 방지).
+      // 같은 회원에게 세션 수·날짜가 비슷한 패키지가 이미 있으면 건너뜀 (복제 방지).
+      // startDate/paymentDate 교차 비교 포함 (필드에 따라 다른 곳에 저장되는 경우 대응)
+      const d1 = rev.startDate ?? rev.paymentDate ?? null;
+      const d2 = rev.paymentDate ?? null;
       const dupMatch = await pool.query(
-        `SELECT 1 FROM pt_packages
+        `SELECT id FROM pt_packages
          WHERE "memberId" = $1
            AND (
              "totalSessions" = $2
              OR "totalSessions" = $3
+             OR ("totalSessions" - COALESCE("serviceSessions",0)) = $3
            )
            AND (
              "startDate" IS NOT DISTINCT FROM $4
              OR "paymentDate" IS NOT DISTINCT FROM $5
+             OR "startDate" IS NOT DISTINCT FROM $5
+             OR "paymentDate" IS NOT DISTINCT FROM $4
+             OR ($4 IS NOT NULL AND "startDate" IS NOT NULL
+                 AND ABS(EXTRACT(EPOCH FROM ("startDate"::timestamp - $4::timestamp))) < 86400*60)
+             OR ($5 IS NOT NULL AND "paymentDate" IS NOT NULL
+                 AND ABS(EXTRACT(EPOCH FROM ("paymentDate"::timestamp - $5::timestamp))) < 86400*60)
            )
          LIMIT 1`,
         [
           rev.memberId,
           (rev.sessions ?? 0) + svcSessions,
           rev.sessions ?? 0,
-          rev.startDate ?? rev.paymentDate ?? null,
-          rev.paymentDate ?? null,
+          d1,
+          d2,
         ]
       );
       if (dupMatch.rows.length > 0) {
@@ -1668,12 +1708,17 @@ async function initDatabase() {
            WHERE id = (
              SELECT id FROM pt_packages
              WHERE "memberId" = $2 AND "revenueEntryId" IS NULL
-               AND ("totalSessions" = $3 OR "totalSessions" = $4)
-               AND ("startDate" IS NOT DISTINCT FROM $5 OR "paymentDate" IS NOT DISTINCT FROM $6)
+               AND (
+                 "totalSessions" = $3 OR "totalSessions" = $4
+                 OR ("totalSessions" - COALESCE("serviceSessions",0)) = $4
+               )
+               AND (
+                 "startDate" IS NOT DISTINCT FROM $5 OR "paymentDate" IS NOT DISTINCT FROM $6
+                 OR "startDate" IS NOT DISTINCT FROM $6 OR "paymentDate" IS NOT DISTINCT FROM $5
+               )
              LIMIT 1
            )`,
-          [rev.id, rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.sessions ?? 0,
-           rev.startDate ?? rev.paymentDate ?? null, rev.paymentDate ?? null]
+          [rev.id, rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.sessions ?? 0, d1, d2]
         );
         continue;
       }
