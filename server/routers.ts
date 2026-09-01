@@ -5430,7 +5430,11 @@ const attendanceChecksRouter = t.router({
           const [activePkg] = await db.select()
             .from(ptPackages)
             .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "active")))
-            .orderBy(desc(ptPackages.id))
+            .orderBy(
+              sql`CASE WHEN "startDate" IS NULL OR "startDate" <= CURRENT_DATE::text THEN 0 ELSE 1 END`,
+              asc(ptPackages.startDate),
+              asc(ptPackages.id),
+            )
             .limit(1);
           if (activePkg && activePkg.usedSessions < activePkg.totalSessions) {
             const newUsed = activePkg.usedSessions + 1;

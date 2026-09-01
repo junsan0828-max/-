@@ -960,6 +960,37 @@ async function initDatabase() {
     await pool.query(stmt);
   }
 
+  // ── 미래 시작 패키지에 잘못 기록된 세션 로그를 현재 진행 중 패키지로 이동 ──────
+  // 출석 체크 시 패키지 선택이 desc(id) 순이었을 때, 미래 시작일의 phantom 패키지에
+  // 세션이 잘못 기록되는 사고 방지용 보정. 동일 회원에 과거/현재 시작 활성 패키지가
+  // 있을 때만 이동 (미래 패키지만 있는 경우 건드리지 않음).
+  try {
+    const movedLogs = await pool.query(`
+      WITH future_pkgs AS (
+        SELECT p.id AS bad_id, p."memberId",
+          (SELECT p2.id FROM pt_packages p2
+           WHERE p2."memberId" = p."memberId"
+             AND p2.status = 'active'
+             AND (p2."startDate" IS NULL OR p2."startDate" <= CURRENT_DATE::text)
+           ORDER BY p2."startDate" ASC NULLS LAST, p2.id ASC
+           LIMIT 1) AS good_id
+        FROM pt_packages p
+        WHERE p.status = 'active'
+          AND p."startDate" > CURRENT_DATE::text
+      )
+      UPDATE pt_session_logs sl
+      SET "packageId" = fp.good_id
+      FROM future_pkgs fp
+      WHERE sl."packageId" = fp.bad_id
+        AND fp.good_id IS NOT NULL
+      RETURNING sl.id
+    `);
+    if ((movedLogs.rowCount ?? 0) > 0)
+      console.log(`🔁 미래 패키지 잘못 기록된 세션 로그 이동: ${movedLogs.rowCount}건`);
+  } catch (e) {
+    console.error("세션 로그 이동 오류:", e);
+  }
+
   // 세션 로그 기준으로 usedSessions 재동기화 (이전 데이터 포함, 매 시작 시 일관성 보장)
   await pool.query(`
     UPDATE pt_packages
