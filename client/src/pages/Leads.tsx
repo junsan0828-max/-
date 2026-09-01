@@ -222,6 +222,18 @@ export default function LeadsPage() {
     { refetchInterval: 30000, enabled: !!me }
   );
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
+
+  // 온라인 등록 신청 (gym_plus_registration_requests)
+  const [selectedRegRequest, setSelectedRegRequest] = useState<any | null>(null);
+  const { data: registrationRequests, refetch: refetchRegRequests } = trpc.gymPlus.admin_listRegistrationRequests.useQuery(
+    { status: "all" },
+    { refetchInterval: 60000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
+  );
+  const updateRegRequestMutation = trpc.gymPlus.admin_updateRegistrationRequest.useMutation({
+    onSuccess: () => { refetchRegRequests(); setSelectedRegRequest(null); toast.success("처리되었습니다"); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const isSubAdmin = me?.role === "sub_admin";
   const isTrainer = me?.role === "trainer";
   const now = new Date();
@@ -862,6 +874,22 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* 온라인 신규 등록 신청 배너 */}
+      {(registrationRequests?.filter(r => r.status === "pending").length ?? 0) > 0 && (
+        <div
+          className="flex items-center gap-3 bg-violet-500/10 border border-violet-500/30 rounded-xl px-4 py-3 cursor-pointer"
+          onClick={() => { const el = document.getElementById("online-reg-section"); if (el) el.scrollIntoView({ behavior: "smooth" }); }}
+        >
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-500/20 shrink-0">
+            <ClipboardList className="h-4 w-4 text-violet-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-violet-300">온라인 등록 신청 {registrationRequests!.filter(r => r.status === "pending").length}건</p>
+            <p className="text-xs text-violet-400/70">자이언트짐++ 앱에서 신규 등록 신청이 들어왔습니다. 탭하여 확인하세요.</p>
+          </div>
+        </div>
+      )}
+
       {/* 온라인 예약 알림 배너 (컨설턴트/어드민용) */}
       {unviewedCount > 0 && (
         <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3">
@@ -1025,6 +1053,112 @@ export default function LeadsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 온라인 신규 등록 신청 카드 섹션 */}
+      {(me?.role === "admin" || me?.role === "sub_admin") && (registrationRequests?.length ?? 0) > 0 && (
+        <div id="online-reg-section" className="space-y-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-violet-400" />
+            <h2 className="text-sm font-semibold text-foreground">온라인 신규 등록 신청</h2>
+            {(registrationRequests?.filter(r => r.status === "pending").length ?? 0) > 0 && (
+              <span className="text-xs bg-violet-500 text-white px-2 py-0.5 rounded-full font-bold">
+                {registrationRequests!.filter(r => r.status === "pending").length} 대기
+              </span>
+            )}
+          </div>
+          <div className="space-y-2">
+            {registrationRequests!.map(req => {
+              const statusLabel = req.status === "pending" ? "신규 온라인 신청" : req.status === "approved" ? "승인완료" : "거절";
+              const statusColor = req.status === "pending" ? "bg-violet-500/20 text-violet-300 border-violet-500/30" : req.status === "approved" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-red-500/20 text-red-300 border-red-500/30";
+              const cardBorder = req.status === "pending" ? "border-violet-500/30 bg-violet-500/5" : "border-border bg-card";
+              return (
+                <button
+                  key={req.id}
+                  className={`w-full text-left rounded-xl border p-4 space-y-2 hover:brightness-110 transition-all ${cardBorder}`}
+                  onClick={() => setSelectedRegRequest(req)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-foreground">{req.name}</span>
+                        {req.phone && <span className="text-xs text-muted-foreground">{fmtPhone(req.phone)}</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {req.membershipPeriod && (
+                          <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full">{req.membershipPeriod}</span>
+                        )}
+                        {req.amount != null && (
+                          <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full">{req.amount.toLocaleString()}원</span>
+                        )}
+                        {req.contractDate && (
+                          <span className="text-xs text-muted-foreground">{req.contractDate}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-semibold border px-2 py-0.5 rounded-full shrink-0 ${statusColor}`}>{statusLabel}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 온라인 등록 신청 상세 모달 */}
+      {selectedRegRequest && (
+        <div className="fixed inset-0 z-[300] bg-black/80 flex items-end md:items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setSelectedRegRequest(null)}>
+          <div className="bg-background border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-md flex flex-col" style={{ maxHeight: 'calc(90svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <h2 className="font-semibold text-foreground">온라인 등록 신청 상세</h2>
+              <button onClick={() => setSelectedRegRequest(null)} className="text-muted-foreground hover:text-foreground p-1">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">이름</span><span className="font-semibold text-foreground">{selectedRegRequest.name}</span></div>
+                {selectedRegRequest.phone && <div className="flex justify-between text-sm"><span className="text-muted-foreground">연락처</span><span className="text-foreground">{fmtPhone(selectedRegRequest.phone)}</span></div>}
+                {selectedRegRequest.membershipPeriod && <div className="flex justify-between text-sm"><span className="text-muted-foreground">회원권 기간</span><span className="text-foreground">{selectedRegRequest.membershipPeriod}</span></div>}
+                {selectedRegRequest.amount != null && <div className="flex justify-between text-sm"><span className="text-muted-foreground">금액</span><span className="font-semibold text-emerald-400">{selectedRegRequest.amount.toLocaleString()}원</span></div>}
+                {selectedRegRequest.contractDate && <div className="flex justify-between text-sm"><span className="text-muted-foreground">계약일</span><span className="text-foreground">{selectedRegRequest.contractDate}</span></div>}
+                {selectedRegRequest.agreedMarketing === 1 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">마케팅 동의</span><span className="text-emerald-400">동의</span></div>}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">상태</span>
+                  <span className={selectedRegRequest.status === "pending" ? "text-violet-400 font-semibold" : selectedRegRequest.status === "approved" ? "text-emerald-400 font-semibold" : "text-red-400 font-semibold"}>
+                    {selectedRegRequest.status === "pending" ? "처리 대기" : selectedRegRequest.status === "approved" ? "승인완료" : "거절"}
+                  </span>
+                </div>
+              </div>
+              {selectedRegRequest.signatureData && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium">전자 서명</p>
+                  <div className="bg-white rounded-xl overflow-hidden border border-border">
+                    <img src={selectedRegRequest.signatureData} alt="전자서명" className="w-full object-contain max-h-48" />
+                  </div>
+                </div>
+              )}
+            </div>
+            {selectedRegRequest.status === "pending" && (
+              <div className="px-4 py-3 border-t border-border flex gap-3 shrink-0">
+                <button
+                  disabled={updateRegRequestMutation.isPending}
+                  onClick={() => updateRegRequestMutation.mutate({ id: selectedRegRequest.id, status: "rejected" })}
+                  className="flex-1 py-2.5 rounded-xl border border-red-500/40 text-red-400 text-sm font-semibold hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  거절
+                </button>
+                <button
+                  disabled={updateRegRequestMutation.isPending}
+                  onClick={() => updateRegRequestMutation.mutate({ id: selectedRegRequest.id, status: "approved" })}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50"
+                >
+                  승인
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

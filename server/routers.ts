@@ -47,6 +47,7 @@ import {
   gymPlusMessages,
   gymPlusPushSubscriptions,
   gymPlusMembershipRenewals,
+  gymPlusRegistrationRequests,
   bodyAnalysisReservations,
 } from "../drizzle/schema";
 import webpush from "web-push";
@@ -6620,6 +6621,38 @@ const gymPlusRouter = t.router({
         adminNote: input.adminNote,
         processedAt: new Date().toISOString(),
       }).where(eq(gymPlusMembershipRenewals.id, input.id));
+      return { success: true };
+    }),
+
+  // 온라인 등록 신청 목록
+  admin_listRegistrationRequests: protectedProcedure
+    .input(z.object({ status: z.enum(["pending", "approved", "rejected", "all"]).default("all") }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select().from(gymPlusRegistrationRequests)
+        .orderBy(desc(gymPlusRegistrationRequests.id));
+      return input.status === "all"
+        ? rows
+        : rows.filter(r => r.status === input.status);
+    }),
+
+  // 온라인 등록 신청 승인/거절
+  admin_updateRegistrationRequest: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(["approved", "rejected"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(gymPlusRegistrationRequests)
+        .set({ status: input.status })
+        .where(eq(gymPlusRegistrationRequests.id, input.id));
       return { success: true };
     }),
 });

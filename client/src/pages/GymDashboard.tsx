@@ -291,6 +291,11 @@ export default function GymDashboard() {
   );
   const [dismissedRenewalAlert, setDismissedRenewalAlert] = useState(false);
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
+  const { data: pendingRegRequests } = trpc.gymPlus.admin_listRegistrationRequests.useQuery(
+    { status: "pending" },
+    { refetchInterval: 60000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
+  );
+  const [dismissedRegAlert, setDismissedRegAlert] = useState(false);
   const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: staffSummary, refetch: refetchStaff } = trpc.gym.revenue.staffSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: trainerList } = trpc.trainers.list.useQuery();
@@ -345,6 +350,28 @@ export default function GymDashboard() {
           <button
             onClick={e => { e.stopPropagation(); setDismissedRenewalAlert(true); }}
             className="text-emerald-400/50 hover:text-emerald-300 shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 온라인 신규 등록 신청 알림 배너 */}
+      {(pendingRegRequests?.length ?? 0) > 0 && !dismissedRegAlert && (
+        <div
+          className="flex items-center gap-3 bg-violet-500/10 border border-violet-500/30 rounded-xl px-4 py-3 cursor-pointer"
+          onClick={() => { setDismissedRegAlert(true); setLocation("/leads"); }}
+        >
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-500/20 shrink-0">
+            <Bell className="h-4 w-4 text-violet-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-violet-300">온라인 등록 신청 {pendingRegRequests!.length}건 대기 중</p>
+            <p className="text-xs text-violet-400/70">자이언트짐++ 앱 신규 등록 신청입니다. 탭하여 상담 관리에서 처리하세요.</p>
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); setDismissedRegAlert(true); }}
+            className="text-violet-400/50 hover:text-violet-300 shrink-0"
           >
             <X className="h-4 w-4" />
           </button>

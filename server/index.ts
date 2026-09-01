@@ -913,6 +913,18 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sessionNumber" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_registration_requests (
+      id serial PRIMARY KEY,
+      name text NOT NULL,
+      phone text NOT NULL,
+      "membershipPeriod" text,
+      amount integer,
+      status text NOT NULL DEFAULT 'pending',
+      "signatureData" text,
+      "agreedMarketing" integer DEFAULT 0,
+      "contractDate" text,
+      "createdAt" text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

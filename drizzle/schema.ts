@@ -667,6 +667,21 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   membershipType: text("membershipType"), // 헬스 | PT | 기타
 });
 
+// ─── 자이언트짐++ 온라인 등록 신청 ───────────────────────────────────────────────
+// 앱/웹에서 비회원이 회원권 구매 신청 → 관리자가 승인/거절
+export const gymPlusRegistrationRequests = pgTable("gym_plus_registration_requests", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  membershipPeriod: text("membershipPeriod"),
+  amount: integer("amount"),
+  status: text("status").default("pending").notNull(), // pending | approved | rejected
+  signatureData: text("signatureData"),
+  agreedMarketing: integer("agreedMarketing").default(0),
+  contractDate: text("contractDate"),
+  createdAt: text("createdAt"),
+});
+
 // ─── 포인트 회원권 연장 이력 ────────────────────────────────────────────────────
 // 자이언트짐++ 포인트로 회원권을 연장한 기록. 결제금액 0원이라 revenue_entries에는
 // 넣지 않는다 — 매출 집계에서 subType으로 특정 유형을 제외하는 코드가 12곳 이상 흩어져
