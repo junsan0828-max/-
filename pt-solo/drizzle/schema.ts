@@ -330,6 +330,18 @@ export const memberDietPlans = pgTable("member_diet_plans", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// 트레이너 세일즈북 (상담 클로징 자료)
+export const trainerSalesBooks = pgTable("trainer_sales_books", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull().unique(),
+  shareToken: text("shareToken").notNull().unique(),
+  dataJson: text("dataJson").notNull(),
+  isPublic: integer("isPublic").default(0).notNull(),
+  viewCount: integer("viewCount").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
 export const trainerFeedbacks = pgTable("trainer_feedbacks", {
   id: serial("id").primaryKey(),
   trainerId: integer("trainerId").notNull(),

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera, ReceiptText, ArrowLeftRight } from "lucide-react";
+import { BookOpen, Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera, ReceiptText, ArrowLeftRight } from "lucide-react";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 import TabBanner from "@/components/TabBanner";
 import ReportBrandingEditor from "@/components/editors/ReportBrandingEditor";
@@ -16,6 +16,7 @@ import SurveyBuilder from "@/components/editors/SurveyBuilder";
 import EContractManager from "@/components/editors/EContractManager";
 import RefundContractManager from "@/components/editors/RefundContractManager";
 import TransferContractManager from "@/components/editors/TransferContractManager";
+import { SalesBookEditor } from "@/pages/SalesBook";
 
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
@@ -2063,7 +2064,7 @@ const PREVIEW_FEATURES = [
 // PRO 전용: FIT STEP+(회원 전용 앱)와 그 부가기능(FIT STEP+ 안에서만 동작), 수업 예약뿐.
 // 나머지는 전부 FREE에서도 이용 가능.
 const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
-  free:  ["brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract",
+  free:  ["brand_page", "sales_book", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract",
           "report_branding", "contract_terms", "training_video", "e_contract",
           "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion",
           "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
@@ -2110,6 +2111,10 @@ export const WS_CATALOG: WsCatDef[] = [
         description: "STEPER만의 브랜드 소개 페이지를 만들고 링크 하나로 회원에게 공유하세요. 소개글, 전문 분야, SNS 계정을 한 페이지에 담을 수 있습니다.",
         tags: ["소개 페이지", "SNS 연결", "브랜드 프로필"],
         useCases: ["신규 회원 유치 시 소개 자료로 활용", "SNS 바이오 링크로 설정", "상담 전 회원에게 공유"] },
+      { id: "sales_book", icon: BookOpen, name: "트레이너 세일즈북", shortDesc: "상담 클로징용 제안서 자동 생성", status: "active",
+        description: "프로필·경력·PT 패키지 가격을 자동으로 불러와 상담용 제안서를 만듭니다. 상담 전 링크로 보내거나 상담 중 화면으로 보여주고, 마지막에 예약·연락 버튼으로 바로 연결됩니다.",
+        tags: ["상담 제안서", "가격 안내", "자동 초안", "링크 공유"],
+        useCases: ["상담 전 사전 자료 발송", "상담 중 태블릿으로 브리핑", "가격·프로그램 안내 표준화"] },
       { id: "fitstep_plus", icon: Wrench, name: "FIT STEP+", shortDesc: "회원 전용 프리미엄 관리 페이지", status: "active",
         description: "회원이 직접 접속하는 전용 앱 페이지입니다. 출석 체크, 개인 운동 기록, STEPER 피드백을 한 곳에서 관리할 수 있습니다.",
         tags: ["회원 앱", "출석 확인", "운동 기록", "리포트"],
@@ -2267,7 +2272,7 @@ function WorkshopItemCard({ item, onClick }: { item: WsItem; onClick: () => void
 
 // 관리 패널(renderForm)이 구현된 기능 ID 목록
 const FORM_IDS = new Set([
-  "brand_page","fitstep_plus","fitstep_personal","fitstep_diet",
+  "brand_page","sales_book","fitstep_plus","fitstep_personal","fitstep_diet",
   "booking","report_branding","templates","survey","contract_terms",
   "e_contract","contract_kakao","refund_contract","transfer_contract",
 ]);
@@ -2291,6 +2296,7 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
     if (!showForm) return null;
     switch (item.id) {
       case "brand_page":    return <BrandPageEditor />;
+      case "sales_book":        return <SalesBookEditor />;
       case "fitstep_plus":      return isAdmin ? <AdminFspLimitsPanel /> : trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : null;
       case "fitstep_personal":  return <WorkoutLogSection />;
       case "fitstep_diet":      return <TrainerDietManager />;

@@ -825,6 +825,7 @@ async function initDatabase() {
   // → DB가 항상 26개 기능 전체를 보유 → 클라이언트는 DB만 읽으면 됨
   const WS_FEATURE_DEFAULTS: [string, string][] = [
     ["brand_page",          "active"],
+    ["sales_book",          "active"],
     ["fitstep_plus",        "active"],
     ["fitstep_videos",      "addon_fsp"],
     ["fitstep_rec",         "addon_fsp"],
@@ -1187,6 +1188,18 @@ async function initDatabase() {
     "targetKcal" INTEGER NOT NULL,
     "mealsJson" TEXT NOT NULL,
     "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 트레이너 세일즈북 (상담 클로징 자료)
+  await pool.query(`CREATE TABLE IF NOT EXISTS trainer_sales_books (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL UNIQUE,
+    "shareToken" TEXT NOT NULL UNIQUE,
+    "dataJson" TEXT NOT NULL,
+    "isPublic" INTEGER NOT NULL DEFAULT 0,
+    "viewCount" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
 
   // 시퀀스랩 플랜/제한 설정 — 관리자가 추후 조정 (가격 하드코딩 금지)

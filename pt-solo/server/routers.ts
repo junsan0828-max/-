@@ -5930,6 +5930,173 @@ const dietPlansRouter = t.router({
     }),
 });
 
+// ── 트레이너 세일즈북 ─────────────────────────────────────────────────────────
+// 상담 클로징용 제안서. 기존 프로필 · PT 패키지 · 회원 데이터를 읽어 초안을 자동 생성한다.
+async function buildSalesBookDraft(trainerId: number) {
+  const t0 = await pool.query<any>(
+    `SELECT t."trainerName", t."profileImage", t."brandColor", t."brandBio", t."brandSpecialties",
+            t."activityArea", t."jobType", t."careerRange", t."bookingEnabled", u.username
+     FROM trainers t JOIN users u ON t."userId"=u.id WHERE t.id=$1`,
+    [trainerId]
+  );
+  const tr = t0.rows[0] ?? {};
+
+  // 실제 판매 중인 PT 패키지에서 가격대 추출 (횟수별 최빈 단가)
+  const pkgs = await pool.query<any>(
+    `SELECT "totalSessions", ROUND(AVG(NULLIF("pricePerSession",0)))::int AS "unitPrice", COUNT(*)::int AS cnt
+     FROM pt_packages WHERE "trainerId"=$1 AND "totalSessions" > 0
+     GROUP BY "totalSessions" ORDER BY cnt DESC, "totalSessions" ASC LIMIT 3`,
+    [trainerId]
+  );
+  const memberCount = await pool.query<any>(
+    `SELECT COUNT(*)::int AS c FROM members WHERE "trainerId"=$1`, [trainerId]
+  );
+  const sessionCount = await pool.query<any>(
+    `SELECT COUNT(*)::int AS c FROM pt_session_logs WHERE "trainerId"=$1`, [trainerId]
+  );
+
+  const name = tr.trainerName || "트레이너";
+  const specialties: string[] = String(tr.brandSpecialties || "")
+    .split(/[,·|]/).map((s: string) => s.trim()).filter(Boolean);
+
+  const programs = pkgs.rows.length
+    ? pkgs.rows.map((p: any) => ({
+        name: `PT ${p.totalSessions}회`,
+        sessions: p.totalSessions,
+        price: (p.unitPrice || 0) * p.totalSessions,
+        note: p.unitPrice ? `회당 ${Number(p.unitPrice).toLocaleString()}원` : "",
+      }))
+    : [
+        { name: "PT 10회", sessions: 10, price: 0, note: "체험 · 자세 교정 중심" },
+        { name: "PT 20회", sessions: 20, price: 0, note: "가장 많이 선택하는 과정" },
+        { name: "PT 30회", sessions: 30, price: 0, note: "체형 변화 목표" },
+      ];
+
+  return {
+    theme: { color: tr.brandColor || "#1a00ff" },
+    cover: {
+      title: `${name} PT 프로그램 안내`,
+      subtitle: tr.brandBio || "몸이 바뀌는 과정을 데이터로 관리합니다",
+      trainerName: name,
+      photo: tr.profileImage || "",
+      area: tr.activityArea || "",
+    },
+    about: {
+      headline: `${name} 트레이너를 소개합니다`,
+      body: tr.brandBio || "회원 한 분 한 분의 목표와 몸 상태에 맞춰 프로그램을 설계합니다.",
+      careers: [
+        tr.jobType ? `${tr.jobType}` : "",
+        tr.careerRange ? `경력 ${tr.careerRange}` : "",
+        Number(memberCount.rows[0]?.c) > 0 ? `누적 관리 회원 ${memberCount.rows[0].c}명` : "",
+        Number(sessionCount.rows[0]?.c) > 0 ? `누적 수업 기록 ${sessionCount.rows[0].c}회` : "",
+      ].filter(Boolean),
+      certs: specialties,
+    },
+    target: {
+      items: [
+        "운동을 시작하고 싶지만 무엇부터 해야 할지 모르는 분",
+        "혼자 운동했지만 결과가 없었던 분",
+        "통증 없이 안전하게 운동하고 싶은 분",
+        "정해진 기간 안에 체형을 바꾸고 싶은 분",
+      ],
+    },
+    process: {
+      steps: [
+        { title: "1. 상담", desc: "목표 · 생활 패턴 · 운동 경험을 확인합니다." },
+        { title: "2. 사전 건강검사", desc: "PAR-Q로 통증·질환·체성분을 기록합니다." },
+        { title: "3. 프로그램 설계", desc: "목표와 몸 상태에 맞춘 운동·식단을 설계합니다." },
+        { title: "4. 기록 & 리포트", desc: "매 수업 기록을 남기고 변화를 리포트로 공유합니다." },
+      ],
+    },
+    programs,
+    results: {
+      items: [
+        { title: "체형 변화", desc: "수업 기록과 체성분 변화를 리포트로 확인할 수 있습니다." },
+        { title: "통증 개선", desc: "PAR-Q 기반으로 무리 없는 강도부터 시작합니다." },
+      ],
+    },
+    faq: [
+      { q: "운동을 한 번도 안 해봤는데 괜찮을까요?", a: "괜찮습니다. 첫 수업은 몸 상태 파악과 기본 동작 학습부터 시작합니다." },
+      { q: "수업은 몇 회부터 효과가 있나요?", a: "주 2회 기준 20회(약 10주)부터 체형 변화를 체감하는 경우가 많습니다." },
+      { q: "일정 변경이나 정지가 가능한가요?", a: "사전 연락 주시면 일정 변경이 가능하며, 부상·장기 출장 시 정지 처리도 가능합니다." },
+    ],
+    cta: {
+      message: "상담 후 바로 시작할 수 있습니다.",
+      link: tr.bookingEnabled ? `/c/${trainerId}` : "",
+      phone: "",
+    },
+  };
+}
+
+const salesBookRouter = t.router({
+  // 내 세일즈북 조회 (없으면 자동 초안 생성)
+  getMine: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const found = await pool.query<any>(`SELECT * FROM trainer_sales_books WHERE "trainerId"=$1`, [trainerId]);
+    if (found.rows[0]) {
+      const r = found.rows[0];
+      return { ...r, isPublic: Number(r.isPublic) === 1, data: JSON.parse(r.dataJson) };
+    }
+    const draft = await buildSalesBookDraft(trainerId);
+    const token = randomUUID().replace(/-/g, "");
+    const ins = await pool.query<any>(
+      `INSERT INTO trainer_sales_books ("trainerId","shareToken","dataJson") VALUES ($1,$2,$3) RETURNING *`,
+      [trainerId, token, JSON.stringify(draft)]
+    );
+    const r = ins.rows[0];
+    return { ...r, isPublic: false, data: draft };
+  }),
+
+  // 저장
+  save: protectedProcedure
+    .input(z.object({ dataJson: z.string(), isPublic: z.boolean().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const res = await pool.query(
+        `UPDATE trainer_sales_books
+         SET "dataJson"=$1, "isPublic"=COALESCE($2,"isPublic"), "updatedAt"=now()::text
+         WHERE "trainerId"=$3`,
+        [input.dataJson, input.isPublic === undefined ? null : (input.isPublic ? 1 : 0), trainerId]
+      );
+      if (res.rowCount === 0) {
+        const token = randomUUID().replace(/-/g, "");
+        await pool.query(
+          `INSERT INTO trainer_sales_books ("trainerId","shareToken","dataJson","isPublic") VALUES ($1,$2,$3,$4)`,
+          [trainerId, token, input.dataJson, input.isPublic ? 1 : 0]
+        );
+      }
+      return { success: true };
+    }),
+
+  // 초안 다시 생성 (현재 프로필·패키지 기준)
+  regenerate: protectedProcedure.mutation(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const draft = await buildSalesBookDraft(trainerId);
+    await pool.query(
+      `UPDATE trainer_sales_books SET "dataJson"=$1, "updatedAt"=now()::text WHERE "trainerId"=$2`,
+      [JSON.stringify(draft), trainerId]
+    );
+    return draft;
+  }),
+
+  // 공개 조회 (로그인 불필요)
+  getPublic: t.procedure.input(z.object({ token: z.string() })).query(async ({ input }) => {
+    const row = await pool.query<any>(
+      `SELECT b."dataJson", b."isPublic", t."trainerName", t."profileImage"
+       FROM trainer_sales_books b JOIN trainers t ON t.id=b."trainerId"
+       WHERE b."shareToken"=$1`,
+      [input.token]
+    );
+    const r = row.rows[0];
+    if (!r || Number(r.isPublic) !== 1) throw new TRPCError({ code: "NOT_FOUND", message: "공개된 세일즈북이 없습니다." });
+    await pool.query(`UPDATE trainer_sales_books SET "viewCount"="viewCount"+1 WHERE "shareToken"=$1`, [input.token]);
+    return { data: JSON.parse(r.dataJson), trainerName: r.trainerName, profileImage: r.profileImage };
+  }),
+});
+
 export const appRouter = t.router({
   auth: authRouter,
   members: membersRouter,
@@ -5962,6 +6129,7 @@ export const appRouter = t.router({
   booking: bookingRouter,
   trainerFeedback: trainerFeedbackRouter,
   dietPlans: dietPlansRouter,
+  salesBook: salesBookRouter,
 });
 
 export type AppRouter = typeof appRouter;

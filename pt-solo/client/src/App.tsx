@@ -45,6 +45,7 @@ import MySequences from "./pages/MySequences";
 import AdminSequenceReview from "./pages/AdminSequenceReview";
 import AdminSequenceReviewDetail from "./pages/AdminSequenceReviewDetail";
 import ImportDiet from "./pages/ImportDiet";
+import SalesBookPublic from "./pages/SalesBook";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -132,12 +133,14 @@ function App() {
   const [classMatch, classParams] = useRoute("/c/:username");
   const [surveyMatch, surveyParams] = useRoute("/survey/:username");
   const [contractMatch, contractParams] = useRoute("/contract/:token");
+  const [salesBookMatch, salesBookParams] = useRoute("/sb/:token");
 
   if (reportMatch && reportParams) return <MemberReport token={reportParams.token} />;
   if (brandMatch && brandParams) return <TrainerBrandPage username={decodeURIComponent(brandParams.username)} />;
   if (classMatch && classParams) return <ClassBookingPage username={decodeURIComponent(classParams.username)} />;
   if (surveyMatch && surveyParams) return <SurveyPage trainerId={Number(surveyParams.username)} />;
   if (contractMatch && contractParams) return <EContractPage token={contractParams.token} />;
+  if (salesBookMatch && salesBookParams) return <SalesBookPublic token={salesBookParams.token} />;
 
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;
