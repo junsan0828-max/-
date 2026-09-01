@@ -115,6 +115,7 @@ ipcMain.handle('select-folder', async () => {
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   libraryFolder = result.filePaths[0];
+  setLibraryRoot(libraryFolder);
   saveConfig({ ...loadConfig(), libraryFolder });
   return { folder: libraryFolder, clips: scanFolder(libraryFolder) };
 });
@@ -132,6 +133,7 @@ ipcMain.handle('auto-scan-saved-folder', () => {
   const saved = cfg.libraryFolder;
   if (!saved || !fs.existsSync(saved)) return null;
   libraryFolder = saved;
+  setLibraryRoot(libraryFolder);
   return { folder: libraryFolder, clips: scanFolder(libraryFolder) };
 });
 
@@ -142,8 +144,9 @@ ipcMain.on('window-maximize', () => {
 });
 ipcMain.on('window-close', () => mainWindow?.close());
 
-const { getIO } = require('./server');
+const { getIO, updateState, setLibraryRoot } = require('./server');
 ipcMain.on('player-state', (_e, state) => {
+  updateState(state);
   const io = getIO();
   if (io) io.emit('state', state);
 });

@@ -16,8 +16,15 @@ app.use(express.static(path.join(__dirname, 'mobile')));
 // Serve local video files with range request support
 app.get('/localvideo', (req, res) => {
   try {
-    const filePath = decodeURIComponent(req.query.path || '');
-    if (!filePath || !fs.existsSync(filePath)) {
+    const filePath = path.resolve(decodeURIComponent(req.query.path || ''));
+    const VALID_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+    if (!filePath || !VALID_EXTENSIONS.includes(path.extname(filePath).toLowerCase())) {
+      return res.status(403).send('Forbidden');
+    }
+    if (libraryRoot && !filePath.startsWith(path.resolve(libraryRoot) + path.sep)) {
+      return res.status(403).send('Forbidden');
+    }
+    if (!fs.existsSync(filePath)) {
       return res.status(404).send('File not found');
     }
     const stat = fs.statSync(filePath);
@@ -54,6 +61,9 @@ app.get('/localvideo', (req, res) => {
 });
 
 let currentState = { playing: false, queue: [], currentIndex: 0 };
+let libraryRoot = null;
+
+function setLibraryRoot(folder) { libraryRoot = folder; }
 
 io.on('connection', (socket) => {
   console.log('[Remote] connected:', socket.id);
@@ -84,4 +94,4 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] http://${ip}:${PORT}`);
 });
 
-module.exports = { getIO, updateState };
+module.exports = { getIO, updateState, setLibraryRoot };
