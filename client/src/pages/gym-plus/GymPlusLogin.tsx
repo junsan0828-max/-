@@ -12,6 +12,11 @@ const PERIOD_PRICES: Record<string, number> = {
   "12개월": 312000,
 };
 
+const PERIOD_ORIGINAL: Record<string, number> = {
+  "6개월": 226000,
+  "12개월": 322000,
+};
+
 function formatPhone(raw: string) {
   const d = raw.replace(/\D/g, "").slice(0, 11);
   if (d.length <= 3) return d;
@@ -246,15 +251,32 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">희망 회원권</Label>
               <div className="grid grid-cols-2 gap-2">
-                {Object.entries(PERIOD_PRICES).map(([p, price]) => (
-                  <button key={p} onClick={() => setPeriod(p)}
-                    className="rounded-xl border-2 p-3 text-left transition-all"
-                    style={{ borderColor: period === p ? "#1D4ED8" : "#e5e7eb", background: period === p ? "#eff6ff" : "white" }}
-                  >
-                    <p className="text-sm font-bold" style={{ color: period === p ? "#1D4ED8" : "#1a2b4b" }}>{p}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{price.toLocaleString()}원</p>
-                  </button>
-                ))}
+                {Object.entries(PERIOD_PRICES).map(([p, price]) => {
+                    const original = PERIOD_ORIGINAL[p];
+                    const discountRate = original ? Math.round((original - price) / original * 100) : 0;
+                    const isSelected = period === p;
+                    return (
+                      <button key={p} onClick={() => setPeriod(p)}
+                        className="rounded-xl border-2 p-3 text-left transition-all relative"
+                        style={{ borderColor: isSelected ? "#1D4ED8" : "#e5e7eb", background: isSelected ? "#eff6ff" : "white" }}
+                      >
+                        {discountRate > 0 && (
+                          <span className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white">
+                            {discountRate}%↓
+                          </span>
+                        )}
+                        <p className="text-sm font-bold" style={{ color: isSelected ? "#1D4ED8" : "#1a2b4b" }}>{p}</p>
+                        {original ? (
+                          <div className="mt-0.5 space-y-0.5">
+                            <p className="text-[10px] text-gray-400 line-through">{original.toLocaleString()}원</p>
+                            <p className="text-xs font-semibold text-red-500">{price.toLocaleString()}원</p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500 mt-0.5">{price.toLocaleString()}원</p>
+                        )}
+                      </button>
+                    );
+                  })}
               </div>
             </div>
             {errMsg && <p className="text-red-500 text-xs text-center">{errMsg}</p>}
