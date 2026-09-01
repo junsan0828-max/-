@@ -922,7 +922,7 @@ export default function GymDashboard() {
 
       {/* 앱 재등록 신청 처리 모달 — /admin/gymplus 로그인 없이 바로 처리 */}
       {renewalModalOpen && (
-        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end md:items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setRenewalModalOpen(false)}>
+        <div className="fixed inset-0 z-[49] bg-black/70 flex items-end md:items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setRenewalModalOpen(false)}>
           <div className="bg-background border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-lg flex flex-col" style={{ maxHeight: 'calc(85svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <h2 className="font-semibold text-foreground">앱 재등록 신청 처리</h2>
