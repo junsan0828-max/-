@@ -1,0 +1,52 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '버전 (예: 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: 코드 받기
+        uses: actions/checkout@v4
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 의존성 설치 (루트)
+        working-directory: fittrainer-pro
+        run: npm install
+
+      - name: 렌더러 빌드
+        working-directory: fittrainer-pro
+        run: npm run build:renderer
+
+      - name: Windows 설치 파일 빌드
+        working-directory: fittrainer-pro
+        run: npx electron-builder --win --publish never
+
+      - name: GitHub Release 생성 및 업로드
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: FitTrainer Pro v${{ github.event.inputs.version }}
+          body: |
+            ## FitTrainer Pro v${{ github.event.inputs.version }}
+
+            ### 설치 방법
+            1. 아래 `FitTrainer Pro Setup.exe` 다운로드
+            2. 실행 후 설치
+            3. 운동 영상 폴더 선택 후 사용
+
+            > 운동 영상 파일은 따로 복사하여 사용하세요.
+          files: fittrainer-pro/dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
