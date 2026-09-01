@@ -269,7 +269,8 @@ export default function GymDashboard() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
-  const [trainerModal, setTrainerModal] = useState<{ name: string; items: { name: string; date: string; amount: number; type: string; subType: string }[] } | null>(null);
+  type TrainerItem = { revenueId: number; memberId: number | null; name: string; date: string; amount: number; type: string; subType: string };
+  const [trainerModal, setTrainerModal] = useState<{ name: string; isUnassigned: boolean; items: TrainerItem[] } | null>(null);
 
   const [dismissedBookingAlert, setDismissedBookingAlert] = useState(false);
   const [showAnomalies, setShowAnomalies] = useState(false);
@@ -291,7 +292,11 @@ export default function GymDashboard() {
   const [dismissedRenewalAlert, setDismissedRenewalAlert] = useState(false);
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
-  const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: trainerSummary, refetch: refetchTrainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: trainerList } = trpc.trainers.list.useQuery();
+  const assignTrainerMutation = trpc.admin.assignTrainerToRevenue.useMutation({
+    onSuccess: () => { refetchTrainerSummary(); },
+  });
   const { data: consultantSummary } = trpc.gym.revenue.consultantSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
@@ -756,23 +761,47 @@ export default function GymDashboard() {
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setTrainerModal(null)}>
           <div className="bg-card border border-border rounded-xl w-full max-w-sm max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h3 className="text-sm font-semibold text-foreground">{trainerModal.name} — {month}월 매출 내역</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {trainerModal.isUnassigned ? "미배정 매출" : `${trainerModal.name} — ${month}월 매출`}
+              </h3>
               <button onClick={() => setTrainerModal(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
             </div>
             <div className="overflow-y-auto flex-1 divide-y divide-border">
-              {trainerModal.items.sort((a, b) => a.date.localeCompare(b.date)).map((item, idx) => {
+              {[...trainerModal.items].sort((a, b) => a.date.localeCompare(b.date)).map((item, idx) => {
                 const typeColor = item.subType === "재등록" ? "text-violet-400" : item.type === "PT" ? "text-blue-400" : item.type === "헬스" ? "text-amber-400" : "text-muted-foreground";
                 const typeLabel = item.type === "PT" ? `PT ${item.subType || ""}`.trim() : item.type || item.subType || "기타";
                 return (
-                  <div key={idx} className="flex items-center justify-between px-4 py-2.5">
-                    <div>
-                      <p className="text-sm text-foreground font-medium">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.date} · <span className={typeColor}>{typeLabel}</span></p>
+                  <div key={idx} className="px-4 py-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-foreground font-medium">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.date} · <span className={typeColor}>{typeLabel}</span></p>
+                      </div>
+                      <span className={`text-sm font-semibold ${typeColor}`}>{item.amount.toLocaleString()}원</span>
                     </div>
-                    <span className={`text-sm font-semibold ${typeColor}`}>{item.amount.toLocaleString()}원</span>
+                    {trainerModal.isUnassigned && (
+                      <select
+                        defaultValue=""
+                        onChange={e => {
+                          const tid = parseInt(e.target.value);
+                          if (!tid) return;
+                          assignTrainerMutation.mutate({ revenueId: item.revenueId, trainerId: tid });
+                          setTrainerModal(prev => prev ? { ...prev, items: prev.items.filter(x => x.revenueId !== item.revenueId) } : null);
+                        }}
+                        className="w-full text-xs bg-muted border border-border rounded-lg px-2 py-1.5 text-foreground focus:outline-none"
+                      >
+                        <option value="">트레이너 배정하기...</option>
+                        {(trainerList ?? []).map((t: any) => (
+                          <option key={t.id} value={String(t.userId ?? t.id)}>{t.trainerName}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 );
               })}
+              {trainerModal.items.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-8">모두 배정 완료됐습니다</p>
+              )}
             </div>
             <div className="px-4 py-3 border-t border-border flex justify-between">
               <span className="text-sm text-muted-foreground">총 {trainerModal.items.length}건</span>
@@ -794,7 +823,7 @@ export default function GymDashboard() {
                 <div key={i} className={`space-y-1.5 pb-2 border-b border-border last:border-0 last:pb-0 ${isUnassigned ? "opacity-50" : ""}`}>
                   <button
                     className="w-full flex justify-between items-center hover:opacity-80 transition-opacity"
-                    onClick={() => !isUnassigned && (t as any).items && setTrainerModal({ name: t.trainerName, items: (t as any).items })}
+                    onClick={() => (t as any).items && setTrainerModal({ name: t.trainerName, isUnassigned, items: (t as any).items })}
                   >
                     <span className={`text-sm font-medium ${isUnassigned ? "text-muted-foreground" : "text-foreground"}`}>{t.trainerName}</span>
                     <span className="text-sm font-semibold text-foreground">{fmt(t.total)}원</span>

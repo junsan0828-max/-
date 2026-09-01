@@ -1484,6 +1484,8 @@ const revenueRouter = t.router({
         const amt = row.entry.paidAmount;
         s.total += amt; s.count += 1;
         s.items.push({
+          revenueId: row.entry.id,
+          memberId: row.entry.memberId ?? null,
           name: row.memberName ?? row.entry.customerName ?? "이름없음",
           date: row.entry.paymentDate ?? "",
           amount: amt,
