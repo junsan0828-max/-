@@ -1744,8 +1744,8 @@ async function initDatabase() {
       .where(and(
         eq(revenueEntries.type, "PT"),
         sql`${revenueEntries.memberId} IS NOT NULL`,
-        sql`${revenueEntries.sessions} IS NOT NULL`,
         sql`${revenueEntries.subType} IS DISTINCT FROM '이전'`,
+        // sessions IS NULL 이어도 매출이 있으면 패키지 생성 (횟수는 0으로, 나중에 수정 가능)
       ));
 
     let created = 0;
