@@ -1012,6 +1012,43 @@ async function initDatabase() {
     WHERE status IN ('active', 'completed')
   `);
 
+  // ── 자동 생성된 미래 시작 phantom 패키지 자동 삭제 ───────────────────────────
+  // 조건: ① 시작일이 오늘 이후 ② usedSessions=0 (세션 로그 이동 후) ③ revenueEntryId 있음
+  //       ④ 같은 회원에 현재 진행 중(시작일≤오늘, usedSessions>0) 패키지가 존재
+  // → 이 4가지를 모두 만족하는 것만 phantom으로 판정해 삭제
+  try {
+    const phantoms = await pool.query<{
+      id: number; member_name: string; pkg_name: string | null; start_date: string | null;
+    }>(`
+      SELECT p.id, m.name AS member_name, p."packageName" AS pkg_name, p."startDate" AS start_date
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      WHERE p.status = 'active'
+        AND p."usedSessions" = 0
+        AND p."startDate" IS NOT NULL
+        AND p."startDate" > CURRENT_DATE::text
+        AND p."revenueEntryId" IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM pt_packages q
+          WHERE q."memberId" = p."memberId"
+            AND q.status = 'active'
+            AND q.id <> p.id
+            AND q."usedSessions" > 0
+            AND (q."startDate" IS NULL OR q."startDate" <= CURRENT_DATE::text)
+        )
+    `);
+    if (phantoms.rows.length > 0) {
+      const ids = phantoms.rows.map(r => r.id);
+      await pool.query(`DELETE FROM pt_packages WHERE id = ANY($1)`, [ids]);
+      console.log(`🗑️ Phantom PT 패키지 자동 삭제 ${phantoms.rows.length}건:`);
+      for (const r of phantoms.rows) {
+        console.log(`   회원: ${r.member_name} / 패키지: ${r.pkg_name} / 시작일: ${r.start_date}`);
+      }
+    }
+  } catch (e) {
+    console.error("phantom 패키지 삭제 오류:", e);
+  }
+
   // ─── 출입 관리 테이블 ──────────────────────────────────────────────────────────
   const accessTables = [
     `CREATE TABLE IF NOT EXISTS locker_categories (
