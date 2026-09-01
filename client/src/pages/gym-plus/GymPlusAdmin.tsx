@@ -1165,49 +1165,13 @@ export default function GymPlusAdminSection() {
 function GymPlusRegistrationsAdmin() {
   const utils = trpc.useUtils();
   const { data: requests = [], isLoading } = trpc.gymPlus.admin_listRegistrationRequests.useQuery();
-  const { data: bankData } = trpc.gymPlus.getRegistrationBankAccount.useQuery();
   const updateMut = trpc.gymPlus.admin_updateRegistrationRequest.useMutation({ onSuccess: () => utils.gymPlus.admin_listRegistrationRequests.invalidate() });
-  const setBankMut = trpc.gymPlus.admin_setRegistrationBankAccount.useMutation({ onSuccess: () => utils.gymPlus.getRegistrationBankAccount.invalidate() });
-  const [bankInput, setBankInput] = useState("");
-  const [bankEditing, setBankEditing] = useState(false);
 
   const statusLabel: Record<string, string> = { pending: "대기중", approved: "승인", rejected: "거절" };
   const statusColor: Record<string, string> = { pending: "text-yellow-600 bg-yellow-50", approved: "text-green-600 bg-green-50", rejected: "text-red-600 bg-red-50" };
 
-  const startEditBank = () => {
-    setBankInput(bankData?.bankAccount ?? "");
-    setBankEditing(true);
-  };
-
-  const saveBank = () => {
-    setBankMut.mutate({ bankAccount: bankInput });
-    setBankEditing(false);
-  };
-
   return (
     <div className="space-y-4">
-      {/* 계좌 설정 */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <h3 className="text-sm font-bold">입금 계좌 설정</h3>
-        {bankEditing ? (
-          <div className="flex gap-2">
-            <input
-              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-input"
-              value={bankInput}
-              onChange={(e) => setBankInput(e.target.value)}
-              placeholder="예: 국민은행 123-456-789012 자이언트짐"
-            />
-            <button onClick={saveBank} className="px-3 py-2 text-xs rounded-lg bg-primary text-white font-medium">저장</button>
-            <button onClick={() => setBankEditing(false)} className="px-3 py-2 text-xs rounded-lg border border-border text-muted-foreground">취소</button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-foreground">{bankData?.bankAccount || "계좌번호 미설정"}</span>
-            <button onClick={startEditBank} className="text-xs text-primary font-medium">수정</button>
-          </div>
-        )}
-      </div>
-
       {/* 신청 목록 */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-border">

@@ -2805,9 +2805,8 @@ const gymPlusRouter = t.router({
       return { success: true };
     }),
 
-  getRegistrationBankAccount: publicProcedure.query(async () => {
-    const res = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'registration_bank_account'`);
-    return { bankAccount: res.rows[0]?.value ?? "" };
+  getRegistrationBankAccount: publicProcedure.query(() => {
+    return { bankAccount: "카카오뱅크 3333-05-2664409 (자이언트짐)" };
   }),
 
   memberMe: publicProcedure.query(async ({ ctx }) => {
@@ -5045,16 +5044,6 @@ ${dataContext}
       return { success: true };
     }),
 
-  admin_setRegistrationBankAccount: adminOnlyGymPlus
-    .input(z.object({ bankAccount: z.string() }))
-    .mutation(async ({ input }) => {
-      await pool.query(
-        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('registration_bank_account', $1, now()::text)
-         ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
-        [input.bankAccount]
-      );
-      return { success: true };
-    }),
 });
 
 // ─── Landing ──────────────────────────────────────────────────────────────────
