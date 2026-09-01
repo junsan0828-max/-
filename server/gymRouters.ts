@@ -1454,38 +1454,30 @@ const revenueRouter = t.router({
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
       // 뮤추얼 익스클루시브 버킷: ptRenewal + ptNew + health + etc = total
-      type TrainerStats = {
-        trainerId: number; trainerName: string;
-        total: number; ptRenewal: number; ptNew: number; health: number; etc: number;
-        count: number; isUnassigned: boolean;
-      };
-      const byTrainer: Record<number, TrainerStats> = {};
+      const byTrainer: Record<number, {
+        trainerId: number; trainerName: string; isUnassigned: boolean;
+        total: number; ptRenewal: number; ptNew: number; health: number; etc: number; count: number;
+      }> = {};
 
-      const mkEntry = (tid: number, name: string, unassigned = false): TrainerStats => ({
-        trainerId: tid, trainerName: name,
-        total: 0, ptRenewal: 0, ptNew: 0, health: 0, etc: 0,
-        count: 0, isUnassigned: unassigned,
-      });
-      const addAmt = (s: TrainerStats, row: typeof rows[number]) => {
+      for (const row of rows) {
+        if (row.entry.subType === "이전") continue;
+        const rawId = row.entry.trainerId ?? row.memberTrainerId;
+        const tid = normTrainer(rawId) ?? 0;
+        if (!byTrainer[tid]) {
+          byTrainer[tid] = {
+            trainerId: tid,
+            trainerName: tid === 0 ? "미배정" : (tToName.get(tid) ?? `ID:${tid}`),
+            isUnassigned: tid === 0,
+            total: 0, ptRenewal: 0, ptNew: 0, health: 0, etc: 0, count: 0,
+          };
+        }
+        const s = byTrainer[tid];
         const amt = row.entry.paidAmount;
         s.total += amt; s.count += 1;
         if (row.entry.type === "PT" && row.entry.subType === "재등록") s.ptRenewal += amt;
         else if (row.entry.type === "PT") s.ptNew += amt;
         else if (row.entry.type === "헬스") s.health += amt;
         else s.etc += amt;
-      };
-
-      for (const row of rows) {
-        if (row.entry.subType === "이전") continue;
-        const rawId = row.entry.trainerId ?? row.memberTrainerId;
-        const tid = normTrainer(rawId);
-        if (!tid) {
-          if (!byTrainer[0]) byTrainer[0] = mkEntry(0, "미배정", true);
-          addAmt(byTrainer[0], row);
-          continue;
-        }
-        if (!byTrainer[tid]) byTrainer[tid] = mkEntry(tid, tToName.get(tid) ?? `ID:${tid}`);
-        addAmt(byTrainer[tid], row);
       }
 
       const all = Object.values(byTrainer);
