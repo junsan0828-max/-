@@ -24,6 +24,7 @@
     "announce-gymplus": "tsx src/announce-gymplus-cli.ts",
     "kakao-auth": "tsx src/kakao-auth-cli.ts",
     "kakao-notify": "tsx src/kakao-notify-cli.ts",
+    "naver-ads": "tsx src/naver-ads-cli.ts",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron ."
