@@ -1446,6 +1446,7 @@ const revenueRouter = t.router({
       const allRows = await db.select({
         entry: revenueEntries,
         memberTrainerId: members.trainerId,
+        memberName: members.name,
       })
         .from(revenueEntries)
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
@@ -1454,14 +1455,21 @@ const revenueRouter = t.router({
       const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
       // 뮤추얼 익스클루시브 버킷: ptRenewal + ptNew + health + etc = total
+      // PT 신규: entry.trainerId만 (직접 영업한 것만 귀속, 배정 폴백 없음)
+      // PT 재등록: entry.trainerId ?? members.trainerId (트레이너가 회원 유지한 결과)
       const byTrainer: Record<number, {
         trainerId: number; trainerName: string; isUnassigned: boolean;
         total: number; ptRenewal: number; ptNew: number; health: number; etc: number; count: number;
+        items: { name: string; date: string; amount: number; type: string; subType: string }[];
       }> = {};
 
       for (const row of rows) {
         if (row.entry.subType === "이전") continue;
-        const rawId = row.entry.trainerId ?? row.memberTrainerId;
+        const isRenewal = row.entry.subType === "재등록";
+        // 재등록은 멤버 담당 트레이너 폴백 허용, 신규는 직접 영업(entry.trainerId)만
+        const rawId = isRenewal
+          ? (row.entry.trainerId ?? row.memberTrainerId)
+          : row.entry.trainerId;
         const tid = normTrainer(rawId) ?? 0;
         if (!byTrainer[tid]) {
           byTrainer[tid] = {
@@ -1469,12 +1477,20 @@ const revenueRouter = t.router({
             trainerName: tid === 0 ? "미배정" : (tToName.get(tid) ?? `ID:${tid}`),
             isUnassigned: tid === 0,
             total: 0, ptRenewal: 0, ptNew: 0, health: 0, etc: 0, count: 0,
+            items: [],
           };
         }
         const s = byTrainer[tid];
         const amt = row.entry.paidAmount;
         s.total += amt; s.count += 1;
-        if (row.entry.type === "PT" && row.entry.subType === "재등록") s.ptRenewal += amt;
+        s.items.push({
+          name: row.memberName ?? row.entry.customerName ?? "이름없음",
+          date: row.entry.paymentDate ?? "",
+          amount: amt,
+          type: row.entry.type ?? "",
+          subType: row.entry.subType ?? "",
+        });
+        if (row.entry.type === "PT" && isRenewal) s.ptRenewal += amt;
         else if (row.entry.type === "PT") s.ptNew += amt;
         else if (row.entry.type === "헬스") s.health += amt;
         else s.etc += amt;

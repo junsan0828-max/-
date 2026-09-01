@@ -269,6 +269,7 @@ export default function GymDashboard() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
+  const [trainerModal, setTrainerModal] = useState<{ name: string; items: { name: string; date: string; amount: number; type: string; subType: string }[] } | null>(null);
 
   const [dismissedBookingAlert, setDismissedBookingAlert] = useState(false);
   const [showAnomalies, setShowAnomalies] = useState(false);
@@ -750,6 +751,37 @@ export default function GymDashboard() {
         </div>
       )}
 
+      {/* 트레이너 매출 상세 모달 */}
+      {trainerModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setTrainerModal(null)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-sm max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">{trainerModal.name} — {month}월 매출 내역</h3>
+              <button onClick={() => setTrainerModal(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-border">
+              {trainerModal.items.sort((a, b) => a.date.localeCompare(b.date)).map((item, idx) => {
+                const typeColor = item.subType === "재등록" ? "text-violet-400" : item.type === "PT" ? "text-blue-400" : item.type === "헬스" ? "text-amber-400" : "text-muted-foreground";
+                const typeLabel = item.type === "PT" ? `PT ${item.subType || ""}`.trim() : item.type || item.subType || "기타";
+                return (
+                  <div key={idx} className="flex items-center justify-between px-4 py-2.5">
+                    <div>
+                      <p className="text-sm text-foreground font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.date} · <span className={typeColor}>{typeLabel}</span></p>
+                    </div>
+                    <span className={`text-sm font-semibold ${typeColor}`}>{item.amount.toLocaleString()}원</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-4 py-3 border-t border-border flex justify-between">
+              <span className="text-sm text-muted-foreground">총 {trainerModal.items.length}건</span>
+              <span className="text-sm font-bold text-foreground">{trainerModal.items.reduce((s, x) => s + x.amount, 0).toLocaleString()}원</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 트레이너별 매출 */}
       {(trainerSummary ?? []).length > 0 && (
         <div className="bg-card border border-border rounded-xl p-4">
@@ -760,10 +792,13 @@ export default function GymDashboard() {
               const isUnassigned = t.trainerName === "미배정";
               return (
                 <div key={i} className={`space-y-1.5 pb-2 border-b border-border last:border-0 last:pb-0 ${isUnassigned ? "opacity-50" : ""}`}>
-                  <div className="flex justify-between items-center">
+                  <button
+                    className="w-full flex justify-between items-center hover:opacity-80 transition-opacity"
+                    onClick={() => !isUnassigned && (t as any).items && setTrainerModal({ name: t.trainerName, items: (t as any).items })}
+                  >
                     <span className={`text-sm font-medium ${isUnassigned ? "text-muted-foreground" : "text-foreground"}`}>{t.trainerName}</span>
                     <span className="text-sm font-semibold text-foreground">{fmt(t.total)}원</span>
-                  </div>
+                  </button>
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.min((t.total / maxTotal) * 100, 100)}%` }} />
                   </div>
