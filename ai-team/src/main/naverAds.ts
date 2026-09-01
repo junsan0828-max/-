@@ -172,3 +172,97 @@ export async function fetchRangeSummary(account: NaverAdsAccount, since: string,
     totals: { ...grand, ...deriveRate(grand) },
   };
 }
+
+interface NccAdgroup {
+  nccAdgroupId: string;
+  nccCampaignId: string;
+  name: string;
+}
+
+interface NccKeyword {
+  nccKeywordId: string;
+  nccAdgroupId: string;
+  keyword: string;
+  bidAmt: number;
+  status: string;
+  delFlag: boolean;
+  nccQi?: { qiGrade: number };
+}
+
+export interface KeywordSummary {
+  campaign: string;
+  adgroup: string;
+  keyword: string;
+  status: string;
+  qiGrade: number | null;
+  bidAmt: number;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  ctr: number;
+  cpc: number;
+  avgRnk: number | null;
+}
+
+// 파워링크(WEB_SITE) 캠페인의 키워드별 성과. 플레이스(PLACE) 등은 키워드 입찰 구조가 달라
+// /ncc/keywords가 비거나 에러가 날 수 있어 캠페인 단위로 조용히 건너뛴다.
+export async function fetchKeywordSummary(account: NaverAdsAccount, since: string, until: string): Promise<KeywordSummary[]> {
+  const campaigns = (await callApi<NccCampaign[]>(account, "GET", "/ncc/campaigns")).filter((c) => c.campaignTp === "WEB_SITE");
+
+  const results: KeywordSummary[] = [];
+  for (const campaign of campaigns) {
+    let adgroups: NccAdgroup[];
+    try {
+      adgroups = await callApi<NccAdgroup[]>(account, "GET", "/ncc/adgroups", { nccCampaignId: campaign.nccCampaignId });
+    } catch {
+      continue;
+    }
+
+    for (const adgroup of adgroups) {
+      let keywords: NccKeyword[];
+      try {
+        keywords = await callApi<NccKeyword[]>(account, "GET", "/ncc/keywords", { nccAdgroupId: adgroup.nccAdgroupId });
+      } catch {
+        continue;
+      }
+
+      const rows = await Promise.all(
+        keywords
+          .filter((k) => !k.delFlag)
+          .map(async (k) => {
+            const stats = await callApi<{ data: StatRow[] }>(account, "GET", "/stats", {
+              id: k.nccKeywordId,
+              fields: JSON.stringify(["impCnt", "clkCnt", "salesAmt", "avgRnk"]),
+              timeRange: JSON.stringify({ since, until }),
+            });
+            const totals = (stats.data ?? []).reduce(
+              (acc, d) => ({
+                impressions: acc.impressions + (d.impCnt ?? 0),
+                clicks: acc.clicks + (d.clkCnt ?? 0),
+                cost: acc.cost + (d.salesAmt ?? 0),
+                avgRnkSum: acc.avgRnkSum + (d.avgRnk ?? 0) * (d.impCnt ?? 0),
+              }),
+              { impressions: 0, clicks: 0, cost: 0, avgRnkSum: 0 }
+            );
+            const row: KeywordSummary = {
+              campaign: campaign.name,
+              adgroup: adgroup.name,
+              keyword: k.keyword,
+              status: k.status,
+              qiGrade: k.nccQi?.qiGrade ?? null,
+              bidAmt: k.bidAmt,
+              impressions: totals.impressions,
+              clicks: totals.clicks,
+              cost: totals.cost,
+              ...deriveRate(totals),
+              avgRnk: totals.impressions > 0 ? totals.avgRnkSum / totals.impressions : null,
+            };
+            return row;
+          })
+      );
+      results.push(...rows);
+    }
+  }
+
+  return results;
+}
