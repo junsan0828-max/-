@@ -1036,11 +1036,8 @@ async function initDatabase() {
             AND q.id <> p.id
             AND q."usedSessions" > 0
             AND (
-              -- 현재 진행 중인 활성 패키지
-              (q.status = 'active' AND (q."startDate" IS NULL OR q."startDate" <= CURRENT_DATE::text))
-              OR
-              -- 이미 완료된 패키지 (만료 회원)
-              q.status = 'completed'
+              -- 현재 진행 중인 활성 패키지 (완료·환불 패키지는 새 등록 패키지와 혼동 방지)
+              q.status = 'active' AND (q."startDate" IS NULL OR q."startDate" <= CURRENT_DATE::text)
             )
         )
     `);
@@ -1796,7 +1793,9 @@ async function initDatabase() {
         ]
       );
       if (dupMatch.rows.length > 0) {
-        await pool.query(
+        // revenueEntryId가 없는 패키지에만 연결 시도. 이미 다른 매출에 연결된 경우
+        // UPDATE가 0 rows → 그 패키지는 다른 등록분이므로 continue 하지 않고 새 패키지 생성.
+        const linked = await pool.query(
           `UPDATE pt_packages SET "revenueEntryId" = $1
            WHERE id = (
              SELECT id FROM pt_packages
@@ -1810,10 +1809,12 @@ async function initDatabase() {
                  OR "startDate" IS NOT DISTINCT FROM $6 OR "paymentDate" IS NOT DISTINCT FROM $5
                )
              LIMIT 1
-           )`,
+           )
+           RETURNING id`,
           [rev.id, rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.sessions ?? 0, d1, d2]
         );
-        continue;
+        if ((linked.rowCount ?? 0) > 0) continue; // 연결 성공 → 생성 건너뜀
+        // 연결 실패(기존 패키지에 이미 다른 revenueEntryId) → fall-through to create new package
       }
       await pool.query(`
         INSERT INTO pt_packages
@@ -1876,6 +1877,12 @@ async function initDatabase() {
             AND q."totalSessions" = p."totalSessions"
             AND q.status IN ('completed','refunded')
             AND COALESCE(q."startDate",'') = COALESCE(p."startDate",'')
+            AND (
+              -- 같은 매출(동일 등록)에서 나온 복제본만 삭제
+              -- revenueEntryId가 다른 경우(새 등록)는 건드리지 않음
+              p."revenueEntryId" IS NULL
+              OR p."revenueEntryId" = q."revenueEntryId"
+            )
         )
     `);
     if ((dupActive.rowCount ?? 0) > 0) console.log(`🧹 완료 패키지 복제본 정리: ${dupActive.rowCount}건`);
