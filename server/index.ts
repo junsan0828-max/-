@@ -1748,6 +1748,7 @@ async function initDatabase() {
         // sessions IS NULL 이어도 매출이 있으면 패키지 생성 (횟수는 0으로, 나중에 수정 가능)
       ));
 
+    console.log(`🔍 PT 자동생성 대상 매출: ${ptRevs.length}건`);
     let created = 0;
     for (const rev of ptRevs) {
       if (!rev.memberId) continue;
@@ -1756,7 +1757,10 @@ async function initDatabase() {
         `SELECT COUNT(*) as count FROM pt_packages WHERE "revenueEntryId" = $1`,
         [rev.id]
       );
-      if (parseInt(linked.rows[0]?.count ?? "0", 10) > 0) continue;
+      if (parseInt(linked.rows[0]?.count ?? "0", 10) > 0) {
+        console.log(`⏭️ [revId=${rev.id}] revenueEntryId 이미 연결됨 → 건너뜀`);
+        continue;
+      }
 
       const now = new Date().toISOString();
       const svcSessions = (rev as any).serviceSessions ?? 0;
@@ -1795,6 +1799,7 @@ async function initDatabase() {
       if (dupMatch.rows.length > 0) {
         // revenueEntryId가 없는 패키지에만 연결 시도. 이미 다른 매출에 연결된 경우
         // UPDATE가 0 rows → 그 패키지는 다른 등록분이므로 continue 하지 않고 새 패키지 생성.
+        console.log(`🔗 [revId=${rev.id}] dupMatch 발견 pkgId=${dupMatch.rows[0]?.id} → 연결 시도`);
         const linked = await pool.query(
           `UPDATE pt_packages SET "revenueEntryId" = $1
            WHERE id = (
@@ -1813,7 +1818,11 @@ async function initDatabase() {
            RETURNING id`,
           [rev.id, rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.sessions ?? 0, d1, d2]
         );
-        if ((linked.rowCount ?? 0) > 0) continue; // 연결 성공 → 생성 건너뜀
+        if ((linked.rowCount ?? 0) > 0) {
+          console.log(`✅ [revId=${rev.id}] 기존 패키지에 연결 성공 → 생성 건너뜀`);
+          continue;
+        }
+        console.log(`⚠️ [revId=${rev.id}] 연결 실패(기존 패키지에 이미 다른 revenueEntryId) → 새 패키지 생성`);
         // 연결 실패(기존 패키지에 이미 다른 revenueEntryId) → fall-through to create new package
       }
       await pool.query(`
@@ -1831,6 +1840,7 @@ async function initDatabase() {
         rev.paymentMethod ?? null, rev.paymentDate,
         rev.id, now,
       ]);
+      console.log(`🆕 [revId=${rev.id}] 새 PT 패키지 생성: memberId=${rev.memberId} sessions=${rev.sessions} date=${rev.startDate ?? rev.paymentDate}`);
       created++;
     }
     if (created > 0) console.log(`✅ PT 매출 기반 패키지 자동 생성: ${created}건`);
@@ -1843,6 +1853,24 @@ async function initDatabase() {
   //       결제일자가 "있는" 원본 패키지가 별도로 존재하는 경우 → 복제본만 삭제.
   //       (정상적인 두 건(둘 다 결제일자 있음)은 절대 건드리지 않음)
   try {
+    const toClean = await pool.query(`
+      SELECT p.id, p."memberId", p."totalSessions", p."paymentDate", p."revenueEntryId"
+      FROM pt_packages p
+      WHERE p."usedSessions" = 0
+        AND p."paymentDate" IS NULL
+        AND EXISTS (
+          SELECT 1 FROM pt_packages q
+          WHERE q.id <> p.id
+            AND q."memberId" = p."memberId"
+            AND COALESCE(q."packageName",'') = COALESCE(p."packageName",'')
+            AND q."totalSessions" = p."totalSessions"
+            AND COALESCE(q."paymentAmount",0) = COALESCE(p."paymentAmount",0)
+            AND q."paymentDate" IS NOT NULL
+        )
+    `);
+    if (toClean.rowCount ?? 0 > 0) {
+      console.log(`🧹 빈 복제 삭제 대상: ${JSON.stringify(toClean.rows)}`);
+    }
     const cleaned = await pool.query(`
       DELETE FROM pt_packages p
       WHERE p."usedSessions" = 0
@@ -1866,6 +1894,21 @@ async function initDatabase() {
   // PT 완료 후 서버 재시작 시 매출 기반으로 새 패키지가 생기는 사고 방지.
   // 같은 회원·같은 세션수·같은 시작일로 completed 패키지가 있으면 active 0회 사용본 삭제.
   try {
+    const toDupActive = await pool.query(`
+      SELECT p.id, p."memberId", p."totalSessions", p."startDate", p."revenueEntryId",
+             q.id as matched_pkg, q.status as matched_status, q."revenueEntryId" as matched_rev
+      FROM pt_packages p
+      JOIN pt_packages q ON q.id <> p.id
+        AND q."memberId" = p."memberId"
+        AND q."totalSessions" = p."totalSessions"
+        AND q.status IN ('completed','refunded')
+        AND COALESCE(q."startDate",'') = COALESCE(p."startDate",'')
+        AND (p."revenueEntryId" IS NULL OR p."revenueEntryId" = q."revenueEntryId")
+      WHERE p.status = 'active' AND p."usedSessions" = 0
+    `);
+    if ((toDupActive.rowCount ?? 0) > 0) {
+      console.log(`🧹 dupActive 삭제 대상: ${JSON.stringify(toDupActive.rows)}`);
+    }
     const dupActive = await pool.query(`
       DELETE FROM pt_packages p
       WHERE p.status = 'active'
