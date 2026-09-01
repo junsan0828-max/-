@@ -763,7 +763,7 @@ export function GymPlusEventsAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [scheduleData, setScheduleData] = useState<ScheduleData>(defaultSchedule);
-  const [sendPush, setSendPush] = useState(false);
+  const [sendPush, setSendPush] = useState(true);
   const [form, setForm] = useState({
     title: "", content: "", imageUrl: "", linkUrl: "",
     eventType: "notice" as "notice" | "event" | "promotion" | "points" | "schedule",
@@ -1124,7 +1124,7 @@ export function GymPlusWorkoutLogsAdmin() {
 }
 
 // ─── 메인 어드민 짐+ 섹션 ─────────────────────────────────────────────────────
-type GymPlusTab = "members" | "videos" | "events" | "logs";
+type GymPlusTab = "members" | "videos" | "events" | "logs" | "registrations";
 
 export default function GymPlusAdminSection() {
   const [activeTab, setActiveTab] = useState<GymPlusTab>("members");
@@ -1134,6 +1134,7 @@ export default function GymPlusAdminSection() {
     { key: "videos", label: "운동영상" },
     { key: "events", label: "이벤트/공지" },
     { key: "logs", label: "운동기록" },
+    { key: "registrations", label: "등록신청" },
   ];
 
   return (
@@ -1156,6 +1157,73 @@ export default function GymPlusAdminSection() {
       {activeTab === "videos" && <GymPlusVideosAdmin />}
       {activeTab === "events" && <GymPlusEventsAdmin />}
       {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
+      {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
+    </div>
+  );
+}
+
+function GymPlusRegistrationsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: requests = [], isLoading } = trpc.gymPlus.admin_listRegistrationRequests.useQuery();
+  const updateMut = trpc.gymPlus.admin_updateRegistrationRequest.useMutation({ onSuccess: () => utils.gymPlus.admin_listRegistrationRequests.invalidate() });
+
+  const statusLabel: Record<string, string> = { pending: "대기중", approved: "승인", rejected: "거절" };
+  const statusColor: Record<string, string> = { pending: "text-yellow-600 bg-yellow-50", approved: "text-green-600 bg-green-50", rejected: "text-red-600 bg-red-50" };
+
+  return (
+    <div className="space-y-4">
+      {/* 신청 목록 */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-bold">등록 신청 목록</h3>
+        </div>
+        {isLoading ? (
+          <p className="p-4 text-sm text-muted-foreground">로딩 중...</p>
+        ) : requests.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground text-center">신청 내역이 없습니다</p>
+        ) : (
+          <div className="divide-y divide-border">
+            {requests.map((req: any) => (
+              <div key={req.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-semibold">{req.name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{req.phone}</span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[req.status]}`}>{statusLabel[req.status]}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>{req.membershipPeriod}</span>
+                  <span className="font-medium text-foreground">{Number(req.amount).toLocaleString()}원</span>
+                  <span>{req.createdAt?.slice(0, 10)}</span>
+                </div>
+                {req.signatureData && (
+                  <details className="mt-1">
+                    <summary className="text-xs text-primary cursor-pointer">서명 보기</summary>
+                    <img src={req.signatureData} alt="서명" className="mt-1 w-full border border-border rounded-lg" />
+                  </details>
+                )}
+                {req.status === "pending" && (
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => updateMut.mutate({ id: req.id, status: "approved" })}
+                      className="flex-1 py-1.5 text-xs rounded-lg bg-green-50 text-green-600 font-medium hover:bg-green-100"
+                    >
+                      승인
+                    </button>
+                    <button
+                      onClick={() => updateMut.mutate({ id: req.id, status: "rejected" })}
+                      className="flex-1 py-1.5 text-xs rounded-lg bg-red-50 text-red-500 font-medium hover:bg-red-100"
+                    >
+                      거절
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

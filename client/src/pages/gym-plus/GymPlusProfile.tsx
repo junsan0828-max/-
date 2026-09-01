@@ -259,6 +259,89 @@ const PAYMENT_METHODS = [
   { value: "card", label: "카드결제", icon: "▣" },
 ];
 
+function PushNotificationToggle() {
+  const utils = trpc.useUtils();
+  const unsubscribeMut = trpc.gymPlus.unsubscribePush.useMutation({
+    onSuccess: () => utils.gymPlus.memberMe.invalidate(),
+  });
+  const [pushState, setPushState] = useState<"checking" | "unsupported" | "denied" | "subscribed" | "unsubscribed">("checking");
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushState("unsupported");
+      return;
+    }
+    navigator.serviceWorker.ready.then((reg) =>
+      reg.pushManager.getSubscription().then((sub) => {
+        if (Notification.permission === "denied") { setPushState("denied"); return; }
+        setPushState(sub ? "subscribed" : "unsubscribed");
+      })
+    );
+  }, []);
+
+  const handleUnsubscribe = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await sub.unsubscribe();
+        unsubscribeMut.mutate({ endpoint: sub.endpoint });
+      }
+      setPushState("unsubscribed");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSubscribe = async () => {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { setPushState("denied"); return; }
+      // reload the page so GymPlusLayout's hook re-registers
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (pushState === "unsupported") return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-sm">앱 알림</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {pushState === "denied" ? "브라우저에서 알림이 차단됨" :
+             pushState === "subscribed" ? "새 공지·이벤트 알림 수신 중" :
+             pushState === "checking" ? "확인 중..." : "알림이 꺼져 있음"}
+          </p>
+        </div>
+        {pushState === "subscribed" && (
+          <button
+            onClick={handleUnsubscribe}
+            disabled={unsubscribeMut.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors font-medium"
+          >
+            알림 끄기
+          </button>
+        )}
+        {pushState === "unsubscribed" && (
+          <button
+            onClick={handleSubscribe}
+            className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
+          >
+            알림 켜기
+          </button>
+        )}
+        {pushState === "denied" && (
+          <span className="text-xs text-muted-foreground">브라우저 설정에서 변경</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GymPlusProfile() {
   const utils = trpc.useUtils();
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
@@ -1261,6 +1344,9 @@ export default function GymPlusProfile() {
         )}
         {profileMsg && <p className={`text-xs mt-2 ${profileMsg.includes("저장") ? "text-green-400" : "text-red-400"}`}>{profileMsg}</p>}
       </div>
+
+      {/* 앱 알림 설정 */}
+      <PushNotificationToggle />
 
       {/* 비밀번호 변경 */}
       <div className="bg-card border border-border rounded-xl p-4">

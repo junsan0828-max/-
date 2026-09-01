@@ -658,6 +658,23 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_registration_requests (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      "membershipPeriod" TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      memo TEXT NOT NULL DEFAULT '',
+      "signatureData" TEXT NOT NULL DEFAULT '',
+      "agreedMarketing" INTEGER NOT NULL DEFAULT 0,
+      "contractDate" TEXT NOT NULL DEFAULT '',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "signatureData" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "agreedMarketing" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "contractDate" TEXT NOT NULL DEFAULT ''`,
   ];
   for (const stmt of alterStatements) {
     try {
