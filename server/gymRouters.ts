@@ -1633,6 +1633,137 @@ const revenueRouter = t.router({
         .sort((a, b) => b.total - a.total);
     }),
 
+  staffSummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+
+      // trainerId ↔ userId 정규화 맵 (공용)
+      const trainerRows = await db.select({ id: trainers.id, userId: trainers.userId, trainerName: trainers.trainerName }).from(trainers);
+      const toUserId = new Map<number, number>();
+      const toName = new Map<number, string>();
+      for (const t of trainerRows) {
+        const name = t.trainerName ?? "";
+        if (t.userId) {
+          toUserId.set(t.userId, t.userId); toUserId.set(t.id, t.userId); toName.set(t.userId, name);
+        } else {
+          toUserId.set(t.id, t.id); toName.set(t.id, name);
+        }
+      }
+      const norm = (rawId: number | null | undefined): number | null => {
+        if (!rawId) return null;
+        return toUserId.get(rawId) ?? rawId;
+      };
+
+      const allRows = await db.select({
+        entry: revenueEntries,
+        memberConsultantId: members.consultantId,
+        memberTrainerId: members.trainerId,
+        memberName: members.name,
+      })
+        .from(revenueEntries)
+        .leftJoin(members, eq(revenueEntries.memberId, members.id))
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
+
+      // leads 폴백 (consultant용)
+      const allLeads = await db.select().from(leads);
+      const memberLeadMap = new Map<number, number>();
+      for (const l of allLeads.filter(x => x.status === "registered")) {
+        if (l.memberId && l.assignedConsultantId && !memberLeadMap.has(l.memberId))
+          memberLeadMap.set(l.memberId, l.assignedConsultantId);
+      }
+      for (const l of allLeads) {
+        if (l.memberId && l.assignedConsultantId && !memberLeadMap.has(l.memberId))
+          memberLeadMap.set(l.memberId, l.assignedConsultantId);
+      }
+
+      type StaffEntry = {
+        uid: number; name: string;
+        // 상담 실적 (신규 영업)
+        consultNew: number; consultHealth: number; consultEtc: number;
+        consultPtRenewal: number; consultPtRenewalAmount: number;
+        leadCount: number; registeredCount: number; conversionRate: number;
+        // 트레이너 매출 (본인 회원 PT)
+        trainerPtRenewal: number; trainerPtNew: number; trainerHealth: number; trainerEtc: number;
+        trainerItems: { revenueId: number; memberId: number | null; name: string; date: string; amount: number; type: string; subType: string }[];
+      };
+      const byStaff: Record<number, StaffEntry> = {};
+      const ensureStaff = (uid: number) => {
+        if (!byStaff[uid]) byStaff[uid] = {
+          uid, name: toName.get(uid) ?? `ID:${uid}`,
+          consultNew: 0, consultHealth: 0, consultEtc: 0,
+          consultPtRenewal: 0, consultPtRenewalAmount: 0,
+          leadCount: 0, registeredCount: 0, conversionRate: 0,
+          trainerPtRenewal: 0, trainerPtNew: 0, trainerHealth: 0, trainerEtc: 0,
+          trainerItems: [],
+        };
+      };
+
+      for (const row of rows) {
+        if (row.entry.subType === "이전") continue;
+        const isRenewal = row.entry.subType === "재등록";
+        const amt = row.entry.paidAmount;
+
+        // ── 상담 귀속 ──
+        const rawCid = row.entry.consultantId ?? row.memberConsultantId ??
+          (row.entry.memberId ? memberLeadMap.get(row.entry.memberId) : null);
+        const cid = norm(rawCid);
+        if (cid) {
+          ensureStaff(cid);
+          if (isRenewal) {
+            byStaff[cid].consultPtRenewal += 1;
+            byStaff[cid].consultPtRenewalAmount += amt;
+          } else if (row.entry.type === "PT") byStaff[cid].consultNew += amt;
+          else if (row.entry.type === "헬스") byStaff[cid].consultHealth += amt;
+          else byStaff[cid].consultEtc += amt;
+        }
+
+        // ── 트레이너 귀속 ──
+        const rawTid = isRenewal
+          ? (row.entry.trainerId ?? row.memberTrainerId)
+          : row.entry.trainerId;
+        const tid = norm(rawTid);
+        if (tid) {
+          ensureStaff(tid);
+          byStaff[tid].trainerItems.push({
+            revenueId: row.entry.id, memberId: row.entry.memberId ?? null,
+            name: row.memberName ?? row.entry.customerName ?? "이름없음",
+            date: row.entry.paymentDate ?? "", amount: amt,
+            type: row.entry.type ?? "", subType: row.entry.subType ?? "",
+          });
+          if (row.entry.type === "PT" && isRenewal) byStaff[tid].trainerPtRenewal += amt;
+          else if (row.entry.type === "PT") byStaff[tid].trainerPtNew += amt;
+          else if (row.entry.type === "헬스") byStaff[tid].trainerHealth += amt;
+          else byStaff[tid].trainerEtc += amt;
+        }
+      }
+
+      // 상담 건수 집계
+      const monthLeads = allLeads.filter(l => (l.consultationDate ?? "").startsWith(prefix) && l.assignedConsultantId);
+      for (const lead of monthLeads) {
+        const cid = norm(lead.assignedConsultantId);
+        if (!cid) continue;
+        ensureStaff(cid);
+        byStaff[cid].leadCount += 1;
+        if (lead.status === "registered") byStaff[cid].registeredCount += 1;
+      }
+      for (const s of Object.values(byStaff))
+        s.conversionRate = s.leadCount > 0 ? Math.round((s.registeredCount / s.leadCount) * 100) : 0;
+
+      const consultTotal = (s: StaffEntry) => s.consultNew + s.consultHealth + s.consultEtc;
+      const trainerTotal = (s: StaffEntry) => s.trainerPtRenewal + s.trainerPtNew + s.trainerHealth + s.trainerEtc;
+      return Object.values(byStaff)
+        .filter(s => consultTotal(s) + trainerTotal(s) + s.leadCount > 0)
+        .sort((a, b) => (consultTotal(b) + trainerTotal(b)) - (consultTotal(a) + trainerTotal(a)));
+    }),
+
   channelSummary: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number().optional(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
