@@ -1506,6 +1506,31 @@ async function initDatabase() {
   // 동일한 매출이 2건 이상 들어간 경우, 가장 먼저 만들어진 1건만 남기고 삭제.
   // 환불은 동일값이 정상적으로 여러 건일 수 있으므로 제외.
   try {
+    // 남길 행(그룹별 MIN(id))과 지울 행의 대응표. 아래 DELETE와 같은 그룹 기준이어야 한다.
+    const survivorMap = `
+      SELECT id AS dead_id,
+             MIN(id) OVER (PARTITION BY "memberId", type, COALESCE("subType",''),
+                                        COALESCE("programDetail",''), COALESCE(sessions,0),
+                                        COALESCE("serviceItems",''), COALESCE("paymentDate",''),
+                                        COALESCE("startDate",''), COALESCE(duration,0),
+                                        COALESCE(amount,0), COALESCE("paidAmount",0),
+                                        COALESCE("unpaidAmount",0), COALESCE("discountAmount",0)
+                          ) AS keep_id
+      FROM revenue_entries
+      WHERE "memberId" IS NOT NULL AND COALESCE("subType",'') <> '환불'
+    `;
+    // 과거 사고: 이 정리가 지우는 매출을 PT 패키지가 가리키고 있으면 그대로 고아가 됐다.
+    // "패키지·수업 기록은 남았는데 매출만 사라진" 회원이 그렇게 생겼다(김지혜·방현지).
+    // 삭제 전에 살아남는 매출로 옮겨 준다.
+    const moved = await pool.query(`
+      UPDATE pt_packages p
+      SET "revenueEntryId" = s.keep_id
+      FROM (${survivorMap}) s
+      WHERE p."revenueEntryId" = s.dead_id AND s.dead_id <> s.keep_id
+    `);
+    if ((moved.rowCount ?? 0) > 0)
+      console.log(`🔗 중복 매출 정리 전 패키지 재연결: ${moved.rowCount}건`);
+
     const dup = await pool.query(`
       DELETE FROM revenue_entries
       WHERE "memberId" IS NOT NULL
