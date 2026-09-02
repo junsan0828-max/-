@@ -977,6 +977,10 @@ async function initDatabase() {
         FROM pt_packages p
         WHERE p.status = 'active'
           AND p."startDate" > CURRENT_DATE::text
+          -- 매출이 연결된 미래 시작 패키지는 정상 "선결제 재등록"이다.
+          -- 트레이너가 시작일보다 먼저 수업을 시작했다면 그 세션은 이 패키지 몫이 맞으므로
+          -- 옮기면 안 된다(옮기면 단가가 다른 패키지로 잡혀 정산이 틀어진다 — 원칙 8).
+          AND p."revenueEntryId" IS NULL
       )
       UPDATE pt_session_logs sl
       SET "packageId" = fp.good_id
@@ -991,84 +995,69 @@ async function initDatabase() {
     console.error("세션 로그 이동 오류:", e);
   }
 
-  // 세션 로그 기준으로 usedSessions 재동기화 (이전 데이터 포함, 매 시작 시 일관성 보장)
-  await pool.query(`
-    UPDATE pt_packages
-    SET
-      "usedSessions" = (
-        SELECT COUNT(*) FROM pt_session_logs
-        WHERE "packageId" = pt_packages.id
-        AND ("isDraft" IS NULL OR "isDraft" = 0)
-      ),
-      status = CASE
-        WHEN (
-          SELECT COUNT(*) FROM pt_session_logs
-          WHERE "packageId" = pt_packages.id
-          AND ("isDraft" IS NULL OR "isDraft" = 0)
-        ) >= "totalSessions" THEN 'completed'
-        WHEN status = 'paused' THEN 'paused'
-        ELSE 'active'
-      END
-    WHERE status IN ('active', 'completed')
-  `);
-
-  // ── 자동 생성된 미래 시작 phantom 패키지 자동 삭제 ───────────────────────────
-  // 조건: ① 시작일이 오늘 이후 ② usedSessions=0 (세션 로그 이동 후) ③ revenueEntryId 있음
-  //       ④ 같은 회원에 완료 또는 현재 진행 중(시작일≤오늘, usedSessions>0) 패키지가 존재
-  // 삭제 전 revenueEntryId를 실 패키지로 이전해 재시작 시 phantom 재생성 방지
+  // ── 세션 로그 기준 usedSessions "상향" 동기화 (절대 감소·완료취소 금지) ─────────
+  // 과거 사고(2026-08-29 a87c99f): 이 작업이 usedSessions를 로그 개수로 통째로 덮어써서
+  // ① 시스템 도입 전 사용분(2026-04-23 일괄 임포트분)과 ② 직원이 수동으로 처리한 완료 상태가
+  // 서버 재시작마다 초기화됐다. 전이은(30회 완료) → usedSessions 5로 리셋되고 status가
+  // active로 되돌아가 "잔여 25회"가 부활했다. 재시작마다 209건 중 207건이 로그 개수로 덮였다.
+  //
+  // 세션 로그는 "최소한 이만큼은 썼다"는 증거일 뿐 총 사용횟수의 원본이 아니다.
+  // 원본은 사용자가 입력·수정한 usedSessions다(데이터 무결성 원칙 3).
+  // → 로그 수가 기록된 사용횟수보다 많을 때만 올린다. 내리거나 완료를 되돌리지 않는다.
+  // → 가드 덕분에 두 번째 실행부터는 0건이다(원칙 2: startup 작업은 멱등).
   try {
-    const phantoms = await pool.query<{
+    const upSync = await pool.query(`
+      UPDATE pt_packages p
+      SET "usedSessions" = l.cnt,
+          status = CASE WHEN l.cnt >= p."totalSessions" THEN 'completed' ELSE p.status END
+      FROM (
+        SELECT "packageId" AS pid, COUNT(*)::int AS cnt
+        FROM pt_session_logs
+        WHERE "packageId" IS NOT NULL AND ("isDraft" IS NULL OR "isDraft" = 0)
+        GROUP BY "packageId"
+      ) l
+      WHERE p.id = l.pid
+        AND p.status IN ('active', 'completed')
+        AND l.cnt > COALESCE(p."usedSessions", 0)
+    `);
+    if ((upSync.rowCount ?? 0) > 0)
+      console.log(`🔼 세션 로그 기준 usedSessions 상향 동기화: ${upSync.rowCount}건`);
+  } catch (e) {
+    console.error("usedSessions 상향 동기화 오류:", e);
+  }
+
+  // ── 미래 시작 PT 패키지 점검 (리포트 전용 — 자동 삭제하지 않음) ────────────────
+  // 2026-09-01(b118694)에 "미래 시작 = phantom"으로 보고 자동 삭제하던 로직이 있었으나,
+  // 실제 데이터를 확인해 보니 미래 시작 활성 패키지 14건 중 12건이 매출이 연결된
+  // 정상 "선결제 재등록"이었다(예: 서해령 2026-09-17 시작 1,380,000원 재등록,
+  // 박인애 2026-11-17 시작 재등록). 즉 삭제 대상이 아니라 정상 영업 데이터였다.
+  //
+  // 게다가 삭제 후 매출 기반 자동 생성이 같은 패키지를 다시 만들어(삭제↔재생성 루프)
+  // 재시작마다 회원의 PT 패키지가 늘어나는 사고로 이어졌다.
+  // 데이터 무결성 원칙 3에 따라 파괴적 자동 정리는 비활성화하고 리포트만 남긴다.
+  // 실제로 잘못된 항목은 이 로그를 보고 관리자가 확인 후 수동 삭제한다.
+  try {
+    const suspects = await pool.query<{
       id: number; member_name: string; pkg_name: string | null; start_date: string | null;
-      revenue_entry_id: number | null;
     }>(`
-      SELECT p.id, m.name AS member_name, p."packageName" AS pkg_name, p."startDate" AS start_date,
-             p."revenueEntryId" AS revenue_entry_id
+      SELECT p.id, m.name AS member_name, p."packageName" AS pkg_name, p."startDate" AS start_date
       FROM pt_packages p
       JOIN members m ON m.id = p."memberId"
       WHERE p.status = 'active'
         AND p."usedSessions" = 0
         AND p."startDate" IS NOT NULL
         AND p."startDate" > CURRENT_DATE::text
-        AND p."revenueEntryId" IS NOT NULL
-        AND EXISTS (
-          SELECT 1 FROM pt_packages q
-          WHERE q."memberId" = p."memberId"
-            AND q.id <> p.id
-            AND q."usedSessions" > 0
-            AND (
-              -- 현재 진행 중인 활성 패키지 (완료·환불 패키지는 새 등록 패키지와 혼동 방지)
-              q.status = 'active' AND (q."startDate" IS NULL OR q."startDate" <= CURRENT_DATE::text)
-            )
-        )
+        AND p."revenueEntryId" IS NULL   -- 매출이 연결돼 있으면 정상 선결제 재등록이므로 제외
+      ORDER BY m.name, p.id
     `);
-    if (phantoms.rows.length > 0) {
-      const ids = phantoms.rows.map(r => r.id);
-      // 삭제 전: revenueEntryId를 실 패키지(revenueEntryId 없는 것 우선)에 이전
-      for (const ph of phantoms.rows) {
-        if (!ph.revenue_entry_id) continue;
-        await pool.query(`
-          UPDATE pt_packages
-          SET "revenueEntryId" = $1
-          WHERE id = (
-            SELECT q.id FROM pt_packages q
-            WHERE q."memberId" = (SELECT "memberId" FROM pt_packages WHERE id = $2)
-              AND q.id <> $2
-              AND q."usedSessions" > 0
-              AND q.status IN ('active', 'completed')
-              AND q."revenueEntryId" IS NULL
-            ORDER BY q."usedSessions" DESC, q.id DESC
-            LIMIT 1
-          )
-        `, [ph.revenue_entry_id, ph.id]);
-      }
-      await pool.query(`DELETE FROM pt_packages WHERE id = ANY($1)`, [ids]);
-      console.log(`🗑️ Phantom PT 패키지 자동 삭제 ${phantoms.rows.length}건:`);
-      for (const r of phantoms.rows) {
-        console.log(`   회원: ${r.member_name} / 패키지: ${r.pkg_name} / 시작일: ${r.start_date}`);
+    if (suspects.rows.length > 0) {
+      console.log(`⚠️ 매출 미연결 · 미래 시작 PT 패키지 ${suspects.rows.length}건 (확인 필요, 자동 삭제 안 함):`);
+      for (const r of suspects.rows) {
+        console.log(`   id=${r.id} 회원: ${r.member_name} / 패키지: ${r.pkg_name} / 시작일: ${r.start_date}`);
       }
     }
   } catch (e) {
-    console.error("phantom 패키지 삭제 오류:", e);
+    console.error("미래 시작 패키지 점검 오류:", e);
   }
 
   // ─── 출입 관리 테이블 ──────────────────────────────────────────────────────────
@@ -1744,11 +1733,12 @@ async function initDatabase() {
       .where(and(
         eq(revenueEntries.type, "PT"),
         sql`${revenueEntries.memberId} IS NOT NULL`,
+        // 횟수 없는 PT 매출은 패키지를 만들지 않는다. totalSessions=0 패키지는
+        // 단가(결제금액÷횟수) 계산이 불가능해 정산이 깨진다. 횟수를 채운 뒤 생성된다.
+        sql`${revenueEntries.sessions} IS NOT NULL`,
         sql`${revenueEntries.subType} IS DISTINCT FROM '이전'`,
-        // sessions IS NULL 이어도 매출이 있으면 패키지 생성 (횟수는 0으로, 나중에 수정 가능)
       ));
 
-    console.log(`🔍 PT 자동생성 대상 매출: ${ptRevs.length}건`);
     let created = 0;
     for (const rev of ptRevs) {
       if (!rev.memberId) continue;
@@ -1757,10 +1747,7 @@ async function initDatabase() {
         `SELECT COUNT(*) as count FROM pt_packages WHERE "revenueEntryId" = $1`,
         [rev.id]
       );
-      if (parseInt(linked.rows[0]?.count ?? "0", 10) > 0) {
-        console.log(`⏭️ [revId=${rev.id}] revenueEntryId 이미 연결됨 → 건너뜀`);
-        continue;
-      }
+      if (parseInt(linked.rows[0]?.count ?? "0", 10) > 0) continue;
 
       const now = new Date().toISOString();
       const svcSessions = (rev as any).serviceSessions ?? 0;
@@ -1799,7 +1786,6 @@ async function initDatabase() {
       if (dupMatch.rows.length > 0) {
         // revenueEntryId가 없는 패키지에만 연결 시도. 이미 다른 매출에 연결된 경우
         // UPDATE가 0 rows → 그 패키지는 다른 등록분이므로 continue 하지 않고 새 패키지 생성.
-        console.log(`🔗 [revId=${rev.id}] dupMatch 발견 pkgId=${dupMatch.rows[0]?.id} → 연결 시도`);
         const linked = await pool.query(
           `UPDATE pt_packages SET "revenueEntryId" = $1
            WHERE id = (
@@ -1818,11 +1804,7 @@ async function initDatabase() {
            RETURNING id`,
           [rev.id, rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.sessions ?? 0, d1, d2]
         );
-        if ((linked.rowCount ?? 0) > 0) {
-          console.log(`✅ [revId=${rev.id}] 기존 패키지에 연결 성공 → 생성 건너뜀`);
-          continue;
-        }
-        console.log(`⚠️ [revId=${rev.id}] 연결 실패(기존 패키지에 이미 다른 revenueEntryId) → 새 패키지 생성`);
+        if ((linked.rowCount ?? 0) > 0) continue; // 연결 성공 → 생성 건너뜀
         // 연결 실패(기존 패키지에 이미 다른 revenueEntryId) → fall-through to create new package
       }
       await pool.query(`
@@ -1840,7 +1822,6 @@ async function initDatabase() {
         rev.paymentMethod ?? null, rev.paymentDate,
         rev.id, now,
       ]);
-      console.log(`🆕 [revId=${rev.id}] 새 PT 패키지 생성: memberId=${rev.memberId} sessions=${rev.sessions} date=${rev.startDate ?? rev.paymentDate}`);
       created++;
     }
     if (created > 0) console.log(`✅ PT 매출 기반 패키지 자동 생성: ${created}건`);
@@ -1853,24 +1834,6 @@ async function initDatabase() {
   //       결제일자가 "있는" 원본 패키지가 별도로 존재하는 경우 → 복제본만 삭제.
   //       (정상적인 두 건(둘 다 결제일자 있음)은 절대 건드리지 않음)
   try {
-    const toClean = await pool.query(`
-      SELECT p.id, p."memberId", p."totalSessions", p."paymentDate", p."revenueEntryId"
-      FROM pt_packages p
-      WHERE p."usedSessions" = 0
-        AND p."paymentDate" IS NULL
-        AND EXISTS (
-          SELECT 1 FROM pt_packages q
-          WHERE q.id <> p.id
-            AND q."memberId" = p."memberId"
-            AND COALESCE(q."packageName",'') = COALESCE(p."packageName",'')
-            AND q."totalSessions" = p."totalSessions"
-            AND COALESCE(q."paymentAmount",0) = COALESCE(p."paymentAmount",0)
-            AND q."paymentDate" IS NOT NULL
-        )
-    `);
-    if (toClean.rowCount ?? 0 > 0) {
-      console.log(`🧹 빈 복제 삭제 대상: ${JSON.stringify(toClean.rows)}`);
-    }
     const cleaned = await pool.query(`
       DELETE FROM pt_packages p
       WHERE p."usedSessions" = 0
@@ -1894,21 +1857,6 @@ async function initDatabase() {
   // PT 완료 후 서버 재시작 시 매출 기반으로 새 패키지가 생기는 사고 방지.
   // 같은 회원·같은 세션수·같은 시작일로 completed 패키지가 있으면 active 0회 사용본 삭제.
   try {
-    const toDupActive = await pool.query(`
-      SELECT p.id, p."memberId", p."totalSessions", p."startDate", p."revenueEntryId",
-             q.id as matched_pkg, q.status as matched_status, q."revenueEntryId" as matched_rev
-      FROM pt_packages p
-      JOIN pt_packages q ON q.id <> p.id
-        AND q."memberId" = p."memberId"
-        AND q."totalSessions" = p."totalSessions"
-        AND q.status IN ('completed','refunded')
-        AND COALESCE(q."startDate",'') = COALESCE(p."startDate",'')
-        AND (p."revenueEntryId" IS NULL OR p."revenueEntryId" = q."revenueEntryId")
-      WHERE p.status = 'active' AND p."usedSessions" = 0
-    `);
-    if ((toDupActive.rowCount ?? 0) > 0) {
-      console.log(`🧹 dupActive 삭제 대상: ${JSON.stringify(toDupActive.rows)}`);
-    }
     const dupActive = await pool.query(`
       DELETE FROM pt_packages p
       WHERE p.status = 'active'

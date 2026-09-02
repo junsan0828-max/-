@@ -2995,7 +2995,7 @@ const trainersRouter = t.router({
           totalSessions: ptPackages.totalSessions,
           packageName: ptPackages.packageName,
           paymentMethod: ptPackages.paymentMethod,
-        }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), eq(ptPackages.status, "active"))).orderBy(desc(ptPackages.createdAt));
+        }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), inArray(ptPackages.status, ["active", "completed"]))).orderBy(desc(ptPackages.createdAt)); // 완료 패키지도 단가 폴백 대상에 포함 (완료 후 활성 패키지가 없어 정산 0원이 되는 사고 방지 — 원칙 8)
         // 단가 있는 활성 패키지를 우선 폴백으로 (없으면 최신 활성). "기타"는 실제 PT 프로그램이
         // 아닌 1회성 부가항목이므로 다른 단가있는 패키지가 있으면 후순위로 둔다.
         const isPriced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
@@ -4093,7 +4093,7 @@ const adminRouter = t.router({
             totalSessions: ptPackages.totalSessions,
             paymentMethod: ptPackages.paymentMethod,
             packageName: ptPackages.packageName,
-          }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), eq(ptPackages.status, "active"))).orderBy(desc(ptPackages.createdAt));
+          }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), inArray(ptPackages.status, ["active", "completed"]))).orderBy(desc(ptPackages.createdAt)); // 완료 패키지도 단가 폴백 대상에 포함 (완료 후 활성 패키지가 없어 정산 0원이 되는 사고 방지 — 원칙 8)
           // "기타"는 실제 PT 프로그램이 아닌 1회성 부가항목이므로 다른 단가있는 패키지가 있으면 후순위로 둔다.
           const isPricedPkg = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
           const isRealProgramPkg = (p: any) => p.packageName !== "기타";
