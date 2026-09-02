@@ -6,20 +6,34 @@ function formatDate(iso: string) {
   return iso.slice(0, 10).replace(/-/g, ".");
 }
 
+// Date를 UTC 변환 없이 로컬 기준으로 표기 (toISOString은 KST에서 하루 밀림)
+function formatLocalDate(d: Date) {
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function formatWeight(w: number | null) {
   if (w === null || w === undefined) return "-";
   return w.toFixed(1) + " kg";
 }
 
+// periodKey는 서버가 KST 달력 기준 "YYYY-MM"으로 발급하므로,
+// 타임존에 따라 달이 밀리지 않도록 날짜 문자열을 직접 파싱해 계산한다.
 function getMonthProgress(programStartDate: string) {
-  if (!programStartDate) return [];
-  const start = new Date(programStartDate);
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(programStartDate ?? "");
+  if (!m) return [];
+  const startYear = Number(m[1]);
+  const startMonth = Number(m[2]) - 1; // 0-11
+  const startDay = Number(m[3]);
+
   const now = new Date();
   const months = [];
   for (let i = 0; i < 3; i++) {
-    const monthStart = new Date(start.getFullYear(), start.getMonth() + i, start.getDate());
-    const monthEnd = new Date(start.getFullYear(), start.getMonth() + i + 1, start.getDate());
-    const periodKey = new Date(start.getFullYear(), start.getMonth() + i, 15).toISOString().slice(0, 7);
+    const abs = startMonth + i;
+    const year = startYear + Math.floor(abs / 12);
+    const month = ((abs % 12) + 12) % 12;
+    const monthStart = new Date(year, month, startDay);
+    const monthEnd = new Date(year, month + 1, startDay);
+    const periodKey = `${year}-${String(month + 1).padStart(2, "0")}`;
     const status: "future" | "active" | "past" =
       now < monthStart ? "future" : now >= monthEnd ? "past" : "active";
     months.push({ index: i + 1, monthStart, monthEnd, periodKey, status });
@@ -147,7 +161,7 @@ export default function GymPlusMissions() {
                   {m.status === "active" && <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">진행 중</span>}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {formatDate(m.monthStart.toISOString())} ~ {formatDate(m.monthEnd.toISOString())}
+                  {formatLocalDate(m.monthStart)} ~ {formatLocalDate(m.monthEnd)}
                 </p>
               </div>
               <div className="text-right">
