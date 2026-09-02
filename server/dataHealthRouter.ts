@@ -162,6 +162,84 @@ export const dataHealthRouter = t.router({
       rows: openTransferor.rows,
     });
 
+    // ④-2 같은 등록이 매출에 두 번 들어감 — 매출 이중계상.
+    //     2026-06-12 매출 일괄 재임포트 때 기존 건과 겹쳐 들어간 사고가 있었다.
+    //     회원·금액·횟수·시작일이 모두 같으면 같은 등록으로 본다.
+    const dupRevenue = await pool.query(`
+      SELECT m.name AS "회원", r_new.id AS "나중매출ID", r_old.id AS "먼저매출ID",
+             r_new."subType" AS "나중구분", r_old."subType" AS "먼저구분",
+             r_new.sessions AS "횟수", r_new.amount AS "금액", r_new."startDate" AS "시작일"
+      FROM revenue_entries r_new
+      JOIN revenue_entries r_old
+        ON r_old."memberId" = r_new."memberId"
+       AND r_old.id <> r_new.id
+       AND r_old.amount = r_new.amount
+       AND COALESCE(r_old.sessions, 0) = COALESCE(r_new.sessions, 0)
+       AND COALESCE(r_old."startDate", '') = COALESCE(r_new."startDate", '')
+       AND r_old."createdAt" < r_new."createdAt"
+      JOIN members m ON m.id = r_new."memberId"
+      ORDER BY m.name
+      LIMIT 50
+    `);
+    groups.push({
+      key: "duplicate_revenue",
+      title: "같은 등록이 매출에 두 번 들어감",
+      severity: "critical",
+      description: "회원·금액·횟수·시작일이 똑같은 매출이 두 건 있습니다. 매출이 부풀려지고 패키지도 두 개 생겨 잔여 횟수가 실제보다 많아집니다.",
+      rows: dupRevenue.rows,
+    });
+
+    // ④-3 매출 한 건에 패키지가 두 개 이상 — 등록 버튼 중복 클릭 등으로 생긴다.
+    const dupPkgPerRev = await pool.query(`
+      SELECT p."revenueEntryId" AS "매출ID", m.name AS "회원",
+             COUNT(*) AS "패키지수",
+             string_agg(p.id::text || ' (' || p."totalSessions" || '회·' ||
+                        p."usedSessions" || '사용)', ' + ' ORDER BY p.id) AS "패키지"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      WHERE p."revenueEntryId" IS NOT NULL
+      GROUP BY p."revenueEntryId", m.name
+      HAVING COUNT(*) > 1
+      LIMIT 50
+    `);
+    groups.push({
+      key: "multiple_packages_one_revenue",
+      title: "매출 한 건에 패키지가 두 개 이상",
+      severity: "critical",
+      description: "결제 한 번에 패키지가 여러 개 생겼습니다. 잔여 횟수가 실제보다 많아집니다.",
+      rows: dupPkgPerRev.rows,
+    });
+
+    // ④-4 재등록했는데 이전 패키지가 잔여를 남긴 채 살아 있음.
+    //     이전 권을 다 쓰고 재등록하는 게 정상 흐름인데, 이전 권이 안 닫히면
+    //     잔여가 부풀려져 재등록 상담 시점을 놓친다(박인애·이인정·김승빈 사례).
+    const staleOldPackage = await pool.query(`
+      SELECT COALESCE(t."trainerName", '(없음)') AS "트레이너", m.name AS "회원",
+             p1.id AS "이전패키지", p1."packageName" AS "프로그램",
+             (p1."totalSessions" - p1."usedSessions") AS "남은횟수",
+             p1."startDate" AS "이전시작일", p2."startDate" AS "새패키지시작일"
+      FROM pt_packages p1
+      JOIN members m ON m.id = p1."memberId"
+      LEFT JOIN trainers t ON t.id = p1."trainerId"
+      JOIN pt_packages p2
+        ON p2."memberId" = p1."memberId" AND p2.id <> p1.id
+       AND COALESCE(p2."serviceSessions", 0) = 0
+       AND p2."startDate" > p1."startDate"
+       AND p2."usedSessions" > 0
+      WHERE p1.status = 'active'
+        AND COALESCE(p1."serviceSessions", 0) = 0
+        AND p1."totalSessions" > p1."usedSessions"
+      ORDER BY 1, 2
+      LIMIT 50
+    `);
+    groups.push({
+      key: "stale_old_package",
+      title: "재등록했는데 이전 패키지가 안 닫힘",
+      severity: "warning",
+      description: "새 패키지를 쓰고 있는데 이전 패키지에 잔여가 남아 있습니다. 잔여가 부풀려져 재등록 상담 시점을 놓칩니다. 담당 트레이너에게 실제 사용 횟수를 확인해야 합니다.",
+      rows: staleOldPackage.rows,
+    });
+
     groups.push({
       key: "duplicate_members",
       title: "중복 회원 (이름·연락처 동일)",
