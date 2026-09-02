@@ -19,6 +19,7 @@ import { runJournal } from "./journal";
 import { runIfkJob } from "./ifk";
 import { runBlogEventJob } from "./blogEvent";
 import { runAutoMessageJob, todayStr } from "./autoMessage";
+import { runNaverAdsReportJob } from "./naverAdsReport";
 import { processPendingPointClaims } from "./pointClaims";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
@@ -246,6 +247,24 @@ async function runAutoMessageJobWrapper(reason: string) {
   }
 }
 
+// 클라우드 루틴은 이 환경의 네트워크 egress 정책이 api.searchad.naver.com을 막아(403,
+// 2026-09-01 실측 확인) 실행할 수 없다 — 알리고와 달리 네이버 쪽 IP 제약이 아니라 우리
+// 클라우드 실행 환경 자체의 허용 목록 문제라 코드로 우회 불가. PC 앱은 일반 인터넷이라
+// 문제없이 되므로 여기서 대신 매주 월요일 9시10분에 실행한다.
+async function runNaverAdsReportJobWrapper(reason: string) {
+  send("log", `네이버 검색광고 주간 리포트를 시작했어요 (${reason})`);
+  try {
+    const result = await runNaverAdsReportJob();
+    if (!result.ok) {
+      send("log", `네이버 광고 리포트 실패: ${result.error}`);
+      return;
+    }
+    send("log", "네이버 검색광고 주간 리포트 발송 완료");
+  } catch (err: any) {
+    send("log", `네이버 광고 리포트 오류: ${err?.message ?? err}`);
+  }
+}
+
 // 노트북이 13시 정각에 절전(Modern Standby) 중이면 node-cron의 "0 13 * * *" 틱 자체가
 // 통째로 씹혀서 그날 발송이 전부 누락된다(2026-08-30/31 실측 확인). 절전에서 깨어날 때와
 // 앱 시작 시 "오늘 13시가 지났는데 아직 안 돌았으면" 보정 실행한다. runAutoMessageJob은
@@ -424,6 +443,13 @@ if (!app.requestSingleInstanceLock()) {
   const autoMessageSpec = process.env.AUTO_MESSAGE_CRON || "0 13 * * *";
   if (cron.validate(autoMessageSpec)) {
     cron.schedule(autoMessageSpec, () => runAutoMessageJobWrapper("매일 13시 예약"));
+  }
+
+  // 네이버 검색광고 주간 리포트: 매주 월요일 9시10분(기본값) — 클라우드 루틴이 네트워크
+  // 정책 때문에 못 도니 PC 앱이 유일한 실행 경로다.
+  const naverAdsReportSpec = process.env.NAVER_ADS_REPORT_CRON || "10 9 * * 1";
+  if (cron.validate(naverAdsReportSpec)) {
+    cron.schedule(naverAdsReportSpec, () => runNaverAdsReportJobWrapper("매주 월요일 9시10분 예약"));
   }
 
   // 절전(Modern Standby) 중에는 위 cron 틱이 그냥 씹혀서 그날 발송이 통째로 누락될 수 있다.
