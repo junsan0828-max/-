@@ -123,6 +123,15 @@ const defaultForm: LeadForm = {
   assignedTrainerId: undefined, assignedConsultantId: undefined,
 };
 
+function fmtKstDateTime(iso: string): string {
+  const d = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  const M = d.getUTCMonth() + 1;
+  const D = d.getUTCDate();
+  const h = String(d.getUTCHours()).padStart(2, "0");
+  const m = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${M}/${D} ${h}:${m}`;
+}
+
 function calcEndDate(start: string, sessions: string): string {
   if (!start || !sessions) return "";
   const n = parseInt(sessions);
@@ -1008,9 +1017,16 @@ export default function LeadsPage() {
                       </div>
                     )}
                   </div>
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s?.bg} ${s?.color}`}>
-                    {s && <s.icon className="h-3 w-3" />}
-                    {s?.label}
+                  <div className="flex flex-col items-end gap-1">
+                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s?.bg} ${s?.color}`}>
+                      {s && <s.icon className="h-3 w-3" />}
+                      {s?.label}
+                    </div>
+                    {row.lead.createdAt && (
+                      <span className="text-[10px] text-muted-foreground">
+                        신청 {fmtKstDateTime(row.lead.createdAt)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-xs">
