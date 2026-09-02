@@ -6900,12 +6900,12 @@ const landingRouter = t.router({
       // "createdAt"은 UTC로 저장되므로 +9시간(KST) 보정 후 날짜를 비교/그룹핑한다.
       // 안 그러면 한국시간 오전(00~09시)에 "오늘" 집계가 어제로 밀려 0으로 보인다.
       const [todayRes, naverRes, analysisRes, dailyRes] = await Promise.all([
-        pool.query(`SELECT COUNT(DISTINCT session_id) as cnt FROM landing_page_stats WHERE event = 'page_view' AND ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'page_view' AND ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
         pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'naver_click' AND ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
         pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'body_analysis_complete' AND ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
         pool.query(`
           SELECT ("createdAt"::timestamp + interval '9 hours')::date as date,
-            COUNT(DISTINCT CASE WHEN event='page_view' THEN session_id END) as views,
+            COUNT(CASE WHEN event='page_view' THEN 1 END) as views,
             COUNT(CASE WHEN event='naver_click' THEN 1 END) as naver_clicks,
             COUNT(CASE WHEN event='body_analysis_complete' THEN 1 END) as conversions
           FROM landing_page_stats
