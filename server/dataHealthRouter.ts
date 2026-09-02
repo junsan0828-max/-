@@ -242,21 +242,30 @@ export const dataHealthRouter = t.router({
     const staleOldPackage = await pool.query(`
       SELECT COALESCE(t."trainerName", '(없음)') AS "트레이너", m.name AS "회원",
              p1.id AS "이전패키지", p1."packageName" AS "프로그램",
+             p1."totalSessions" AS "총횟수", p1."usedSessions" AS "사용",
              (p1."totalSessions" - p1."usedSessions") AS "남은횟수",
-             p1."startDate" AS "이전시작일", p2."startDate" AS "새패키지시작일"
+             p1."startDate" AS "이전시작일",
+             MIN(p2."paymentDate") AS "재등록결제일",
+             (SELECT SUM(q."totalSessions" - q."usedSessions") FROM pt_packages q
+               WHERE q."memberId" = m.id AND q.status = 'active') AS "회원총잔여"
       FROM pt_packages p1
       JOIN members m ON m.id = p1."memberId"
       LEFT JOIN trainers t ON t.id = p1."trainerId"
+      -- "새 패키지를 이미 쓰고 있을 때"로 좁히면 놓치는 사고가 있다(서해령 사례).
+      -- 재등록 후 수업이 전부 이전 패키지에 계속 기록되면 새 패키지 사용은 0회로 남아
+      -- 조건에 안 걸리는데, 정작 잔여는 두 패키지가 합쳐져 부풀려진다(34회로 표시됐다).
+      -- 그래서 "나중에 결제된 패키지가 있는가"로 판정한다. 사용 여부는 보지 않는다.
       JOIN pt_packages p2
         ON p2."memberId" = p1."memberId" AND p2.id <> p1.id
        AND COALESCE(p2."serviceSessions", 0) = 0
-       AND p2."startDate" > p1."startDate"
-       AND p2."usedSessions" > 0
+       AND p2."paymentDate" > COALESCE(p1."paymentDate", '1900-01-01')
       WHERE p1.status = 'active'
         AND COALESCE(p1."serviceSessions", 0) = 0
         AND p1."totalSessions" > p1."usedSessions"
+      GROUP BY 1, 2, p1.id, p1."packageName", p1."totalSessions",
+               p1."usedSessions", p1."startDate"
       ORDER BY 1, 2
-      LIMIT 50
+      LIMIT 100
     `);
     groups.push({
       key: "stale_old_package",
