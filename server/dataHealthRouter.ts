@@ -236,6 +236,39 @@ export const dataHealthRouter = t.router({
       rows: orphanPackage.rows,
     });
 
+    // ④-3d 매출이 아예 연결되지 않은 PT 패키지.
+    //      "언제 등록한 건지" 알 수 있게 생성일을 함께 보여준다. 2026-04-23은 기존 회원
+    //      일괄 임포트분이고(정수연 사례: 시트상 4/08 등록), 그 외 날짜는 앱에서 수동으로
+    //      만든 것이다. 어느 쪽이든 매출 기록이 없으니 받은 돈이 장부에 없다.
+    //      양도로 받은 패키지는 매출 없이 넘어오는 게 정상이라 제외한다.
+    const noRevenueLink = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName", '(없음)') AS "트레이너",
+             p.id AS "패키지ID", p."packageName" AS "프로그램",
+             p."totalSessions" AS "총횟수", p."usedSessions" AS "진행",
+             p."paymentAmount" AS "적힌금액",
+             substring(p."createdAt", 1, 10) AS "등록(생성)일"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers t ON t.id = p."trainerId"
+      WHERE p."revenueEntryId" IS NULL
+        AND COALESCE(p."serviceSessions", 0) = 0
+        AND p.status <> 'refunded'
+        AND NOT EXISTS (
+          SELECT 1 FROM transfer_contracts tc
+          WHERE tc.status = 'completed' AND tc."itemType" = 'pt_package'
+            AND tc."transfereeMemberId" = p."memberId"
+        )
+      ORDER BY p."usedSessions" DESC, m.name
+      LIMIT 50
+    `);
+    groups.push({
+      key: "package_no_revenue_link",
+      title: "매출이 연결되지 않은 PT 패키지",
+      severity: "warning",
+      description: "결제 기록 없이 만들어진 패키지입니다. 진행 횟수가 0보다 크면 수업까지 했는데 매출이 없다는 뜻이라 먼저 확인해야 합니다. 등록일로 언제 만들어진 건지 추적할 수 있습니다.",
+      rows: noRevenueLink.rows,
+    });
+
     // ④-3c 패키지 총횟수가 매출로 산 횟수보다 많음.
     //      "잔여 = 산 횟수 − 진행한 횟수"가 성립해야 하는데, 매출 근거 없는 패키지가
     //      끼면 잔여가 그만큼 부풀려진다. 정수연 사례에서 매출 없는 10회권이 잡혔고,
