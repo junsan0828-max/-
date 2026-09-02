@@ -174,10 +174,13 @@ export const dataHealthRouter = t.router({
         ON r_old."memberId" = r_new."memberId"
        AND r_old.id <> r_new.id
        AND r_old.amount = r_new.amount
-       AND COALESCE(r_old.sessions, 0) = COALESCE(r_new.sessions, 0)
-       AND COALESCE(r_old."startDate", '') = COALESCE(r_new."startDate", '')
+       AND r_old.sessions = r_new.sessions
+       AND r_old."startDate" = r_new."startDate"
        AND r_old."createdAt" < r_new."createdAt"
       JOIN members m ON m.id = r_new."memberId"
+      -- 횟수·시작일·금액이 모두 있어야 "같은 등록"이라 단정할 수 있다.
+      -- 이 조건이 없으면 횟수 없는 소액·0원 건(기타 항목 등)이 서로 중복으로 잡힌다.
+      WHERE r_new.sessions > 0 AND r_new.amount > 0 AND r_new."startDate" IS NOT NULL
       ORDER BY m.name
       LIMIT 50
     `);
@@ -208,6 +211,29 @@ export const dataHealthRouter = t.router({
       severity: "critical",
       description: "결제 한 번에 패키지가 여러 개 생겼습니다. 잔여 횟수가 실제보다 많아집니다.",
       rows: dupPkgPerRev.rows,
+    });
+
+    // ④-3b 패키지는 있는데 연결된 매출이 사라짐 — 매출을 지웠는데 패키지가 남은 경우.
+    //      수업까지 진행됐다면 받은 돈이 장부에서 빠진 것이라 매출 누락이다.
+    //      (사용 0회짜리는 startup 정리가 알아서 지우므로 여기선 수업이 있는 것만 본다)
+    const orphanPackage = await pool.query(`
+      SELECT p.id AS "패키지ID", m.name AS "회원", p."revenueEntryId" AS "사라진매출ID",
+             p."packageName" AS "프로그램", p."totalSessions" AS "총횟수",
+             p."usedSessions" AS "사용", p."paymentAmount" AS "결제금액", p.status AS "상태"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      WHERE p."revenueEntryId" IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM revenue_entries r WHERE r.id = p."revenueEntryId")
+        AND p."usedSessions" > 0
+      ORDER BY m.name
+      LIMIT 50
+    `);
+    groups.push({
+      key: "package_without_revenue",
+      title: "패키지는 있는데 매출이 사라짐",
+      severity: "critical",
+      description: "수업까지 진행된 패키지인데 연결된 매출 기록이 없습니다. 받은 돈이 매출 장부에서 빠져 있습니다.",
+      rows: orphanPackage.rows,
     });
 
     // ④-4 재등록했는데 이전 패키지가 잔여를 남긴 채 살아 있음.
