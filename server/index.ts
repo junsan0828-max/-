@@ -693,6 +693,9 @@ async function initDatabase() {
       "rewardMonths" INTEGER NOT NULL DEFAULT 1,
       "awardedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    // 동시 요청으로 같은 회차 보상이 두 번 지급되는 것을 DB 레벨에서 차단
+    `CREATE UNIQUE INDEX IF NOT EXISTS gym_plus_mission_rewards_period_uniq
+       ON gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey")`,
   ];
   for (const stmt of alterStatements) {
     try {

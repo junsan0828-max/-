@@ -16,29 +16,34 @@ function formatWeight(w: number | null) {
   return w.toFixed(1) + " kg";
 }
 
-// periodKey는 서버가 KST 달력 기준 "YYYY-MM"으로 발급하므로,
-// 타임존에 따라 달이 밀리지 않도록 날짜 문자열을 직접 파싱해 계산한다.
+// 회차는 서버와 동일하게 '프로그램 시작일 + N개월' 기준으로 끊고 키는 M1~M3을 쓴다.
+// 대상 월에 시작일이 없으면 말일로 맞춘다(1/31 +1개월 = 2/28).
+function addMonths(y: number, m: number, d: number, add: number) {
+  const abs = m + add;
+  const ny = y + Math.floor(abs / 12);
+  const nm = ((abs % 12) + 12) % 12;
+  const lastDay = new Date(ny, nm + 1, 0).getDate();
+  return new Date(ny, nm, Math.min(d, lastDay));
+}
+
 function getMonthProgress(programStartDate: string) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(programStartDate ?? "");
   if (!m) return [];
-  const startYear = Number(m[1]);
-  const startMonth = Number(m[2]) - 1; // 0-11
-  const startDay = Number(m[3]);
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
 
   const now = new Date();
-  const months = [];
-  for (let i = 0; i < 3; i++) {
-    const abs = startMonth + i;
-    const year = startYear + Math.floor(abs / 12);
-    const month = ((abs % 12) + 12) % 12;
-    const monthStart = new Date(year, month, startDay);
-    const monthEnd = new Date(year, month + 1, startDay);
-    const periodKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const periods = [];
+  // 0회차는 기준 체중 측정 구간이라 보상이 없다. 보상 회차는 1~3.
+  for (let i = 1; i <= 3; i++) {
+    const periodStart = addMonths(y, mo, d, i);
+    const periodEnd = addMonths(y, mo, d, i + 1);
     const status: "future" | "active" | "past" =
-      now < monthStart ? "future" : now >= monthEnd ? "past" : "active";
-    months.push({ index: i + 1, monthStart, monthEnd, periodKey, status });
+      now < periodStart ? "future" : now >= periodEnd ? "past" : "active";
+    periods.push({ index: i, monthStart: periodStart, monthEnd: periodEnd, periodKey: `M${i}`, status });
   }
-  return months;
+  return periods;
 }
 
 export default function GymPlusMissions() {
@@ -134,7 +139,8 @@ export default function GymPlusMissions() {
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50">
           <p className="text-sm font-bold text-gray-800">월별 미션 달성 현황</p>
-          <p className="text-xs text-gray-400 mt-0.5">매월 1kg 감량 시 헬스권 1개월 연장</p>
+          <p className="text-xs text-gray-400 mt-0.5">직전 회차 대비 1kg 감량 시 헬스권 1개월 연장</p>
+          <p className="text-[11px] text-gray-400 mt-1">첫 달은 기준 체중을 측정하는 기간입니다. 매월 체중을 기록해야 비교가 됩니다.</p>
         </div>
         {monthProgress.map((m) => {
           const rewarded = rewardKeys.has(m.periodKey);

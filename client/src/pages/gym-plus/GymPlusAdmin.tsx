@@ -789,10 +789,11 @@ export function GymPlusEventsAdmin() {
   function resetForm() {
     setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", pointAmount: "0", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
     setScheduleData(defaultSchedule());
-    setSendPush(false);
+    setSendPush(true); // 신규 등록은 앱푸시 기본 발송
   }
 
   function openEdit(e: any) {
+    setSendPush(false); // 기존 글 수정 시 푸시 재발송은 기본 해제
     setForm({ title: e.title, content: e.eventType === "schedule" ? "" : e.content, imageUrl: e.imageUrl ?? "", linkUrl: e.linkUrl ?? "", eventType: e.eventType, pointAmount: String(e.pointAmount ?? 0), startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
     if (e.eventType === "schedule") {
       try { setScheduleData(JSON.parse(e.content)); } catch { setScheduleData(defaultSchedule()); }

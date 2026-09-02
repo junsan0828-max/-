@@ -193,7 +193,6 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
     submitMut.mutate({
       name: name.trim(), phone,
       membershipPeriod: period as any,
-      amount,
       signatureData,
       agreedMarketing,
       contractDate,
