@@ -154,6 +154,7 @@ function SignaturePad({ onSign, signatureData }: { onSign: (d: string) => void; 
 
 function RegistrationModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<"form" | "contract" | "sign" | "confirm">("form");
+  const [transferDone, setTransferDone] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [period, setPeriod] = useState("3개월");
@@ -346,14 +347,14 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
         )}
 
         {/* 4단계: 완료 + 입금 안내 */}
-        {step === "confirm" && (
+        {step === "confirm" && !transferDone && (
           <div className="p-6 space-y-5">
             <div className="text-center space-y-1.5">
               <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mx-auto">
                 <Check className="w-7 h-7 text-green-500" />
               </div>
               <h3 className="text-base font-bold text-[#1a2b4b]">계약 서명 완료!</h3>
-              <p className="text-sm text-gray-500">아래 계좌로 입금 완료 후<br/>데스크에 알려주시면 계정을 만들어 드립니다.</p>
+              <p className="text-sm text-gray-500">아래 계좌로 입금 후<br/>"이체 완료" 버튼을 눌러주세요.</p>
             </div>
             <div className="bg-blue-50 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -379,10 +380,43 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
               <p>입금자명을 반드시 <span className="font-bold underline">{name}</span>(으)로 해주세요.</p>
               <p className="text-amber-600">다른 이름으로 입금 시 확인이 지연될 수 있습니다.</p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 text-center">
-              입금 확인 후 문자로 안내해 드립니다<br/>문의: 헬스장 데스크
+            <Button onClick={() => setTransferDone(true)} className="w-full h-11 bg-[#1D4ED8] hover:bg-[#1a43c0]">
+              이체 완료
+            </Button>
+          </div>
+        )}
+
+        {/* 이체 완료 후 안내 */}
+        {step === "confirm" && transferDone && (
+          <div className="p-6 space-y-5">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto">
+                <Check className="w-8 h-8 text-[#1D4ED8]" />
+              </div>
+              <h3 className="text-base font-bold text-[#1a2b4b]">이체 완료!</h3>
+              <p className="text-sm text-gray-500">감사합니다, {name}님</p>
             </div>
-            <Button onClick={onClose} variant="outline" className="w-full h-11">닫기</Button>
+            <div className="bg-blue-50 rounded-2xl p-5 space-y-4">
+              <p className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wide">다음 단계 안내</p>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</div>
+                  <p className="text-sm text-[#1a2b4b] font-medium leading-relaxed">센터에 방문 후 데스크에서 <span className="font-bold">핸드폰 번호</span>로 출석체크를 해주세요.</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</div>
+                  <p className="text-sm text-[#1a2b4b] font-medium leading-relaxed"><span className="font-bold">첫 출석일을 기준</span>으로 회원권이 시작됩니다.</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</div>
+                  <p className="text-sm text-[#1a2b4b] font-medium leading-relaxed">첫 방문 이후 <span className="font-bold">ZIANTGYM+ 회원전용 앱</span>을 이용하실 수 있습니다.</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 text-center">
+              입금 확인 후 계정 등록을 도와드립니다<br/>문의: 헬스장 데스크
+            </div>
+            <Button onClick={onClose} className="w-full h-11 bg-[#1D4ED8] hover:bg-[#1a43c0]">확인</Button>
           </div>
         )}
 
