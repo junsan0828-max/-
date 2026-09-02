@@ -265,7 +265,7 @@ export const dataHealthRouter = t.router({
       key: "package_no_revenue_link",
       title: "매출이 연결되지 않은 PT 패키지",
       severity: "warning",
-      description: "결제 기록 없이 만들어진 패키지입니다. 진행 횟수가 0보다 크면 수업까지 했는데 매출이 없다는 뜻이라 먼저 확인해야 합니다. 등록일로 언제 만들어진 건지 추적할 수 있습니다.",
+      description: "이 패키지에 결제 기록이 연결돼 있지 않습니다. 회원에게 다른 매출은 있을 수 있으니 '회원 매출이 없다'는 뜻은 아닙니다. 진행 횟수가 0보다 크면 수업까지 하고 결제가 안 잡힌 것이라 먼저 확인해야 합니다. 등록일로 언제 만들어진 건지 추적할 수 있습니다.",
       rows: noRevenueLink.rows,
     });
 
