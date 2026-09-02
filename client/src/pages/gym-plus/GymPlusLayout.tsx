@@ -4,6 +4,22 @@ import { trpc } from "@/lib/trpc";
 import { formatMembershipType } from "@/lib/membership";
 import GymPlusOnboarding from "./GymPlusOnboarding";
 
+// 회원이 '알림 끄기'를 누른 사실을 기기에 남긴다.
+// 브라우저 권한은 허용 상태로 남기 때문에, 이 플래그가 없으면
+// 다음 접속 때 아래 훅이 그대로 재구독해 끄기가 풀린다.
+export const PUSH_OPT_OUT_KEY = "gymplus_push_optout";
+
+export function isPushOptedOut() {
+  try { return localStorage.getItem(PUSH_OPT_OUT_KEY) === "1"; } catch { return false; }
+}
+
+export function setPushOptedOut(v: boolean) {
+  try {
+    if (v) localStorage.setItem(PUSH_OPT_OUT_KEY, "1");
+    else localStorage.removeItem(PUSH_OPT_OUT_KEY);
+  } catch { /* 저장 불가 환경(프라이빗 모드 등)에서는 무시 */ }
+}
+
 function usePushSubscription() {
   const { data: vapidData } = trpc.gymPlus.getPushVapidKey.useQuery();
   const subscribeMut = trpc.gymPlus.subscribePush.useMutation();
@@ -12,6 +28,7 @@ function usePushSubscription() {
     if (!vapidData?.publicKey) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     if (Notification.permission === "denied") return;
+    if (isPushOptedOut()) return;
 
     const run = async () => {
       try {

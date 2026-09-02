@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import GymPlusHealthSurvey from "./GymPlusHealthSurvey";
 import { membershipTypeLabel } from "@/lib/membership";
+import { isPushOptedOut, setPushOptedOut } from "./GymPlusLayout";
 
 // 포인트 회원권 연장 단가 (서버의 POINTS_PER_EXTENSION_DAY와 동일해야 함)
 const POINTS_PER_EXTENSION_DAY = 1000;
@@ -274,12 +275,16 @@ function PushNotificationToggle() {
     navigator.serviceWorker.ready.then((reg) =>
       reg.pushManager.getSubscription().then((sub) => {
         if (Notification.permission === "denied") { setPushState("denied"); return; }
-        setPushState(sub ? "subscribed" : "unsubscribed");
+        // 구독이 남아 있어도 회원이 끄기를 눌렀다면 꺼진 상태로 표시한다
+        setPushState(sub && !isPushOptedOut() ? "subscribed" : "unsubscribed");
       })
     );
   }, []);
 
   const handleUnsubscribe = async () => {
+    // 브라우저 알림 권한은 허용된 채로 남으므로, 이 플래그가 없으면
+    // 다음 접속 때 레이아웃 훅이 자동으로 다시 구독해 끄기가 풀린다.
+    setPushOptedOut(true);
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
@@ -297,6 +302,7 @@ function PushNotificationToggle() {
     try {
       const perm = await Notification.requestPermission();
       if (perm !== "granted") { setPushState("denied"); return; }
+      setPushOptedOut(false);
       // reload the page so GymPlusLayout's hook re-registers
       window.location.reload();
     } catch (e) {
