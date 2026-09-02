@@ -54,6 +54,14 @@ export const dataHealthRouter = t.router({
       WHERE r.type = 'PT'
         AND r."subType" IS DISTINCT FROM '이전'
         AND NOT EXISTS (SELECT 1 FROM pt_packages p WHERE p."revenueEntryId" = r.id)
+        -- 양도로 받은 패키지는 매출 연결 없이 넘어오는 게 정상이라 오탐을 낸다.
+        -- 양수인이 아직 쓰고 있는 패키지가 있으면 제외한다(황동성 사례).
+        AND NOT EXISTS (
+          SELECT 1 FROM transfer_contracts tc
+          WHERE tc.status = 'completed'
+            AND tc."itemType" = 'pt_package'
+            AND tc."transfereeMemberId" = r."memberId"
+        )
       ORDER BY r."paymentDate" DESC NULLS LAST
       LIMIT 50
     `);
@@ -127,6 +135,33 @@ export const dataHealthRouter = t.router({
       ORDER BY m.name, m.id
       LIMIT 50
     `);
+    // ④-1 양도가 완료됐는데 양도인 패키지가 아직 살아 있음.
+    //     양도는 "권리가 넘어가는" 것이라 양도인 쪽은 닫혀야 한다. 안 닫히면 같은 횟수가
+    //     두 사람에게 동시에 살아 있어 이중 사용이 가능해진다.
+    //     (이한솔 → 황동성 양도 완료 후에도 이한솔에게 40회가 남아 있던 사례)
+    const openTransferor = await pool.query(`
+      SELECT tc.id AS "양도ID", tc."transferorName" AS "양도인",
+             tc."transfereeName" AS "양수인", p.id AS "패키지ID",
+             (p."totalSessions" - p."usedSessions") AS "남은횟수",
+             m.status AS "회원상태", tc."completedAt" AS "양도완료일"
+      FROM transfer_contracts tc
+      JOIN members m ON m.id = tc."transferorMemberId"
+      JOIN pt_packages p ON p."memberId" = tc."transferorMemberId"
+      WHERE tc.status = 'completed'
+        AND tc."itemType" = 'pt_package'
+        AND p.status = 'active'
+        AND p."totalSessions" > p."usedSessions"
+      ORDER BY tc."completedAt" DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "transferor_still_open",
+      title: "양도 완료인데 양도인 PT가 살아 있음",
+      severity: "critical",
+      description: "넘긴 횟수가 양도인에게도 남아 있습니다. 같은 횟수를 두 사람이 쓸 수 있어 매출·정산이 어긋납니다.",
+      rows: openTransferor.rows,
+    });
+
     groups.push({
       key: "duplicate_members",
       title: "중복 회원 (이름·연락처 동일)",
