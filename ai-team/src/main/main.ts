@@ -251,7 +251,13 @@ async function runAutoMessageJobWrapper(reason: string) {
 // 2026-09-01 실측 확인) 실행할 수 없다 — 알리고와 달리 네이버 쪽 IP 제약이 아니라 우리
 // 클라우드 실행 환경 자체의 허용 목록 문제라 코드로 우회 불가. PC 앱은 일반 인터넷이라
 // 문제없이 되므로 여기서 대신 매주 월요일 9시10분에 실행한다.
+// 자동문자와 달리 이 작업은 DB로 중복발송을 막지 않는다(카카오 발송 + 노션 페이지 생성 둘 다
+// 매번 새로 만듦) — 그래서 같은 날 두 번 걸리면 그대로 중복 발송된다. naverAdsReportRanDate로
+// "오늘 이미 돌았으면" 정상 cron이든 절전복귀 보정이든 다시 안 돌게 막는다.
+let naverAdsReportRanDate: string | null = null;
 async function runNaverAdsReportJobWrapper(reason: string) {
+  if (naverAdsReportRanDate === todayStr()) return;
+  naverAdsReportRanDate = todayStr();
   send("log", `네이버 검색광고 주간 리포트를 시작했어요 (${reason})`);
   try {
     const result = await runNaverAdsReportJob();
@@ -263,6 +269,28 @@ async function runNaverAdsReportJobWrapper(reason: string) {
   } catch (err: any) {
     send("log", `네이버 광고 리포트 오류: ${err?.message ?? err}`);
   }
+}
+
+// 13시 자동문자와 같은 이유(절전 중 cron 틱 누락)로 월요일 9시10분도 통째로 씹힐 수 있다.
+// 월요일이고 9시10분이 지났는데 오늘 아직 안 돌았으면 절전 복귀·앱 시작 시점에 보정 실행한다.
+let naverAdsReportCaughtUpDate: string | null = null;
+function maybeCatchUpNaverAdsReport(reason: string) {
+  const now = new Date();
+  const kstParts = now.toLocaleString("en-US", {
+    timeZone: "Asia/Seoul",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const [weekday, timePart] = kstParts.split(" ");
+  const isMonday = weekday === "Mon";
+  const [hourStr, minuteStr] = (timePart ?? "00:00").split(":");
+  const pastCutoff = Number(hourStr) > 9 || (Number(hourStr) === 9 && Number(minuteStr) >= 10);
+  const today = todayStr();
+  if (!isMonday || !pastCutoff || naverAdsReportCaughtUpDate === today) return;
+  naverAdsReportCaughtUpDate = today;
+  runNaverAdsReportJobWrapper(`보정 실행 — ${reason}`);
 }
 
 // 노트북이 13시 정각에 절전(Modern Standby) 중이면 node-cron의 "0 13 * * *" 틱 자체가
@@ -456,6 +484,8 @@ if (!app.requestSingleInstanceLock()) {
   // 앱 시작 시점과 절전에서 깨어난 시점에 "오늘 13시 지났는데 아직 안 돌았으면" 보정한다.
   maybeCatchUpAutoMessage("앱 시작");
   powerMonitor.on("resume", () => maybeCatchUpAutoMessage("절전 복귀"));
+  maybeCatchUpNaverAdsReport("앱 시작");
+  powerMonitor.on("resume", () => maybeCatchUpNaverAdsReport("절전 복귀"));
 
   // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
   // 매번 브라우저를 새로 설치하는 클라우드 예약작업과 달리, 상주 중인 이 앱에서만 돈다
