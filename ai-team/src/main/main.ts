@@ -19,7 +19,7 @@ import { runJournal } from "./journal";
 import { runIfkJob } from "./ifk";
 import { runBlogEventJob } from "./blogEvent";
 import { runAutoMessageJob, todayStr } from "./autoMessage";
-import { runNaverAdsReportJob } from "./naverAdsReport";
+import { runNaverAdsReportJob, runNaverAdsMonthlyReportJob } from "./naverAdsReport";
 import { processPendingPointClaims } from "./pointClaims";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
@@ -271,26 +271,62 @@ async function runNaverAdsReportJobWrapper(reason: string) {
   }
 }
 
+// Intl.toLocaleString의 필드 조합별 구분자가 제각각이라(예: "Wed 16:05" vs "01, 09:25")
+// 문자열을 split으로 파싱하면 깨지기 쉽다 — formatToParts로 필드별 값을 직접 뽑아 안전하게 쓴다.
+function kstDateParts(now: Date) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      weekday: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now).map((p) => [p.type, p.value])
+  );
+  return { weekday: parts.weekday, day: Number(parts.day), hour: Number(parts.hour), minute: Number(parts.minute) };
+}
+
 // 13시 자동문자와 같은 이유(절전 중 cron 틱 누락)로 월요일 9시10분도 통째로 씹힐 수 있다.
 // 월요일이고 9시10분이 지났는데 오늘 아직 안 돌았으면 절전 복귀·앱 시작 시점에 보정 실행한다.
 let naverAdsReportCaughtUpDate: string | null = null;
 function maybeCatchUpNaverAdsReport(reason: string) {
-  const now = new Date();
-  const kstParts = now.toLocaleString("en-US", {
-    timeZone: "Asia/Seoul",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const [weekday, timePart] = kstParts.split(" ");
+  const { weekday, hour, minute } = kstDateParts(new Date());
   const isMonday = weekday === "Mon";
-  const [hourStr, minuteStr] = (timePart ?? "00:00").split(":");
-  const pastCutoff = Number(hourStr) > 9 || (Number(hourStr) === 9 && Number(minuteStr) >= 10);
+  const pastCutoff = hour > 9 || (hour === 9 && minute >= 10);
   const today = todayStr();
   if (!isMonday || !pastCutoff || naverAdsReportCaughtUpDate === today) return;
   naverAdsReportCaughtUpDate = today;
   runNaverAdsReportJobWrapper(`보정 실행 — ${reason}`);
+}
+
+let naverAdsMonthlyReportRanDate: string | null = null;
+async function runNaverAdsMonthlyReportJobWrapper(reason: string) {
+  if (naverAdsMonthlyReportRanDate === todayStr()) return;
+  naverAdsMonthlyReportRanDate = todayStr();
+  send("log", `네이버 검색광고 월간 리포트를 시작했어요 (${reason})`);
+  try {
+    const result = await runNaverAdsMonthlyReportJob();
+    if (!result.ok) {
+      send("log", `네이버 광고 월간 리포트 실패: ${result.error}`);
+      return;
+    }
+    send("log", "네이버 검색광고 월간 리포트 발송 완료");
+  } catch (err: any) {
+    send("log", `네이버 광고 월간 리포트 오류: ${err?.message ?? err}`);
+  }
+}
+
+// 매월 1일 9시20분이 지났는데 이번 달 것이 아직 안 돌았으면 절전 복귀·앱 시작 시점에 보정한다.
+let naverAdsMonthlyReportCaughtUpMonth: string | null = null;
+function maybeCatchUpNaverAdsMonthlyReport(reason: string) {
+  const { day, hour, minute } = kstDateParts(new Date());
+  const isFirst = day === 1;
+  const pastCutoff = hour > 9 || (hour === 9 && minute >= 20);
+  const thisMonth = todayStr().slice(0, 7);
+  if (!isFirst || !pastCutoff || naverAdsMonthlyReportCaughtUpMonth === thisMonth) return;
+  naverAdsMonthlyReportCaughtUpMonth = thisMonth;
+  runNaverAdsMonthlyReportJobWrapper(`보정 실행 — ${reason}`);
 }
 
 // 노트북이 13시 정각에 절전(Modern Standby) 중이면 node-cron의 "0 13 * * *" 틱 자체가
@@ -480,12 +516,20 @@ if (!app.requestSingleInstanceLock()) {
     cron.schedule(naverAdsReportSpec, () => runNaverAdsReportJobWrapper("매주 월요일 9시10분 예약"));
   }
 
+  // 네이버 검색광고 월간 리포트: 매월 1일 9시20분(기본값) — 저번 달 전체 집계.
+  const naverAdsMonthlyReportSpec = process.env.NAVER_ADS_MONTHLY_REPORT_CRON || "20 9 1 * *";
+  if (cron.validate(naverAdsMonthlyReportSpec)) {
+    cron.schedule(naverAdsMonthlyReportSpec, () => runNaverAdsMonthlyReportJobWrapper("매월 1일 9시20분 예약"));
+  }
+
   // 절전(Modern Standby) 중에는 위 cron 틱이 그냥 씹혀서 그날 발송이 통째로 누락될 수 있다.
   // 앱 시작 시점과 절전에서 깨어난 시점에 "오늘 13시 지났는데 아직 안 돌았으면" 보정한다.
   maybeCatchUpAutoMessage("앱 시작");
   powerMonitor.on("resume", () => maybeCatchUpAutoMessage("절전 복귀"));
   maybeCatchUpNaverAdsReport("앱 시작");
   powerMonitor.on("resume", () => maybeCatchUpNaverAdsReport("절전 복귀"));
+  maybeCatchUpNaverAdsMonthlyReport("앱 시작");
+  powerMonitor.on("resume", () => maybeCatchUpNaverAdsMonthlyReport("절전 복귀"));
 
   // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
   // 매번 브라우저를 새로 설치하는 클라우드 예약작업과 달리, 상주 중인 이 앱에서만 돈다
