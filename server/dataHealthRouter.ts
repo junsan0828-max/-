@@ -135,6 +135,33 @@ export const dataHealthRouter = t.router({
       ORDER BY m.name, m.id
       LIMIT 50
     `);
+    // ③-2 같은 회원·같은 날짜에 수업일지가 두 건 이상.
+    //     수업을 몰아서 입력하는 트레이너가 이미 넣은 날을 다시 넣으면 생긴다
+    //     (김현석 트레이너 3건: 당일 입력 후 며칠 뒤 몰아넣기 때 같은 날짜 재입력).
+    //     정산은 회원·날짜로 묶어 한 번만 세지만 usedSessions는 로그 수만큼 올라가,
+    //     하지 않은 수업이 차감되고 회원 잔여가 실제보다 줄어든다.
+    const dupSessionDate = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName", '(없음)') AS "트레이너",
+             sl."sessionDate" AS "수업일", COUNT(*) AS "중복건수",
+             string_agg(sl.id::text || '(' || substring(sl."createdAt", 1, 16) || ' 입력)',
+                        ' / ' ORDER BY sl."createdAt") AS "입력내역"
+      FROM pt_session_logs sl
+      JOIN members m ON m.id = sl."memberId"
+      LEFT JOIN trainers t ON t.id = sl."trainerId"
+      WHERE (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+      GROUP BY m.name, t."trainerName", sl."memberId", sl."sessionDate"
+      HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC, m.name
+      LIMIT 50
+    `);
+    groups.push({
+      key: "duplicate_session_date",
+      title: "같은 날짜에 수업일지가 두 건",
+      severity: "critical",
+      description: "하루에 두 번 수업한 게 아니라면 같은 수업을 두 번 입력한 것입니다. 하지 않은 수업이 차감돼 회원 잔여가 실제보다 줄어듭니다. 수업을 몰아서 입력할 때 자주 생깁니다.",
+      rows: dupSessionDate.rows,
+    });
+
     // ④-1 양도가 완료됐는데 양도인 패키지가 아직 살아 있음.
     //     양도는 "권리가 넘어가는" 것이라 양도인 쪽은 닫혀야 한다. 안 닫히면 같은 횟수가
     //     두 사람에게 동시에 살아 있어 이중 사용이 가능해진다.
