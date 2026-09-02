@@ -215,6 +215,25 @@ async function runJournalJob(reason: string) {
   }
 }
 
+// 월간 리포와 같은 절전 누락 위험(매일 22시는 저녁 시간대라 특히 잠들어 있을 가능성 높음).
+// 트레이 "지금 작성" 버튼은 별도라 이 가드의 영향을 받지 않는다.
+let journalJobRanDate: string | null = null;
+function runJournalJobAutoWrapper(reason: string) {
+  const today = todayStr();
+  if (journalJobRanDate === today) return;
+  journalJobRanDate = today;
+  runJournalJob(reason);
+}
+
+let journalJobCaughtUpDate: string | null = null;
+function maybeCatchUpJournalJob(reason: string) {
+  const { hour } = kstDateParts(new Date());
+  const today = todayStr();
+  if (hour < 22 || journalJobCaughtUpDate === today) return;
+  journalJobCaughtUpDate = today;
+  runJournalJobAutoWrapper(`보정 실행 — ${reason}`);
+}
+
 async function runIfkJobWrapper(reason: string) {
   send("log", `피트니스경영신문 기사 등록대기를 시작했어요 (${reason})`);
   try {
@@ -506,7 +525,7 @@ if (!app.requestSingleInstanceLock()) {
   // 사업 일지: 매일 밤 22:00 (기본값), 그날 하루 마감 정리
   const journalSpec = process.env.JOURNAL_CRON || "0 22 * * *";
   if (cron.validate(journalSpec)) {
-    cron.schedule(journalSpec, () => runJournalJob("매일 22시 예약"));
+    cron.schedule(journalSpec, () => runJournalJobAutoWrapper("매일 22시 예약"));
   }
 
   // 피트니스경영신문(IFK) 기사 등록대기: 매시 정각 (기본값) — 마감 시각에 기사가 안 써져 있어도
@@ -553,6 +572,8 @@ if (!app.requestSingleInstanceLock()) {
   powerMonitor.on("resume", () => maybeCatchUpNaverAdsMonthlyReport("절전 복귀"));
   maybeCatchUpRepoJob("앱 시작");
   powerMonitor.on("resume", () => maybeCatchUpRepoJob("절전 복귀"));
+  maybeCatchUpJournalJob("앱 시작");
+  powerMonitor.on("resume", () => maybeCatchUpJournalJob("절전 복귀"));
 
   // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
   // 매번 브라우저를 새로 설치하는 클라우드 예약작업과 달리, 상주 중인 이 앱에서만 돈다
