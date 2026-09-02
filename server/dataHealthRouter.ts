@@ -236,6 +236,47 @@ export const dataHealthRouter = t.router({
       rows: orphanPackage.rows,
     });
 
+    // ④-3c 패키지 총횟수가 매출로 산 횟수보다 많음.
+    //      "잔여 = 산 횟수 − 진행한 횟수"가 성립해야 하는데, 매출 근거 없는 패키지가
+    //      끼면 잔여가 그만큼 부풀려진다. 정수연 사례에서 매출 없는 10회권이 잡혔고,
+    //      거기 붙은 수업 4건은 실제 진행분이라 매출 자체가 누락된 상태였다.
+    //      서비스 세션은 무상이라 매출이 없는 게 정상이므로 제외한다.
+    const sessionMismatch = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName", '(없음)') AS "트레이너",
+             rev."산횟수", pkg."패키지총횟수",
+             (pkg."패키지총횟수" - rev."산횟수") AS "근거없는횟수",
+             logs."진행횟수"
+      FROM members m
+      LEFT JOIN trainers t ON t.id = m."trainerId"
+      JOIN LATERAL (
+        -- '이전'(기존 회원 이관분)도 정당한 구매다. 빼면 이관 회원이 전부 오탐으로 잡힌다.
+        SELECT COALESCE(SUM(r.sessions), 0)::int AS "산횟수"
+        FROM revenue_entries r
+        WHERE r."memberId" = m.id AND r.type = 'PT'
+      ) rev ON true
+      JOIN LATERAL (
+        SELECT COALESCE(SUM(p."totalSessions"), 0)::int AS "패키지총횟수"
+        FROM pt_packages p
+        WHERE p."memberId" = m.id AND COALESCE(p."serviceSessions", 0) = 0
+          AND p.status <> 'refunded'
+      ) pkg ON true
+      JOIN LATERAL (
+        SELECT COUNT(*)::int AS "진행횟수"
+        FROM pt_session_logs sl
+        WHERE sl."memberId" = m.id AND (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+      ) logs ON true
+      WHERE pkg."패키지총횟수" > rev."산횟수"
+      ORDER BY (pkg."패키지총횟수" - rev."산횟수") DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "package_exceeds_revenue",
+      title: "패키지 횟수가 산 횟수보다 많음",
+      severity: "critical",
+      description: "매출 근거가 없는 횟수가 패키지에 들어가 있습니다. 잔여가 그만큼 부풀려집니다. 수업까지 진행됐다면 매출 자체가 누락된 것입니다.",
+      rows: sessionMismatch.rows,
+    });
+
     // ④-4 재등록했는데 이전 패키지가 잔여를 남긴 채 살아 있음.
     //     이전 권을 다 쓰고 재등록하는 게 정상 흐름인데, 이전 권이 안 닫히면
     //     잔여가 부풀려져 재등록 상담 시점을 놓친다(박인애·이인정·김승빈 사례).
