@@ -2802,6 +2802,20 @@ const gymPlusRouter = t.router({
           input.contractDate ?? new Date().toLocaleDateString("ko-KR"),
         ]
       );
+
+      // 통합운영시스템 상담 CRM에 카드 자동 생성 (fire-and-forget)
+      fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: input.name,
+          phone: input.phone,
+          purpose: `[짐+ 온라인등록] ${input.membershipPeriod} / ${input.amount.toLocaleString()}원 계좌이체 대기`,
+          privacyAgreed: true,
+          marketingAgreed: Boolean(input.agreedMarketing),
+        }),
+      }).catch(() => {});
+
       return { success: true };
     }),
 
@@ -5056,7 +5070,7 @@ ${dataContext}
     if (!member?.programName) return { programName: null, programStartDate: null, weightLogs: [], rewards: [] };
 
     const logsRes = await pool.query(
-      `SELECT id, weight::float, note, "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" DESC LIMIT 20`,
+      `SELECT id, weight::float AS weight, note, "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" DESC LIMIT 100`,
       [memberId]
     );
     const rewardsRes = await pool.query(
@@ -5084,14 +5098,19 @@ ${dataContext}
       );
 
       const memberRes = await pool.query(
-        `SELECT "programName", "programStartDate", "membershipEnd" FROM gym_plus_members WHERE id = $1`,
+        `SELECT "programName", "programStartDate", "membershipEnd", "memberId" FROM gym_plus_members WHERE id = $1`,
         [memberId]
       );
       const member = memberRes.rows[0];
       if (!member?.programName || !member?.programStartDate) return { rewarded: false };
 
-      // 이번 달 YYYY-MM 키
-      const periodKey = now.toISOString().slice(0, 7);
+      // 기간 키는 KST(UTC+9) 기준 YYYY-MM — 서버 타임존과 무관하게 동일하게 계산한다
+      const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const year = kst.getUTCFullYear();
+      const month = kst.getUTCMonth(); // 0-11
+      const ym = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, "0")}`;
+      const periodKey = ym(year, month);
+      const prevPeriodKey = month === 0 ? ym(year - 1, 11) : ym(year, month - 1);
 
       // 이미 이번 달 보상 지급됐는지 확인
       const existingReward = await pool.query(
@@ -5100,20 +5119,15 @@ ${dataContext}
       );
       if (existingReward.rows.length > 0) return { rewarded: false };
 
-      // 지난달 YYYY-MM
-      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const prevPeriodKey = prevMonth.toISOString().slice(0, 7);
-
       // 지난달 최신 체중 조회
       const prevLogRes = await pool.query(
-        `SELECT weight::float FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2 AND "loggedAt" < $3 ORDER BY "loggedAt" DESC LIMIT 1`,
+        `SELECT weight::float AS weight FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2 AND "loggedAt" < $3 ORDER BY "loggedAt" DESC LIMIT 1`,
         [memberId, prevPeriodKey + "-01", periodKey + "-01"]
       );
       if (!prevLogRes.rows[0]) return { rewarded: false };
 
       const prevWeight = parseFloat(prevLogRes.rows[0].weight);
-      const diff = prevWeight - input.weight;
-      if (diff < 1.0) return { rewarded: false };
+      if (prevWeight - input.weight < 1.0) return { rewarded: false };
 
       // 1kg 이상 감량 → 보상 지급
       await pool.query(
@@ -5121,15 +5135,35 @@ ${dataContext}
         [memberId, member.programName, periodKey]
       );
 
-      const currentEnd = new Date(member.membershipEnd);
-      if (isNaN(currentEnd.getTime())) currentEnd.setTime(now.getTime());
-      currentEnd.setMonth(currentEnd.getMonth() + 1);
+      // 회원권 만료일의 원본은 통합관리 members 테이블이다(memberMe 참고).
+      // 연결된 회원이 있으면 그 값을 기준으로 연장하고 양쪽 모두 갱신해야 앱에 반영된다.
+      let baseEndStr: string | null = member.membershipEnd ?? null;
+      if (member.memberId) {
+        const mainRes = await pool.query(
+          `SELECT "membershipEnd" FROM members WHERE id = $1`, [member.memberId]
+        );
+        baseEndStr = mainRes.rows[0]?.membershipEnd ?? baseEndStr;
+      }
+
+      const baseEnd = baseEndStr ? new Date(baseEndStr) : null;
+      // 이미 만료된 회원권은 오늘 기준으로 연장한다
+      const start = baseEnd && !isNaN(baseEnd.getTime()) && baseEnd.getTime() > now.getTime() ? baseEnd : now;
+      const newEnd = new Date(start.getTime());
+      newEnd.setMonth(newEnd.getMonth() + 1);
+      const newEndStr = newEnd.toISOString().split("T")[0];
+
       await pool.query(
         `UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`,
-        [currentEnd.toISOString().split('T')[0], memberId]
+        [newEndStr, memberId]
       );
+      if (member.memberId) {
+        await pool.query(
+          `UPDATE members SET "membershipEnd" = $1 WHERE id = $2`,
+          [newEndStr, member.memberId]
+        );
+      }
 
-      return { rewarded: true, extensionUntil: currentEnd.toISOString().split('T')[0] };
+      return { rewarded: true, extensionUntil: newEndStr };
     }),
 
   // ─── 미션 시스템 (관리자) ──────────────────────────────────────────────────────
@@ -5150,9 +5184,9 @@ ${dataContext}
   admin_listMissionProgress: adminOnlyGymPlus.query(async () => {
     const res = await pool.query(
       `SELECT m.id, m.name, m.phone, m."programName", m."programStartDate", m."membershipEnd",
-              (SELECT weight::float FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS latestWeight,
-              (SELECT "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS latestLogDate,
-              (SELECT COUNT(*) FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = m.id AND "programName" = m."programName") AS rewardCount
+              (SELECT weight::float FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS "latestWeight",
+              (SELECT "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS "latestLogDate",
+              (SELECT COUNT(*)::int FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = m.id AND "programName" = m."programName") AS "rewardCount"
        FROM gym_plus_members m
        WHERE m."programName" IS NOT NULL AND m."programName" != ''
        ORDER BY m."programStartDate" DESC`

@@ -1216,7 +1216,7 @@ function GymPlusMissionsAdmin() {
             <div className="flex gap-3 text-xs text-muted-foreground pt-1">
               <span>시작: {m.programStartDate?.slice(0, 10) ?? "-"}</span>
               <span>최근 체중: {m.latestWeight ? m.latestWeight.toFixed(1) + " kg" : "미기록"}</span>
-              <span className="text-green-600">보상 {m.rewardcount ?? m.rewardCount ?? 0}회</span>
+              <span className="text-green-600">보상 {m.rewardCount ?? 0}회</span>
             </div>
           </div>
         ))}
