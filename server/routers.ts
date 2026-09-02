@@ -6902,7 +6902,7 @@ const landingRouter = t.router({
       const [todayRes, naverRes, analysisRes, dailyRes] = await Promise.all([
         pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'page_view' AND ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
         pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'naver_click' AND ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
-        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'body_analysis_complete' AND ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
+        pool.query(`SELECT COUNT(*) as cnt FROM body_analysis_reservations WHERE ("createdAt"::timestamp + interval '9 hours')::date = (NOW() + interval '9 hours')::date`),
         pool.query(`
           SELECT ("createdAt"::timestamp + interval '9 hours')::date as date,
             COUNT(CASE WHEN event='page_view' THEN 1 END) as views,
