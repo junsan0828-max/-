@@ -2164,7 +2164,7 @@ export const WS_CATALOG: WsCatDef[] = [
         description: "전체 회원, 활성 회원, 만료 임박·만료·정지 회원을 한눈에 확인하세요. 성별 비율, 연령대 그래프로 회원 구성을 분석할 수 있습니다.",
         tags: ["활성 회원", "만료 임박", "성별 비율", "연령대"],
         useCases: ["월말 회원 현황 파악", "만료 예정 회원 관리", "회원 구성 분석"] },
-      { id: "activity_stats", icon: BarChart3, name: "활동 통계", shortDesc: "월별·누적 활동 데이터 분석", status: "coming_soon",
+      { id: "activity_stats", icon: BarChart3, name: "활동 통계", shortDesc: "월별·누적 활동 데이터 분석", status: "active",
         description: "월별 회원 활동량과 누적 데이터를 분석하세요. 출석률, 운동 빈도, 회원 참여도를 수치로 확인하고 운영에 반영할 수 있습니다.",
         tags: ["월별 분석", "누적 분석", "활동 데이터"],
         useCases: ["회원 활동 패턴 파악", "출석률 개선 전략", "운영 성과 측정"] },
@@ -2177,11 +2177,11 @@ export const WS_CATALOG: WsCatDef[] = [
   {
     key: "analytics", label: "센터 운영 분석", icon: TrendingUp, iconCls: "text-emerald-500", bgCls: "bg-emerald-500/10",
     items: [
-      { id: "kpi_report", icon: Target, name: "운영 KPI 리포트", shortDesc: "센터 성장 및 운영 성과 분석", status: "coming_soon",
+      { id: "kpi_report", icon: Target, name: "운영 KPI 리포트", shortDesc: "센터 성장 및 운영 성과 분석", status: "active",
         description: "센터의 핵심 운영 지표를 한눈에 확인하세요. 회원 수 추이, 수익 성장률, 목표 달성도를 KPI로 관리할 수 있습니다.",
         tags: ["KPI 분석", "운영 성과", "성장 데이터"],
         useCases: ["월간 운영 성과 점검", "연간 목표 달성도 확인", "성장 지표 모니터링"] },
-      { id: "consult_conversion", icon: ArrowUpRight, name: "상담 등록 전환율", shortDesc: "상담 → 등록 전환 성과 분석", status: "coming_soon",
+      { id: "consult_conversion", icon: ArrowUpRight, name: "상담 등록 전환율", shortDesc: "상담 → 등록 전환 성과 분석", status: "active",
         description: "상담한 회원 중 실제로 등록한 비율을 분석하세요. 전환율 개선 포인트를 찾고 상담 성과를 높일 수 있습니다.",
         tags: ["전환율", "상담 성과", "등록 분석"],
         useCases: ["상담 전략 개선", "전환율 목표 설정", "월별 성과 비교"] },
@@ -2193,11 +2193,11 @@ export const WS_CATALOG: WsCatDef[] = [
         description: "매출 트렌드와 월별 매출 비교 그래프를 확인하세요. 성수기·비수기 패턴을 파악해 운영 전략을 수립할 수 있습니다.",
         tags: ["매출 추이", "월별 비교", "그래프"],
         useCases: ["매출 트렌드 분석", "성수기 전략 수립", "연간 목표 설정"] },
-      { id: "renewal_analysis", icon: TrendingUp, name: "신규·재등록 분석", shortDesc: "신규 회원 및 재등록 비율 분석", status: "coming_soon",
+      { id: "renewal_analysis", icon: TrendingUp, name: "신규·재등록 분석", shortDesc: "신규 회원 및 재등록 비율 분석", status: "active",
         description: "신규 등록과 재등록 회원 비율을 분석하세요. 재등록율은 센터 만족도와 직결되는 핵심 지표입니다.",
         tags: ["신규 회원", "재등록", "비율 분석"],
         useCases: ["재등록 캠페인 효과 측정", "이탈 방지 전략", "회원 만족도 간접 측정"] },
-      { id: "channel_analysis", icon: Share2, name: "유입 채널 분석", shortDesc: "채널별 유입 및 매출 분석", status: "coming_soon",
+      { id: "channel_analysis", icon: Share2, name: "유입 채널 분석", shortDesc: "채널별 유입 및 매출 분석", status: "active",
         description: "어떤 채널에서 회원이 유입되는지, 채널별 매출 기여도는 어떤지 분석하세요. 효율적인 마케팅 예산 배분이 가능합니다.",
         tags: ["채널별 유입", "채널별 매출", "마케팅 효율"],
         useCases: ["마케팅 예산 배분", "효율적 채널 집중", "채널별 ROI 분석"] },
@@ -2275,6 +2275,9 @@ const FORM_IDS = new Set([
   "brand_page","sales_book","fitstep_plus","fitstep_personal","fitstep_diet",
   "booking","report_branding","templates","survey","contract_terms",
   "e_contract","contract_kakao","refund_contract","transfer_contract",
+  // 센터 운영 분석 (실제 데이터 사용)
+  "member_overview","activity_stats","kpi_report","consult_conversion",
+  "monthly_pnl","sales_analysis","renewal_analysis","channel_analysis",
 ]);
 
 // ── 기능 하단 시트 ────────────────────────────────────────────────────────────
@@ -2309,6 +2312,14 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
       case "contract_kakao":    return <EContractManager />;
       case "refund_contract":   return <RefundContractManager />;
       case "transfer_contract": return <TransferContractManager />;
+      case "member_overview":     return <MemberOverviewPreview />;
+      case "activity_stats":      return <ActivityStatsPreview />;
+      case "kpi_report":          return <KpiReportPreview />;
+      case "consult_conversion":  return <ConsultConversionPreview />;
+      case "monthly_pnl":         return <MonthlyPnlPreview />;
+      case "sales_analysis":      return <SalesAnalysisPreview />;
+      case "renewal_analysis":    return <RenewalAnalysisPreview />;
+      case "channel_analysis":    return <ChannelAnalysisPreview />;
       default:                  return null;
     }
   }

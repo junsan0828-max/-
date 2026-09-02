@@ -128,6 +128,11 @@ export function SalesBookEditor() {
           </span>
         </div>
         <p className="text-[11px] text-muted-foreground break-all">{shareUrl || "저장 후 링크가 생성됩니다"}</p>
+        {Number(book?.viewCount) > 0 && (
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+            <Eye className="h-3 w-3" /> 열람 {book.viewCount}회 · 회원이 열면 푸시 알림이 갑니다
+          </p>
+        )}
         <div className="flex gap-1.5">
           <Button size="sm" variant="outline" className="flex-1 text-[12px]" onClick={copyLink} disabled={!shareUrl || !isPublic}>
             {copied ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />} 링크 복사

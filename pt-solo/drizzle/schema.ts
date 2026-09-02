@@ -338,6 +338,7 @@ export const trainerSalesBooks = pgTable("trainer_sales_books", {
   dataJson: text("dataJson").notNull(),
   isPublic: integer("isPublic").default(0).notNull(),
   viewCount: integer("viewCount").default(0).notNull(),
+  lastNotifiedAt: text("lastNotifiedAt"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

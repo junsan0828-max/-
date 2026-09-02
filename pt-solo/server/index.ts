@@ -836,16 +836,16 @@ async function initDatabase() {
     ["templates",           "active"],
     ["training_video",      "coming_soon"],
     ["contract_terms",      "active"],
-    ["member_overview",     "coming_soon"],
-    ["activity_stats",      "coming_soon"],
+    ["member_overview",     "active"],
+    ["activity_stats",      "active"],
     ["data_migration",      "coming_soon"],
-    ["kpi_report",          "coming_soon"],
-    ["consult_conversion",  "coming_soon"],
+    ["kpi_report",          "active"],
+    ["consult_conversion",  "active"],
     ["unpaid",              "coming_soon"],
-    ["monthly_pnl",         "coming_soon"],
-    ["sales_analysis",      "coming_soon"],
-    ["renewal_analysis",    "coming_soon"],
-    ["channel_analysis",    "coming_soon"],
+    ["monthly_pnl",         "active"],
+    ["sales_analysis",      "active"],
+    ["renewal_analysis",    "active"],
+    ["channel_analysis",    "active"],
     ["marketing_analysis",  "coming_soon"],
     ["ai_insights",         "coming_soon"],
     ["survey",              "active"],
@@ -1201,6 +1201,7 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text,
     "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  await pool.query(`ALTER TABLE trainer_sales_books ADD COLUMN IF NOT EXISTS "lastNotifiedAt" TEXT`);
 
   // 시퀀스랩 플랜/제한 설정 — 관리자가 추후 조정 (가격 하드코딩 금지)
   for (const [k, v] of [

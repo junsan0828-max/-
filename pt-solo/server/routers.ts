@@ -6085,14 +6085,36 @@ const salesBookRouter = t.router({
   // 공개 조회 (로그인 불필요)
   getPublic: t.procedure.input(z.object({ token: z.string() })).query(async ({ input }) => {
     const row = await pool.query<any>(
-      `SELECT b."dataJson", b."isPublic", t."trainerName", t."profileImage"
+      `SELECT b."trainerId", b."dataJson", b."isPublic", t."trainerName", t."profileImage"
        FROM trainer_sales_books b JOIN trainers t ON t.id=b."trainerId"
        WHERE b."shareToken"=$1`,
       [input.token]
     );
     const r = row.rows[0];
     if (!r || Number(r.isPublic) !== 1) throw new TRPCError({ code: "NOT_FOUND", message: "공개된 세일즈북이 없습니다." });
-    await pool.query(`UPDATE trainer_sales_books SET "viewCount"="viewCount"+1 WHERE "shareToken"=$1`, [input.token]);
+
+    const counted = await pool.query<any>(
+      `UPDATE trainer_sales_books SET "viewCount"="viewCount"+1 WHERE "shareToken"=$1 RETURNING "viewCount"`,
+      [input.token]
+    );
+
+    // 열람 알림 — 새로고침 스팸을 막기 위해 30분에 한 번만. 조건을 UPDATE에 넣어
+    // 동시 열람 시에도 한 번만 발송되도록 한다(경합 방지).
+    const claim = await pool.query(
+      `UPDATE trainer_sales_books SET "lastNotifiedAt"=now()::text
+       WHERE "shareToken"=$1
+         AND ("lastNotifiedAt" IS NULL OR "lastNotifiedAt"::timestamptz < now() - interval '30 minutes')
+       RETURNING id`,
+      [input.token]
+    );
+    if (claim.rowCount && claim.rowCount > 0) {
+      sendPushToTrainer(r.trainerId, {
+        title: "세일즈북을 열람했습니다",
+        body: `보낸 제안서를 방금 확인했습니다. (누적 ${counted.rows[0]?.viewCount ?? 1}회) 지금이 연락하기 좋은 타이밍입니다.`,
+        url: "/workshop",
+      }).catch(() => {});
+    }
+
     return { data: JSON.parse(r.dataJson), trainerName: r.trainerName, profileImage: r.profileImage };
   }),
 });
