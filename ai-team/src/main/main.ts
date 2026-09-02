@@ -178,6 +178,27 @@ async function runRepoJob(reason: string) {
   }
 }
 
+// 절전(Modern Standby) 중 09:00 정각 cron 틱이 씹히면 그 달의 월간 보고가 통째로 누락된다
+// (2026-09-01 실측: 코드는 정상인데 output/monthly-report/에 파일이 하나도 없어 한 번도 자동
+// 실행이 성공한 적이 없었음을 확인). 트레이 "지금 실행" 버튼(runRepoJob 직접 호출)은 언제든
+// 다시 돌 수 있어야 하므로 중복방지 가드는 이 자동 경로 전용 래퍼에만 건다.
+let repoJobRanMonth: string | null = null;
+function runRepoJobAutoWrapper(reason: string) {
+  const thisMonth = todayStr().slice(0, 7);
+  if (repoJobRanMonth === thisMonth) return;
+  repoJobRanMonth = thisMonth;
+  runRepoJob(reason);
+}
+
+let repoJobCaughtUpMonth: string | null = null;
+function maybeCatchUpRepoJob(reason: string) {
+  const { day, hour } = kstDateParts(new Date());
+  const thisMonth = todayStr().slice(0, 7);
+  if (day !== 1 || hour < 9 || repoJobCaughtUpMonth === thisMonth) return;
+  repoJobCaughtUpMonth = thisMonth;
+  runRepoJobAutoWrapper(`보정 실행 — ${reason}`);
+}
+
 // 사업 일지: 매일 밤, 그날 앱에서 진행된 일 + 데이터를 묶어 노션 "사업 일지"에 기록.
 async function runJournalJob(reason: string) {
   send("log", `제이가 오늘의 사업 일지를 정리하고 있어요 (${reason})`);
@@ -479,7 +500,7 @@ if (!app.requestSingleInstanceLock()) {
   // 리포 AI: 매월 1일 09:00 (기본값), 전월 지점별 전략 리포트
   const repoSpec = process.env.REPO_CRON || "0 9 1 * *";
   if (cron.validate(repoSpec)) {
-    cron.schedule(repoSpec, () => runRepoJob("매월 1일 예약"));
+    cron.schedule(repoSpec, () => runRepoJobAutoWrapper("매월 1일 예약"));
   }
 
   // 사업 일지: 매일 밤 22:00 (기본값), 그날 하루 마감 정리
@@ -530,6 +551,8 @@ if (!app.requestSingleInstanceLock()) {
   powerMonitor.on("resume", () => maybeCatchUpNaverAdsReport("절전 복귀"));
   maybeCatchUpNaverAdsMonthlyReport("앱 시작");
   powerMonitor.on("resume", () => maybeCatchUpNaverAdsMonthlyReport("절전 복귀"));
+  maybeCatchUpRepoJob("앱 시작");
+  powerMonitor.on("resume", () => maybeCatchUpRepoJob("절전 복귀"));
 
   // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
   // 매번 브라우저를 새로 설치하는 클라우드 예약작업과 달리, 상주 중인 이 앱에서만 돈다
