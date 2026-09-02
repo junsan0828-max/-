@@ -3,6 +3,7 @@ import { accessRouter } from "./accessRouter";
 import { transferRouter } from "./transferRouter";
 import { consultantRecordsRouter } from "./consultantRecordsRouter";
 import { consultantDataRouter } from "./consultantDataRouter";
+import { dataHealthRouter } from "./dataHealthRouter";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, or, desc, asc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
@@ -7150,6 +7151,7 @@ export const appRouter = t.router({
   consultantRecords: consultantRecordsRouter,
   consultantData: consultantDataRouter,
   bodyAnalysis: bodyAnalysisRouter,
+  dataHealth: dataHealthRouter,
 });
 
 export type AppRouter = typeof appRouter;

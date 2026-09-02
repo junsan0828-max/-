@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
   Dumbbell, UserCog, Activity, Target,
   DollarSign, Percent, X, Smartphone,
-  Coins, ArrowUpDown, Gift, CalendarPlus, Bookmark,
+  Coins, ArrowUpDown, Gift, CalendarPlus, Bookmark, ShieldAlert, ChevronDown,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, LabelList } from "recharts";
 
@@ -1881,6 +1881,107 @@ function AppTab() {
   );
 }
 
+// ── 데이터 점검 탭 ────────────────────────────────────────────────────────────
+// 2026-08~09 PT 데이터 사고 이후 추가. 그때는 완료 처리한 회원이 되살아나고, 매출 횟수
+// 오타가 단가를 10배 틀리게 만들고, 중복 회원 탓에 "PT가 사라졌다"고 오인하는 걸
+// 대표가 화면을 눈으로 훑다가 발견해야 했다. 사람이 매번 찾는 대신 매일 자동으로 올린다.
+const SEVERITY_STYLE = {
+  critical: { badge: "bg-red-500/15 text-red-400 border-red-500/30", label: "즉시 확인", dot: "bg-red-500" },
+  warning: { badge: "bg-amber-500/15 text-amber-400 border-amber-500/30", label: "확인 필요", dot: "bg-amber-500" },
+  action: { badge: "bg-blue-500/15 text-blue-400 border-blue-500/30", label: "영업 액션", dot: "bg-blue-500" },
+} as const;
+
+function DataHealthTab() {
+  const { data, isLoading, refetch, isFetching } = trpc.dataHealth.getAnomalies.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-8 text-center">점검 중…</div>;
+  if (!data) return <div className="text-sm text-muted-foreground py-8 text-center">데이터를 불러오지 못했습니다.</div>;
+
+  const problems = data.groups.filter(g => g.severity !== "action");
+  const problemCount = problems.reduce((s, g) => s + g.rows.length, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold">
+            {problemCount === 0
+              ? "이상 없음 — 데이터가 깨끗합니다"
+              : `확인이 필요한 항목 ${problemCount}건`}
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            점검 시각 {new Date(data.checkedAt).toLocaleString("ko-KR")}
+          </div>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-accent disabled:opacity-50"
+        >
+          {isFetching ? "점검 중…" : "다시 점검"}
+        </button>
+      </div>
+
+      {data.groups.map(g => {
+        const st = SEVERITY_STYLE[g.severity];
+        const isOpen = open[g.key] ?? g.rows.length > 0;
+        const cols = g.rows.length > 0 ? Object.keys(g.rows[0]) : [];
+        return (
+          <div key={g.key} className="rounded-xl border border-border bg-card overflow-hidden">
+            <button
+              onClick={() => setOpen(o => ({ ...o, [g.key]: !isOpen }))}
+              className="w-full flex items-center gap-2 p-3 text-left hover:bg-accent/50"
+            >
+              <span className={`h-2 w-2 rounded-full shrink-0 ${g.rows.length > 0 ? st.dot : "bg-emerald-500"}`} />
+              <span className="text-sm font-medium flex-1">{g.title}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${st.badge}`}>{st.label}</span>
+              <span className={`text-sm font-bold tabular-nums ${g.rows.length > 0 ? "" : "text-emerald-400"}`}>
+                {g.rows.length}
+              </span>
+              {isOpen ? <ChevronDown className="h-4 w-4 opacity-50" /> : <ChevronRight className="h-4 w-4 opacity-50" />}
+            </button>
+
+            {isOpen && (
+              <div className="border-t border-border">
+                <p className="px-3 py-2 text-[11px] text-muted-foreground bg-muted/30">{g.description}</p>
+                {g.rows.length === 0 ? (
+                  <p className="px-3 py-4 text-xs text-emerald-400 text-center">해당 없음</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border">
+                          {cols.map(c => (
+                            <th key={c} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {g.rows.map((r, i) => (
+                          <tr key={i} className="border-b border-border/50 last:border-0">
+                            {cols.map(c => (
+                              <td key={c} className="px-3 py-2 whitespace-nowrap">
+                                {typeof r[c] === "number" ? r[c]!.toLocaleString() : (r[c] ?? "–")}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── 탭 정의 ──────────────────────────────────────────────────────────────────
 const TABS = [
   { key: "finance", label: "재무", icon: TrendingUp, activeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
@@ -1888,6 +1989,7 @@ const TABS = [
   { key: "marketing", label: "마케팅", icon: Megaphone, activeClass: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
   { key: "operations", label: "센터 운영", icon: Building2, activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
   { key: "app", label: "앱 현황", icon: Smartphone, activeClass: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30" },
+  { key: "health", label: "데이터 점검", icon: ShieldAlert, activeClass: "bg-red-500/15 text-red-400 border-red-500/30" },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -1901,7 +2003,7 @@ export default function DataManagementPage() {
         <Database className="h-5 w-5 text-primary" />
         데이터 관리
       </h1>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {TABS.map(t => {
           const Icon = t.icon;
           const isActive = tab === t.key;
@@ -1923,6 +2025,7 @@ export default function DataManagementPage() {
       {tab === "marketing" && <MarketingTab />}
       {tab === "operations" && <OperationsTab />}
       {tab === "app" && <AppTab />}
+      {tab === "health" && <DataHealthTab />}
     </div>
   );
 }
