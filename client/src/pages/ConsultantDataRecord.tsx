@@ -39,8 +39,13 @@ function getWeekdayGrid(year: number, month: number): { weekKey: string; weekLab
 const TODAY = toDateStr(new Date());
 const DOW_LABELS = ["월", "화", "수", "목", "금"];
 
-const AD_CHANNELS = ["검색광고", "파워링크", "플레이스", "당근", "블로그"] as const;
+const AD_CHANNELS = ["파워링크", "플레이스", "당근", "블로그"] as const;
 const CHANNELS_WITH_INQUIRY = new Set(["플레이스", "당근", "블로그"]);
+const CHANNEL_BADGE: Record<string, { label: string; style: string }> = {
+  "파워링크": { label: "자동화 작업 중", style: "text-sky-400 bg-sky-400/10" },
+  "플레이스": { label: "자동화 작업 중", style: "text-emerald-400 bg-emerald-400/10" },
+  "블로그":   { label: "방문 데이터",    style: "text-green-400 bg-green-400/10" },
+};
 
 type AdValues = Record<string, { impressions: number; clicks: number; visits: number; inquiries: number; notes: string }>;
 
@@ -297,7 +302,6 @@ function AdEntryForm({ date }: { date: string }) {
   })();
 
   const CHANNEL_COLORS: Record<string, string> = {
-    "검색광고": "border-blue-500/40 bg-blue-500/5",
     "파워링크": "border-sky-500/40 bg-sky-500/5",
     "플레이스": "border-emerald-500/40 bg-emerald-500/5",
     "당근": "border-orange-500/40 bg-orange-500/5",
@@ -305,7 +309,6 @@ function AdEntryForm({ date }: { date: string }) {
   };
 
   const CHANNEL_TEXT: Record<string, string> = {
-    "검색광고": "text-blue-400",
     "파워링크": "text-sky-400",
     "플레이스": "text-emerald-400",
     "당근": "text-orange-400",
@@ -335,12 +338,18 @@ function AdEntryForm({ date }: { date: string }) {
         )}
       </div>
 
+      <div className="flex items-center gap-2 px-1 py-2 rounded-lg bg-amber-400/10 border border-amber-400/30">
+        <span className="text-amber-400 text-xs">📅</span>
+        <span className="text-xs text-amber-400 font-medium">매주 금요일 작성</span>
+      </div>
+
       <div className="space-y-2">
         {AD_CHANNELS.map(ch => {
           const isOpen = openChannel === ch;
           const v = values[ch] ?? { impressions: 0, clicks: 0, visits: 0, inquiries: 0, notes: "" };
           const hasData = v.impressions > 0 || v.clicks > 0 || v.visits > 0 || v.inquiries > 0 || (v.notes?.length ?? 0) > 0;
           const hasInquiry = CHANNELS_WITH_INQUIRY.has(ch);
+          const badge = CHANNEL_BADGE[ch];
 
           return (
             <div key={ch} className={`rounded-xl border overflow-hidden transition-colors ${isOpen ? CHANNEL_COLORS[ch] : "border-border bg-card"}`}>
@@ -350,6 +359,9 @@ function AdEntryForm({ date }: { date: string }) {
               >
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-semibold ${isOpen ? CHANNEL_TEXT[ch] : "text-foreground"}`}>{ch}</span>
+                  {badge && (
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${badge.style}`}>{badge.label}</span>
+                  )}
                   {hasData && !isOpen && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   )}
