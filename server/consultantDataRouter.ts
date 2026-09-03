@@ -88,6 +88,18 @@ async function ensureTables() {
   await pool.query(`ALTER TABLE consultant_data_fields ADD COLUMN IF NOT EXISTS description TEXT`);
   await pool.query(`ALTER TABLE consultant_data_fields ADD COLUMN IF NOT EXISTS assignee TEXT`);
   await pool.query(`ALTER TABLE center_inspection_entries ADD COLUMN IF NOT EXISTS "reviewStatus" TEXT NOT NULL DEFAULT '미점검'`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS center_headcount_logs (
+      id SERIAL PRIMARY KEY,
+      date TEXT NOT NULL,
+      time_slot TEXT NOT NULL,
+      count INTEGER DEFAULT 0,
+      "createdBy" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL,
+      CONSTRAINT hc_unique_date_slot_user UNIQUE (date, time_slot, "createdBy")
+    )
+  `);
 }
 
 export const consultantDataRouter = t.router({
@@ -582,6 +594,44 @@ export const consultantDataRouter = t.router({
         `UPDATE center_inspection_entries SET "reviewStatus" = $1 WHERE date = $2`,
         [input.status, input.date]
       );
+      return { ok: true };
+    }),
+
+  // ── 인원 현황: 특정 날짜 조회 ────────────────────────────────────────────
+  getHeadcount: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await ensureTables();
+      const res = await pool.query(
+        `SELECT time_slot, count FROM center_headcount_logs WHERE date = $1 AND "createdBy" = $2`,
+        [input.date, ctx.user.id]
+      );
+      const map: Record<string, number> = {};
+      for (const row of res.rows) map[row.time_slot] = Number(row.count);
+      return map;
+    }),
+
+  // ── 인원 현황: 저장 (배치 upsert) ────────────────────────────────────────
+  saveHeadcount: protectedProcedure
+    .input(z.object({
+      date: z.string(),
+      entries: z.array(z.object({
+        timeSlot: z.string(),
+        count: z.number().int().min(0),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await ensureTables();
+      const now = new Date().toISOString();
+      for (const e of input.entries) {
+        await pool.query(
+          `INSERT INTO center_headcount_logs (date, time_slot, count, "createdBy", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $5)
+           ON CONFLICT ON CONSTRAINT hc_unique_date_slot_user
+           DO UPDATE SET count = $3, "updatedAt" = $5`,
+          [input.date, e.timeSlot, e.count, ctx.user.id, now]
+        );
+      }
       return { ok: true };
     }),
 });

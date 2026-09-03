@@ -62,6 +62,14 @@ const INSPECTION_AREAS = ["유산소 기구", "3층 소도구존", "2층 웨이�
 const INSPECTION_STATUSES = ["미점검", "양호", "청소필요", "고장 조치 필요"] as const;
 const ACTION_STATUSES = ["미처리", "진행", "완료"] as const;
 
+const HEADCOUNT_SLOTS: { key: string; label: string }[] = [
+  { key: "10-12", label: "오전 10-12시" },
+  { key: "18",    label: "오후 6시" },
+  { key: "19",    label: "오후 7시" },
+  { key: "20",    label: "오후 8시" },
+  { key: "21",    label: "오후 9시" },
+];
+
 type InspectionValues = Record<string, {
   status: string;
   issueNote: string; assignee: string;
@@ -449,6 +457,37 @@ function InspectionForm({ date }: { date: string }) {
     onError: () => toast.error("업데이트 실패"),
   });
 
+  // ── 인원 현황 ──────────────────────────────────────────────────────────────
+  const { data: hcExisting } = trpc.consultantData.getHeadcount.useQuery({ date });
+  const emptyHc = (): Record<string, number> => {
+    const v: Record<string, number> = {};
+    for (const s of HEADCOUNT_SLOTS) v[s.key] = 0;
+    return v;
+  };
+  const [hcValues, setHcValues] = useState<Record<string, number>>(emptyHc);
+  const [hcDirty, setHcDirty] = useState(false);
+
+  useEffect(() => {
+    const v = emptyHc();
+    if (hcExisting) {
+      for (const [k, n] of Object.entries(hcExisting)) { if (k in v) v[k] = Number(n); }
+    }
+    setHcValues(v);
+    setHcDirty(false);
+  }, [hcExisting, date]);
+
+  const hcSaveMutation = trpc.consultantData.saveHeadcount.useMutation({
+    onSuccess: () => { toast.success("인원 현황 저장됨"); setHcDirty(false); utils.consultantData.invalidate(); },
+    onError: () => toast.error("저장 실패"),
+  });
+
+  function saveHc() {
+    hcSaveMutation.mutate({
+      date,
+      entries: HEADCOUNT_SLOTS.map(s => ({ timeSlot: s.key, count: hcValues[s.key] ?? 0 })),
+    });
+  }
+
   const emptyValues = (): InspectionValues => {
     const v: InspectionValues = {};
     for (const area of INSPECTION_AREAS) {
@@ -572,6 +611,49 @@ function InspectionForm({ date }: { date: string }) {
           >
             <Save className="h-3.5 w-3.5" />
             {saveMutation.isPending ? "저장 중..." : "저장"}
+          </button>
+        )}
+      </div>
+
+      {/* 인원 현황 */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-foreground">인원 현황</p>
+          {hcDirty && (
+            <button
+              onClick={saveHc}
+              disabled={hcSaveMutation.isPending}
+              className="flex items-center gap-1 bg-primary text-primary-foreground px-2.5 py-1 rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              <Save className="h-3 w-3" />{hcSaveMutation.isPending ? "저장 중..." : "저장"}
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {HEADCOUNT_SLOTS.map(s => (
+            <div key={s.key} className="flex flex-col items-center gap-1">
+              <span className="text-[10px] text-muted-foreground text-center leading-tight">{s.label}</span>
+              <input
+                type="number"
+                min={0}
+                value={hcValues[s.key] ?? 0}
+                onChange={e => {
+                  setHcValues(prev => ({ ...prev, [s.key]: Math.max(0, parseInt(e.target.value) || 0) }));
+                  setHcDirty(true);
+                }}
+                className="w-full text-center text-sm font-semibold bg-background border border-border rounded-lg px-1 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          ))}
+        </div>
+        {hcDirty && (
+          <button
+            onClick={saveHc}
+            disabled={hcSaveMutation.isPending}
+            className="w-full py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Save className="h-3.5 w-3.5 inline mr-1" />
+            {hcSaveMutation.isPending ? "저장 중..." : "인원 현황 저장"}
           </button>
         )}
       </div>
