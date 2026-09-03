@@ -789,10 +789,11 @@ export function GymPlusEventsAdmin() {
   function resetForm() {
     setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", pointAmount: "0", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
     setScheduleData(defaultSchedule());
-    setSendPush(false);
+    setSendPush(true); // 신규 등록은 앱푸시 기본 발송
   }
 
   function openEdit(e: any) {
+    setSendPush(false); // 기존 글 수정 시 푸시 재발송은 기본 해제
     setForm({ title: e.title, content: e.eventType === "schedule" ? "" : e.content, imageUrl: e.imageUrl ?? "", linkUrl: e.linkUrl ?? "", eventType: e.eventType, pointAmount: String(e.pointAmount ?? 0), startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
     if (e.eventType === "schedule") {
       try { setScheduleData(JSON.parse(e.content)); } catch { setScheduleData(defaultSchedule()); }
@@ -1123,8 +1124,110 @@ export function GymPlusWorkoutLogsAdmin() {
   );
 }
 
+// ─── 미션 프로그램 관리 ───────────────────────────────────────────────────────
+const PROGRAMS = ["12주 다이어트페이백"] as const;
+
+function GymPlusMissionsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: progress, isLoading } = trpc.gymPlus.admin_listMissionProgress.useQuery();
+  const { data: members } = trpc.gymPlus.admin_listMembers.useQuery();
+  const setProgram = trpc.gymPlus.admin_setMemberProgram.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listMissionProgress.invalidate(); utils.gymPlus.admin_listMembers.invalidate(); },
+  });
+
+  const [assignMemberId, setAssignMemberId] = useState<string>("");
+  const [assignProgram, setAssignProgram] = useState<string>(PROGRAMS[0]);
+  const [assignStartDate, setAssignStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [assigning, setAssigning] = useState(false);
+
+  const handleAssign = () => {
+    if (!assignMemberId) return;
+    setAssigning(true);
+    setProgram.mutate(
+      { memberId: parseInt(assignMemberId), programName: assignProgram, programStartDate: assignStartDate },
+      { onSettled: () => setAssigning(false) }
+    );
+  };
+
+  const handleRemove = (memberId: number) => {
+    if (!confirm("프로그램 참여를 해제하시겠습니까?")) return;
+    setProgram.mutate({ memberId, programName: null, programStartDate: null });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 프로그램 배정 */}
+      <div className="bg-white border border-border rounded-lg p-4 space-y-3">
+        <p className="text-sm font-semibold">회원 프로그램 배정</p>
+        <div className="space-y-2">
+          <select
+            value={assignMemberId}
+            onChange={(e) => setAssignMemberId(e.target.value)}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background"
+          >
+            <option value="">회원 선택</option>
+            {(members ?? []).map((m: any) => (
+              <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>
+            ))}
+          </select>
+          <select
+            value={assignProgram}
+            onChange={(e) => setAssignProgram(e.target.value)}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background"
+          >
+            {PROGRAMS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground shrink-0">시작일</label>
+            <input
+              type="date"
+              value={assignStartDate}
+              onChange={(e) => setAssignStartDate(e.target.value)}
+              className="flex-1 border border-border rounded-md px-3 py-2 text-sm bg-background"
+            />
+          </div>
+          <Button size="sm" className="w-full" onClick={handleAssign} disabled={!assignMemberId || assigning}>
+            {assigning ? "배정 중..." : "프로그램 배정"}
+          </Button>
+        </div>
+      </div>
+
+      {/* 참여자 현황 */}
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-muted-foreground">프로그램 참여자 ({progress?.length ?? 0}명)</p>
+        {isLoading && <p className="text-xs text-muted-foreground text-center py-4">로딩 중...</p>}
+        {!isLoading && (progress?.length ?? 0) === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-4">참여자가 없습니다</p>
+        )}
+        {(progress ?? []).map((m: any) => (
+          <div key={m.id} className="bg-white border border-border rounded-lg p-3 space-y-1">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-semibold">{m.name}</p>
+                <p className="text-xs text-muted-foreground">{m.phone}</p>
+                <p className="text-xs text-blue-600 mt-0.5">{m.programName}</p>
+              </div>
+              <button
+                onClick={() => handleRemove(m.id)}
+                className="text-xs text-red-400 hover:text-red-600 transition-colors"
+              >
+                해제
+              </button>
+            </div>
+            <div className="flex gap-3 text-xs text-muted-foreground pt-1">
+              <span>시작: {m.programStartDate?.slice(0, 10) ?? "-"}</span>
+              <span>최근 체중: {m.latestWeight ? m.latestWeight.toFixed(1) + " kg" : "미기록"}</span>
+              <span className="text-green-600">보상 {m.rewardCount ?? 0}회</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── 메인 어드민 짐+ 섹션 ─────────────────────────────────────────────────────
-type GymPlusTab = "members" | "videos" | "events" | "logs" | "registrations";
+type GymPlusTab = "members" | "videos" | "events" | "logs" | "registrations" | "missions";
 
 export default function GymPlusAdminSection() {
   const [activeTab, setActiveTab] = useState<GymPlusTab>("members");
@@ -1135,6 +1238,7 @@ export default function GymPlusAdminSection() {
     { key: "events", label: "이벤트/공지" },
     { key: "logs", label: "운동기록" },
     { key: "registrations", label: "등록신청" },
+    { key: "missions", label: "미션프로그램" },
   ];
 
   return (
@@ -1158,6 +1262,7 @@ export default function GymPlusAdminSection() {
       {activeTab === "events" && <GymPlusEventsAdmin />}
       {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
       {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
+      {activeTab === "missions" && <GymPlusMissionsAdmin />}
     </div>
   );
 }

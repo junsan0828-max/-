@@ -64,6 +64,7 @@ import GymPlusWorkout from "./pages/gym-plus/GymPlusWorkout";
 import GymPlusMembership from "./pages/gym-plus/GymPlusMembership";
 import GymPlusProfile from "./pages/gym-plus/GymPlusProfile";
 import GymPlusDiet from "./pages/gym-plus/GymPlusDiet";
+import GymPlusMissions from "./pages/gym-plus/GymPlusMissions";
 import GymPlusAdminPage from "./pages/GymPlusAdminPage";
 
 // ZIANTGYM+ 회원앱 (통합관리 시스템과 완전 분리)
@@ -100,6 +101,7 @@ function GymPlusApp() {
           <Route path="/gym-plus/membership">{() => <GymPlusMembership />}</Route>
           <Route path="/gym-plus/diet">{() => <GymPlusDiet />}</Route>
           <Route path="/gym-plus/profile">{() => <GymPlusProfile />}</Route>
+          <Route path="/gym-plus/missions">{() => <GymPlusMissions />}</Route>
           <Route>{() => <Redirect to="/gym-plus" />}</Route>
         </Switch>
       </ErrorBoundary>

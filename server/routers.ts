@@ -2693,6 +2693,55 @@ async function gymPlusMemberContact(gymPlusMemberId: number) {
   }
 }
 
+// 비회원 온라인 등록 가격표 — 금액은 서버가 단독으로 결정한다.
+// client/src/pages/gym-plus/GymPlusLogin.tsx의 PERIOD_PRICES와 동일하게 유지할 것.
+const REGISTRATION_PRICES: Record<string, number> = {
+  "1개월": 80000,
+  "3개월": 159000,
+  "6개월": 216000,
+  "12개월": 312000,
+};
+
+// ─── 미션 회차 계산용 날짜 유틸 ────────────────────────────────────────────────
+// 회원권/프로그램 날짜는 모두 KST 달력 기준의 'YYYY-MM-DD' 문자열이다.
+// Date의 로컬 타임존이나 setMonth의 월말 넘침(1/31 +1개월 = 3/3)에 의존하지 않도록
+// 연·월·일 숫자만으로 계산한다.
+const MISSION_MAX_PERIOD = 3; // 12주 = 1~3회차 보상
+type Ymd = { y: number; m: number; d: number }; // m: 0-11
+
+function parseYmd(s: string | null | undefined): Ymd | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s ?? "");
+  if (!m) return null;
+  return { y: Number(m[1]), m: Number(m[2]) - 1, d: Number(m[3]) };
+}
+
+function fmtYmd({ y, m, d }: Ymd) {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+// 월 더하기 — 대상 월에 해당 일자가 없으면 말일로 맞춘다(1/31 +1개월 = 2/28).
+function addMonthsYmd({ y, m, d }: Ymd, add: number): Ymd {
+  const abs = m + add;
+  const ny = y + Math.floor(abs / 12);
+  const nm = ((abs % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+  return { y: ny, m: nm, d: Math.min(d, lastDay) };
+}
+
+// KST 자정을 UTC 시각으로 (KST = UTC+9)
+function ymdToUtc({ y, m, d }: Ymd) {
+  return Date.UTC(y, m, d) - 9 * 60 * 60 * 1000;
+}
+
+function addMonthsKst(anchor: Ymd, add: number) {
+  return new Date(ymdToUtc(addMonthsYmd(anchor, add)));
+}
+
+function kstYmd(at: Date): Ymd {
+  const k = new Date(at.getTime() + 9 * 60 * 60 * 1000);
+  return { y: k.getUTCFullYear(), m: k.getUTCMonth(), d: k.getUTCDate() };
+}
+
 const gymPlusProtected = t.procedure.use(({ ctx, next }) => {
   const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
   if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -2785,28 +2834,45 @@ const gymPlusRouter = t.router({
       name: z.string().min(1),
       phone: z.string().min(1),
       membershipPeriod: z.enum(["1개월", "3개월", "6개월", "12개월"]),
-      amount: z.number().int().positive(),
       signatureData: z.string().optional(),
       agreedMarketing: z.boolean().optional(),
       contractDate: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      // 공개 엔드포인트라 클라이언트가 보낸 금액을 신뢰하지 않는다.
+      // 위조된 금액이 데스크/CRM에 그대로 보이면 오입금·분쟁으로 이어진다.
+      const amount = REGISTRATION_PRICES[input.membershipPeriod];
+
       await pool.query(
         `INSERT INTO gym_plus_registration_requests
           (name, phone, "membershipPeriod", amount, status, "signatureData", "agreedMarketing", "contractDate", "createdAt", "updatedAt")
          VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, now()::text, now()::text)`,
         [
-          input.name, input.phone, input.membershipPeriod, input.amount,
+          input.name, input.phone, input.membershipPeriod, amount,
           input.signatureData ?? "",
           input.agreedMarketing ? 1 : 0,
           input.contractDate ?? new Date().toLocaleDateString("ko-KR"),
         ]
       );
+
+      // 통합운영시스템 상담 CRM에 카드 자동 생성 (fire-and-forget)
+      fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: input.name,
+          phone: input.phone,
+          purpose: `[짐+ 온라인등록] ${input.membershipPeriod} / ${amount.toLocaleString()}원 계좌이체 대기`,
+          privacyAgreed: true,
+          marketingAgreed: Boolean(input.agreedMarketing),
+        }),
+      }).catch(() => {});
+
       return { success: true };
     }),
 
   getRegistrationBankAccount: publicProcedure.query(() => {
-    return { bankAccount: "카카오뱅크 3333-05-2664409 (자이언트짐)" };
+    return { bankAccount: "카카오뱅크 3333-05-2664409 이준산" };
   }),
 
   memberMe: publicProcedure.query(async ({ ctx }) => {
@@ -2820,6 +2886,7 @@ const gymPlusRouter = t.router({
       membershipType: gymPlusMembers.membershipType,
       membershipStart: gymPlusMembers.membershipStart, membershipEnd: gymPlusMembers.membershipEnd,
       points: gymPlusMembers.points, memberId: gymPlusMembers.memberId,
+      programName: gymPlusMembers.programName,
     }).from(gymPlusMembers).where(eq(gymPlusMembers.id, gymMemberId)).limit(1);
     const me = result[0];
     if (!me) return null;
@@ -5043,6 +5110,150 @@ ${dataContext}
       );
       return { success: true };
     }),
+
+  // ─── 미션 시스템 (회원 앱) ────────────────────────────────────────────────────
+  getMissionStatus: gymPlusProtected.query(async ({ ctx }) => {
+    const memberId = ctx.gymPlusMemberId;
+    const memberRes = await pool.query(
+      `SELECT "programName", "programStartDate", "membershipEnd" FROM gym_plus_members WHERE id = $1`,
+      [memberId]
+    );
+    const member = memberRes.rows[0];
+    if (!member?.programName) return { programName: null, programStartDate: null, weightLogs: [], rewards: [] };
+
+    const logsRes = await pool.query(
+      `SELECT id, weight::float AS weight, note, "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" DESC LIMIT 100`,
+      [memberId]
+    );
+    const rewardsRes = await pool.query(
+      `SELECT id, "periodKey", "rewardMonths", "awardedAt" FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "programName" = $2 ORDER BY "periodKey" ASC`,
+      [memberId, member.programName]
+    );
+    return {
+      programName: member.programName as string,
+      programStartDate: member.programStartDate as string,
+      membershipEnd: member.membershipEnd as string,
+      weightLogs: logsRes.rows,
+      rewards: rewardsRes.rows,
+    };
+  }),
+
+  logWeight: gymPlusProtected
+    .input(z.object({ weight: z.number().min(20).max(300), note: z.string().max(100).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const memberId = ctx.gymPlusMemberId;
+      const now = new Date();
+
+      await pool.query(
+        `INSERT INTO gym_plus_weight_logs ("gymPlusMemberId", weight, note, "loggedAt") VALUES ($1, $2, $3, $4)`,
+        [memberId, input.weight, input.note || '', now.toISOString()]
+      );
+
+      const memberRes = await pool.query(
+        `SELECT "programName", "programStartDate", "membershipEnd", "memberId" FROM gym_plus_members WHERE id = $1`,
+        [memberId]
+      );
+      const member = memberRes.rows[0];
+      if (!member?.programName || !member?.programStartDate) return { rewarded: false };
+
+      // 회차는 달력월이 아니라 '프로그램 시작일 기준'으로 끊는다.
+      // 달력월로 끊으면 월중 등록자의 회차가 어긋나고, 타임존 경계에서
+      // 하루 차이 기록이 서로 다른 달로 분류돼 부당 보상이 발생할 수 있다.
+      const anchor = parseYmd(member.programStartDate);
+      if (!anchor) return { rewarded: false };
+
+      // 회차 i 구간 = [시작일 + i개월, 시작일 + (i+1)개월)
+      // 0회차는 기준 체중 측정 구간이라 보상이 없고, 1~3회차에서만 보상한다.
+      const boundary = (i: number) => addMonthsKst(anchor, i).getTime();
+      const t = now.getTime();
+      let period = -1;
+      for (let i = 0; i <= MISSION_MAX_PERIOD; i++) {
+        if (t >= boundary(i) && t < boundary(i + 1)) { period = i; break; }
+      }
+      // 기준 구간(0회차)이거나 프로그램 종료 후면 보상 없음
+      if (period < 1) return { rewarded: false };
+
+      const periodKey = `M${period}`;
+
+      // 직전 회차의 마지막 체중과 비교
+      const prevLogRes = await pool.query(
+        `SELECT weight::float AS weight FROM gym_plus_weight_logs
+         WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2 AND "loggedAt" < $3
+         ORDER BY "loggedAt" DESC LIMIT 1`,
+        [memberId, new Date(boundary(period - 1)).toISOString(), new Date(boundary(period)).toISOString()]
+      );
+      if (!prevLogRes.rows[0]) return { rewarded: false };
+
+      if (prevLogRes.rows[0].weight - input.weight < 1.0) return { rewarded: false };
+
+      // 1kg 이상 감량 → 보상 지급.
+      // 유니크 인덱스 + ON CONFLICT로 동시 요청 시 이중 지급을 막고,
+      // 실제로 삽입된 경우에만 회원권을 연장한다.
+      const inserted = await pool.query(
+        `INSERT INTO gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey", "rewardMonths")
+         VALUES ($1, $2, $3, 1)
+         ON CONFLICT ("gymPlusMemberId", "programName", "periodKey") DO NOTHING`,
+        [memberId, member.programName, periodKey]
+      );
+      if (inserted.rowCount === 0) return { rewarded: false };
+
+      // 회원권 만료일의 원본은 통합관리 members 테이블이다(memberMe 참고).
+      // 연결된 회원이 있으면 그 값을 기준으로 연장하고 양쪽 모두 갱신해야 앱에 반영된다.
+      let baseEndStr: string | null = member.membershipEnd ?? null;
+      if (member.memberId) {
+        const mainRes = await pool.query(
+          `SELECT "membershipEnd" FROM members WHERE id = $1`, [member.memberId]
+        );
+        baseEndStr = mainRes.rows[0]?.membershipEnd ?? baseEndStr;
+      }
+
+      // 이미 만료됐거나 값이 없으면 오늘 기준으로 연장한다.
+      const baseYmd = parseYmd(baseEndStr ?? "");
+      const todayYmd = kstYmd(now);
+      const from = baseYmd && ymdToUtc(baseYmd) > ymdToUtc(todayYmd) ? baseYmd : todayYmd;
+      const newEndStr = fmtYmd(addMonthsYmd(from, 1));
+
+      await pool.query(
+        `UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`,
+        [newEndStr, memberId]
+      );
+      if (member.memberId) {
+        await pool.query(
+          `UPDATE members SET "membershipEnd" = $1 WHERE id = $2`,
+          [newEndStr, member.memberId]
+        );
+      }
+
+      return { rewarded: true, period, extensionUntil: newEndStr };
+    }),
+
+  // ─── 미션 시스템 (관리자) ──────────────────────────────────────────────────────
+  admin_setMemberProgram: adminOnlyGymPlus
+    .input(z.object({
+      memberId: z.number().int(),
+      programName: z.string().nullable(),
+      programStartDate: z.string().nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `UPDATE gym_plus_members SET "programName" = $1, "programStartDate" = $2 WHERE id = $3`,
+        [input.programName, input.programStartDate, input.memberId]
+      );
+      return { success: true };
+    }),
+
+  admin_listMissionProgress: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT m.id, m.name, m.phone, m."programName", m."programStartDate", m."membershipEnd",
+              (SELECT weight::float FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS "latestWeight",
+              (SELECT "loggedAt" FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = m.id ORDER BY "loggedAt" DESC LIMIT 1) AS "latestLogDate",
+              (SELECT COUNT(*)::int FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = m.id AND "programName" = m."programName") AS "rewardCount"
+       FROM gym_plus_members m
+       WHERE m."programName" IS NOT NULL AND m."programName" != ''
+       ORDER BY m."programStartDate" DESC`
+    );
+    return res.rows;
+  }),
 
 });
 

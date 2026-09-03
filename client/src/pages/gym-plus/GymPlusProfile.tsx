@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import GymPlusHealthSurvey from "./GymPlusHealthSurvey";
 import { membershipTypeLabel } from "@/lib/membership";
+import { isPushOptedOut, setPushOptedOut } from "./GymPlusLayout";
 
 // 포인트 회원권 연장 단가 (서버의 POINTS_PER_EXTENSION_DAY와 동일해야 함)
 const POINTS_PER_EXTENSION_DAY = 1000;
@@ -274,12 +275,16 @@ function PushNotificationToggle() {
     navigator.serviceWorker.ready.then((reg) =>
       reg.pushManager.getSubscription().then((sub) => {
         if (Notification.permission === "denied") { setPushState("denied"); return; }
-        setPushState(sub ? "subscribed" : "unsubscribed");
+        // 구독이 남아 있어도 회원이 끄기를 눌렀다면 꺼진 상태로 표시한다
+        setPushState(sub && !isPushOptedOut() ? "subscribed" : "unsubscribed");
       })
     );
   }, []);
 
   const handleUnsubscribe = async () => {
+    // 브라우저 알림 권한은 허용된 채로 남으므로, 이 플래그가 없으면
+    // 다음 접속 때 레이아웃 훅이 자동으로 다시 구독해 끄기가 풀린다.
+    setPushOptedOut(true);
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
@@ -297,6 +302,7 @@ function PushNotificationToggle() {
     try {
       const perm = await Notification.requestPermission();
       if (perm !== "granted") { setPushState("denied"); return; }
+      setPushOptedOut(false);
       // reload the page so GymPlusLayout's hook re-registers
       window.location.reload();
     } catch (e) {
@@ -945,10 +951,10 @@ export default function GymPlusProfile() {
                 <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 space-y-2">
                   <div>
                     <p className="text-xs font-semibold">카카오뱅크 3333-05-2664409</p>
-                    <p className="text-xs text-muted-foreground">예금주: (자이언트짐)</p>
+                    <p className="text-xs text-muted-foreground">예금주: 이준산</p>
                   </div>
                   <button type="button"
-                    onClick={() => { navigator.clipboard.writeText("333305266409"); toast.success("계좌번호가 복사되었습니다"); }}
+                    onClick={() => { navigator.clipboard.writeText("3333052664409"); toast.success("계좌번호가 복사되었습니다"); }}
                     className="w-full py-2 rounded-lg bg-yellow-400/20 border border-yellow-400/30 text-yellow-500 text-xs font-semibold"
                   >
                     계좌번호 복사하기
@@ -1617,7 +1623,7 @@ export default function GymPlusProfile() {
                           <div className="flex-1">
                             <p className="text-sm font-semibold">계좌이체</p>
                             <p className="text-xs text-muted-foreground">카카오뱅크 3333-05-2664409</p>
-                            <p className="text-xs text-muted-foreground">예금주: (자이언트짐)</p>
+                            <p className="text-xs text-muted-foreground">예금주: 이준산</p>
                           </div>
                           {renewalForm.paymentMethod === "계좌이체" && <span className="text-primary text-sm font-bold">✓</span>}
                         </div>
@@ -1625,7 +1631,7 @@ export default function GymPlusProfile() {
 
                       {renewalForm.paymentMethod === "계좌이체" && (
                         <button type="button"
-                          onClick={() => { navigator.clipboard.writeText("333305266409"); toast.success("계좌번호가 복사되었습니다"); }}
+                          onClick={() => { navigator.clipboard.writeText("3333052664409"); toast.success("계좌번호가 복사되었습니다"); }}
                           className="w-full py-2 rounded-lg bg-yellow-400/20 border border-yellow-400/30 text-yellow-500 text-xs font-semibold"
                         >
                           계좌번호 복사하기
