@@ -31,6 +31,7 @@ import {
   pointTransactions,
   gymPlusMembershipRenewals,
   pointMembershipExtensions,
+  attendanceChecks,
 } from "../drizzle/schema";
 import type { ReportData } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
@@ -4457,6 +4458,8 @@ const appStatsRouter = t.router({
         recentActiveRes,
         totalWorkoutsRes,
         todayWorkoutsRes,
+        todayCheckinsRes,
+        totalCheckinsRes,
         totalPointsRes,
         earnedPointsRes,
         spentPointsRes,
@@ -4465,6 +4468,7 @@ const appStatsRouter = t.router({
         renewalRes,
         extensionRes,
         dailyActivityRes,
+        dailyCheckinsRes,
         pointTrendRes,
       ] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)::int` }).from(gymPlusMembers),
@@ -4478,6 +4482,14 @@ const appStatsRouter = t.router({
         db.select({ count: sql<number>`COUNT(DISTINCT "gymPlusMemberId")::int` })
           .from(gymPlusWorkoutLogs)
           .where(eq(gymPlusWorkoutLogs.logDate, todayKst)),
+        // 오늘 출석체크 인원
+        db.select({ count: sql<number>`COUNT(*)::int` })
+          .from(attendanceChecks)
+          .where(eq(attendanceChecks.checkDate, todayKst)),
+        // 기간 총 출석체크 횟수
+        db.select({ count: sql<number>`COUNT(*)::int` })
+          .from(attendanceChecks)
+          .where(and(gte(attendanceChecks.checkDate, periodStart), lte(attendanceChecks.checkDate, periodEnd))),
         db.select({ total: sql<number>`COALESCE(SUM(points),0)::int` }).from(gymPlusMembers).where(eq(gymPlusMembers.isActive, 1)),
         db.select({ total: sql<number>`COALESCE(SUM(amount),0)::int` })
           .from(pointTransactions)
@@ -4525,6 +4537,16 @@ const appStatsRouter = t.router({
               .groupBy(gymPlusWorkoutLogs.logDate)
               .orderBy(gymPlusWorkoutLogs.logDate)
           : Promise.resolve([]),
+        isMonthly
+          ? db.select({
+              day: attendanceChecks.checkDate,
+              checkins: sql<number>`COUNT(*)::int`,
+            })
+              .from(attendanceChecks)
+              .where(and(gte(attendanceChecks.checkDate, periodStart), lte(attendanceChecks.checkDate, periodEnd)))
+              .groupBy(attendanceChecks.checkDate)
+              .orderBy(attendanceChecks.checkDate)
+          : Promise.resolve([]),
         !isMonthly
           ? db.select({
               month: sql<string>`TO_CHAR(TO_DATE("createdAt", 'YYYY-MM-DD'), 'YYYY-MM')`,
@@ -4569,17 +4591,22 @@ const appStatsRouter = t.router({
       for (const row of dailyActivityRes as any[]) {
         dailyMap.set(row.day, { checkins: 0, workouts: Number(row.workouts) });
       }
+      for (const row of dailyCheckinsRes as any[]) {
+        const existing = dailyMap.get(row.day);
+        if (existing) existing.checkins = Number(row.checkins);
+        else dailyMap.set(row.day, { checkins: Number(row.checkins), workouts: 0 });
+      }
 
       return {
         totalMembers: totalMembersRes[0]?.count ?? 0,
         activeMembers: activeCount,
         recentActive: recentActiveCount,
         inactive30: Math.max(0, activeCount - recentActiveCount),
-        todayCheckins: 0,
+        todayCheckins: todayCheckinsRes[0]?.count ?? 0,
         todayWorkouts: todayWorkoutsRes[0]?.count ?? 0,
-        totalCheckins: 0,
+        totalCheckins: totalCheckinsRes[0]?.count ?? 0,
         totalWorkouts: totalWorkoutsRes[0]?.count ?? 0,
-        dailyActivity: Array.from(dailyMap.entries()).map(([day, v]) => ({ day, ...v })),
+        dailyActivity: Array.from(dailyMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([day, v]) => ({ day, ...v })),
         totalPoints: totalPointsRes[0]?.total ?? 0,
         earnedPoints: earnedPointsRes[0]?.total ?? 0,
         spentPoints: spentPointsRes[0]?.total ?? 0,
