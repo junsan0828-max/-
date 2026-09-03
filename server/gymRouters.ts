@@ -27,6 +27,7 @@ import {
   lockers,
   uniforms,
   gymPlusMembers,
+  gymPlusWorkoutLogs,
   pointTransactions,
   gymPlusMembershipRenewals,
   pointMembershipExtensions,
