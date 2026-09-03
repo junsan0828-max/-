@@ -363,7 +363,7 @@ export const dataHealthRouter = t.router({
       WHERE p1.status = 'active'
         AND COALESCE(p1."serviceSessions", 0) = 0
         AND p1."totalSessions" > p1."usedSessions"
-      GROUP BY 1, 2, p1.id, p1."packageName", p1."totalSessions",
+      GROUP BY 1, 2, m.id, p1.id, p1."packageName", p1."totalSessions",
                p1."usedSessions", p1."startDate"
       ORDER BY 1, 2
       LIMIT 100
