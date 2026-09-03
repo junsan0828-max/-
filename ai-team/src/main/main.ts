@@ -20,6 +20,7 @@ import { runIfkJob } from "./ifk";
 import { runBlogEventJob } from "./blogEvent";
 import { runAutoMessageJob, todayStr } from "./autoMessage";
 import { runNaverAdsReportJob, runNaverAdsMonthlyReportJob } from "./naverAdsReport";
+import { runAdDataSyncJob } from "./adDataSync";
 import { processPendingPointClaims } from "./pointClaims";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
@@ -232,6 +233,44 @@ function maybeCatchUpJournalJob(reason: string) {
   if (hour < 22 || journalJobCaughtUpDate === today) return;
   journalJobCaughtUpDate = today;
   runJournalJobAutoWrapper(`보정 실행 — ${reason}`);
+}
+
+// 컨설턴트 데이터 기록(파워링크·플레이스) 자동 입력: 매주 금요일 22시30분(기본값) — 대표 지시
+// (2026-09-03)로 그 외 요일·채널은 fcmanager가 계속 손으로 입력한다. 저녁에 도는 이유는 네이버
+// 검색광고 API 자체 통계 집계(compTm)가 늦은 밤에야 그날치가 거의 다 채워지기 때문 —
+// 아침에 돌리면 하루가 막 시작된 시점이라 대부분 0으로 찍힌다.
+async function runAdDataSyncJobWrapper(reason: string) {
+  send("log", `광고 채널 데이터(파워링크·플레이스) 자동 입력을 시작했어요 (${reason})`);
+  try {
+    const result = await runAdDataSyncJob();
+    if (!result.ok) {
+      send("log", `광고 채널 데이터 입력 실패: ${result.error}`);
+      return;
+    }
+    const line = (result.written ?? []).map((w) => `${w.channel} 노출${w.impressions}/클릭${w.clicks}`).join(", ");
+    send("log", `광고 채널 데이터 입력 완료 — ${line}`);
+  } catch (err: any) {
+    send("log", `광고 채널 데이터 입력 오류: ${err?.message ?? err}`);
+  }
+}
+
+let adDataSyncRanDate: string | null = null;
+function runAdDataSyncJobAutoWrapper(reason: string) {
+  const today = todayStr();
+  if (adDataSyncRanDate === today) return;
+  adDataSyncRanDate = today;
+  runAdDataSyncJobWrapper(reason);
+}
+
+let adDataSyncCaughtUpDate: string | null = null;
+function maybeCatchUpAdDataSync(reason: string) {
+  const { weekday, hour, minute } = kstDateParts(new Date());
+  const isFriday = weekday === "Fri";
+  const pastCutoff = hour > 22 || (hour === 22 && minute >= 30);
+  const today = todayStr();
+  if (!isFriday || !pastCutoff || adDataSyncCaughtUpDate === today) return;
+  adDataSyncCaughtUpDate = today;
+  runAdDataSyncJobAutoWrapper(`보정 실행 — ${reason}`);
 }
 
 async function runIfkJobWrapper(reason: string) {
@@ -562,6 +601,12 @@ if (!app.requestSingleInstanceLock()) {
     cron.schedule(naverAdsMonthlyReportSpec, () => runNaverAdsMonthlyReportJobWrapper("매월 1일 9시20분 예약"));
   }
 
+  // 컨설턴트 데이터 기록(파워링크·플레이스) 자동 입력: 매주 금요일 22시30분(기본값).
+  const adDataSyncSpec = process.env.AD_DATA_SYNC_CRON || "30 22 * * 5";
+  if (cron.validate(adDataSyncSpec)) {
+    cron.schedule(adDataSyncSpec, () => runAdDataSyncJobAutoWrapper("매주 금요일 22시30분 예약"));
+  }
+
   // 절전(Modern Standby) 중에는 위 cron 틱이 그냥 씹혀서 그날 발송이 통째로 누락될 수 있다.
   // 앱 시작 시점과 절전에서 깨어난 시점에 "오늘 13시 지났는데 아직 안 돌았으면" 보정한다.
   maybeCatchUpAutoMessage("앱 시작");
@@ -574,6 +619,8 @@ if (!app.requestSingleInstanceLock()) {
   powerMonitor.on("resume", () => maybeCatchUpRepoJob("절전 복귀"));
   maybeCatchUpJournalJob("앱 시작");
   powerMonitor.on("resume", () => maybeCatchUpJournalJob("절전 복귀"));
+  maybeCatchUpAdDataSync("앱 시작");
+  powerMonitor.on("resume", () => maybeCatchUpAdDataSync("절전 복귀"));
 
   // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
   // 매번 브라우저를 새로 설치하는 클라우드 예약작업과 달리, 상주 중인 이 앱에서만 돈다
