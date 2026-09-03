@@ -694,13 +694,13 @@ function MarketingTab() {
       </div>}
 
       {/* 광고 채널 성과 (데이터 기록) */}
-      {adSummary && adSummary.length > 0 && (
+      {adSummary && adSummary.filter((ad: any) => ad.channel !== "검색광고").length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
             <Target className="h-4 w-4 text-blue-400" /> 광고 채널 성과
           </h3>
           <div className="space-y-2">
-            {adSummary.map((ad: any) => {
+            {adSummary.filter((ad: any) => ad.channel !== "검색광고").map((ad: any) => {
               const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : "0";
               return (
                 <div key={ad.channel} className="bg-card border border-border rounded-xl p-3">
