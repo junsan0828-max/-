@@ -42,10 +42,17 @@ const DOW_LABELS = ["월", "화", "수", "목", "금"];
 const AD_CHANNELS = ["파워링크", "플레이스", "당근", "블로그"] as const;
 const CHANNELS_WITH_INQUIRY = new Set(["플레이스", "당근", "블로그"]);
 const CHANNEL_BADGE: Record<string, { label: string; style: string }> = {
-  "파워링크": { label: "자동화 작업 중", style: "text-sky-400 bg-sky-400/10" },
-  "플레이스": { label: "자동화 작업 중", style: "text-emerald-400 bg-emerald-400/10" },
-  "블로그":   { label: "방문 데이터",    style: "text-green-400 bg-green-400/10" },
+  "파워링크": { label: "자동화 작업 중", style: "text-violet-400 bg-violet-400/10" },
+  "플레이스": { label: "자동화 작업 중", style: "text-violet-400 bg-violet-400/10" },
+  "당근":     { label: "광고 시에만",    style: "text-orange-400 bg-orange-400/10" },
+  "블로그":   { label: "방문 데이터",    style: "text-amber-400 bg-amber-400/10" },
 };
+
+const CONTENT_PLATFORM_BADGE: Record<string, { label: string; style: string }> = {
+  "플레이스": { label: "금요일날 작업", style: "text-violet-400 bg-violet-400/10" },
+};
+
+const PLACE_CHECKS = ["업체정보 상세설명 수정", "업체 사진 추가", "예약상품 수정", "리뷰 댓글 작업"] as const;
 
 type AdValues = Record<string, { impressions: number; clicks: number; visits: number; inquiries: number; notes: string }>;
 
@@ -770,6 +777,7 @@ function ContentForm({ date }: { date: string }) {
           const isOpen = openPlatform === platform;
           const v = values[platform] ?? emptyValues()[platform];
           const hasData = existing?.some(e => e.platform === platform);
+          const platformBadge = CONTENT_PLATFORM_BADGE[platform];
 
           return (
             <div key={platform} className={`rounded-xl border overflow-hidden transition-colors ${isOpen ? PLATFORM_COLORS[platform] : "border-border bg-card"}`}>
@@ -779,6 +787,9 @@ function ContentForm({ date }: { date: string }) {
               >
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-semibold ${isOpen ? PLATFORM_TEXT[platform] : "text-foreground"}`}>{platform}</span>
+                  {platformBadge && (
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${platformBadge.style}`}>{platformBadge.label}</span>
+                  )}
                   {hasData && !isOpen && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   )}
@@ -805,40 +816,35 @@ function ContentForm({ date }: { date: string }) {
                     </button>
                   </div>
 
-                  {/* 발행 수 */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">발행 수</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => { if (v.publishCount > 0) updateField(platform, "publishCount", v.publishCount - 1); }}
-                        className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
-                      >−</button>
-                      <input
-                        type="number"
-                        min={0}
-                        value={v.publishCount || ""}
-                        onChange={e => updateField(platform, "publishCount", Math.max(0, parseInt(e.target.value) || 0))}
-                        placeholder="0"
-                        className="w-16 text-center text-sm font-semibold tabular-nums bg-background border border-border rounded-lg py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <button
-                        onClick={() => updateField(platform, "publishCount", v.publishCount + 1)}
-                        className="w-7 h-7 rounded-lg bg-muted text-foreground text-lg font-bold flex items-center justify-center hover:bg-accent transition-colors"
-                      >+</button>
+                  {/* 플레이스 전용 체크리스트 */}
+                  {platform === "플레이스" && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-muted-foreground font-medium">작업 항목</span>
+                      {PLACE_CHECKS.map(item => {
+                        const checked = v.topic.split("|").includes(item);
+                        return (
+                          <button
+                            key={item}
+                            onClick={() => {
+                              const set = new Set(v.topic.split("|").filter(Boolean));
+                              if (checked) set.delete(item); else set.add(item);
+                              updateField(platform, "topic", [...set].join("|"));
+                            }}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                              checked
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                : "bg-card border-border text-muted-foreground hover:bg-accent"
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                              checked ? "bg-emerald-500 border-emerald-500 text-white" : "border-border"
+                            }`}>{checked ? "✓" : ""}</span>
+                            <span className="text-xs">{item}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  </div>
-
-                  {/* 콘텐츠 주제 */}
-                  <div>
-                    <span className="text-xs text-muted-foreground">콘텐츠 주제</span>
-                    <input
-                      type="text"
-                      value={v.topic}
-                      onChange={e => updateField(platform, "topic", e.target.value)}
-                      placeholder="주제 입력..."
-                      className="mt-1 w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
+                  )}
 
                   {/* 발행일 */}
                   <div>
