@@ -59,12 +59,11 @@ const PLACE_CHECKS = ["업체정보 상세설명 수정", "업체 사진 추가"
 type AdValues = Record<string, { impressions: number; clicks: number; visits: number; inquiries: number; notes: string }>;
 
 const INSPECTION_AREAS = ["유산소 기구", "3층 소도구존", "2층 웨이트기구", "PT/케어존", "탈의실", "2층 거울", "3층 거울", "현장 이슈"] as const;
-const FACILITY_STATUSES = ["정상", "주의", "이상"] as const;
-const HYGIENE_STATUSES = ["양호", "청소 필요", "즉시 조치 필요"] as const;
+const INSPECTION_STATUSES = ["미점검", "양호", "청소필요", "고장 조치 필요"] as const;
 const ACTION_STATUSES = ["미처리", "진행", "완료"] as const;
 
 type InspectionValues = Record<string, {
-  facilityStatus: string; hygieneStatus: string;
+  status: string;
   issueNote: string; assignee: string;
   actionStatus: string; actionDate: string;
 }>;
@@ -453,7 +452,7 @@ function InspectionForm({ date }: { date: string }) {
   const emptyValues = (): InspectionValues => {
     const v: InspectionValues = {};
     for (const area of INSPECTION_AREAS) {
-      v[area] = { facilityStatus: "정상", hygieneStatus: "양호", issueNote: "", assignee: "", actionStatus: "", actionDate: "" };
+      v[area] = { status: "미점검", issueNote: "", assignee: "", actionStatus: "", actionDate: "" };
     }
     return v;
   };
@@ -465,9 +464,17 @@ function InspectionForm({ date }: { date: string }) {
     const v = emptyValues();
     if (existing) {
       for (const e of existing) {
+        // 구 값(정상/주의/이상 + 양호/청소필요/즉시조치) → 새 단일 상태로 매핑
+        let status = (e as any).facilityStatus ?? "미점검";
+        if (status === "정상") status = "양호";
+        else if (status === "주의") status = "청소필요";
+        else if (status === "이상") status = "고장 조치 필요";
+        // 위생 상태로 보정 (시설은 정상이었지만 위생 이슈인 경우)
+        const hy = (e as any).hygieneStatus ?? "양호";
+        if (status === "양호" && hy === "청소 필요") status = "청소필요";
+        if (status === "양호" && hy === "즉시 조치 필요") status = "고장 조치 필요";
         v[e.area] = {
-          facilityStatus: e.facilityStatus ?? "정상",
-          hygieneStatus: e.hygieneStatus ?? "양호",
+          status,
           issueNote: e.issueNote ?? "",
           assignee: e.assignee ?? "",
           actionStatus: e.actionStatus ?? "",
@@ -501,8 +508,8 @@ function InspectionForm({ date }: { date: string }) {
       const v = values[area];
       return {
         area,
-        facilityStatus: (v?.facilityStatus ?? "정상") as "정상" | "주의" | "이상",
-        hygieneStatus: (v?.hygieneStatus ?? "양호") as "양호" | "청소 필요" | "즉시 조치 필요",
+        facilityStatus: (v?.status ?? "미점검") as any,
+        hygieneStatus: "양호" as const,
         issueNote: v?.issueNote || undefined,
         assignee: v?.assignee || undefined,
         actionStatus: (v?.actionStatus || undefined) as "미처리" | "진행" | "완료" | undefined,
@@ -521,15 +528,11 @@ function InspectionForm({ date }: { date: string }) {
     return `${d.getMonth() + 1}월 ${d.getDate()}일`;
   })();
 
-  const FACILITY_COLORS: Record<string, string> = {
-    "정상": "bg-green-500/20 text-green-400 border-green-500/30",
-    "주의": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    "이상": "bg-red-500/20 text-red-400 border-red-500/30",
-  };
-  const HYGIENE_COLORS: Record<string, string> = {
-    "양호": "bg-green-500/20 text-green-400 border-green-500/30",
-    "청소 필요": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    "즉시 조치 필요": "bg-red-500/20 text-red-400 border-red-500/30",
+  const STATUS_COLORS: Record<string, string> = {
+    "미점검":       "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+    "양호":         "bg-green-500/20 text-green-400 border-green-500/30",
+    "청소필요":     "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    "고장 조치 필요": "bg-red-500/20 text-red-400 border-red-500/30",
   };
   const ACTION_COLORS: Record<string, string> = {
     "미처리": "bg-red-500/20 text-red-400 border-red-500/30",
@@ -539,7 +542,7 @@ function InspectionForm({ date }: { date: string }) {
 
   function hasIssue(area: string) {
     const v = values[area];
-    return v && (v.facilityStatus !== "정상" || v.hygieneStatus !== "양호");
+    return v && v.status !== "미점검" && v.status !== "양호";
   }
 
   return (
@@ -580,40 +583,31 @@ function InspectionForm({ date }: { date: string }) {
 
           return (
             <div key={area} className={`rounded-xl border overflow-hidden transition-colors ${
-              issue ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-card"
+              v.status === "고장 조치 필요" ? "border-red-500/40 bg-red-500/5"
+              : v.status === "청소필요" ? "border-yellow-500/40 bg-yellow-500/5"
+              : "border-border bg-card"
             }`}>
               <div className="px-4 py-3 space-y-2.5">
                 <span className="text-sm font-semibold text-foreground">{area}</span>
                 <div className="flex gap-1.5">
-                  {FACILITY_STATUSES.map(s => (
+                  {INSPECTION_STATUSES.map(s => (
                     <button
                       key={s}
-                      onClick={() => updateField(area, "facilityStatus", s)}
+                      onClick={() => updateField(area, "status", s)}
                       className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
-                        v.facilityStatus === s ? FACILITY_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
-                      }`}
-                    >{s}</button>
-                  ))}
-                </div>
-                <div className="flex gap-1.5">
-                  {HYGIENE_STATUSES.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => updateField(area, "hygieneStatus", s)}
-                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
-                        v.hygieneStatus === s ? HYGIENE_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
+                        v.status === s ? STATUS_COLORS[s] : "border-border text-muted-foreground hover:bg-accent"
                       }`}
                     >{s}</button>
                   ))}
                 </div>
               </div>
 
-              {issue && (
+              {v.status === "고장 조치 필요" && (
                 <div className="px-4 pb-3 space-y-2.5 border-t border-border/50 pt-2.5">
                   <textarea
                     value={v.issueNote}
                     onChange={e => updateField(area, "issueNote", e.target.value)}
-                    placeholder="문제 상세 내용..."
+                    placeholder="고장 내용 메모..."
                     rows={2}
                     className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                   />

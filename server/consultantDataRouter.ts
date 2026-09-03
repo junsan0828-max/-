@@ -313,8 +313,8 @@ export const consultantDataRouter = t.router({
       date: z.string(),
       entries: z.array(z.object({
         area: z.string(),
-        facilityStatus: z.enum(["정상", "주의", "이상"]),
-        hygieneStatus: z.enum(["양호", "청소 필요", "즉시 조치 필요"]),
+        facilityStatus: z.enum(["미점검", "양호", "청소필요", "고장 조치 필요", "정상", "주의", "이상"]),
+        hygieneStatus: z.enum(["양호", "청소 필요", "즉시 조치 필요"]).optional().default("양호"),
         issueNote: z.string().optional(),
         assignee: z.string().optional(),
         actionStatus: z.enum(["미처리", "진행", "완료"]).optional(),
@@ -454,7 +454,7 @@ export const consultantDataRouter = t.router({
         ),
         pool.query(
           `SELECT COUNT(*)::int as count FROM center_inspection_entries
-           WHERE date >= $1 AND date <= $2 AND ("facilityStatus" != '정상' OR "hygieneStatus" != '양호')`,
+           WHERE date >= $1 AND date <= $2 AND ("facilityStatus" NOT IN ('미점검', '양호', '정상'))`,
           [input.startDate, input.endDate]
         ),
         pool.query(
@@ -483,7 +483,7 @@ export const consultantDataRouter = t.router({
         `SELECT DISTINCT ON (area) area, "facilityStatus", "hygieneStatus", "issueNote", assignee, "actionStatus", date
          FROM center_inspection_entries
          WHERE date >= $1 AND date <= $2
-           AND ("facilityStatus" != '정상' OR "hygieneStatus" != '양호')
+           AND ("facilityStatus" NOT IN ('미점검', '양호', '정상'))
            AND (COALESCE("actionStatus", '미처리') != '완료')
          ORDER BY area, date DESC`,
         [input.startDate, input.endDate]
@@ -503,7 +503,7 @@ export const consultantDataRouter = t.router({
       const res = await pool.query(
         `SELECT date,
                 COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE "facilityStatus" != '정상' OR "hygieneStatus" != '양호')::int AS issues
+                COUNT(*) FILTER (WHERE "facilityStatus" NOT IN ('미점검', '양호', '정상'))::int AS issues
          FROM center_inspection_entries
          WHERE date >= $1 AND date <= $2
          GROUP BY date
@@ -521,9 +521,9 @@ export const consultantDataRouter = t.router({
       const res = await pool.query(
         `SELECT area,
                 COUNT(*)::int AS total_checks,
-                COUNT(*) FILTER (WHERE "facilityStatus" != '정상')::int AS facility_issues,
-                COUNT(*) FILTER (WHERE "hygieneStatus" != '양호')::int AS hygiene_issues,
-                COUNT(*) FILTER (WHERE "facilityStatus" != '정상' OR "hygieneStatus" != '양호')::int AS total_issues
+                COUNT(*) FILTER (WHERE "facilityStatus" NOT IN ('미점검', '양호', '정상'))::int AS facility_issues,
+                COUNT(*) FILTER (WHERE "facilityStatus" NOT IN ('미점검', '양호', '정상'))::int AS hygiene_issues,
+                COUNT(*) FILTER (WHERE "facilityStatus" NOT IN ('미점검', '양호', '정상'))::int AS total_issues
          FROM center_inspection_entries
          WHERE date >= $1 AND date <= $2
          GROUP BY area
@@ -545,7 +545,7 @@ export const consultantDataRouter = t.router({
         `SELECT date,
                 CASE WHEN bool_and(COALESCE("reviewStatus", '미점검') = '점검완료') THEN '점검완료' ELSE '미점검' END AS "reviewStatus",
                 COUNT(*)::int AS entry_count,
-                COUNT(*) FILTER (WHERE "facilityStatus" != '정상' OR "hygieneStatus" != '양호')::int AS issue_count
+                COUNT(*) FILTER (WHERE "facilityStatus" NOT IN ('미점검', '양호', '정상'))::int AS issue_count
          FROM center_inspection_entries
          WHERE date >= $1 AND date <= $2
          GROUP BY date
