@@ -49,7 +49,9 @@ const CHANNEL_BADGE: Record<string, { label: string; style: string }> = {
 };
 
 const CONTENT_PLATFORM_BADGE: Record<string, { label: string; style: string }> = {
-  "플레이스": { label: "금요일날 작업", style: "text-violet-400 bg-violet-400/10" },
+  "플레이스": { label: "금요일날 작업",  style: "text-violet-400 bg-violet-400/10" },
+  "당근":     { label: "월 이벤트 공유", style: "text-orange-400 bg-orange-400/10" },
+  "블로그":   { label: "월수금 작업",    style: "text-green-400 bg-green-400/10" },
 };
 
 const PLACE_CHECKS = ["업체정보 상세설명 수정", "업체 사진 추가", "예약상품 수정", "리뷰 댓글 작업"] as const;
@@ -674,7 +676,7 @@ function ContentForm({ date }: { date: string }) {
   const emptyValues = (): ContentValues => {
     const v: ContentValues = {};
     for (const p of CONTENT_PLATFORMS) {
-      v[p] = { published: false, publishCount: 0, topic: "", publishDate: "", assignee: "", completed: false, autoStatus: "" };
+      v[p] = { published: false, publishCount: 0, topic: "", publishDate: date, assignee: "", completed: false, autoStatus: "" };
     }
     return v;
   };
@@ -691,7 +693,7 @@ function ContentForm({ date }: { date: string }) {
           published: e.published ?? false,
           publishCount: e.publishCount ?? 0,
           topic: e.topic ?? "",
-          publishDate: e.publishDate ?? "",
+          publishDate: e.publishDate || date,
           assignee: e.assignee ?? "",
           completed: e.completed ?? false,
           autoStatus: e.autoStatus ?? "",
