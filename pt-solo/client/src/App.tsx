@@ -216,7 +216,7 @@ function App() {
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" replace />}</Route>
           <Route path="/import-diet">{() => <ImportDiet />}</Route>
-          <Route path="/sales-book">{() => <SalesBookEditor />}</Route>
+
           <Route path="/feedback">{() => <TrainerFeedback />}</Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
