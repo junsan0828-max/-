@@ -4190,11 +4190,14 @@ const adminRouter = t.router({
             serviceSessions: ptPackages.serviceSessions,
             status: ptPackages.status,
             packageName: ptPackages.packageName,
+            startDate: ptPackages.startDate,
           }).from(ptPackages).where(and(
             inArray(ptPackages.memberId, memberIds),
             eq(ptPackages.trainerId, trainer.id),
           )).orderBy(desc(ptPackages.createdAt));
+          // 이미 시작된 활성 패키지를 우선 선택, 미래 시작 패키지는 시작된 패키지가 없을 때만 fallback
           const activeSet = new Set<number>();
+          const futureActiveMap: Record<number, typeof pkgRows[number]> = {};
           for (const p of pkgRows) {
             if (!pkgInfo[p.memberId]) pkgInfo[p.memberId] = {
               activeTotal: 0, activeUsed: 0, activeService: 0,
@@ -4205,12 +4208,30 @@ const adminRouter = t.router({
             info.cumTotal += p.totalSessions ?? 0;
             info.cumUsed += p.usedSessions ?? 0;
             info.cumService += p.serviceSessions ?? 0;
-            if (p.status === "active" && !activeSet.has(p.memberId)) {
-              activeSet.add(p.memberId);
-              info.activeTotal = p.totalSessions ?? 0;
-              info.activeUsed = p.usedSessions ?? 0;
-              info.activeService = p.serviceSessions ?? 0;
-              info.activeName = p.packageName ?? null;
+            if (p.status === "active") {
+              const started = p.startDate == null || p.startDate <= today;
+              if (started && !activeSet.has(p.memberId)) {
+                activeSet.add(p.memberId);
+                info.activeTotal = p.totalSessions ?? 0;
+                info.activeUsed = p.usedSessions ?? 0;
+                info.activeService = p.serviceSessions ?? 0;
+                info.activeName = p.packageName ?? null;
+              } else if (!started && !futureActiveMap[p.memberId]) {
+                futureActiveMap[p.memberId] = p;
+              }
+            }
+          }
+          // 시작된 활성 패키지가 없는 회원은 미래 패키지로 fallback
+          for (const [mid, p] of Object.entries(futureActiveMap)) {
+            const nid = Number(mid);
+            if (!activeSet.has(nid)) {
+              const info = pkgInfo[nid];
+              if (info) {
+                info.activeTotal = p.totalSessions ?? 0;
+                info.activeUsed = p.usedSessions ?? 0;
+                info.activeService = p.serviceSessions ?? 0;
+                info.activeName = p.packageName ?? null;
+              }
             }
           }
         }
