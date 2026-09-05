@@ -1,0 +1,36 @@
+{
+  "packageId": "kr.co.fitstep.twa",
+  "host": "fitstep.co.kr",
+  "name": "핏스텝 회원관리",
+  "launcherName": "핏스텝",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#1a00ff",
+  "navigationColor": "#09090b",
+  "backgroundColor": "#09090b",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://fitstep.co.kr/icons/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "fitstep"
+  },
+  "appVersionCode": 2,
+  "appVersionName": "1.1.0",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://fitstep.co.kr/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://fitstep.co.kr/",
+  "minSdkVersion": 21,
+  "targetSdkVersion": 36,
+  "fingerprints": []
+}

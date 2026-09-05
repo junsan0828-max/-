@@ -3,8 +3,10 @@ import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Landing from "./pages/Landing";
+import AdminLogin from "./pages/AdminLogin";
+import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
-import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
 import ParQ from "./pages/ParQ";
@@ -15,12 +17,35 @@ import PT from "./pages/PT";
 import Profile from "./pages/Profile";
 import TrainerSettlement from "./pages/TrainerSettlement";
 import ContractPrint from "./pages/ContractPrint";
+import EContractPage from "./pages/EContractPage";
 import AdminTrainers from "./pages/AdminTrainers";
 import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import AdminNotices from "./pages/AdminNotices";
 import AdminFitStepPlus from "./pages/AdminFitStepPlus";
+import AdminPlans from "./pages/AdminPlans";
+import AdminPoints from "./pages/AdminPoints";
+import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
+import Sessions from "./pages/Sessions";
+import Academy from "./pages/Academy";
+import TrainerBrandPage from "./pages/TrainerBrandPage";
+import ClassBookingPage from "./pages/ClassBookingPage";
+import BookingManagementPage from "./pages/BookingManagementPage";
+import BrandPageManagementPage from "./pages/BrandPageManagementPage";
+import FitStepPlusManagementPage from "./pages/FitStepPlusManagementPage";
+import SurveyPage from "./pages/SurveyPage";
+import TrainerFeedback from "./pages/TrainerFeedback";
+import AdminFeedback from "./pages/AdminFeedback";
+import SequenceLab from "./pages/SequenceLab";
+import SequenceMaker from "./pages/SequenceMaker";
+import SequenceLibrary from "./pages/SequenceLibrary";
+import SequenceDetail from "./pages/SequenceDetail";
+import MySequences from "./pages/MySequences";
+import AdminSequenceReview from "./pages/AdminSequenceReview";
+import AdminSequenceReviewDetail from "./pages/AdminSequenceReviewDetail";
+import ImportDiet from "./pages/ImportDiet";
+import SalesBookPublic, { SalesBookEditor } from "./pages/SalesBook";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -76,7 +101,7 @@ function FitStepPlusApp({ trainerId }: { trainerId: number }) {
   }
 
   return (
-    <FitStepPlusLayout trainerId={trainerId}>
+    <FitStepPlusLayout trainerId={trainerId} isAdmin={isAdmin}>
       <ErrorBoundary>
         <Switch>
           <Route path={`/fit-step-plus/${trainerId}`}>{() => <FitStepPlusDashboard trainerId={trainerId} />}</Route>
@@ -91,7 +116,7 @@ function FitStepPlusApp({ trainerId }: { trainerId: number }) {
           <Route path={`/fit-step-plus/${trainerId}/workout`}>{() => <FitStepPlusWorkout />}</Route>
           <Route path={`/fit-step-plus/${trainerId}/membership`}>{() => <FitStepPlusMembership />}</Route>
           <Route path={`/fit-step-plus/${trainerId}/profile`}>{() => <FitStepPlusProfile />}</Route>
-          <Route>{() => <Redirect to={`/fit-step-plus/${trainerId}`} />}</Route>
+          <Route>{() => <Redirect to={`/fit-step-plus/${trainerId}`} replace />}</Route>
         </Switch>
       </ErrorBoundary>
     </FitStepPlusLayout>
@@ -104,12 +129,33 @@ function App() {
   const [fitStepRootMatch, fitStepRootParams] = useRoute("/fit-step-plus/:trainerId");
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
-  if (reportMatch && reportParams) {
-    return <MemberReport token={reportParams.token} />;
-  }
+  const [brandMatch, brandParams] = useRoute("/p/:username");
+  const [classMatch, classParams] = useRoute("/c/:username");
+  const [surveyMatch, surveyParams] = useRoute("/survey/:username");
+  const [contractMatch, contractParams] = useRoute("/contract/:token");
+  const [salesBookMatch, salesBookParams] = useRoute("/sb/:token");
+
+  if (reportMatch && reportParams) return <MemberReport token={reportParams.token} />;
+  if (brandMatch && brandParams) return <TrainerBrandPage username={decodeURIComponent(brandParams.username)} />;
+  if (classMatch && classParams) return <ClassBookingPage username={decodeURIComponent(classParams.username)} />;
+  if (surveyMatch && surveyParams) return <SurveyPage trainerId={Number(surveyParams.username)} />;
+  if (contractMatch && contractParams) return <EContractPage token={contractParams.token} />;
+  if (salesBookMatch && salesBookParams) return <SalesBookPublic token={salesBookParams.token} />;
 
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;
+  }
+
+  if (window.location.pathname === "/privacy") {
+    return <Privacy />;
+  }
+
+  if (window.location.pathname === "/landing") {
+    return <Landing />;
+  }
+
+  if (window.location.pathname === "/admin-login") {
+    return <AdminLogin />;
   }
 
   // FIT STEP+ 회원앱 라우트 (트레이너 로그인 불필요)
@@ -120,28 +166,13 @@ function App() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1a00ff" }}>
-        <svg viewBox="0 0 440 180" className="w-72" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* 외곽 평행사변형 */}
-          <polygon points="36,8 428,8 404,172 12,172" stroke="white" strokeWidth="10" fill="none" />
-          {/* 내곽 평행사변형 */}
-          <polygon points="50,24 414,24 390,156 26,156" stroke="white" strokeWidth="5" fill="none" />
-          {/* F. */}
-          <text x="54" y="138" fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900" fontSize="110" fill="white" fontStyle="italic">F.</text>
-          {/* 삼각형 */}
-          <polygon points="200,32 280,148 120,148" fill="white" />
-          {/* E */}
-          <text x="292" y="138" fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900" fontSize="110" fill="white" fontStyle="italic">E</text>
-        </svg>
-      </div>
-    );
+    return <div className="min-h-screen" style={{ backgroundColor: "#1a00ff" }} />;
   }
 
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
     if (window.location.pathname === "/login") return <Login />;
-    return <Login />;
+    return <Landing />;
   }
 
   return (
@@ -149,7 +180,7 @@ function App() {
       <ErrorBoundary>
         <Switch>
           <Route path="/">{() => <Dashboard />}</Route>
-          <Route path="/members">{() => <Redirect to="/pt" />}</Route>
+          <Route path="/members">{() => <Redirect to="/pt" replace />}</Route>
           <Route path="/members/new">{() => <MemberForm />}</Route>
           <Route path="/members/:id/edit">
             {(params) => <MemberForm memberId={parseInt(params.id!)} />}
@@ -168,15 +199,40 @@ function App() {
           <Route path="/leads">{() => <Leads />}</Route>
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
+          <Route path="/sessions">{() => <Sessions />}</Route>
           <Route path="/workshop">{() => <Workshop />}</Route>
-          <Route path="/points">{() => <Redirect to="/profile" />}</Route>
+          <Route path="/sequences/library/:id">
+            {(params) => <SequenceDetail sequenceId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/sequences/library">{() => <SequenceLibrary />}</Route>
+          <Route path="/sequences/mine">{() => <MySequences />}</Route>
+          <Route path="/sequences/:id/edit">
+            {(params) => <SequenceMaker versionId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/sequences">{() => <SequenceLab />}</Route>
+          <Route path="/booking">{() => <BookingManagementPage />}</Route>
+          <Route path="/brand-page">{() => <BrandPageManagementPage />}</Route>
+          <Route path="/fitstep-plus-manage">{() => <FitStepPlusManagementPage />}</Route>
+          <Route path="/academy">{() => <Academy />}</Route>
+          <Route path="/points">{() => <Redirect to="/profile" replace />}</Route>
+          <Route path="/import-diet">{() => <ImportDiet />}</Route>
+
+          <Route path="/feedback">{() => <TrainerFeedback />}</Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
           </Route>
+          <Route path="/admin/registrations">{() => <AdminRegistrations />}</Route>
           <Route path="/admin/trainers">{() => <AdminTrainers />}</Route>
+          <Route path="/admin/points">{() => <AdminPoints />}</Route>
           <Route path="/admin/notices">{() => <AdminNotices />}</Route>
           <Route path="/admin/fit-step-plus">{() => <AdminFitStepPlus />}</Route>
-          <Route>{() => <Redirect to="/" />}</Route>
+          <Route path="/admin/plans">{() => <AdminPlans />}</Route>
+          <Route path="/admin/feedback">{() => <AdminFeedback />}</Route>
+          <Route path="/admin/sequence-review/:id">
+            {(params) => <AdminSequenceReviewDetail versionId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/admin/sequence-review">{() => <AdminSequenceReview />}</Route>
+          <Route>{() => <Redirect to="/" replace />}</Route>
         </Switch>
       </ErrorBoundary>
     </Layout>

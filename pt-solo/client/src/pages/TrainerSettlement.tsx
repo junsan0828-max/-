@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2, Wallet, Plus, Trash2 } from "lucide-react";
+import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2, Wallet, Plus, Trash2, LineChart as LineChartIcon } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
 import TabBanner from "@/components/TabBanner";
+import PointSpendConfirm from "@/components/PointSpendConfirm";
 
 function fmt(n: number) { return n.toLocaleString(); }
 
@@ -28,13 +32,19 @@ function StatItem({ label, value, color }: { label: string; value: string; color
   );
 }
 
-function RevenueTab() {
+function RevenueTab({ initialView }: { initialView?: "monthly" | "daily" }) {
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
   const [yearMonth, setYearMonth] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
-  const [view, setView] = useState<"monthly" | "daily">("monthly");
+  const [view, setView] = useState<"monthly" | "daily">(initialView ?? "monthly");
+  const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+  const [pendingPdfAction, setPendingPdfAction] = useState<"csv" | "pdf" | null>(null);
+  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
+  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
+  const statsEnabled = featureCosts?.["stats_report"]?.enabled ?? true;
+  const statsCost = featureCosts?.["stats_report"]?.cost ?? 50;
 
   const { data: monthly } = trpc.trainers.getMonthlySettlement.useQuery(
     { yearMonth },
@@ -135,14 +145,33 @@ function RevenueTab() {
 
       {data && data.sessionCount > 0 && (
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={exportCSV}>
-            <FileText className="h-4 w-4" />CSV
+          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => { if (statsEnabled) { setPendingPdfAction("csv"); setShowPdfConfirm(true); } else exportCSV(); }}>
+            <FileText className="h-4 w-4" />CSV{statsEnabled ? <span className="text-primary/70 text-[10px]"> -{statsCost}P</span> : null}
           </Button>
-          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={exportPDF}>
-            <FileText className="h-4 w-4" />PDF 인쇄
+          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => { if (statsEnabled) { setPendingPdfAction("pdf"); setShowPdfConfirm(true); } else exportPDF(); }}>
+            <FileText className="h-4 w-4" />PDF 인쇄{statsEnabled ? <span className="text-primary/70 text-[10px]"> -{statsCost}P</span> : null}
           </Button>
         </div>
       )}
+
+      <PointSpendConfirm
+        open={showPdfConfirm}
+        onClose={() => { setShowPdfConfirm(false); setPendingPdfAction(null); }}
+        featureName="통계 리포트 생성"
+        cost={statsCost}
+        loading={spendFeatureMutation.isPending}
+        onConfirm={() => {
+          spendFeatureMutation.mutate({ feature: "stats_report" }, {
+            onSuccess: () => {
+              setShowPdfConfirm(false);
+              if (pendingPdfAction === "csv") exportCSV();
+              else if (pendingPdfAction === "pdf") exportPDF();
+              setPendingPdfAction(null);
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
 
       {data && data.logs.length > 0 && (
         <div className="space-y-2">
@@ -357,15 +386,15 @@ function StatsTab() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">누적 통계</p>
         </div>
         {[
-          { label: "회원 수",  value: `${stats?.totalMembers ?? 0}명`,   color: "text-blue-400" },
-          { label: "수업 수",  value: `${stats?.totalSessions ?? 0}회`,  color: "text-green-400" },
-          { label: "재등록 수", value: `${stats?.totalRereg ?? 0}회`,    color: "text-primary" },
-          { label: "노쇼 수",  value: `${stats?.totalNoShow ?? 0}회`,    color: "text-orange-400" },
-          { label: "잔여 PT",  value: `${stats?.remainingPt ?? 0}회`,    color: "text-purple-400" },
+          { label: "회원 수",  value: `${stats?.totalMembers ?? 0}명` },
+          { label: "수업 수",  value: `${stats?.totalSessions ?? 0}회` },
+          { label: "재등록 수", value: `${stats?.totalRereg ?? 0}회` },
+          { label: "노쇼 수",  value: `${stats?.totalNoShow ?? 0}회` },
+          { label: "잔여 PT",  value: `${stats?.remainingPt ?? 0}회` },
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className={`text-sm font-bold ${item.color}`}>{item.value}</span>
+            <span className="text-sm font-semibold">{item.value}</span>
           </div>
         ))}
       </div>
@@ -382,13 +411,13 @@ function StatsTab() {
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className="text-sm font-bold">{item.value}</span>
+            <span className="text-sm font-semibold">{item.value}</span>
           </div>
         ))}
         <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
           <div>
             <p className="text-sm text-muted-foreground">재등록률</p>
-            <p className="text-[11px] text-muted-foreground/60">전체 회원 중 재등록 비율</p>
+            <p className="text-[12px] text-muted-foreground/60">전체 회원 중 재등록 비율</p>
           </div>
           <span className="text-xl font-bold text-primary">{stats?.reregRate ?? 0}%</span>
         </div>
@@ -409,30 +438,130 @@ function StatsTab() {
           </Select>
         </div>
         {[
-          { label: "수업 수",   value: `${monthlyStats?.sessionCount ?? 0}회`, color: "text-green-400" },
-          { label: "노쇼",     value: `${monthlyStats?.noShow ?? 0}회`,        color: "text-orange-400" },
-          { label: "신규 배정", value: `${monthlyStats?.newMembers ?? 0}명`,   color: "text-blue-400" },
-          { label: "재등록",   value: `${monthlyStats?.rereg ?? 0}회`,          color: "text-primary" },
+          { label: "수업 수",   value: `${monthlyStats?.sessionCount ?? 0}회` },
+          { label: "노쇼",     value: `${monthlyStats?.noShow ?? 0}회` },
+          { label: "신규 배정", value: `${monthlyStats?.newMembers ?? 0}명` },
+          { label: "재등록",   value: `${monthlyStats?.rereg ?? 0}회` },
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
             <span className="text-sm text-muted-foreground">{item.label}</span>
-            <span className={`text-sm font-bold ${item.color}`}>{item.value}</span>
+            <span className="text-sm font-semibold">{item.value}</span>
           </div>
         ))}
-        <div className="flex items-center justify-between px-4 py-3 bg-yellow-500/10 border-t border-yellow-500/20">
+        <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border-t border-emerald-500/20">
           <div>
             <p className="text-sm text-muted-foreground">이달 매출</p>
-            <p className="text-[11px] text-muted-foreground/60">등록 패키지 결제금액 합산</p>
+            <p className="text-[12px] text-muted-foreground/60">등록 패키지 결제금액 합산</p>
           </div>
-          <span className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</span>
+          <span className="text-xl font-bold text-emerald-500">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</span>
         </div>
       </div>
     </div>
   );
 }
 
+function MonthSummaryStrip() {
+  const today = new Date();
+  const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const { data: revenue } = trpc.trainers.getMonthlySettlement.useQuery({ yearMonth });
+  const { data: expense } = trpc.expenses.list.useQuery({ yearMonth });
+
+  if (!revenue || !expense) {
+    return <div className="rounded-xl border border-border bg-card h-[68px] animate-pulse" />;
+  }
+  const netProfit = revenue.afterTax - expense.total;
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="grid grid-cols-3 divide-x divide-border">
+        <div className="px-2 py-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">이번달 매출</p>
+          <p className="text-sm font-semibold text-emerald-500">{fmt(revenue.revenue)}원</p>
+        </div>
+        <div className="px-2 py-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">이번달 지출</p>
+          <p className="text-sm font-semibold text-rose-500">{fmt(expense.total)}원</p>
+        </div>
+        <div className="px-2 py-3 text-center bg-accent/20">
+          <p className="text-[10px] text-muted-foreground mb-1">순수익</p>
+          <p className={`text-sm font-semibold ${netProfit >= 0 ? "text-blue-500" : "text-red-500"}`}>
+            {netProfit >= 0 ? "+" : ""}{fmt(netProfit)}원
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalysisTab() {
+  const { data } = trpc.dashboard.getMonthlyPnl.useQuery();
+
+  const latest = data?.[data.length - 1];
+  const totalRevenue = data?.reduce((s, m) => s + m.매출, 0) ?? 0;
+  const totalExpense = data?.reduce((s, m) => s + m.지출, 0) ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <StatItem label="최근 6개월 매출" value={`${fmt(totalRevenue)}원`} color="text-emerald-500" />
+        <StatItem label="최근 6개월 지출" value={`${fmt(totalExpense)}원`} color="text-rose-500" />
+      </div>
+
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <LineChartIcon className="h-4 w-4 text-primary" />
+            월별 매출·지출 추이
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!data ? (
+            <p className="text-sm text-muted-foreground text-center py-10">불러오는 중...</p>
+          ) : (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} width={48}
+                    tickFormatter={(v) => v >= 10000 ? `${Math.round(v / 10000)}만` : `${v}`} />
+                  <Tooltip
+                    formatter={(v) => `${fmt(Number(v))}원`}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Bar dataKey="매출" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="지출" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {latest && (
+        <div className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold">{latest.month} 순이익</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">세후 정산액 − 지출 {fmt(latest.지출)}원 기준</p>
+          </div>
+          <span className={`text-lg font-bold ${latest.순이익 >= 0 ? "text-blue-500" : "text-red-500"}`}>
+            {latest.순이익 >= 0 ? "+" : ""}{fmt(latest.순이익)}원
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TrainerSettlement() {
-  const [tab, setTab] = useState<"revenue" | "expense" | "stats">("revenue");
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const tabParam = params.get("tab");
+  const viewParam = params.get("view");
+  const initialTab = (tabParam === "expense" || tabParam === "stats" || tabParam === "analysis") ? tabParam : "revenue";
+  const initialView = viewParam === "daily" ? "daily" : viewParam === "monthly" ? "monthly" : undefined;
+
+  const [tab, setTab] = useState<"revenue" | "expense" | "stats" | "analysis">(initialTab);
 
   return (
     <div className="space-y-4">
@@ -442,6 +571,9 @@ export default function TrainerSettlement() {
         <p className="text-sm text-muted-foreground mt-0.5">매출 현황 및 활동 통계</p>
       </div>
 
+      {/* 이번달 요약 — 탭과 무관하게 항상 한눈에 보이는 정산 요약 */}
+      <MonthSummaryStrip />
+
       {/* 탭 선택 */}
       <div className="flex gap-2 border-b border-border">
         <button onClick={() => setTab("revenue")}
@@ -449,17 +581,22 @@ export default function TrainerSettlement() {
           <TrendingUp className="h-4 w-4 inline mr-1.5 mb-0.5" />매출
         </button>
         <button onClick={() => setTab("expense")}
-          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "expense" ? "border-orange-400 text-orange-400" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "expense" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <Wallet className="h-4 w-4 inline mr-1.5 mb-0.5" />지출
         </button>
         <button onClick={() => setTab("stats")}
           className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "stats" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <BarChart2 className="h-4 w-4 inline mr-1.5 mb-0.5" />통계
         </button>
+        <button onClick={() => setTab("analysis")}
+          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "analysis" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <LineChartIcon className="h-4 w-4 inline mr-1.5 mb-0.5" />분석
+        </button>
       </div>
 
-      {tab === "revenue" && <RevenueTab />}
+      {tab === "revenue" && <RevenueTab initialView={initialView} />}
       {tab === "expense" && <ExpenseTab />}
+      {tab === "analysis" && <AnalysisTab />}
       {tab === "stats" && <StatsTab />}
     </div>
   );

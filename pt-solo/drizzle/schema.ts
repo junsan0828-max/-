@@ -22,6 +22,9 @@ export const trainers = pgTable("trainers", {
   trainerName: text("trainerName").notNull(),
   phone: text("phone"),
   email: text("email"),
+  gender: text("gender"),
+  birthYear: text("birthYear"),
+  ageRange: text("ageRange"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -34,6 +37,7 @@ export const trainerSettings = pgTable("trainer_settings", {
   termsOfService: text("termsOfService"),
   privacyPolicy: text("privacyPolicy"),
   marketingConsent: text("marketingConsent"),
+  workshopTrialStartedAt: text("workshopTrialStartedAt"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -124,6 +128,7 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   exercisesJson: text("exercisesJson"),
   goal: text("goal"),
   feedback: text("feedback"),
+  sequenceVersionId: integer("sequenceVersionId"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 
@@ -300,5 +305,54 @@ export const fitStepPlusWorkoutLogs = pgTable("fit_step_plus_workout_logs", {
   bodyWeight: text("bodyWeight"),
   notes: text("notes"),
   mood: text("mood"),
+  intensity: text("intensity"),
+  totalVolume: integer("totalVolume"),
   createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const fitStepPlusAttendance = pgTable("fit_step_plus_attendance", {
+  id: serial("id").primaryKey(),
+  fitStepPlusMemberId: integer("fitStepPlusMemberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  attendDate: text("attendDate").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 회원 식단 플랜 (AI 맞춤식단 저장)
+export const memberDietPlans = pgTable("member_diet_plans", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  planDate: text("planDate").notNull(),
+  goal: text("goal").notNull(),
+  targetKcal: integer("targetKcal").notNull(),
+  mealsJson: text("mealsJson").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 트레이너 세일즈북 (상담 클로징 자료)
+export const trainerSalesBooks = pgTable("trainer_sales_books", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull().unique(),
+  shareToken: text("shareToken").notNull().unique(),
+  dataJson: text("dataJson").notNull(),
+  isPublic: integer("isPublic").default(0).notNull(),
+  viewCount: integer("viewCount").default(0).notNull(),
+  lastNotifiedAt: text("lastNotifiedAt"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const trainerFeedbacks = pgTable("trainer_feedbacks", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  trainerName: text("trainerName").notNull(),
+  username: text("username").notNull(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  status: text("status").default("pending").notNull(),
+  adminNote: text("adminNote"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });

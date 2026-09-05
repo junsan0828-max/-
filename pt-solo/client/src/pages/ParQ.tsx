@@ -463,14 +463,9 @@ export default function ParQ({ memberId }: Props) {
           <RangeSelect label="키 (cm)" value={form.height} options={HEIGHT_OPTIONS} onChange={(v) => set("height", v)} />
           <RangeSelect label="체중 (kg)" value={form.weight} options={WEIGHT_OPTIONS} onChange={(v) => set("weight", v)} />
         </div>
-        <Field label="직업">
+        <Field label="직업 및 근무 환경">
           <input value={form.occupation} onChange={(e) => set("occupation", e.target.value)}
-            placeholder="예: 사무직"
-            className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground" />
-        </Field>
-        <Field label="근무 환경">
-          <input value={form.workEnvironment} onChange={(e) => set("workEnvironment", e.target.value)}
-            placeholder="예: 장시간 앉아서 근무"
+            placeholder="예: 사무직, 장시간 앉아서 근무"
             className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground" />
         </Field>
         <Field label="운동 경험">
