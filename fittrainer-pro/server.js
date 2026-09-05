@@ -21,7 +21,7 @@ app.get('/localvideo', (req, res) => {
     if (!filePath || !VALID_EXTENSIONS.includes(path.extname(filePath).toLowerCase())) {
       return res.status(403).send('Forbidden');
     }
-    if (libraryRoot && !filePath.startsWith(path.resolve(libraryRoot) + path.sep)) {
+    if (!libraryRoot || !filePath.startsWith(path.resolve(libraryRoot) + path.sep)) {
       return res.status(403).send('Forbidden');
     }
     if (!fs.existsSync(filePath)) {
