@@ -1633,6 +1633,23 @@ const ptRouter = t.router({
         trainerId: trainerId ?? 0,
         isDraft: isDraft ? 1 : 0,
       }).returning();
+
+      // 사용횟수 +1. 삭제(deleteLog)는 -1 하는데 생성이 안 올리면 쓰고 지울수록
+      // 사용횟수가 실제보다 낮아져 "잔여가 실제보다 많이 남는" 오류가 쌓인다.
+      // 출석체크 경로(markPtSession)와 동일한 가드를 쓴다.
+      if (resolvedPackageId && !isDraft) {
+        const [pkg] = await db
+          .select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+          .from(ptPackages)
+          .where(eq(ptPackages.id, resolvedPackageId))
+          .limit(1);
+        if (pkg && pkg.usedSessions < pkg.totalSessions) {
+          const newUsed = pkg.usedSessions + 1;
+          await db.update(ptPackages)
+            .set({ usedSessions: newUsed, status: newUsed >= pkg.totalSessions ? "completed" : "active" })
+            .where(eq(ptPackages.id, resolvedPackageId));
+        }
+      }
       return row;
     }),
 
