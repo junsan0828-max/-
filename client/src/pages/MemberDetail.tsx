@@ -494,7 +494,9 @@ export default function MemberDetail({ memberId }: Props) {
   // 캘린더 빠른 출석 처리
   const [calQuickLoading, setCalQuickLoading] = useState<string | null>(null);
   const quickAttendMutation = trpc.attendanceChecks.upsert.useMutation({
-    onSuccess: () => {
+    onSuccess: (res) => {
+      // 차감이 조용히 건너뛰어지면 트레이너는 처리된 줄 알고 잔여가 과다로 남는다.
+      if ((res as any)?.ptSkipReason) toast.warning((res as any).ptSkipReason);
       refetchAttendance();
       refetchPt();
       setCalQuickLoading(null);
@@ -2553,15 +2555,13 @@ export default function MemberDetail({ memberId }: Props) {
                       disabled={isCalLoading}
                       onClick={() => {
                         if (!ptStatus) {
-                          // 1클릭: 출석만 (PT 차감 없음)
+                          // 1클릭: 출석 + PT 차감. 헬스 방문은 키오스크가 기록하므로
+                          // 트레이너가 찍는 출석은 곧 PT 수업이다. 예전엔 1클릭이 차감 없는
+                          // 출석이라, 2클릭을 안 하면 수업이 차감되지 않고 잔여가 과다로 남았다.
                           setCalQuickLoading(dateStr);
-                          quickAttendMutation.mutate({ memberId, checkDate: dateStr, checkTime: checkTime2, status: "attended", markPtSession: false });
-                        } else if (ptStatus === "attended" && !hasPtLog) {
-                          // 2클릭: PT 세션 완료 (이중 원 + 차감)
-                          setCalQuickLoading(dateStr);
-                          quickAttendMutation.mutate({ memberId, checkDate: dateStr, status: "attended", markPtSession: true });
+                          quickAttendMutation.mutate({ memberId, checkDate: dateStr, checkTime: checkTime2, status: "attended", markPtSession: true });
                         } else {
-                          // 3클릭 또는 이미 PT 완료: 상세 폼으로 이동
+                          // 이미 출석 처리된 날: 상세 폼으로 이동
                           setLocation(`/attendance/${memberId}?date=${dateStr}&from=member`);
                         }
                       }}

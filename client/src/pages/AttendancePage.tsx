@@ -51,7 +51,10 @@ export default function AttendancePage() {
   const { data: recent } = trpc.attendanceChecks.recentSummary.useQuery();
 
   const quickAttend = trpc.attendanceChecks.upsert.useMutation({
-    onSuccess: () => { refetch(); },
+    onSuccess: (res) => {
+      if ((res as any)?.ptSkipReason) toast.warning((res as any).ptSkipReason);
+      refetch();
+    },
     onError: (err) => toast.error(err.message || "출석 처리 실패"),
     onSettled: () => setQuickLoading(null),
   });

@@ -5466,12 +5466,18 @@ const attendanceChecksRouter = t.router({
       }
 
       // PT 세션 소비: markPtSession=true 이고 attended 일 때만
+      // 차감이 안 되면 사유를 돌려준다. 예전엔 활성 패키지가 없거나 이미 꽉 찼을 때
+      // 아무 말 없이 건너뛰어, 트레이너는 처리된 줄 알고 잔여가 과다로 남았다.
+      let ptDeducted = false;
+      let ptSkipReason: string | null = null;
       if (input.markPtSession && willAttend) {
         const [existingLog] = await db.select({ id: ptSessionLogs.id })
           .from(ptSessionLogs)
           .where(and(eq(ptSessionLogs.memberId, memberId), eq(ptSessionLogs.sessionDate, checkDate)))
           .limit(1);
-        if (!existingLog) {
+        if (existingLog) {
+          ptDeducted = true; // 이미 그 날짜 수업일지가 있어 이미 차감된 상태
+        } else {
           const [activePkg] = await db.select()
             .from(ptPackages)
             .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "active")))
@@ -5495,11 +5501,16 @@ const attendanceChecksRouter = t.router({
               packageId: activePkg.id,
               sessionDate: checkDate,
             });
+            ptDeducted = true;
+          } else if (!activePkg) {
+            ptSkipReason = "진행 중인 PT 패키지가 없어 차감하지 못했습니다. 재등록 여부를 확인하세요.";
+          } else {
+            ptSkipReason = `PT 패키지를 이미 다 사용했습니다 (${activePkg.usedSessions}/${activePkg.totalSessions}회). 재등록이 필요합니다.`;
           }
         }
       }
 
-      return { success: true };
+      return { success: true, ptDeducted, ptSkipReason };
     }),
 
   delete: protectedProcedure
