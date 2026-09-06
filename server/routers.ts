@@ -8,7 +8,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, or, desc, asc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { getDb, getDashboardStats, pool } from "./db";
+import { getDb, getDashboardStats, pool, isServiceLog } from "./db";
 import {
   users,
   trainers,
@@ -2904,6 +2904,7 @@ const trainersRouter = t.router({
           isServiceSession: ptSessionLogs.isServiceSession,
           serviceSessionPrice: ptPackages.serviceSessionPrice,
           serviceSamePrice: ptPackages.serviceSamePrice,
+          serviceSessions: ptPackages.serviceSessions,
         })
           .from(ptSessionLogs)
           .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -2971,6 +2972,7 @@ const trainersRouter = t.router({
           isServiceSession: 0,
           serviceSessionPrice: null,
           serviceSamePrice: null,
+          serviceSessions: null,
         });
       }
       const addedLogKeys = new Set<string>();
@@ -3033,9 +3035,9 @@ const trainersRouter = t.router({
         }
       }
 
-      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; packageName?: string | null }) => {
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; serviceSessions?: number | null; packageName?: string | null }) => {
         // 서비스 세션인 경우: serviceSamePrice=1이면 정규 회당 단가로 정산, 아니면 serviceSessionPrice 사용
-        const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
+        const isSvc = isServiceLog(l);
         if (isSvc && l.serviceSamePrice !== 1) {
           return l.serviceSessionPrice ?? defaultSvcPrice;
         }
@@ -4018,6 +4020,7 @@ const adminRouter = t.router({
             isServiceSession: ptSessionLogs.isServiceSession,
             serviceSessionPrice: ptPackages.serviceSessionPrice,
             serviceSamePrice: ptPackages.serviceSamePrice,
+            serviceSessions: ptPackages.serviceSessions,
             memberBranchId: members.branchId,
           })
             .from(ptSessionLogs)
@@ -4067,6 +4070,7 @@ const adminRouter = t.router({
             isServiceSession: 0,
             serviceSessionPrice: null,
             serviceSamePrice: null,
+            serviceSessions: null,
             memberBranchId: a.memberBranchId,
           });
         }
@@ -4133,9 +4137,9 @@ const adminRouter = t.router({
 
         const rate = settings[0]?.settlementRate ?? 50;
         // ⚠️ 월별 정산 상세(getMonthlySettlement)와 동일한 계산식을 사용해야 두 화면 금액이 일치한다.
-        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; packageName?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null }) => {
+        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; packageName?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; serviceSessions?: number | null }) => {
           // 서비스 세션: serviceSamePrice=1이면 정규 단가로, 아니면 serviceSessionPrice 사용
-          const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
+          const isSvc = isServiceLog(l);
           if (isSvc && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? defaultSvcPrice;
           if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
           // 결제금액 기준 계산 우선 (pricePerSession은 갱신 안 됐을 수 있음)
@@ -4160,7 +4164,7 @@ const adminRouter = t.router({
         const memberMap: Record<number, { name: string; sessions: number; totalPrice: number; svcSessions: number; svcTotalPrice: number }> = {};
         for (const l of filteredLogs) {
           if (!memberMap[l.memberId]) memberMap[l.memberId] = { name: "", sessions: 0, totalPrice: 0, svcSessions: 0, svcTotalPrice: 0 };
-          const isSvc = l.isServiceSession === 1 || l.packageName === "서비스세션";
+          const isSvc = isServiceLog(l);
           if (isSvc) {
             memberMap[l.memberId].svcSessions++;
             memberMap[l.memberId].svcTotalPrice += calcPrice(l);

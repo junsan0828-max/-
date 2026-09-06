@@ -37,6 +37,22 @@ export function getDb() {
   return db;
 }
 
+// 서비스(무료) 세션 판정 — 정산 화면 전체가 이 하나를 공유한다 (원칙 7).
+// 전량 서비스 패키지에 유령 결제금액이 남아 있으면 회당 단가가 폭등하므로,
+// 로그 플래그가 빠져 있어도 패키지가 전량 서비스면 서비스로 본다.
+export function isServiceLog(l: {
+  isServiceSession?: number | null;
+  packageName?: string | null;
+  serviceSessions?: number | null;
+  totalSessions?: number | null;
+}) {
+  if (l.isServiceSession === 1) return true;
+  if (l.packageName === "서비스세션") return true;
+  const svc = l.serviceSessions ?? 0;
+  const total = l.totalSessions ?? 0;
+  return svc > 0 && total > 0 && svc >= total;
+}
+
 function calcPricePerSession(paymentAmount: number, sessions: number, paymentMethod?: string | null, transferAmount?: number | null, cardAmount?: number | null) {
   if (paymentMethod === "혼합" && transferAmount != null && cardAmount != null) {
     const base = transferAmount + Math.round(cardAmount / 1.1);
@@ -74,6 +90,8 @@ export async function getDashboardStats(trainerId: number) {
       pricePerSession: ptPackages.pricePerSession,
       serviceSessionPrice: ptPackages.serviceSessionPrice,
       serviceSamePrice: ptPackages.serviceSamePrice,
+      serviceSessions: ptPackages.serviceSessions,
+      packageName: ptPackages.packageName,
       paymentAmount: ptPackages.paymentAmount,
       totalSessions: ptPackages.totalSessions,
       paymentMethod: ptPackages.paymentMethod,
@@ -143,8 +161,8 @@ export async function getDashboardStats(trainerId: number) {
       }
     }
 
-    const calcPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
-      if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
+    const calcPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; serviceSessions?: number | null; packageName?: string | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      if (isServiceLog(l) && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
       if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
@@ -173,8 +191,8 @@ export async function getDashboardStats(trainerId: number) {
       }
     }
 
-    const calcTodayPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
-      if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
+    const calcTodayPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; serviceSessions?: number | null; packageName?: string | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      if (isServiceLog(l) && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
       if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
