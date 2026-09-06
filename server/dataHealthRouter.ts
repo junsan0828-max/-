@@ -162,6 +162,71 @@ export const dataHealthRouter = t.router({
       rows: dupSessionDate.rows,
     });
 
+    // ③-2 출석체크와 수업일지의 날짜가 어긋난 건.
+    //     정산은 회원·날짜로 묶어 세므로, 한쪽에만 있는 날은 단가 폴백을 타거나
+    //     아예 빠질 수 있다. (2026-09 확인: 전 트레이너 24건이 정산에서 누락)
+    const attLogMismatch = await pool.query(`
+      SELECT * FROM (
+        SELECT m.name AS "회원", COALESCE(t."trainerName", '(없음)') AS "트레이너",
+               ac."checkDate" AS "날짜", '출석체크만 있음 (수업일지 없음)' AS "상태"
+        FROM attendance_checks ac
+        JOIN members m ON m.id = ac."memberId"
+        LEFT JOIN trainers t ON t.id = ac."trainerId"
+        WHERE ac.status = 'attended'
+          AND NOT EXISTS (
+            SELECT 1 FROM pt_session_logs sl
+            WHERE sl."memberId" = ac."memberId" AND sl."sessionDate" = ac."checkDate"
+              AND (sl."isDraft" IS NULL OR sl."isDraft" = 0))
+        UNION ALL
+        SELECT m.name, COALESCE(t."trainerName", '(없음)'),
+               sl."sessionDate", '수업일지만 있음 (출석체크 없음)'
+        FROM pt_session_logs sl
+        JOIN members m ON m.id = sl."memberId"
+        LEFT JOIN trainers t ON t.id = sl."trainerId"
+        WHERE (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+          AND NOT EXISTS (
+            SELECT 1 FROM attendance_checks ac
+            WHERE ac."memberId" = sl."memberId" AND ac."checkDate" = sl."sessionDate"
+              AND ac.status = 'attended')
+      ) x
+      ORDER BY "날짜" DESC, "회원"
+      LIMIT 100
+    `);
+    groups.push({
+      key: "attendance_log_mismatch",
+      title: "출석체크와 수업일지 날짜가 안 맞음",
+      severity: "warning",
+      description: "출석체크·수업일지는 같은 수업을 가리켜야 합니다. 한쪽만 있으면 그 수업의 단가를 패키지에서 못 찾아 정산 금액이 어긋납니다. 수업 후 둘 다 기록하도록 하세요.",
+      rows: attLogMismatch.rows,
+    });
+
+    // ③-3 전량 서비스(무료) 패키지에 결제금액이 붙어 있는 건.
+    //     회당 단가가 결제금액÷횟수로 계산돼 무료 수업이 유료로 정산된다.
+    //     (2026-09 사고: 서비스 3회 패키지에 138만원이 남아 회당 46만원으로 잡힘)
+    const svcPkgWithAmount = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName", '(없음)') AS "트레이너",
+             p.id AS "패키지ID", p."packageName" AS "프로그램",
+             p."totalSessions" AS "총횟수", p."serviceSessions" AS "서비스횟수",
+             p."paymentAmount" AS "붙어있는금액",
+             ROUND(p."paymentAmount"::numeric / NULLIF(p."totalSessions", 0)) AS "잘못될단가",
+             p."serviceSessionPrice" AS "정상서비스단가"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers t ON t.id = p."trainerId"
+      WHERE p."serviceSessions" > 0
+        AND p."serviceSessions" >= p."totalSessions"
+        AND COALESCE(p."paymentAmount", 0) > 0
+      ORDER BY p."paymentAmount" DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "service_package_with_amount",
+      title: "무료(서비스) 패키지에 결제금액이 붙음",
+      severity: "critical",
+      description: "전부 서비스로 준 무료 패키지인데 결제금액이 남아 있습니다. 무료 수업이 회당 수십만원으로 정산될 수 있습니다. 등록 화면에서 금액을 0으로 정정하세요.",
+      rows: svcPkgWithAmount.rows,
+    });
+
     // ④-1 양도가 완료됐는데 양도인 패키지가 아직 살아 있음.
     //     양도는 "권리가 넘어가는" 것이라 양도인 쪽은 닫혀야 한다. 안 닫히면 같은 횟수가
     //     두 사람에게 동시에 살아 있어 이중 사용이 가능해진다.

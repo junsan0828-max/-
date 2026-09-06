@@ -2946,8 +2946,6 @@ const trainersRouter = t.router({
       ]);
 
       // 회원별 세션 카운트: 출석체크 있는 회원 → 출석만 카운트, 없는 회원 → 세션기록 카운트
-      const membersWithAtt = new Set<number>();
-      for (const a of attRows) membersWithAtt.add(a.memberId);
 
       const sessionByKey = new Map<string, typeof sessionLogs[number]>();
       for (const l of sessionLogs) {
@@ -2975,10 +2973,13 @@ const trainersRouter = t.router({
           serviceSessions: null,
         });
       }
+      // 중복 배제는 회원이 아니라 "회원+날짜" 단위다. 회원 단위로 걸러내면
+      // 출석체크가 하루라도 있는 회원의 나머지 수업일지가 통째로 정산에서 빠진다.
+      const attKeys = new Set(attRows.map(a => `${a.memberId}|${a.checkDate}`));
       const addedLogKeys = new Set<string>();
       for (const l of sessionLogs) {
-        if (membersWithAtt.has(l.memberId)) continue;
         const key = `${l.memberId}|${l.sessionDate}`;
+        if (attKeys.has(key)) continue;
         if (addedLogKeys.has(key)) continue;
         addedLogKeys.add(key);
         resultEntries.push(l);
@@ -4047,8 +4048,6 @@ const adminRouter = t.router({
         ]);
 
         // 회원별 세션 카운트: 출석체크 있는 회원 → 출석만 카운트, 없는 회원 → 세션기록 카운트
-        const membersWithAtt = new Set<number>();
-        for (const a of attRows) membersWithAtt.add(a.memberId);
 
         const sessionByKey = new Map<string, typeof logs[number]>();
         for (const l of logs) {
@@ -4074,10 +4073,13 @@ const adminRouter = t.router({
             memberBranchId: a.memberBranchId,
           });
         }
+        // 중복 배제는 회원이 아니라 "회원+날짜" 단위다. 회원 단위로 걸러내면
+        // 출석체크가 하루라도 있는 회원의 나머지 수업일지가 통째로 정산에서 빠진다.
+        const attKeys = new Set(attRows.map(a => `${a.memberId}|${a.checkDate}`));
         const addedLogKeys = new Set<string>();
         for (const l of logs) {
-          if (membersWithAtt.has(l.memberId)) continue;
           const key = `${l.memberId}|${l.sessionDate}`;
+          if (attKeys.has(key)) continue;
           if (addedLogKeys.has(key)) continue;
           addedLogKeys.add(key);
           resultEntries.push(l);
