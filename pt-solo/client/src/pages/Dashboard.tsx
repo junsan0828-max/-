@@ -1340,8 +1340,7 @@ function TrainerDashboard() {
                 { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setMemberSearchOpen(true) },
                 { label: "만료 임박", icon: Clock, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
                 { label: "미수금", icon: AlertTriangle, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
-                { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
-                { label: "재등록 안내", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
+                { label: "재등록 관리", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions6?.length ?? null },
                 { label: "회원 운영 현황", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => openFeature("member_overview") },
               ]} />
             </div>
@@ -1373,13 +1372,9 @@ function TrainerDashboard() {
                 <span className="text-sm font-semibold">매출·분석</span>
               </div>
               <ToolGrid items={[
-                { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=daily") },
-                { label: "월 매출", icon: BarChart3, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=monthly") },
-                { label: "월 지출", icon: Wallet, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=expense") },
-                { label: "정산 요약", icon: FileText, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
-                { label: "월간 손익", icon: PieChart, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=analysis") },
-                { label: "재등록 분석", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("renewal_analysis"), comingSoon: true },
-                { label: "상담 전환율", icon: ArrowUpRight, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("consult_conversion"), comingSoon: true },
+                { label: "매출 현황", icon: BarChart3, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
+                { label: "지출 관리", icon: Wallet, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=expense") },
+                { label: "손익 분석", icon: PieChart, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=analysis") },
               ]} />
             </div>
 
@@ -1393,12 +1388,6 @@ function TrainerDashboard() {
               <ToolGrid items={[
                 { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
                 { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
-                { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
-                { label: "활동 통계", icon: Activity, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("activity_stats"), comingSoon: true },
-                { label: "KPI 리포트", icon: Target, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("kpi_report"), comingSoon: true },
-                { label: "채널 분석", icon: Share2, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("channel_analysis"), comingSoon: true },
-                { label: "마케팅 분석", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("marketing_analysis"), comingSoon: true },
-                { label: "데이터 이전", icon: Database, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("data_migration"), comingSoon: true },
               ]} />
             </div>
 
