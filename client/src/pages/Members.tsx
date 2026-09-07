@@ -312,8 +312,9 @@ export default function Members() {
         </div>
       ) : (
         (() => {
-          const validMembers = filtered?.filter(m => (remainingMap[m.id] ?? 0) > 0) ?? [];
-          const closedMembers = filtered?.filter(m => !((remainingMap[m.id] ?? 0) > 0)) ?? [];
+          const koSort = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'ko');
+          const validMembers = (filtered?.filter(m => (remainingMap[m.id] ?? 0) > 0) ?? []).sort(koSort);
+          const closedMembers = (filtered?.filter(m => !((remainingMap[m.id] ?? 0) > 0)) ?? []).sort(koSort);
 
           const renderCard = (member: NonNullable<typeof filtered>[number]) => {
             const daysLeft = member.membershipEnd

@@ -706,8 +706,9 @@ export default function TrainerDetail({ trainerId }: Props) {
             <p className="text-sm text-muted-foreground text-center py-6">담당 회원이 없습니다.</p>
           ) : (
             (() => {
-              const validMembers = memberList.filter(m => m.remainingPt > 0);
-              const closedMembers = memberList.filter(m => m.remainingPt <= 0);
+              const koSort = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'ko');
+              const validMembers = memberList.filter(m => m.remainingPt > 0).sort(koSort);
+              const closedMembers = memberList.filter(m => m.remainingPt <= 0).sort(koSort);
 
               const renderMemberRow = (m: typeof memberList[number]) => {
               const today = new Date();
