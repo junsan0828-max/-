@@ -456,6 +456,12 @@ const membersRouter = t.router({
       visitRoute: z.string().optional(),
       ptProgram: z.string().optional(),
       ptSessions: z.string().optional(),
+      // 신규 필드: 계약 모드 플래그 + 계약 금액 구조
+      hasContract: z.boolean().optional(),  // true = 프로그램+결제 함께 등록
+      listPrice: z.number().optional(),     // 정가
+      discountAmount: z.number().optional(), // 할인금액
+      paidAmount: z.number().optional(),    // 실납부액
+      // 하위 호환: 구 클라이언트가 보내는 paymentAmount/unpaidAmount도 허용
       paymentAmount: z.number().optional(),
       unpaidAmount: z.number().optional(),
       paymentMethod: z.enum(["카드", "현금", "계좌이체", "지역화폐"]).optional(),
@@ -467,7 +473,9 @@ const membersRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
-      const { ptProgram, ptSessions, paymentAmount, unpaidAmount, paymentMethod, paymentDate, paymentMemo, ...memberData } = input;
+      const { ptProgram, ptSessions, hasContract, listPrice, discountAmount, paidAmount,
+              paymentAmount: legacyPaymentAmount, unpaidAmount: legacyUnpaidAmount,
+              paymentMethod, paymentDate, paymentMemo, ...memberData } = input;
 
       const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
       const memberPlan = planRow?.plan ?? "free";
@@ -483,9 +491,26 @@ const membersRouter = t.router({
       const [insertResult] = await db.insert(members).values({ ...memberData, trainerId }).returning({ id: members.id });
       const memberId = insertResult.id;
 
-      if (ptSessions) {
-        const sessionCount = parseInt(ptSessions);
-        const pricePerSession = calcPricePerSession(paymentAmount, sessionCount, paymentMethod);
+      // 계약 생성 조건:
+      // - 신규 방식: hasContract = true (프로그램+결제 모드)
+      // - 구 방식(하위호환): ptSessions 값이 있으면 패키지 생성
+      const shouldCreatePackage = hasContract === true || !!ptSessions;
+
+      if (shouldCreatePackage) {
+        const sessionCount = ptSessions ? parseInt(ptSessions) : 0;
+
+        // 신규 방식: listPrice 기반으로 계약금액 / 미수금 계산
+        // 구 방식: paymentAmount / unpaidAmount 직접 사용
+        const contractAmount = listPrice !== undefined
+          ? Math.max(0, listPrice - (discountAmount ?? 0))
+          : undefined;
+        const actualPaid = paidAmount ?? legacyPaymentAmount;
+        const computedUnpaid = contractAmount !== undefined && actualPaid !== undefined
+          ? Math.max(0, contractAmount - actualPaid)
+          : legacyUnpaidAmount;
+
+        const pricePerSession = calcPricePerSession(actualPaid, sessionCount || undefined, paymentMethod);
+
         await db.insert(ptPackages).values({
           memberId,
           trainerId,
@@ -494,13 +519,25 @@ const membersRouter = t.router({
           packageName: ptProgram || undefined,
           startDate: memberData.membershipStart,
           expiryDate: memberData.membershipEnd,
+          price: contractAmount,          // 계약금액 (정가 - 할인)
           pricePerSession,
-          paymentAmount,
-          unpaidAmount,
+          paymentAmount: actualPaid,      // 실납부액
+          unpaidAmount: computedUnpaid,   // 미수금 = 계약금액 - 실납부액
           paymentMethod,
-          paymentDate,
+          paymentDate: actualPaid && actualPaid > 0 ? paymentDate : undefined,
           paymentMemo,
         });
+
+        // 실납부가 있을 때 payments 테이블에도 기록 (상담관리 경로와 일관성)
+        if (actualPaid && actualPaid > 0) {
+          await db.insert(payments).values({
+            memberId, trainerId,
+            amount: actualPaid,
+            paymentDate: paymentDate || undefined,
+            paymentMethod: paymentMethod || undefined,
+            memo: paymentMemo || undefined,
+          });
+        }
       }
 
       return { id: memberId };
