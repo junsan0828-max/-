@@ -2843,10 +2843,11 @@ const gymPlusRouter = t.router({
       // 위조된 금액이 데스크/CRM에 그대로 보이면 오입금·분쟁으로 이어진다.
       const amount = REGISTRATION_PRICES[input.membershipPeriod];
 
-      await pool.query(
+      const insertRes = await pool.query(
         `INSERT INTO gym_plus_registration_requests
           (name, phone, "membershipPeriod", amount, status, "signatureData", "agreedMarketing", "contractDate", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, now()::text, now()::text)`,
+         VALUES ($1, $2, $3, $4, 'approved', $5, $6, $7, now()::text, now()::text)
+         RETURNING id`,
         [
           input.name, input.phone, input.membershipPeriod, amount,
           input.signatureData ?? "",
@@ -2854,6 +2855,45 @@ const gymPlusRouter = t.router({
           input.contractDate ?? new Date().toLocaleDateString("ko-KR"),
         ]
       );
+      const requestId = insertRes.rows[0]?.id as number | undefined;
+
+      // 등록 즉시 통합운영시스템 + 짐플러스 계정 자동 생성
+      if (requestId) {
+        try {
+          const digits = input.phone.replace(/\D/g, "");
+          const trainerRes = await pool.query(`SELECT id FROM trainers ORDER BY id ASC LIMIT 1`);
+          const trainerId = trainerRes.rows[0]?.id ?? 1;
+
+          const membersInsert = await pool.query(
+            `INSERT INTO members (name, phone, "trainerId", "visitRoute", "profileNote", status, "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, 'active', now()::text, now()::text)
+             ON CONFLICT DO NOTHING RETURNING id`,
+            [input.name, input.phone, trainerId, "ZIANTGYM+ 앱", `앱 등록 신청 (${input.membershipPeriod}) — 첫 방문 시 시작일 확인`]
+          );
+          const membersId = membersInsert.rows[0]?.id ?? null;
+
+          if (membersId) {
+            const existing = await pool.query(`SELECT id FROM gym_plus_members WHERE username = $1 LIMIT 1`, [digits]);
+            let gymPlusMemberId: number | null = existing.rows[0]?.id ?? null;
+            if (!gymPlusMemberId) {
+              const initPw = digits.slice(-4) || "0000";
+              const hashed = await bcrypt.hash(initPw, 10);
+              const gpInsert = await pool.query(
+                `INSERT INTO gym_plus_members (username, password, name, phone, "memberId", "membershipType", "isActive", "createdAt", "updatedAt")
+                 VALUES ($1, $2, $3, $4, $5, 'general', 1, now()::text, now()::text) RETURNING id`,
+                [digits, hashed, input.name, input.phone, membersId]
+              );
+              gymPlusMemberId = gpInsert.rows[0]?.id ?? null;
+            }
+            await pool.query(
+              `UPDATE gym_plus_registration_requests SET "membersId" = $1, "gymPlusMemberId" = $2 WHERE id = $3`,
+              [membersId, gymPlusMemberId, requestId]
+            );
+          }
+        } catch (e) {
+          console.error("auto-registration error:", e);
+        }
+      }
 
       // 통합운영시스템 상담 CRM에 카드 자동 생성 (fire-and-forget)
       fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
