@@ -1577,24 +1577,32 @@ const ptRouter = t.router({
       const [memberRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
       const memberNameSnapshot = memberRow?.name ?? null;
 
-      // packageId 자동 연결: 회원의 활성 패키지 중 단가 정보가 있는 것을 우선 선택
-      // (연결 누락 시 정산 단가가 0원이 되는 문제 방지)
-      // "기타"는 1회성 부가항목(운동복/락커 등과 유사한 잡항목)일 뿐 실제 PT 프로그램이 아니므로
-      // 실제 프로그램 패키지가 있으면 절대 우선순위에서 밀려나야 한다 (아니면 저단가 기타 항목이
-      // 이후 모든 세션의 단가를 잘못 끌어내리는 사고가 발생한다).
+      // packageId 자동 연결: 출석체크(markPtSession)와 동일한 선택 기준으로 패키지를 고른다.
+      // 정렬: 시작된 패키지 우선(미래 시작은 뒤로), startDate asc(이전 패키지 먼저 소진), id asc.
+      // "기타"는 1회성 부가항목이므로 실제 프로그램 패키지보다 우선순위가 낮다.
+      const today = kstDate();
       const memberPkgs = await db.select({
         id: ptPackages.id, pricePerSession: ptPackages.pricePerSession,
         paymentAmount: ptPackages.paymentAmount, status: ptPackages.status,
         packageName: ptPackages.packageName, startDate: ptPackages.startDate,
+        usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions,
       }).from(ptPackages)
         .where(eq(ptPackages.memberId, input.memberId))
-        .orderBy(desc(ptPackages.createdAt));
-      const today = kstDate();
+        .orderBy(
+          // 시작된 패키지(startDate <= today 또는 null) 먼저
+          sql`CASE WHEN "startDate" IS NULL OR "startDate" <= ${today}::text THEN 0 ELSE 1 END`,
+          asc(ptPackages.startDate),
+          asc(ptPackages.id),
+        );
       const priced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
       const isRealProgram = (p: any) => p.packageName !== "기타";
-      // 미래 시작 패키지(선결제)는 아직 시작되지 않은 것이므로 세션 귀속에서 제외
       const isStarted = (p: any) => !p.startDate || p.startDate <= today;
+      // 잔여가 있는 활성 패키지만 세션을 귀속할 수 있다
+      const hasRemaining = (p: any) => (p.usedSessions ?? 0) < (p.totalSessions ?? 0);
       const resolvedPackageId =
+        memberPkgs.find(p => p.status === "active" && isStarted(p) && hasRemaining(p) && priced(p) && isRealProgram(p))?.id ??
+        memberPkgs.find(p => p.status === "active" && isStarted(p) && hasRemaining(p) && priced(p))?.id ??
+        memberPkgs.find(p => p.status === "active" && isStarted(p) && hasRemaining(p))?.id ??
         memberPkgs.find(p => p.status === "active" && isStarted(p) && priced(p) && isRealProgram(p))?.id ??
         memberPkgs.find(p => p.status === "active" && isStarted(p) && priced(p))?.id ??
         memberPkgs.find(p => p.status === "active" && isStarted(p))?.id ??
@@ -1610,12 +1618,38 @@ const ptRouter = t.router({
       const targetDate = input.sessionDate ?? kstDate();
 
       // 같은 날 이미 세션 로그가 있으면 UPDATE (출석 체크로 자동 생성된 로그 포함)
-      const [existingForDate] = await db.select({ id: ptSessionLogs.id })
+      const [existingForDate] = await db.select({ id: ptSessionLogs.id, packageId: ptSessionLogs.packageId, isDraft: ptSessionLogs.isDraft })
         .from(ptSessionLogs)
         .where(and(eq(ptSessionLogs.memberId, input.memberId), eq(ptSessionLogs.sessionDate, targetDate)))
         .limit(1);
 
       if (existingForDate) {
+        const oldPkgId = existingForDate.packageId ?? null;
+        const oldIsDraft = (existingForDate.isDraft ?? 0) !== 0;
+        const newIsDraft = !!isDraft;
+
+        // packageId가 바뀌면 기존 패키지 usedSessions -1, 새 패키지 +1 (둘 다 draft 아닐 때)
+        if (oldPkgId !== resolvedPackageId && !oldIsDraft && !newIsDraft) {
+          if (oldPkgId) {
+            const [oldPkg] = await db.select({ usedSessions: ptPackages.usedSessions })
+              .from(ptPackages).where(eq(ptPackages.id, oldPkgId)).limit(1);
+            if (oldPkg && oldPkg.usedSessions > 0) {
+              const dec = oldPkg.usedSessions - 1;
+              await db.update(ptPackages).set({ usedSessions: dec, status: "active" })
+                .where(eq(ptPackages.id, oldPkgId));
+            }
+          }
+          if (resolvedPackageId) {
+            const [newPkg] = await db.select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+              .from(ptPackages).where(eq(ptPackages.id, resolvedPackageId)).limit(1);
+            if (newPkg && newPkg.usedSessions < newPkg.totalSessions) {
+              const inc = newPkg.usedSessions + 1;
+              await db.update(ptPackages).set({ usedSessions: inc, status: inc >= newPkg.totalSessions ? "completed" : "active" })
+                .where(eq(ptPackages.id, resolvedPackageId));
+            }
+          }
+        }
+
         const [row] = await db.update(ptSessionLogs)
           .set({
             goal: logFields.goal, bodyPart: logFields.bodyPart,
@@ -5484,10 +5518,12 @@ const attendanceChecksRouter = t.router({
         if (existingLog) {
           ptDeducted = true; // 이미 그 날짜 수업일지가 있어 이미 차감된 상태
         } else {
+          // createLog와 동일한 선택 기준: 기타 아닌 실제 프로그램 먼저, 시작된 것 먼저, 이전 패키지 먼저 소진
           const [activePkg] = await db.select()
             .from(ptPackages)
             .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "active")))
             .orderBy(
+              sql`CASE WHEN "packageName" = '기타' THEN 1 ELSE 0 END`,
               sql`CASE WHEN "startDate" IS NULL OR "startDate" <= CURRENT_DATE::text THEN 0 ELSE 1 END`,
               asc(ptPackages.startDate),
               asc(ptPackages.id),
