@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '버전 (예: 1.0.0)'
+        description: 'Version (e.g. 1.0.0)'
         required: true
         default: '1.0.0'
 
@@ -16,33 +16,58 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: 코드 받기
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Node.js 설정
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: fittrainer-pro/package-lock.json
 
-      - name: 의존성 설치
+      # Electron 런타임(111MB)은 매번 GitHub 에서 받는다.
+      # 한 번 받아두면 다음 빌드는 캐시를 쓰므로 다운로드 실패 자체가 줄어든다.
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('fittrainer-pro/package-lock.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+
+      - name: Install dependencies
         working-directory: fittrainer-pro
         run: npm ci
 
-      - name: 렌더러 빌드
+      - name: Build renderer
         working-directory: fittrainer-pro
         run: npm run build:renderer
 
-      - name: Windows 설치 파일 빌드
+      # 다운로드가 끊겨 실패하는 일이 있어 몇 번 다시 시도한다.
+      - name: Build Windows installer
         working-directory: fittrainer-pro
-        run: npx electron-builder --win --publish never
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 3; $i++) {
+            Write-Host "=== electron-builder 시도 $i/3 ==="
+            npx electron-builder --win --publish never
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            if ($i -lt 3) {
+              Write-Host "실패. 20초 후 다시 시도합니다."
+              Start-Sleep -Seconds 20
+            }
+          }
+          Write-Host "3회 모두 실패했습니다."
+          exit 1
 
-      - name: 빌드 결과 확인
+      - name: List dist
         working-directory: fittrainer-pro
         run: dir dist
 
-      - name: GitHub Release 생성 및 업로드
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.event.inputs.version }}
@@ -50,13 +75,13 @@ jobs:
           body: |
             ## FitTrainer Pro v${{ github.event.inputs.version }}
 
-            ### 설치 방법
-            1. 아래 `FitTrainer Pro Setup.exe` 다운로드
-            2. 실행 후 설치 (설치 경로 선택 가능)
-            3. 바탕화면 FitTrainer Pro 아이콘 실행
-            4. 운동 영상 폴더 선택 후 사용
+            ### How to install
+            1. Download `FitTrainer Pro Setup.exe` below
+            2. Run and install (you can choose the installation path)
+            3. Launch FitTrainer Pro from the desktop shortcut
+            4. Select your workout video folder and start using it
 
-            > 운동 영상 파일은 따로 복사하여 사용하세요.
+            > Copy your workout video files separately before use.
           files: fittrainer-pro/dist/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
