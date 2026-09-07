@@ -1313,7 +1313,7 @@ function TrainerDashboard() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-semibold">최근 회원</p>
-                  <button onClick={() => setLocation("/members")} className="text-xs font-semibold text-primary">전체보기</button>
+                  <button onClick={() => setLocation("/pt")} className="text-xs font-semibold text-primary">전체보기</button>
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
                   {recentMembers.map((m) => (
@@ -1336,7 +1336,7 @@ function TrainerDashboard() {
                 <span className="text-sm font-semibold">회원 관리</span>
               </div>
               <ToolGrid items={[
-                { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
+                { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/pt") },
                 { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setMemberSearchOpen(true) },
                 { label: "만료 임박", icon: Clock, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
                 { label: "미수금", icon: AlertTriangle, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },

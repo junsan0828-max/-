@@ -45,7 +45,7 @@ import MySequences from "./pages/MySequences";
 import AdminSequenceReview from "./pages/AdminSequenceReview";
 import AdminSequenceReviewDetail from "./pages/AdminSequenceReviewDetail";
 import ImportDiet from "./pages/ImportDiet";
-import SalesBookPublic, { SalesBookEditor } from "./pages/SalesBook";
+import SalesBookPublic from "./pages/SalesBook";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -215,7 +215,6 @@ function App() {
           <Route path="/brand-preview">{() => <TrainerBrandPage previewMode />}</Route>
           <Route path="/fitstep-plus-manage">{() => <FitStepPlusManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
-          <Route path="/points">{() => <Redirect to="/profile" replace />}</Route>
           <Route path="/import-diet">{() => <ImportDiet />}</Route>
 
           <Route path="/feedback">{() => <TrainerFeedback />}</Route>
