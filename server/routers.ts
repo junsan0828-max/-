@@ -3611,7 +3611,7 @@ const adminRouter = t.router({
 
   // 트레이너 미배정 실제 회원 목록 (members 테이블에서 trainerId NULL)
   listUnassignedMembers: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin" && ctx.user?.role !== "consultant")
       throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) return [];
@@ -3763,7 +3763,7 @@ const adminRouter = t.router({
   assignTrainerToMember: protectedProcedure
     .input(z.object({ memberId: z.number(), trainerId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin" && ctx.user?.role !== "consultant")
         throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

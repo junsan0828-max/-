@@ -61,6 +61,7 @@ import TeamManagementPage from "./pages/TeamManagement";
 import LandingPageAdmin from "./pages/LandingPageAdmin";
 import DataManagementPage from "./pages/DataManagement";
 import ConsultantDataRecordPage from "./pages/ConsultantDataRecord";
+import PTAssignment from "./pages/PTAssignment";
 import Layout from "./components/Layout";
 import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
 import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
@@ -229,6 +230,7 @@ function App() {
         <Route path="/landing-admin">{() => <LandingPageAdmin />}</Route>
         <Route path="/data-management">{() => <DataManagementPage />}</Route>
         <Route path="/consultant-records">{() => <ConsultantDataRecordPage />}</Route>
+        <Route path="/pt-assignment">{() => <PTAssignment />}</Route>
         <Route path="/admin">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <Admin /> : <Redirect to="/" />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
