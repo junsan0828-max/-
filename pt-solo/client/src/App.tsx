@@ -212,6 +212,7 @@ function App() {
           <Route path="/sequences">{() => <SequenceLab />}</Route>
           <Route path="/booking">{() => <BookingManagementPage />}</Route>
           <Route path="/brand-page">{() => <BrandPageManagementPage />}</Route>
+          <Route path="/brand-preview">{() => <TrainerBrandPage previewMode />}</Route>
           <Route path="/fitstep-plus-manage">{() => <FitStepPlusManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" replace />}</Route>

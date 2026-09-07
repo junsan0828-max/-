@@ -1868,11 +1868,14 @@ export function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {})
             {/* 미리보기 버튼 */}
             <button
               onClick={() => {
-                if (dirty) { toast("저장 후 미리보기를 확인하세요", { icon: "💡" }); return; }
-                if (brandIsPublic) {
-                  window.open(brandUrl, "_blank");
-                } else {
-                  toast("공개로 설정하고 저장하면 미리보기 가능합니다", { icon: "🔒" });
+                if (dirty) {
+                  toast("저장 후 미리보기를 확인하세요", { icon: "💡" });
+                  return;
+                }
+                // 소유자 전용 미리보기 — 공개 여부와 무관하게 항상 가능
+                const previewWin = window.open("/brand-preview", "_blank");
+                if (!previewWin) {
+                  toast.error("팝업이 차단되었습니다. 브라우저 팝업 차단을 해제하거나 주소창에 /brand-preview 를 직접 입력하세요.");
                 }
               }}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-muted hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">

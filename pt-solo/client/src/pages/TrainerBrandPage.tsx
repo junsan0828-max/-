@@ -21,7 +21,7 @@ const CAREER_CAT_META: Record<string, { label: string }> = {
 };
 
 interface BrandBlock { id: string; type: string; visible: boolean; data: any; }
-interface Props { username: string; }
+interface Props { username?: string; previewMode?: boolean; }
 
 // ── 간편 예약 폼 (슬롯 미설정 시 폴백) ──────────────────────────────────────
 function SimpleBookingForm({ bookingBlock, primaryColor, form, setForm, isPending, onSubmit }: {
@@ -296,8 +296,19 @@ function InlineTimeSlotPicker({ trainerId, date, primaryColor, selectedSlotId, o
   );
 }
 
-export default function TrainerBrandPage({ username }: Props) {
-  const { data: trainer, isLoading, error } = trpc.brand.getPublicProfile.useQuery({ username });
+export default function TrainerBrandPage({ username, previewMode }: Props) {
+  // previewMode: 소유자 전용 미리보기 (brandIsPublic 무관). hook 규칙상 둘 다 호출 후 하나만 사용.
+  const { data: publicData, isLoading: pubLoading, error: pubError } = trpc.brand.getPublicProfile.useQuery(
+    { username: username ?? "" },
+    { enabled: !previewMode && !!username }
+  );
+  const { data: previewData, isLoading: prevLoading, error: prevError } = trpc.brand.getOwnerPreview.useQuery(
+    undefined,
+    { enabled: !!previewMode }
+  );
+  const trainer = previewMode ? previewData : publicData;
+  const isLoading = previewMode ? prevLoading : pubLoading;
+  const error = previewMode ? prevError : pubError;
   const [showBooking, setShowBooking] = useState(false);
   const [showAllCareer, setShowAllCareer] = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
@@ -330,8 +341,18 @@ export default function TrainerBrandPage({ username }: Props) {
 
   if (error || !trainer) return (
     <div className="min-h-screen bg-[#f5f5f7] flex flex-col items-center justify-center gap-3 p-6">
-      <p className="text-gray-500 text-sm">페이지를 찾을 수 없습니다.</p>
-      <a href="/" className="text-blue-500 text-sm underline">핏스텝 홈으로</a>
+      {previewMode ? (
+        <>
+          <p className="text-gray-500 text-sm">미리보기를 불러올 수 없습니다.</p>
+          <p className="text-gray-400 text-xs">로그인 상태를 확인하거나, 브랜드 페이지를 먼저 저장해 주세요.</p>
+          <a href="/brand-page" className="text-blue-500 text-sm underline">브랜드 페이지 관리로 돌아가기</a>
+        </>
+      ) : (
+        <>
+          <p className="text-gray-500 text-sm">페이지를 찾을 수 없습니다.</p>
+          <a href="/" className="text-blue-500 text-sm underline">핏스텝 홈으로</a>
+        </>
+      )}
     </div>
   );
 
@@ -513,6 +534,14 @@ export default function TrainerBrandPage({ username }: Props) {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
+
+      {/* 소유자 미리보기 안내 배너 */}
+      {previewMode && (
+        <div className="sticky top-0 z-50 flex items-center justify-between gap-2 bg-amber-400 px-4 py-2 text-xs font-semibold text-amber-900">
+          <span>🔒 미리보기 모드 — 비공개 상태입니다. 외부 방문자에게는 표시되지 않습니다.</span>
+          <a href="/brand-page" className="underline whitespace-nowrap">관리 페이지로</a>
+        </div>
+      )}
 
       {/* ── Hero ── */}
       <section

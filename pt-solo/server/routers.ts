@@ -5668,6 +5668,21 @@ const brandRouter = t.router({
     return { success: true };
   }),
 
+  // 소유자 전용 미리보기 (로그인 필요, brandIsPublic 무관)
+  getOwnerPreview: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const row = await pool.query<any>(
+      `SELECT t.id AS "trainerId", t."trainerName", t."profileImage", t."activityArea", t."jobType", t."careerRange",
+              t."brandBio", t."brandSpecialties", t."brandColor", t."brandInstagram", t."brandKakao", t."brandYoutube",
+              t."brandIsPublic", t."bookingEnabled", t."bookingMessage", t."brandBlocks"
+       FROM trainers t WHERE t.id=$1`,
+      [trainerId]
+    );
+    if (!row.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    return { ...row.rows[0], isPreview: true };
+  }),
+
   // 공개 브랜드 페이지 조회 (username 기준, 로그인 불필요)
   getPublicProfile: t.procedure.input(z.object({ username: z.string() })).query(async ({ input }) => {
     let row: any;
