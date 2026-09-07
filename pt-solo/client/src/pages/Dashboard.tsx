@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ElementType } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -992,6 +992,80 @@ function BannerAndNotices() {
 }
 
 
+// ─── 온보딩 — FIT STEP 시작하기 ──────────────────────────────────────────────
+function GettingStarted({
+  step1Done, step2Done, step3Done, step4Done, onSkip, onNavigate, onRegisterMember,
+}: {
+  step1Done: boolean; step2Done: boolean; step3Done: boolean; step4Done: boolean;
+  onSkip: () => void; onNavigate: (path: string) => void; onRegisterMember: () => void;
+}) {
+  const completedCount = [step1Done, step2Done, step3Done, step4Done].filter(Boolean).length;
+  const allDone = completedCount === 4;
+  const [collapsed, setCollapsed] = useState(false);
+
+  const steps = [
+    { done: step1Done, num: 1, title: "상담 기록하기", desc: "첫 상담 고객을 상담 관리에 등록하세요", actionLabel: "상담 등록 →", action: () => onNavigate("/leads") },
+    { done: step2Done, num: 2, title: "회원·계약 등록", desc: "PT 회원과 계약 내역을 추가하세요", actionLabel: "회원 등록 →", action: onRegisterMember },
+    { done: step3Done, num: 3, title: "수업 일지 작성", desc: "첫 PT 수업을 출석·일지로 기록하세요", actionLabel: "수업 기록 →", action: () => onNavigate("/attendance") },
+    { done: step4Done, num: 4, title: "매출 확인하기", desc: "정산 화면에서 내 수입을 확인하세요", actionLabel: "매출 보기 →", action: () => onNavigate("/settlement") },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-primary/25 p-4" style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.08) 0%, hsl(var(--primary)/0.04) 100%)" }}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-sm font-bold">FIT STEP 시작하기</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{completedCount}/4 완료</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {allDone && (
+            <button onClick={() => setCollapsed(v => !v)} className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors">
+              {collapsed ? "펼치기" : "접기"}
+            </button>
+          )}
+          {!allDone && (
+            <button onClick={onSkip} className="text-[11px] text-muted-foreground underline hover:text-foreground transition-colors">
+              대시보드 먼저 보기
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="h-1.5 rounded-full bg-border/50 mb-3 overflow-hidden">
+        <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${(completedCount / 4) * 100}%` }} />
+      </div>
+      {!collapsed && (
+        <div className="space-y-2">
+          {steps.map(step => (
+            <div key={step.num} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${step.done ? "bg-primary/10 border-primary/20" : "bg-background/60 border-border"}`}>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${step.done ? "bg-primary" : "bg-muted/60"}`}>
+                {step.done
+                  ? <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                  : <span className="text-[11px] font-bold text-muted-foreground">{step.num}</span>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold leading-tight ${step.done ? "line-through text-muted-foreground/60" : ""}`}>{step.title}</p>
+                {!step.done && <p className="text-[11px] text-muted-foreground mt-0.5">{step.desc}</p>}
+                {step.num === 2 && !step.done && (
+                  <button onClick={() => onNavigate("/members/new")} className="text-[10px] text-muted-foreground underline mt-0.5">기존 회원부터 등록하기</button>
+                )}
+              </div>
+              {!step.done && (
+                <button onClick={step.action} className="text-[12px] font-semibold text-primary shrink-0 hover:opacity-80 transition-opacity">
+                  {step.actionLabel}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {allDone && collapsed && (
+        <p className="text-sm text-center text-muted-foreground py-1">모든 시작 단계를 완료했어요!</p>
+      )}
+    </div>
+  );
+}
+
 // ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
@@ -1036,6 +1110,10 @@ function TrainerDashboard() {
   }, []);
   const [parqModalOpen, setParqModalOpen] = useState(false);
   const { data: parqMissing } = trpc.parQ.listMissing.useQuery();
+  const { data: leadsData } = trpc.leads.list.useQuery();
+  const [onboardingSkipped, setOnboardingSkipped] = useState(() => localStorage.getItem("fitstep_onboarding_skipped") === "1");
+  const [settlementVisited, setSettlementVisited] = useState(() => localStorage.getItem("fitstep_settlement_visited") === "1");
+  const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
   const currentYearMonth = todayStr.slice(0, 7);
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
@@ -1073,6 +1151,12 @@ function TrainerDashboard() {
   const trainerName = (user as any)?.trainerName ?? (user as any)?.username ?? "스테퍼";
   const recentMembers = allMembers?.slice(0, 5) ?? [];
 
+  const step1Done = (leadsData?.length ?? 0) >= 1;
+  const step2Done = (stats?.totalMembers ?? 0) >= 1;
+  const step3Done = (stats?.totalPtSessions ?? 0) >= 1;
+  const step4Done = settlementVisited;
+  const showOnboarding = !onboardingSkipped && (!step1Done || !step2Done || !step3Done || !step4Done);
+
   return (
     <div className="space-y-5">
       <TabBanner tabKey="dashboard" />
@@ -1087,151 +1171,243 @@ function TrainerDashboard() {
         </h1>
       </div>
 
-      {/* 주요 액션 카드 */}
+      {/* 온보딩 — FIT STEP 시작하기 */}
+      {showOnboarding && (
+        <GettingStarted
+          step1Done={step1Done}
+          step2Done={step2Done}
+          step3Done={step3Done}
+          step4Done={step4Done}
+          onSkip={() => { localStorage.setItem("fitstep_onboarding_skipped", "1"); setOnboardingSkipped(true); }}
+          onNavigate={setLocation}
+          onRegisterMember={() => setRegisterTypeOpen(true)}
+        />
+      )}
+
+      {/* KPI 카드 5개 */}
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => setRegisterTypeOpen(true)}
-          className="relative overflow-hidden rounded-3xl p-5 text-left flex flex-col justify-between min-h-[140px] active:scale-95 transition-transform"
-          style={{ background: "linear-gradient(145deg, #4F46E5 0%, #7C3AED 100%)", boxShadow: "0 8px 24px rgba(79,70,229,.25)" }}>
-          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
-            <UserPlus className="h-5 w-5 text-white" />
+        <button onClick={() => setTodayModalOpen(true)}
+          className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+          <div className="flex items-center gap-1.5 mb-2">
+            <CalendarCheck className="h-3.5 w-3.5 text-teal-500" />
+            <span className="text-[11px] text-muted-foreground">오늘 수업</span>
           </div>
-          <div className="pr-8">
-            <p className="text-[16px] font-semibold text-white">회원 등록</p>
-            <p className="text-[12px] text-white/65 mt-0.5">새 회원을 빠르게 등록</p>
-          </div>
-          <div className="absolute bottom-4 right-4 w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
-            <ArrowRight className="h-3.5 w-3.5 text-white" />
-          </div>
+          <p className="text-2xl font-bold">{stats?.todayAttendances ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">회</span></p>
         </button>
 
-        <button onClick={() => setLocation("/attendance")}
-          className="relative overflow-hidden rounded-3xl p-5 text-left flex flex-col justify-between min-h-[140px] active:scale-95 transition-transform"
-          style={{ background: "linear-gradient(145deg, #0EA5E9 0%, #10B981 100%)", boxShadow: "0 8px 24px rgba(14,165,233,.2)" }}>
-          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
-            <Dumbbell className="h-5 w-5 text-white" />
+        <button onClick={() => setLocation("/pt")}
+          className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Users className="h-3.5 w-3.5 text-indigo-500" />
+            <span className="text-[11px] text-muted-foreground">활성 회원</span>
           </div>
-          <div className="pr-8">
-            <p className="text-[16px] font-semibold text-white">수업 시작</p>
-            <p className="text-[12px] text-white/65 mt-0.5">오늘 PT 바로 기록</p>
+          <p className="text-2xl font-bold">{stats?.activeMembers ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
+        </button>
+
+        <button onClick={() => setExpiringModalOpen(true)}
+          className="relative rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Clock className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-[11px] text-muted-foreground">만료 임박</span>
+            {(expiring?.length ?? 0) > 0 && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />}
           </div>
-          <div className="absolute bottom-4 right-4 w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
-            <ArrowRight className="h-3.5 w-3.5 text-white" />
+          <p className="text-2xl font-bold">{expiring?.length ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
+          <p className="text-[10px] text-muted-foreground mt-1">7일 이내</p>
+        </button>
+
+        <button onClick={() => setUnpaidModalOpen(true)}
+          className="relative rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+          <div className="flex items-center gap-1.5 mb-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+            <span className="text-[11px] text-muted-foreground">미수금</span>
+            {(unpaid?.length ?? 0) > 0 && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-500" />}
           </div>
+          <p className="text-xl font-bold leading-tight">{(unpaid ?? []).reduce((s, m) => s + (m.unpaidAmount ?? 0), 0).toLocaleString()}<span className="text-xs font-normal text-muted-foreground ml-1">원</span></p>
+          <p className="text-[10px] text-muted-foreground mt-1">{unpaid?.length ?? 0}명</p>
         </button>
       </div>
+
+      {/* 이번달 실입금 (전체 폭) */}
+      <button onClick={() => { localStorage.setItem("fitstep_settlement_visited", "1"); setSettlementVisited(true); setLocation("/settlement"); }}
+        className="w-full rounded-2xl border p-4 text-left active:scale-95 transition-transform flex items-center justify-between"
+        style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.10) 0%, hsl(172 66% 50% / 0.06) 100%)", borderColor: "hsl(142 76% 36% / 0.25)" }}>
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="text-[11px] text-muted-foreground">이번달 실입금</span>
+          </div>
+          <p className="text-2xl font-bold">{(stats?.monthlySettlement ?? 0).toLocaleString()}<span className="text-sm font-normal text-muted-foreground ml-1">원</span></p>
+        </div>
+        <ArrowRight className="h-5 w-5 text-emerald-500 shrink-0" />
+      </button>
+
+      {/* 주요 액션 4개 */}
+      <div className="grid grid-cols-4 gap-2">
+        {([
+          { label: "회원 등록", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", onClick: () => setRegisterTypeOpen(true) },
+          { label: "수업 시작", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", onClick: () => setLocation("/attendance") },
+          { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", onClick: () => setJournalOpen(true) },
+          { label: "정산·매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", onClick: () => { localStorage.setItem("fitstep_settlement_visited", "1"); setSettlementVisited(true); setLocation("/settlement"); } },
+        ] as const).map(item => (
+          <button key={item.label} onClick={item.onClick}
+            className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">
+            <div className={`w-14 h-14 rounded-[18px] ${item.bgCls} flex items-center justify-center`}>
+              <item.icon className={`h-5 w-5 ${item.colorCls}`} />
+            </div>
+            <span className="text-[10.5px] font-semibold text-foreground/65 text-center leading-tight">{item.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* 오늘 확인할 업무 */}
+      {(() => {
+        const tasks: { icon: ElementType; colorCls: string; label: string; sub: string; onClick: () => void }[] = [
+          ...(expiring?.length ? [{ icon: Clock, colorCls: "text-amber-500", label: `만료 임박 ${expiring.length}명`, sub: "7일 이내 만료 예정", onClick: () => setExpiringModalOpen(true) }] : []),
+          ...(unpaid?.length ? [{ icon: AlertTriangle, colorCls: "text-orange-500", label: `미수금 ${unpaid.length}명`, sub: `총 ${(unpaid ?? []).reduce((s, m) => s + (m.unpaidAmount ?? 0), 0).toLocaleString()}원`, onClick: () => setUnpaidModalOpen(true) }] : []),
+          ...((lowSessions6?.length ?? 0) > 0 ? [{ icon: RefreshCw, colorCls: "text-cyan-500", label: `잔여세션 6회 이하 ${lowSessions6!.length}명`, sub: "재등록 안내 필요", onClick: () => setLowSessionsModalOpen(true) }] : []),
+          ...((parqMissing?.length ?? 0) > 0 ? [{ icon: ShieldCheck, colorCls: "text-rose-500", label: `PAR-Q 미기록 ${parqMissing!.length}명`, sub: "사전건강검사 누락", onClick: () => setParqModalOpen(true) }] : []),
+        ];
+        return (
+          <div className="rounded-2xl bg-card border border-border p-4">
+            <p className="text-sm font-semibold mb-3">오늘 확인할 업무</p>
+            {tasks.length === 0 ? (
+              <div className="flex items-center gap-2 py-1">
+                <Check className="h-4 w-4 text-emerald-500" />
+                <p className="text-sm text-muted-foreground">오늘 처리할 업무가 없어요</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {tasks.map((task, i) => (
+                  <button key={i} onClick={task.onClick}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-accent/20 hover:bg-accent/40 transition-colors text-left">
+                    <task.icon className={`h-4 w-4 ${task.colorCls} shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold">{task.label}</p>
+                      <p className="text-xs text-muted-foreground">{task.sub}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <QuickAskCard trainerName={trainerName} onNavigate={setLocation} />
 
-      {/* 최근 회원 */}
-      {recentMembers.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold">최근 회원</p>
-            <button onClick={() => setLocation("/members")} className="text-xs font-semibold text-primary">전체보기</button>
+      {/* 전체 기능 */}
+      <div className="rounded-2xl bg-card border border-border overflow-hidden">
+        <button onClick={() => setAllFeaturesOpen(v => !v)}
+          className="w-full flex items-center gap-2 p-4">
+          <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
+            <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
-            {recentMembers.map((m) => (
-              <button key={m.id} onClick={() => setLocation(`/members/${m.id}`)}
-                className="flex-shrink-0 active:scale-95 transition-transform">
-                <div className={`px-4 py-2 rounded-2xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center`}
-                  style={{ boxShadow: "0 2px 8px rgba(0,0,0,.1)" }}>
-                  <span className="text-sm font-bold text-white whitespace-nowrap">{m.name}</span>
+          <span className="text-sm font-semibold">전체 기능</span>
+          <span className="text-[11px] text-muted-foreground ml-1">모든 기능 목록</span>
+          <ChevronRight className={`h-4 w-4 text-muted-foreground ml-auto transition-transform ${allFeaturesOpen ? "rotate-90" : ""}`} />
+        </button>
+        {allFeaturesOpen && (
+          <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
+            {recentMembers.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold">최근 회원</p>
+                  <button onClick={() => setLocation("/members")} className="text-xs font-semibold text-primary">전체보기</button>
                 </div>
-              </button>
+                <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
+                  {recentMembers.map((m) => (
+                    <button key={m.id} onClick={() => setLocation(`/members/${m.id}`)}
+                      className="flex-shrink-0 active:scale-95 transition-transform">
+                      <div className={`px-4 py-2 rounded-2xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center`}>
+                        <span className="text-sm font-bold text-white whitespace-nowrap">{m.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-2xl bg-background border border-border p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                  <Users className="h-3.5 w-3.5 text-indigo-500" />
+                </div>
+                <span className="text-sm font-semibold">회원 관리</span>
+              </div>
+              <ToolGrid items={[
+                { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
+                { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setMemberSearchOpen(true) },
+                { label: "만료 임박", icon: Clock, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
+                { label: "미수금", icon: AlertTriangle, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
+                { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
+                { label: "재등록 안내", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
+                { label: "회원 운영 현황", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => openFeature("member_overview") },
+              ]} />
+            </div>
+
+            <div className="rounded-2xl bg-background border border-border p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                  <Dumbbell className="h-3.5 w-3.5 text-teal-500" />
+                </div>
+                <span className="text-sm font-semibold">수업·운동</span>
+              </div>
+              <ToolGrid items={[
+                { label: "오늘 수업 수", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
+                { label: "이번달 수업", icon: BarChart3, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setPtStatsModalOpen(true) },
+                { label: "수업 일지", icon: BookOpen, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setJournalOpen(true) },
+                { label: "PAR-Q 미기록", icon: ShieldCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setParqModalOpen(true), badge: parqMissing?.length ?? null },
+                { label: "운동 템플릿", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("templates") },
+                { label: "운동 영상 200", icon: PlaySquare, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_videos") },
+                { label: "식단 관리", icon: Utensils, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_diet") },
+                { label: "운동 기록", icon: Activity, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_personal") },
+              ]} />
+            </div>
+
+            <div className="rounded-2xl bg-background border border-border p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                </div>
+                <span className="text-sm font-semibold">매출·분석</span>
+              </div>
+              <ToolGrid items={[
+                { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=daily") },
+                { label: "월 매출", icon: BarChart3, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=monthly") },
+                { label: "월 지출", icon: Wallet, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=expense") },
+                { label: "정산 요약", icon: FileText, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
+                { label: "월간 손익", icon: PieChart, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=analysis") },
+                { label: "재등록 분석", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("renewal_analysis"), comingSoon: true },
+                { label: "상담 전환율", icon: ArrowUpRight, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("consult_conversion"), comingSoon: true },
+              ]} />
+            </div>
+
+            <div className="rounded-2xl bg-background border border-border p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                  <Cpu className="h-3.5 w-3.5 text-violet-500" />
+                </div>
+                <span className="text-sm font-semibold">AI·운영 리포트</span>
+              </div>
+              <ToolGrid items={[
+                { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
+                { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
+                { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
+                { label: "활동 통계", icon: Activity, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("activity_stats"), comingSoon: true },
+                { label: "KPI 리포트", icon: Target, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("kpi_report"), comingSoon: true },
+                { label: "채널 분석", icon: Share2, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("channel_analysis"), comingSoon: true },
+                { label: "마케팅 분석", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("marketing_analysis"), comingSoon: true },
+                { label: "데이터 이전", icon: Database, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("data_migration"), comingSoon: true },
+              ]} />
+            </div>
+
+            {WS_DASH.map(cat => (
+              <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={openFeature} featureConfigs={wsStatus?.featureConfigs} addonUnlocks={wsStatus?.addonUnlocks} />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ─── 운영 툴 그룹 ─── */}
-
-      {/* 회원 관리 */}
-      <div className="rounded-2xl bg-card border border-border p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-            <Users className="h-3.5 w-3.5 text-indigo-500" />
-          </div>
-          <span className="text-sm font-semibold">회원 관리</span>
-        </div>
-        <ToolGrid items={[
-          { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
-          { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setMemberSearchOpen(true) },
-          { label: "만료 임박", icon: Clock, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
-          { label: "미수금", icon: AlertTriangle, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
-          { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
-          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
-          { label: "회원 운영 현황", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => openFeature("member_overview") },
-        ]} />
+        )}
       </div>
-
-      {/* 수업·운동 */}
-      <div className="rounded-2xl bg-card border border-border p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
-            <Dumbbell className="h-3.5 w-3.5 text-teal-500" />
-          </div>
-          <span className="text-sm font-semibold">수업·운동</span>
-        </div>
-        <ToolGrid items={[
-          { label: "오늘 수업 수", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
-          { label: "이번달 수업", icon: BarChart3, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setPtStatsModalOpen(true) },
-          { label: "수업 일지", icon: BookOpen, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setJournalOpen(true) },
-          { label: "PAR-Q 미기록", icon: ShieldCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setParqModalOpen(true), badge: parqMissing?.length ?? null },
-          { label: "운동 템플릿", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("templates") },
-          { label: "운동 영상 200", icon: PlaySquare, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_videos") },
-          { label: "식단 관리", icon: Utensils, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_diet") },
-          { label: "운동 기록", icon: Activity, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_personal") },
-        ]} />
-      </div>
-
-      {/* 매출·분석 */}
-      <div className="rounded-2xl bg-card border border-border p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-            </div>
-            <span className="text-sm font-semibold">매출·분석</span>
-          </div>
-          <button onClick={() => setLocation("/settlement")}
-            className="text-[12px] font-semibold text-muted-foreground hover:text-primary transition-colors">
-            전체보기 →
-          </button>
-        </div>
-        <ToolGrid items={[
-          { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=daily") },
-          { label: "월 매출", icon: BarChart3, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=monthly") },
-          { label: "월 지출", icon: Wallet, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=expense") },
-          { label: "정산 요약", icon: FileText, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
-          { label: "월간 손익", icon: PieChart, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=analysis") },
-          { label: "재등록 분석", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("renewal_analysis"), comingSoon: true },
-          { label: "상담 전환율", icon: ArrowUpRight, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => openFeature("consult_conversion"), comingSoon: true },
-        ]} />
-      </div>
-
-      {/* AI·운영 리포트 */}
-      <div className="rounded-2xl bg-card border border-border p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
-            <Cpu className="h-3.5 w-3.5 text-violet-500" />
-          </div>
-          <span className="text-sm font-semibold">AI·운영 리포트</span>
-        </div>
-        <ToolGrid items={[
-          { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
-          { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
-          { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
-          { label: "활동 통계", icon: Activity, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("activity_stats"), comingSoon: true },
-          { label: "KPI 리포트", icon: Target, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("kpi_report"), comingSoon: true },
-          { label: "채널 분석", icon: Share2, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("channel_analysis"), comingSoon: true },
-          { label: "마케팅 분석", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("marketing_analysis"), comingSoon: true },
-          { label: "데이터 이전", icon: Database, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("data_migration"), comingSoon: true },
-        ]} />
-      </div>
-
-      {WS_DASH.map(cat => (
-        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={openFeature} featureConfigs={wsStatus?.featureConfigs} addonUnlocks={wsStatus?.addonUnlocks} />
-      ))}
 
       {/* 오늘 출석 모달 */}
       <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
