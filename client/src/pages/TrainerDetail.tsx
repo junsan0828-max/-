@@ -705,7 +705,11 @@ export default function TrainerDetail({ trainerId }: Props) {
           {!memberList?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">담당 회원이 없습니다.</p>
           ) : (
-            memberList.map((m) => {
+            (() => {
+              const validMembers = memberList.filter(m => m.remainingPt > 0);
+              const closedMembers = memberList.filter(m => m.remainingPt <= 0);
+
+              const renderMemberRow = (m: typeof memberList[number]) => {
               const today = new Date();
               const daysLeft = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
               const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
@@ -772,7 +776,29 @@ export default function TrainerDetail({ trainerId }: Props) {
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
                 </div>
               );
-            })
+              };
+
+              return (
+                <>
+                  {validMembers.length > 0 && (
+                    <>
+                      <p className="text-xs font-semibold text-muted-foreground px-1 pt-1">
+                        유효회원 · {validMembers.length}명
+                      </p>
+                      {validMembers.map(renderMemberRow)}
+                    </>
+                  )}
+                  {closedMembers.length > 0 && (
+                    <>
+                      <p className={`text-xs font-semibold text-muted-foreground px-1 ${validMembers.length > 0 ? "pt-4" : "pt-1"}`}>
+                        마감회원 · {closedMembers.length}명
+                      </p>
+                      {closedMembers.map(renderMemberRow)}
+                    </>
+                  )}
+                </>
+              );
+            })()
           )}
         </CardContent>
       </Card>

@@ -60,7 +60,9 @@ export default function Members() {
   const today = new Date();
 
   const remainingMap: Record<number, number> = {};
+  const ptMemberSet = new Set<number>();
   ptPackages?.forEach((pkg) => {
+    ptMemberSet.add(pkg.memberId);
     if (pkg.status === "active") {
       remainingMap[pkg.memberId] = (remainingMap[pkg.memberId] ?? 0) + (pkg.totalSessions - pkg.usedSessions);
     }
@@ -309,12 +311,14 @@ export default function Members() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered?.map((member) => {
-            const daysLeft =
-              member.membershipEnd
-                ? differenceInDays(new Date(member.membershipEnd), today)
-                : null;
+        (() => {
+          const validMembers = filtered?.filter(m => (remainingMap[m.id] ?? 0) > 0) ?? [];
+          const closedMembers = filtered?.filter(m => !((remainingMap[m.id] ?? 0) > 0)) ?? [];
+
+          const renderCard = (member: NonNullable<typeof filtered>[number]) => {
+            const daysLeft = member.membershipEnd
+              ? differenceInDays(new Date(member.membershipEnd), today)
+              : null;
             const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
             const isExpired = daysLeft !== null && daysLeft < 0;
             const hasUnpaid = unpaidSet.has(member.id);
@@ -365,7 +369,6 @@ export default function Members() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-medium text-foreground">{member.name}</p>
-                        {/* 회원 상태 */}
                         {(() => {
                           const s = MEMBER_STATUS[member.status as MemberStatus];
                           return s ? (
@@ -377,7 +380,6 @@ export default function Members() {
                         <span className="text-xs text-muted-foreground">
                           {gradeLabels[member.grade]}
                         </span>
-                        {/* 만료 관련 뱃지 */}
                         {isExpiringSoon && !isExpired && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                             D-{daysLeft}
@@ -388,25 +390,21 @@ export default function Members() {
                             만료
                           </span>
                         )}
-                        {/* PT 미수금 */}
                         {hasUnpaid && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
                             미수금
                           </span>
                         )}
-                        {/* PT 잔여 회수 */}
                         {isLowSessions && (
                           <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.PT.bg} ${SERVICE_COLORS.PT.text} ${SERVICE_COLORS.PT.border}`}>
                             PT {remainingSessions}회
                           </span>
                         )}
-                        {/* 락커 뱃지 */}
                         {(member as any).lockerNumber && (
                           <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.락커.bg} ${SERVICE_COLORS.락커.text} ${SERVICE_COLORS.락커.border}`}>
                             락커 {(member as any).lockerNumber}
                           </span>
                         )}
-                        {/* 운동복 뱃지 */}
                         {(member as any).hasUniform && (
                           <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.운동복.bg} ${SERVICE_COLORS.운동복.text} ${SERVICE_COLORS.운동복.border}`}>
                             운동복
@@ -433,8 +431,29 @@ export default function Members() {
                 </div>
               </div>
             );
-          })}
-        </div>
+          };
+
+          return (
+            <div className="space-y-2">
+              {validMembers.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-muted-foreground px-1 pt-1">
+                    유효회원 · {validMembers.length}명
+                  </p>
+                  {validMembers.map(renderCard)}
+                </>
+              )}
+              {closedMembers.length > 0 && (
+                <>
+                  <p className={`text-xs font-semibold text-muted-foreground px-1 ${validMembers.length > 0 ? "pt-4" : "pt-1"}`}>
+                    마감회원 · {closedMembers.length}명
+                  </p>
+                  {closedMembers.map(renderCard)}
+                </>
+              )}
+            </div>
+          );
+        })()
       )}
 
       {/* 선택 모드 하단 액션 바 */}
