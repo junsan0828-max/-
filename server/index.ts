@@ -2067,49 +2067,52 @@ async function initDatabase() {
     console.error("PT 세션-패키지 연결 보정 오류:", e);
   }
 
-  // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
+  // ── 전체 회원 운동시작일/운동만료일 자동 보정 (배치 쿼리) ─────────────────
+  // 기존: 회원 수 × 3 쿼리(N+1) → 변경: 배치 쿼리 2개로 처리
   try {
-    const allMembers = await db
-      .select({ id: members.id, membershipStart: members.membershipStart })
-      .from(members);
+    // 1) 운동시작일: 첫 PT 세션 날짜가 membershipStart와 다를 때만 갱신
+    const r1 = await pool.query(`
+      UPDATE members m
+      SET "membershipStart" = sub.first_date, "updatedAt" = now()::text
+      FROM (
+        SELECT "memberId", MIN("sessionDate") AS first_date
+        FROM pt_session_logs
+        GROUP BY "memberId"
+      ) sub
+      WHERE m.id = sub."memberId"
+        AND sub.first_date IS NOT NULL
+        AND (m."membershipStart" IS NULL OR sub.first_date <> m."membershipStart")
+    `);
+    if ((r1.rowCount ?? 0) > 0) console.log(`📅 운동시작일 보정: ${r1.rowCount}건`);
 
-    for (const m of allMembers) {
-      // 1) 운동시작일: 첫 PT 세션 날짜로 설정 (없으면 유지)
-      const firstSession = await db
-        .select({ sessionDate: ptSessionLogs.sessionDate })
-        .from(ptSessionLogs)
-        .where(eq(ptSessionLogs.memberId, m.id))
-        .orderBy(ptSessionLogs.sessionDate)
-        .limit(1);
-
-      const startDate = firstSession[0]?.sessionDate ?? m.membershipStart;
-      if (firstSession[0]?.sessionDate && firstSession[0].sessionDate !== m.membershipStart) {
-        await db.update(members).set({ membershipStart: firstSession[0].sessionDate }).where(eq(members.id, m.id));
-      }
-
-      // 2) 운동만료일: 운동시작일 + (활성 패키지 totalSessions ÷ 2)주 (10회=5주, 20회=10주...)
-      //    - 활성 패키지만 합산(오래된/환불 패키지가 만료일을 부풀리지 않도록)
-      //    - 기존 값보다 뒤 날짜일 때만 갱신(GREATEST) → 수동 연장/헬스 만료일을 앞으로 당기지 않음
-      if (!startDate) continue;
-      const pkgRows = await db
-        .select({ totalSessions: ptPackages.totalSessions })
-        .from(ptPackages)
-        .where(and(eq(ptPackages.memberId, m.id), eq(ptPackages.status, "active")));
-
-      const totalSessions = pkgRows.reduce((s, p) => s + (p.totalSessions ?? 0), 0);
-      if (!totalSessions) continue;
-
-      const weeks = Math.round(totalSessions / 2);
-      const [yr, mo, dy] = startDate.split("-").map(Number);
-      const d = new Date(yr, mo - 1, dy);
-      d.setDate(d.getDate() + weeks * 7);
-      const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      await pool.query(
-        `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
-         WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
-        [newEnd, m.id]
-      );
-    }
+    // 2) 운동만료일: 시작일 + (활성 패키지 totalSessions ÷ 2)주, 기존값보다 뒤일 때만 갱신
+    const r2 = await pool.query(`
+      UPDATE members m
+      SET "membershipEnd" = to_char(
+        to_date(m."membershipStart", 'YYYY-MM-DD')
+        + (ROUND(pkg.total::numeric / 2) * 7)::int,
+        'YYYY-MM-DD'
+      ), "updatedAt" = now()::text
+      FROM (
+        SELECT "memberId", SUM("totalSessions"::int) AS total
+        FROM pt_packages
+        WHERE status = 'active'
+        GROUP BY "memberId"
+        HAVING SUM("totalSessions"::int) > 0
+      ) pkg
+      WHERE m.id = pkg."memberId"
+        AND m."membershipStart" IS NOT NULL
+        AND m."membershipStart" <> ''
+        AND (
+          m."membershipEnd" IS NULL OR
+          m."membershipEnd" < to_char(
+            to_date(m."membershipStart", 'YYYY-MM-DD')
+            + (ROUND(pkg.total::numeric / 2) * 7)::int,
+            'YYYY-MM-DD'
+          )
+        )
+    `);
+    if ((r2.rowCount ?? 0) > 0) console.log(`📅 운동만료일 보정: ${r2.rowCount}건`);
 
     console.log("✅ 전체 회원 운동시작일/만료일 보정 완료");
   } catch (e) {
