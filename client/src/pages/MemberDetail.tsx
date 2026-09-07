@@ -1290,7 +1290,7 @@ export default function MemberDetail({ memberId }: Props) {
                     <p className="text-xs text-muted-foreground">{STAFF_LABELS.trainer}</p>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-foreground">{trainer?.trainerName ?? "-"}</p>
-                      {currentUser?.role === "admin" && (
+                      {(currentUser?.role === "admin" || currentUser?.role === "consultant") && (
                         <button
                           onClick={() => { setSelectedTrainerId(String(member.trainerId ?? "")); setTrainerChangeOpen(true); }}
                           className="text-xs text-primary underline hover:text-primary/70"
