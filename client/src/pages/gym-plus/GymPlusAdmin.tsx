@@ -1267,7 +1267,7 @@ export default function GymPlusAdminSection() {
   );
 }
 
-function GymPlusRegistrationsAdmin() {
+export function GymPlusRegistrationsAdmin() {
   const utils = trpc.useUtils();
   const { data: requests = [], isLoading } = trpc.gymPlus.admin_listRegistrationRequests.useQuery();
   const updateMut = trpc.gymPlus.admin_updateRegistrationRequest.useMutation({ onSuccess: () => utils.gymPlus.admin_listRegistrationRequests.invalidate() });

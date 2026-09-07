@@ -5089,6 +5089,31 @@ ${dataContext}
     };
   }),
 
+  // ─── 등록 신청 KPI ────────────────────────────────────────────────────────────
+  admin_getRegistrationKPI: adminOnlyGymPlus.query(async () => {
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const today = kstNow.toISOString().slice(0, 10);
+    const monthStart = today.slice(0, 7) + "-01";
+
+    const [pendingRes, monthRes, firstVisitRes] = await Promise.all([
+      pool.query(`SELECT COUNT(*) AS cnt FROM gym_plus_registration_requests WHERE status = 'pending'`),
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM gym_plus_registration_requests WHERE status = 'approved' AND "membersId" IS NOT NULL AND "updatedAt" >= $1`,
+        [monthStart]
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM members WHERE "membershipStart" = $1 AND "visitRoute" = 'ZIANTGYM+ 앱'`,
+        [today]
+      ),
+    ]);
+
+    return {
+      pendingCount: parseInt(pendingRes.rows[0]?.cnt ?? "0"),
+      monthNewCount: parseInt(monthRes.rows[0]?.cnt ?? "0"),
+      firstVisitToday: parseInt(firstVisitRes.rows[0]?.cnt ?? "0"),
+    };
+  }),
+
   // ─── 비회원 등록 신청 관리 ──────────────────────────────────────────────────
   admin_listRegistrationRequests: adminOnlyGymPlus.query(async () => {
     const res = await pool.query(
@@ -5567,6 +5592,41 @@ const kioskRouter = t.router({
          VALUES ($1, 0, $2, $3, 'attended', now()::text, now()::text)`,
         [member.id, today, checkTime]
       );
+
+      // 첫 방문 시 회원권 시작일·종료일 자동 설정
+      if (!member.membershipEnd && !member.membershipStart) {
+        try {
+          const memberDetail = await pool.query(
+            `SELECT "membershipStart" FROM members WHERE id = $1`, [member.id]
+          );
+          const membershipStart = memberDetail.rows[0]?.membershipStart as string | null;
+          if (!membershipStart) {
+            // 등록 신청에서 기간 조회
+            const regRes = await pool.query(
+              `SELECT "membershipPeriod" FROM gym_plus_registration_requests WHERE "membersId" = $1 AND status = 'approved' ORDER BY id DESC LIMIT 1`,
+              [member.id]
+            );
+            const period = regRes.rows[0]?.membershipPeriod as string | undefined;
+            const PERIOD_MONTHS: Record<string, number> = { "1개월": 1, "3개월": 3, "6개월": 6, "12개월": 12 };
+            const addMonths = PERIOD_MONTHS[period ?? ""] ?? 1;
+            const todayYmd = parseYmd(today)!;
+            const endYmd = addMonthsYmd(todayYmd, addMonths);
+            const endStr = fmtYmd(endYmd);
+            // members 테이블 업데이트
+            await pool.query(
+              `UPDATE members SET "membershipStart" = $1, "membershipEnd" = $2, "updatedAt" = now()::text WHERE id = $3`,
+              [today, endStr, member.id]
+            );
+            // gym_plus_members 테이블도 동기화
+            await pool.query(
+              `UPDATE gym_plus_members SET "membershipStart" = $1, "membershipEnd" = $2, "updatedAt" = now()::text WHERE "memberId" = $3`,
+              [today, endStr, member.id]
+            );
+          }
+        } catch (e) {
+          console.error("first-visit membership date set error:", e);
+        }
+      }
 
       // 포인트 적립
       let pointsEarned = 0;

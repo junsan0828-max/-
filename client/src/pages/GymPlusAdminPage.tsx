@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusSettingsAdmin } from "./gym-plus/GymPlusAdmin";
+import { trpc } from "@/lib/trpc";
+import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusSettingsAdmin, GymPlusRegistrationsAdmin } from "./gym-plus/GymPlusAdmin";
 import AdminRenewalRequestsModal from "@/components/AdminRenewalRequestsModal";
 
-type Tab = "members" | "videos" | "events" | "logs" | "products" | "settings";
+type Tab = "members" | "videos" | "events" | "logs" | "products" | "settings" | "registrations";
 
 const tabs: { key: Tab; label: string; icon: string; desc: string }[] = [
   { key: "members", label: "회원관리", icon: "◎", desc: "짐+ 회원 목록 및 동기화" },
@@ -11,7 +12,29 @@ const tabs: { key: Tab; label: string; icon: string; desc: string }[] = [
   { key: "logs", label: "운동기록", icon: "≡", desc: "회원 운동기록 열람 / 영상 연결" },
   { key: "products", label: "상품관리", icon: "◈", desc: "판매 상품 등록 및 관리" },
   { key: "settings", label: "설정", icon: "⚙", desc: "포인트 및 출입 설정" },
+  { key: "registrations", label: "등록신청", icon: "✚", desc: "앱 비회원 등록 신청 관리" },
 ];
+
+function RegistrationKPIBar() {
+  const { data } = trpc.gymPlus.admin_getRegistrationKPI.useQuery(undefined, { refetchInterval: 60000 });
+  if (!data) return null;
+  return (
+    <div className="flex gap-3 px-6 py-3 bg-blue-50 border-b border-blue-100">
+      <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-blue-100 shadow-sm">
+        <span className="text-lg font-bold text-yellow-500">{data.pendingCount}</span>
+        <span className="text-xs text-gray-500">대기 신청</span>
+      </div>
+      <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-blue-100 shadow-sm">
+        <span className="text-lg font-bold text-blue-600">{data.monthNewCount}</span>
+        <span className="text-xs text-gray-500">이번 달 신규 등록</span>
+      </div>
+      <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-blue-100 shadow-sm">
+        <span className="text-lg font-bold text-green-600">{data.firstVisitToday}</span>
+        <span className="text-xs text-gray-500">오늘 첫 방문</span>
+      </div>
+    </div>
+  );
+}
 
 export default function GymPlusAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("members");
@@ -35,6 +58,9 @@ export default function GymPlusAdminPage() {
           <span className="text-xs text-muted-foreground">— {active.desc}</span>
         </div>
       </header>
+
+      {/* ── KPI 배너 ── */}
+      <RegistrationKPIBar />
 
       {/* ── PC 레이아웃 (md 이상) ── */}
       <div className="hidden md:flex flex-1 overflow-hidden">
@@ -70,6 +96,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
             {activeTab === "products" && <GymPlusProductsAdmin />}
             {activeTab === "settings" && <GymPlusSettingsAdmin />}
+            {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
           </div>
         </main>
       </div>
@@ -84,6 +111,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
             {activeTab === "products" && <GymPlusProductsAdmin />}
             {activeTab === "settings" && <GymPlusSettingsAdmin />}
+            {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
           </div>
         </main>
 
