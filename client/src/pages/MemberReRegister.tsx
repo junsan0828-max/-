@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Dumbbell, Activity, Lock, Shirt, Search, X } from "lucide-react";
+import { ArrowLeft, Dumbbell, Activity, Lock, Shirt, Search, X, AlertTriangle } from "lucide-react";
 
 function calcEndDateByPT(start: string, sessions: string): string {
   if (!start || !sessions) return "";
@@ -190,6 +190,9 @@ export default function MemberReRegister() {
     (addUniform && !isNaN(parseInt(uniformPrice)) ? parseInt(uniformPrice) : 0);
 
   const anySelected = addPt || addHealth || addLocker || addUniform;
+  // 잔여 PT 세션 (재등록 시 이전 패키지 소진 여부 경고용)
+  const remainingPt = selectedMember ? ((selectedMember as any).ptSessions ?? 0) : 0;
+  const ptStartConflict = addPt && remainingPt > 0 && (!membershipStart || membershipStart <= today);
   const registerMutation = trpc.gym.register.useMutation({
     onError: (err) => toast.error((err as any).message || "등록 실패"),
   });
@@ -221,6 +224,7 @@ export default function MemberReRegister() {
     const hasPaidItem = (addPt && !isServiceSession) || addHealth || (addLocker && lockerPrice) || (addUniform && uniformPrice);
     if (hasPaidItem && !paymentMethod) { toast.error("결제 방법을 선택해주세요"); return; }
     if (hasPaidItem && !paymentDate) { toast.error("결제일자를 입력해주세요"); return; }
+    if (ptStartConflict) { toast.error(`이전 PT 잔여 ${remainingPt}회 있음. 새 패키지 시작일을 이전 패키지 완료 후 날짜로 설정해주세요.`); return; }
 
     const siStr = buildServiceItemsStr();
     const method = paymentMethod || undefined;
@@ -364,6 +368,20 @@ export default function MemberReRegister() {
             )}
           </CardContent>
         </Card>
+
+        {/* 잔여 PT 경고 배너 */}
+        {addPt && remainingPt > 0 && (
+          <div className={`flex items-start gap-2.5 px-3 py-3 rounded-lg border ${ptStartConflict ? "bg-red-500/10 border-red-500/40 text-red-400" : "bg-orange-500/10 border-orange-500/40 text-orange-400"}`}>
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div className="text-xs leading-relaxed">
+              <p className="font-semibold">이전 PT 잔여 {remainingPt}회 남음</p>
+              <p className="text-muted-foreground mt-0.5">
+                새 패키지 시작일을 <span className="font-medium text-foreground">이전 패키지 완료 후 날짜</span>로 설정해야 세션이 올바른 패키지에 기록됩니다.
+                {ptStartConflict && <span className="text-red-400 font-semibold"> ← 시작일을 오늘 이후로 설정하세요</span>}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 상담 담당자 */}
         <div className="px-1 space-y-1.5">
@@ -561,10 +579,12 @@ export default function MemberReRegister() {
               {!addHealth && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">시작일</Label>
+                    <Label className={`text-xs ${ptStartConflict ? "text-red-400 font-semibold" : "text-muted-foreground"}`}>
+                      시작일{ptStartConflict && " ⚠ 필수"}
+                    </Label>
                     <Input type="date" value={membershipStart}
                       onChange={e => { setMembershipStart(e.target.value); setMembershipEnd(calcEndDateByPT(e.target.value, ptSessions)); }}
-                      className="bg-input border-border mt-1" />
+                      className={`bg-input mt-1 ${ptStartConflict ? "border-red-500 focus-visible:ring-red-500" : "border-border"}`} />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">만료일 <span className="text-primary text-[10px]">(자동)</span></Label>
