@@ -1585,13 +1585,19 @@ const ptRouter = t.router({
       const memberPkgs = await db.select({
         id: ptPackages.id, pricePerSession: ptPackages.pricePerSession,
         paymentAmount: ptPackages.paymentAmount, status: ptPackages.status,
-        packageName: ptPackages.packageName,
+        packageName: ptPackages.packageName, startDate: ptPackages.startDate,
       }).from(ptPackages)
         .where(eq(ptPackages.memberId, input.memberId))
         .orderBy(desc(ptPackages.createdAt));
+      const today = kstDate();
       const priced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
       const isRealProgram = (p: any) => p.packageName !== "기타";
+      // 미래 시작 패키지(선결제)는 아직 시작되지 않은 것이므로 세션 귀속에서 제외
+      const isStarted = (p: any) => !p.startDate || p.startDate <= today;
       const resolvedPackageId =
+        memberPkgs.find(p => p.status === "active" && isStarted(p) && priced(p) && isRealProgram(p))?.id ??
+        memberPkgs.find(p => p.status === "active" && isStarted(p) && priced(p))?.id ??
+        memberPkgs.find(p => p.status === "active" && isStarted(p))?.id ??
         memberPkgs.find(p => p.status === "active" && priced(p) && isRealProgram(p))?.id ??
         memberPkgs.find(p => p.status === "active" && priced(p))?.id ??
         memberPkgs.find(p => p.status === "active")?.id ??
