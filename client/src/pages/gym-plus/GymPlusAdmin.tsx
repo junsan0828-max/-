@@ -1302,6 +1302,13 @@ function GymPlusRegistrationsAdmin() {
                   <span className="font-medium text-foreground">{Number(req.amount).toLocaleString()}원</span>
                   <span>{req.createdAt?.slice(0, 10)}</span>
                 </div>
+                {req.status === "approved" && req.membersId && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs space-y-0.5">
+                    <p className="text-blue-700 font-semibold">✓ 통합운영시스템 자동 등록 완료</p>
+                    <p className="text-blue-600">회원ID #{req.membersId} · 앱 초기 비밀번호: 전화번호 뒤 4자리</p>
+                    <p className="text-blue-500">첫 방문 시 데스크에서 시작일·종료일 입력 필요</p>
+                  </div>
+                )}
                 {req.signatureData && (
                   <details className="mt-1">
                     <summary className="text-xs text-primary cursor-pointer">서명 보기</summary>
@@ -1314,7 +1321,7 @@ function GymPlusRegistrationsAdmin() {
                       onClick={() => updateMut.mutate({ id: req.id, status: "approved" })}
                       className="flex-1 py-1.5 text-xs rounded-lg bg-green-50 text-green-600 font-medium hover:bg-green-100"
                     >
-                      승인
+                      승인 (자동 등록)
                     </button>
                     <button
                       onClick={() => updateMut.mutate({ id: req.id, status: "rejected" })}

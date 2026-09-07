@@ -5108,6 +5108,59 @@ ${dataContext}
         `UPDATE gym_plus_registration_requests SET status = $1, memo = COALESCE($2, memo), "updatedAt" = now()::text WHERE id = $3`,
         [input.status, input.memo ?? null, input.id]
       );
+
+      // 승인 시 통합운영시스템 + 짐플러스 계정 자동 생성
+      if (input.status === "approved") {
+        const reqRes = await pool.query(
+          `SELECT name, phone, "membershipPeriod", "membersId", "gymPlusMemberId" FROM gym_plus_registration_requests WHERE id = $1`,
+          [input.id]
+        );
+        const req = reqRes.rows[0];
+        if (!req) return { success: true };
+
+        const digits = (req.phone as string).replace(/\D/g, "");
+
+        // 이미 생성된 경우 스킵
+        if (!req.membersId) {
+          // 통합운영시스템 members 테이블에 등록 (trainerId=1 기본값, 없으면 첫 트레이너)
+          const trainerRes = await pool.query(`SELECT id FROM trainers ORDER BY id ASC LIMIT 1`);
+          const trainerId = trainerRes.rows[0]?.id ?? 1;
+
+          const membersInsert = await pool.query(
+            `INSERT INTO members (name, phone, "trainerId", "visitRoute", "profileNote", status, "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, 'active', now()::text, now()::text)
+             ON CONFLICT DO NOTHING RETURNING id`,
+            [req.name, req.phone, trainerId, "ZIANTGYM+ 앱", `앱 등록 신청 (${req.membershipPeriod}) — 첫 방문 시 시작일 확인`]
+          );
+          const membersId = membersInsert.rows[0]?.id ?? null;
+
+          if (membersId) {
+            // 짐플러스 계정 생성 (아이디: 전화번호 숫자, 초기 비밀번호: 뒤 4자리)
+            const existingGP = await pool.query(
+              `SELECT id FROM gym_plus_members WHERE username = $1 LIMIT 1`, [digits]
+            );
+            let gymPlusMemberId: number | null = existingGP.rows[0]?.id ?? null;
+
+            if (!gymPlusMemberId) {
+              const initPw = digits.slice(-4) || "0000";
+              const hashed = await bcrypt.hash(initPw, 10);
+              const gpInsert = await pool.query(
+                `INSERT INTO gym_plus_members (username, password, name, phone, "memberId", "membershipType", "isActive", "createdAt", "updatedAt")
+                 VALUES ($1, $2, $3, $4, $5, 'general', 1, now()::text, now()::text) RETURNING id`,
+                [digits, hashed, req.name, req.phone, membersId]
+              );
+              gymPlusMemberId = gpInsert.rows[0]?.id ?? null;
+            }
+
+            // 생성된 ID를 등록 신청에 저장
+            await pool.query(
+              `UPDATE gym_plus_registration_requests SET "membersId" = $1, "gymPlusMemberId" = $2 WHERE id = $3`,
+              [membersId, gymPlusMemberId, input.id]
+            );
+          }
+        }
+      }
+
       return { success: true };
     }),
 
