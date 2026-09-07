@@ -34,9 +34,132 @@ body,#root{font-family:Inter,-apple-system,sans-serif;background:${T.bg};color:$
 input,textarea,select{font-family:inherit;background:${T.panel};color:${T.text};border:1px solid ${T.border};border-radius:6px;padding:8px 12px;font-size:13px;outline:none}
 input:focus,select:focus{border-color:${T.accent}}
 button{font-family:inherit;cursor:pointer;border:none;outline:none}
+
+/* ---- 플레이어 컨트롤 ---- */
+.pl-bar{animation:plIn .18s ease-out}
+@keyframes plIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.pl-btn{display:flex;align-items:center;justify-content:center;width:36px;height:36px;
+  border-radius:8px;background:transparent;color:rgba(255,255,255,.85);transition:background .15s,color .15s,transform .1s}
+.pl-btn:hover{background:rgba(255,255,255,.14);color:#fff}
+.pl-btn:active{transform:scale(.92)}
+.pl-btn:focus-visible{box-shadow:0 0 0 2px ${T.accent}}
+
+.pl-play{width:46px;height:46px;border-radius:23px;background:${T.accent};color:#fff;
+  box-shadow:0 2px 12px rgba(124,58,237,.45)}
+.pl-play:hover{background:#8B5CF6;color:#fff}
+
+.pl-seek{padding:6px 0;cursor:pointer;touch-action:none}
+.pl-seek-track{position:relative;height:4px;border-radius:2px;background:rgba(255,255,255,.22);
+  transition:height .12s}
+.pl-seek:hover .pl-seek-track{height:6px}
+.pl-seek-fill{position:relative;height:100%;border-radius:2px;background:${T.accent}}
+.pl-seek-knob{position:absolute;right:-6px;top:50%;width:12px;height:12px;border-radius:6px;
+  background:#fff;transform:translateY(-50%) scale(0);transition:transform .12s;
+  box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.pl-seek:hover .pl-seek-knob{transform:translateY(-50%) scale(1)}
+
+.pl-speed{display:flex;gap:2px;padding:2px;border-radius:7px;background:rgba(255,255,255,.10)}
+.pl-speed button{padding:4px 9px;border-radius:5px;font-size:11px;font-weight:600;
+  background:transparent;color:rgba(255,255,255,.7);font-variant-numeric:tabular-nums;transition:.15s}
+.pl-speed button:hover{color:#fff;background:rgba(255,255,255,.12)}
+.pl-speed button.on{background:${T.accent};color:#fff}
+
+@media (prefers-reduced-motion:reduce){
+  .pl-bar{animation:none}
+  .pl-btn,.pl-seek-track,.pl-seek-knob,.pl-speed button{transition:none}
+}
 `;
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function mmss(s) {
+  if (!isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+}
+
+// 플레이어 컨트롤 아이콘. 텍스트 기호(>> ||) 대신 또렷하게 보이도록 도형으로 그린다.
+function Icon({ name, size = 20 }) {
+  const p = {
+    play: <path d="M8 5v14l11-7z" />,
+    pause: <path d="M7 5h3.5v14H7zm6.5 0H17v14h-3.5z" />,
+    prev: <path d="M7 6h2.5v12H7zm2.5 6 8.5 6V6z" />,
+    next: <path d="M14.5 6H17v12h-2.5zM14.5 12 6 18V6z" />,
+    expand: <path d="M4 9V4h5v2H6v3zm11-5h5v5h-2V6h-3zM4 15h2v3h3v2H4zm14 0h2v5h-5v-2h3z" />,
+    shrink: <path d="M9 4h2v5H6V7h3zm4 0h2v3h3v2h-5zm0 11h5v2h-3v3h-2zM6 15h5v5H9v-3H6z" />,
+  }[name];
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">{p}</svg>
+  );
+}
+
+// 로컬 영상 파일 경로를 file:// URL 로 변환.
+// 저장된 프로그램에 남아있는 옛 http://localhost:3737 URL 도 filePath 로 다시 만든다.
+// 파일명 맨 앞의 영문 토큰을 분류 접두어로 본다.
+// "AE 팔벌려뛰기(외발). 전신. 020.mp4" -> "AE",  "STR_하체_스쿼트_12.mp4" -> "STR"
+function filePrefix(fileName) {
+  return (fileName || '').match(/^[A-Za-z]+/)?.[0]?.toUpperCase() || '';
+}
+
+// 현장에서 쓰는 접두어를 앱 카테고리에 미리 연결해 둔다.
+// 라이브러리 탭에서 사용자가 덮어쓸 수 있다.
+const DEFAULT_PREFIX_CATS = {
+  AE: 'CAR',   // 에어로빅
+  AES: 'CAR',  // 에어로빅 스트렝스
+  COB: 'CCB',  // 코어밸런스
+  COS: 'CCS',  // 코어스트렝스
+  EX: 'MOV',   // 움직임
+  MU: 'STR',   // 근력운동
+  ST: 'STT',   // 스트레칭
+  STF: 'CFS',  // 스트레칭 폼롤러
+};
+
+// 사용자 지정 > 기본 매핑 > 접두어 자체가 카테고리 코드인 경우
+function resolveCode(clip, prefixCats) {
+  if (clip.code) return clip.code;
+  const p = filePrefix(clip.fileName);
+  if (!p) return '';
+  if (prefixCats?.[p]) return prefixCats[p];
+  if (DEFAULT_PREFIX_CATS[p]) return DEFAULT_PREFIX_CATS[p];
+  return CAT_MAP[p] ? p : '';
+}
+
+// ffprobe 가 알려준 코덱 이름을 브라우저가 아는 MIME 으로 옮긴다
+const CODEC_MIME = {
+  h264: 'video/mp4; codecs="avc1.42E01E"',
+  hevc: 'video/mp4; codecs="hvc1.1.6.L93.B0"',
+  av1: 'video/mp4; codecs="av01.0.05M.08"',
+  vp8: 'video/webm; codecs="vp8"',
+  vp9: 'video/webm; codecs="vp9"',
+  mpeg4: 'video/mp4; codecs="mp4v.20.8"',
+  theora: 'video/ogg; codecs="theora"',
+};
+
+// 이 PC 에서 실제로 재생 가능한지 묻는다.
+// 같은 H.265 라도 하드웨어 디코더가 있는 PC 에서는 그대로 재생된다.
+let _probeVideo = null;
+function canPlayCodec(name) {
+  if (!name) return false;
+  const mime = CODEC_MIME[name];
+  if (!mime) return false;
+  _probeVideo = _probeVideo || document.createElement('video');
+  return _probeVideo.canPlayType(mime) !== '';
+}
+
+function clipSrc(clip, playbackMap) {
+  if (!clip) return '';
+  const orig = clip.filePath || clip.id;
+  // 변환해 둔 H.264 사본이 있으면 그쪽을 재생한다
+  const p = (orig && playbackMap?.[orig]) || clip.playbackPath || orig;
+  if (!p) return clip.url || '';
+  const normalized = String(p).replace(/\\/g, '/');
+  // 윈도우 드라이브 문자(C:)는 인코딩하면 안 된다
+  const encoded = normalized.split('/')
+    .map((seg, i) => (i === 0 && /^[A-Za-z]:$/.test(seg) ? seg : encodeURIComponent(seg)))
+    .join('/');
+  return normalized.startsWith('/') ? `file://${encoded}` : `file:///${encoded}`;
+}
 
 function loadLS(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -122,7 +245,150 @@ function TabBar({ tab, setTab }) {
   );
 }
 
-function LibraryTab({ clips, setClips, onAddBlock, analysisDone, setAnalysisDone, clipAttrs, setClipAttrs }) {
+// 조합에 쓸 클립이 하나도 없을 때, 무엇 때문인지 짚어준다.
+// "클립을 불러오세요" 만으로는 이미 불러온 사용자가 다음에 뭘 할지 알 수 없다.
+function explainEmptyPool(enriched, sessionCfg) {
+  if (enriched.length === 0) {
+    return '라이브러리가 비어 있습니다. 라이브러리 탭에서 운동 영상 폴더를 선택하세요.';
+  }
+  const uncategorized = enriched.filter(c => !c.code).length;
+  if (uncategorized === enriched.length) {
+    return `영상 ${enriched.length}개가 모두 분류되지 않았습니다.\n\n`
+      + '라이브러리 탭 상단에서 파일명 접두어별로 종류를 지정해 주세요.\n'
+      + '분류가 되어야 자동 조합이 어떤 운동인지 알 수 있습니다.';
+  }
+  const cats = sessionCfg.includeCats || [];
+  if (cats.length > 0) {
+    return `선택한 카테고리에 해당하는 영상이 없습니다.\n\n`
+      + `분류된 영상 ${enriched.length - uncategorized}개, 미분류 ${uncategorized}개입니다.\n`
+      + '사용 카테고리를 더 선택하거나, 라이브러리 탭에서 미분류 영상을 분류해 주세요.';
+  }
+  return '조건에 맞는 영상이 없습니다. 집중 부위나 강도를 바꿔 보세요.';
+}
+
+// 카테고리가 비어 있는 클립들을 파일명 접두어별로 묶어 한 번에 분류하게 한다.
+// 분류가 안 된 클립은 자동 조합에서 통째로 제외되므로 눈에 띄게 알려야 한다.
+function PrefixMapper({ clips, prefixCats, setPrefixCat }) {
+  const [open, setOpen] = useState(false);
+
+  const groups = useMemo(() => {
+    const m = {};
+    for (const c of clips) {
+      const p = filePrefix(c.fileName);
+      if (!p) continue;
+      (m[p] = m[p] || { code: c.code, count: 0, sample: c.fileName }).count++;
+    }
+    return Object.entries(m).sort((a, b) => b[1].count - a[1].count);
+  }, [clips]);
+
+  if (groups.length === 0) return null;
+
+  const unmapped = groups.filter(([, g]) => !g.code);
+  const missing = unmapped.reduce((n, [, g]) => n + g.count, 0);
+  const show = open || missing > 0;
+
+  return (
+    <div style={{
+      padding: '10px 12px', borderBottom: `1px solid ${T.border}`,
+      background: missing > 0 ? 'rgba(245,158,11,.08)' : 'transparent',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: missing > 0 ? '#F59E0B' : T.dim }}>
+          {missing > 0
+            ? `분류되지 않은 영상 ${missing}개 — 종류를 지정하면 자동 조합에 쓰입니다`
+            : `영상 종류 ${groups.length}가지가 인식되었습니다`}
+        </span>
+        <button onClick={() => setOpen(o => !o)} style={{
+          marginLeft: 'auto', padding: '4px 10px', borderRadius: 4, fontSize: 11,
+          background: T.panel, color: T.text, border: `1px solid ${T.border}`,
+        }}>{show && open ? '접기' : '분류 확인'}</button>
+      </div>
+
+      {show && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+          {(open ? groups : unmapped).map(([prefix, g]) => (
+            <div key={prefix} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+                background: T.panel, color: g.code ? T.text : '#F59E0B',
+                minWidth: 48, textAlign: 'center',
+              }}>{prefix}</span>
+              <span style={{ fontSize: 11, color: T.dim, minWidth: 42 }}>{g.count}개</span>
+              <select
+                value={prefixCats[prefix] || g.code || ''}
+                onChange={e => setPrefixCat(prefix, e.target.value)}
+                style={{
+                  width: 200, padding: '4px 8px', borderRadius: 4,
+                  background: T.panel, color: T.text, border: `1px solid ${T.border}`, fontSize: 12,
+                }}>
+                <option value="">— 종류 선택 —</option>
+                {CATS.map(c => <option key={c.code} value={c.code}>{c.label} ({c.code})</option>)}
+              </select>
+              <span style={{
+                fontSize: 11, color: T.dim, flex: 1, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{g.sample}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 재생 불가 코덱 안내와 변환 진행 상황
+function CodecBanner({ codec, onConvert }) {
+  if (!codec || codec.state === 'idle') return null;
+
+  const { state, unsupported, progress } = codec;
+  const wrap = (bg, border, children) => (
+    <div style={{
+      padding: '10px 12px', background: bg, borderBottom: `1px solid ${border}`,
+      display: 'flex', alignItems: 'center', gap: 10, fontSize: 12,
+    }}>{children}</div>
+  );
+
+  if (state === 'probing') {
+    return wrap(T.panel, T.border, (
+      <span style={{ color: T.dim }}>
+        영상 형식 확인 중... {progress ? `${progress.index + 1}/${progress.total}` : ''}
+      </span>
+    ));
+  }
+
+  if (state === 'converting') {
+    const pct = progress?.total ? Math.round((progress.index / progress.total) * 100) : 0;
+    return wrap('rgba(245,158,11,.10)', 'rgba(245,158,11,.35)', (
+      <>
+        <span style={{ color: '#F59E0B', fontWeight: 600 }}>
+          변환 중 {progress ? `${progress.index + 1}/${progress.total}` : ''} ({pct}%)
+        </span>
+        <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(245,158,11,.20)' }}>
+          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 2, background: '#F59E0B', transition: 'width .3s' }} />
+        </div>
+        <span style={{ color: T.dim }}>창을 닫지 마세요</span>
+      </>
+    ));
+  }
+
+  if (!unsupported?.length) return null;
+
+  const codecs = [...new Set(unsupported.map(u => u.video).filter(Boolean))].join(', ');
+  return wrap('rgba(248,113,113,.10)', 'rgba(248,113,113,.35)', (
+    <>
+      <span style={{ color: '#F87171', fontWeight: 600 }}>
+        재생할 수 없는 영상 {unsupported.length}개
+      </span>
+      {codecs && <span style={{ color: T.dim }}>({codecs} 코덱)</span>}
+      <button onClick={onConvert} style={{
+        marginLeft: 'auto', padding: '6px 14px', borderRadius: 6,
+        background: '#F87171', color: '#fff', fontSize: 12, fontWeight: 600,
+      }}>H.264로 변환</button>
+    </>
+  ));
+}
+
+function LibraryTab({ clips, setClips, onAddBlock, analysisDone, setAnalysisDone, clipAttrs, setClipAttrs, codec, onConvert, prefixCats, setPrefixCat }) {
   const [filter, setFilter] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -201,6 +467,9 @@ function LibraryTab({ clips, setClips, onAddBlock, analysisDone, setAnalysisDone
             {clips.length}개 영상
           </div>
         </div>
+
+        <CodecBanner codec={codec} onConvert={onConvert} />
+        <PrefixMapper clips={clips} prefixCats={prefixCats} setPrefixCat={setPrefixCat} />
         <div style={{ padding: '8px 12px', borderBottom: `1px solid ${T.border}` }}>
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="검색..." style={{ width: '100%', marginBottom: 8 }} />
@@ -492,6 +761,90 @@ function CustomersTab({ customers, setCustomers, setTab, setActiveCustomer, setS
   );
 }
 
+// 폰으로 세션을 조작하기 위한 접속 정보. QR 을 찍으면 바로 리모컨이 열린다.
+function RemotePanel() {
+  const [info, setInfo] = useState(null);
+  const [pinDraft, setPinDraft] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const load = useCallback(() => {
+    window.electronAPI?.getRemoteInfo?.().then(setInfo).catch(() => {});
+  }, []);
+  useEffect(load, [load]);
+
+  if (!info) return null;
+
+  async function savePin() {
+    try {
+      await window.electronAPI.setRemotePin(pinDraft);
+      setPinDraft(''); setMsg('PIN 을 바꿨습니다. 폰에서 다시 로그인하세요.');
+      load();
+    } catch (e) {
+      setMsg(e?.message || 'PIN 을 바꾸지 못했습니다');
+    }
+  }
+
+  async function revoke() {
+    await window.electronAPI.revokeRemoteDevices();
+    setMsg('연결된 기기를 모두 해제했습니다.');
+  }
+
+  return (
+    <div style={{
+      marginTop: 20, padding: 16, borderRadius: 10,
+      background: T.panel, border: `1px solid ${T.border}`,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>스마트폰 원격 조작</div>
+      <div style={{ fontSize: 12, color: T.dim, marginBottom: 14, lineHeight: 1.6 }}>
+        폰이 이 PC 와 같은 와이파이에 있어야 합니다.
+      </div>
+
+      {!info.url ? (
+        <div style={{ fontSize: 12, color: '#F59E0B' }}>
+          네트워크에 연결되어 있지 않아 접속 주소를 만들 수 없습니다.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {info.qr && (
+            <img src={info.qr} alt="원격 접속 QR 코드" width={132} height={132}
+              style={{ borderRadius: 8, background: '#fff', flexShrink: 0 }} />
+          )}
+          <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: T.dim, marginBottom: 3 }}>접속 주소</div>
+              <div style={{ fontSize: 15, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                {info.url}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: T.dim, marginBottom: 3 }}>PIN</div>
+              <div style={{
+                fontSize: 24, fontWeight: 700, letterSpacing: 5,
+                color: T.accent, fontVariantNumeric: 'tabular-nums',
+              }}>{info.pin}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input value={pinDraft} onChange={e => setPinDraft(e.target.value.replace(/\D/g, ''))}
+                placeholder="새 PIN (숫자 4~8자리)" maxLength={8}
+                style={{ width: 170, fontVariantNumeric: 'tabular-nums' }} />
+              <button onClick={savePin} disabled={pinDraft.length < 4} style={{
+                padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                background: pinDraft.length < 4 ? T.border : T.accent,
+                color: pinDraft.length < 4 ? T.dim : '#fff',
+              }}>PIN 변경</button>
+              <button onClick={revoke} style={{
+                padding: '8px 14px', borderRadius: 6, fontSize: 12,
+                background: 'transparent', color: T.dim, border: `1px solid ${T.border}`,
+              }}>기기 연결 해제</button>
+            </div>
+            {msg && <div style={{ fontSize: 12, color: T.accent }}>{msg}</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SessionTab({ customer, sessionCfg, setSessionCfg, clips, clipAttrs, blocks, setBlocks, setTab }) {
   const [generating, setGenerating] = useState(false);
   const [aiError, setAiError] = useState('');
@@ -521,7 +874,7 @@ function SessionTab({ customer, sessionCfg, setSessionCfg, clips, clipAttrs, blo
       composeProgram({ enrichedClips: enriched, customer, sessionCfg });
 
     if (warmupClips.length + mainClips.length + coolClips.length === 0) {
-      alert('조합할 클립이 없습니다. 라이브러리에서 클립을 먼저 불러오세요.');
+      alert(explainEmptyPool(enriched, sessionCfg));
       return;
     }
 
@@ -704,6 +1057,8 @@ ${Object.entries(libSummary).map(([k,v]) => `[${k}] ${v.join(', ')}`).join('\n')
           onChange={e => localStorage.setItem('ft_api_key', e.target.value)}
           style={{ width: '100%' }} />
       </div>
+
+      <RemotePanel />
 
       {aiError && <div style={{ color: '#E84040', fontSize: 12, marginBottom: 8, padding: 8, background: '#E8404011', borderRadius: 6 }}>{aiError}</div>}
 
@@ -980,8 +1335,15 @@ function expandToQueue(blocks) {
   return q;
 }
 
-function PlayerTab({ blocks }) {
+const PLAYABLE_EXT = ['.mp4', '.webm', '.mov', '.m4v'];
+
+function PlayerTab({ blocks, playbackMap, onConvertOne, onReport, registerApi }) {
   const [queue, setQueue] = useState([]);
+  const [videoErr, setVideoErr] = useState(null);
+  const [converting, setConverting] = useState(false);
+  const [convertSec, setConvertSec] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [ci, setCi] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1001,15 +1363,15 @@ function PlayerTab({ blocks }) {
     setRestCountdown(0);
   }, [blocks]);
 
+  // 재생 상태는 App 이 모아서 폰으로 보낸다
   useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.sendPlayerState({ playing, queue, currentIndex: ci });
-    }
-  }, [playing, ci, queue]);
+    onReport?.({ playing, queue, currentIndex: ci, speed });
+  }, [playing, ci, queue, speed]);
 
+  // 폰에서 오는 재생 관련 명령은 App 이 여기로 넘겨준다
   useEffect(() => {
-    if (!window.electronAPI) return;
-    return window.electronAPI.onRemote((cmd) => {
+    if (!registerApi) return;
+    registerApi(cmd => {
       switch (cmd.type) {
         case 'toggle': togglePlay(); break;
         case 'play': setPlaying(true); break;
@@ -1018,9 +1380,21 @@ function PlayerTab({ blocks }) {
         case 'prev': goPrev(); break;
         case 'skip-rest': skipRest(); break;
         case 'speed': if (cmd.v) setSpeed(cmd.v); break;
+        case 'goto':
+          if (cmd.index >= 0 && cmd.index < queue.length) { setCi(cmd.index); setRestCountdown(0); }
+          break;
+        case 'remove':
+          setQueue(q => {
+            const next = q.filter((_, i) => i !== cmd.index);
+            setCi(c => Math.min(c > cmd.index ? c - 1 : c, Math.max(0, next.length - 1)));
+            return next;
+          });
+          break;
+        default: break;
       }
     });
-  }, [ci, queue]);
+    return () => registerApi(null);
+  }, [ci, queue, registerApi]);
 
   const cur = queue[ci];
 
@@ -1068,11 +1442,34 @@ function PlayerTab({ blocks }) {
   }
 
   function goFullscreen() {
-    if (containerRef.current?.requestFullscreen) {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else if (containerRef.current?.requestFullscreen) {
       containerRef.current.requestFullscreen();
       setIsFullscreen(true);
     }
   }
+
+  // 세션 중에는 마우스보다 키보드가 빠르다
+  useEffect(() => {
+    function onKey(e) {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const el = videoRef.current;
+      switch (e.key) {
+        case ' ': e.preventDefault(); togglePlay(); break;
+        case 'ArrowLeft': if (el) el.currentTime = Math.max(0, el.currentTime - 5); break;
+        case 'ArrowRight': if (el) el.currentTime = Math.min(el.duration || 0, el.currentTime + 5); break;
+        case 'f': case 'F': goFullscreen(); break;
+        case 'n': case 'N': goNext(); break;
+        case 'p': case 'P': goPrev(); break;
+        default: return;
+      }
+      setShowControls(true);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   useEffect(() => {
     function onFsChange() { setIsFullscreen(!!document.fullscreenElement); }
@@ -1092,11 +1489,78 @@ function PlayerTab({ blocks }) {
     goNext();
   }
 
+  // 진행 바를 누르거나 끌면 그 지점으로 이동한다
+  function onSeekDown(e) {
+    const el = videoRef.current;
+    const track = e.currentTarget;
+    if (!el || !isFinite(el.duration)) return;
+
+    const seekTo = clientX => {
+      const { left, width } = track.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (clientX - left) / width));
+      el.currentTime = ratio * el.duration;
+      setProgress(el.currentTime);
+    };
+
+    seekTo(e.clientX);
+    track.setPointerCapture?.(e.pointerId);
+    const move = ev => seekTo(ev.clientX);
+    const up = () => {
+      track.removeEventListener('pointermove', move);
+      track.removeEventListener('pointerup', up);
+    };
+    track.addEventListener('pointermove', move);
+    track.addEventListener('pointerup', up);
+  }
+
+  const src = clipSrc(cur?.clip, playbackMap);
+
   useEffect(() => {
+    setVideoErr(null);
     if (cur?.type === 'clip' && videoRef.current && playing) {
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(e => setVideoErr(`재생 실패: ${e?.message || e}`));
     }
-  }, [ci, cur?.type]);
+  }, [ci, cur?.type, src]);
+
+  // 변환 중에는 ffmpeg 가 처리한 길이를 보여준다
+  useEffect(() => {
+    if (!converting) return;
+    return window.electronAPI?.onConvertProgress?.(p => {
+      if (p.stage === 'progress') setConvertSec(p.seconds || 0);
+    });
+  }, [converting]);
+
+  async function handleVideoError() {
+    const el = videoRef.current;
+    const code = el?.error?.code;
+    const fp = cur?.clip?.filePath;
+
+    // 재생할 수 없는 코덱이면 그 자리에서 변환해 이어서 재생한다
+    if ((code === 3 || code === 4) && fp && !playbackMap?.[fp] && !converting && onConvertOne) {
+      setVideoErr(null);
+      setConvertSec(0);
+      setConverting(true);
+      try {
+        const out = await onConvertOne(fp);
+        if (out) return; // playbackMap 이 바뀌면 src 가 교체되며 재생된다
+        setVideoErr('변환에 실패했습니다. 손상된 파일일 수 있습니다.');
+        return;
+      } catch (e) {
+        setVideoErr(`변환 실패: ${e?.message || e}`);
+        return;
+      } finally {
+        setConverting(false);
+      }
+    }
+
+    const codes = {
+      1: '로딩 중단됨',
+      2: '네트워크 오류 - 파일을 읽을 수 없습니다',
+      3: '디코딩 실패 - 코덱을 지원하지 않습니다',
+      4: '지원하지 않는 형식입니다',
+    };
+    setVideoErr(codes[code] || `알 수 없는 오류 (code ${code})`);
+  }
 
   if (queue.length === 0) {
     return (
@@ -1111,10 +1575,40 @@ function PlayerTab({ blocks }) {
       style={{ display: 'flex', height: '100%', background: '#000', position: 'relative' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {cur?.type === 'clip' ? (
-          <video ref={videoRef} key={cur.clip?.url || ci}
-            src={cur.clip?.url || ''} onEnded={handleVideoEnded}
-            onClick={togglePlay}
-            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+          <>
+            <video ref={videoRef} key={src || ci}
+              src={src} onEnded={handleVideoEnded}
+              onError={handleVideoError} onClick={togglePlay}
+              onTimeUpdate={e => setProgress(e.currentTarget.currentTime)}
+              onLoadedMetadata={e => { setDuration(e.currentTarget.duration || 0); setProgress(0); }}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+            {converting && (
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 12,
+                padding: 32, textAlign: 'center', pointerEvents: 'none',
+              }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#F59E0B' }}>
+                  재생할 수 있는 형식으로 변환 중입니다
+                </div>
+                <div style={{ fontSize: 13, color: T.dim }}>
+                  {convertSec > 0 ? `${convertSec.toFixed(0)}초 분량 처리됨` : '잠시만 기다려 주세요'}
+                </div>
+                <div style={{ fontSize: 12, color: T.dim, wordBreak: 'break-all' }}>{cur.clip?.fileName || ''}</div>
+              </div>
+            )}
+            {videoErr && !converting && (
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 10,
+                padding: 32, textAlign: 'center', pointerEvents: 'none',
+              }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#F87171' }}>{videoErr}</div>
+                <div style={{ fontSize: 12, color: T.dim, wordBreak: 'break-all' }}>{cur.clip?.fileName || ''}</div>
+                <div style={{ fontSize: 11, color: T.dim, wordBreak: 'break-all' }}>{src}</div>
+              </div>
+            )}
+          </>
         ) : cur?.type === 'rest' ? (
           <div style={{
             width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
@@ -1139,36 +1633,71 @@ function PlayerTab({ blocks }) {
         ) : null}
 
         {showControls && cur?.type === 'clip' && (
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 20px',
-            background: 'linear-gradient(transparent, rgba(0,0,0,.85))',
-            display: 'flex', alignItems: 'center', gap: 12, transition: 'opacity .3s',
+          <div className="pl-bar" style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, padding: '28px 20px 14px',
+            background: 'linear-gradient(transparent, rgba(0,0,0,.55) 35%, rgba(0,0,0,.9))',
+            display: 'flex', flexDirection: 'column', gap: 10,
           }}>
-            <button onClick={goPrev} style={{ background: 'transparent', color: '#fff', fontSize: 18, padding: '4px 10px' }}>{'<<'}</button>
-            <button onClick={togglePlay} style={{
-              width: 44, height: 44, borderRadius: 22, background: T.accent, color: '#fff',
-              fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{playing ? '||' : '>'}</button>
-            <button onClick={goNext} style={{ background: 'transparent', color: '#fff', fontSize: 18, padding: '4px 10px' }}>{'>>'}</button>
-            <div style={{ flex: 1 }} />
-            <div style={{ fontSize: 13, color: '#fff' }}>
-              {cur?.clip?.name || ''} {cur?.totalSets > 1 ? `(${cur.setNum}/${cur.totalSets})` : ''}
+            <div className="pl-seek" onPointerDown={onSeekDown}>
+              <div className="pl-seek-track">
+                <div className="pl-seek-fill" style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}>
+                  <span className="pl-seek-knob" />
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[0.5, 1, 1.5].map(s => (
-                <button key={s} onClick={() => setSpeed(s)} style={{
-                  padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                  background: speed === s ? T.accent : 'rgba(255,255,255,.15)',
-                  color: '#fff',
-                }}>{s}x</button>
-              ))}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button className="pl-btn" onClick={goPrev} title="이전 동작">
+                <Icon name="prev" />
+              </button>
+              <button className="pl-btn pl-play" onClick={togglePlay} title={playing ? '일시정지' : '재생'}>
+                <Icon name={playing ? 'pause' : 'play'} size={22} />
+              </button>
+              <button className="pl-btn" onClick={goNext} title="다음 동작">
+                <Icon name="next" />
+              </button>
+
+              <span style={{
+                fontSize: 12, color: 'rgba(255,255,255,.75)', marginLeft: 4,
+                fontVariantNumeric: 'tabular-nums', letterSpacing: .2,
+              }}>{mmss(progress)} / {mmss(duration)}</span>
+
+              <div style={{ flex: 1, minWidth: 12 }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                {cur?.clip?.code && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 4,
+                    background: (CAT_MAP[cur.clip.code]?.color || T.dimMid) + '33',
+                    color: CAT_MAP[cur.clip.code]?.color || '#fff', flexShrink: 0,
+                  }}>{cur.clip.code}</span>
+                )}
+                <span style={{
+                  fontSize: 14, fontWeight: 600, color: '#fff', overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{cur?.clip?.name || ''}</span>
+                {cur?.totalSets > 1 && (
+                  <span style={{
+                    fontSize: 12, color: 'rgba(255,255,255,.6)', flexShrink: 0,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>세트 {cur.setNum}/{cur.totalSets}</span>
+                )}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 12 }} />
+
+              <div className="pl-speed">
+                {[0.5, 1, 1.5, 2].map(s => (
+                  <button key={s} onClick={() => setSpeed(s)}
+                    className={speed === s ? 'on' : ''}>{s}x</button>
+                ))}
+              </div>
+
+              <button className="pl-btn" onClick={goFullscreen}
+                title={isFullscreen ? '전체화면 종료' : '전체화면'}>
+                <Icon name={isFullscreen ? 'shrink' : 'expand'} size={18} />
+              </button>
             </div>
-            {!isFullscreen && (
-              <button onClick={goFullscreen} style={{
-                padding: '6px 12px', background: 'rgba(255,255,255,.15)', color: '#fff',
-                borderRadius: 6, fontSize: 12,
-              }}>전체화면</button>
-            )}
           </div>
         )}
       </div>
@@ -1221,16 +1750,233 @@ function PlayerTab({ blocks }) {
 
 export default function App() {
   const [tab, setTab] = useState(() => loadLS('ft_tab', 'library'));
-  const [clips, setClips] = useState(() => loadLS('ft_clips', []));
+  const [rawClips, setClips] = useState(() => loadLS('ft_clips', []));
+  // 파일명 접두어(AE, STR ...) -> 카테고리 코드. 파일명 규칙이 제각각이어도 분류할 수 있게 한다.
+  const [prefixCats, setPrefixCats] = useState(() => loadLS('ft_prefix_cats', {}));
+
+  const clips = useMemo(
+    () => rawClips.map(c => { const code = resolveCode(c, prefixCats); return code === c.code ? c : { ...c, code }; }),
+    [rawClips, prefixCats],
+  );
+
+  function setPrefixCat(prefix, code) {
+    setPrefixCats(prev => {
+      const next = { ...prev };
+      if (code) next[prefix] = code; else delete next[prefix];
+      saveData('ft_prefix_cats', next);
+      return next;
+    });
+  }
   const [customers, setCustomers] = useState(() => loadLS('ft_customers', []));
   const [blocks, setBlocks] = useState(() => loadLS('ft_blocks', []));
   const [clipAttrs, setClipAttrs] = useState(() => loadLS('ft_clip_attrs', {}));
   const [activeCustomer, setActiveCustomer] = useState(null);
   const [analysisDone, setAnalysisDone] = useState(() => loadLS('ft_analysis_done', false));
+  // 원본 경로 -> 변환된 H.264 경로
+  const [playbackMap, setPlaybackMap] = useState({});
+  const [codec, setCodec] = useState({ state: 'idle', unsupported: [], progress: null });
   const [sessionCfg, setSessionCfg] = useState({
     duration: 30, intensity: '중강도', focus: '전신',
     condition: '보통', includeCats: [], method: 'auto',
   });
+
+  // 라이브러리가 바뀌면 코덱을 검사해 재생 불가 영상을 찾아둔다
+  useEffect(() => {
+    const api = window.electronAPI;
+    const paths = clips.map(c => c.filePath).filter(Boolean);
+    if (!api?.probeClips || paths.length === 0) return;
+
+    let cancelled = false;
+    api.getPlaybackPaths?.(paths).then(map => {
+      if (!cancelled && map) setPlaybackMap(prev => ({ ...prev, ...map }));
+    }).catch(() => {});
+
+    setCodec({ state: 'probing', unsupported: [], progress: { index: 0, total: paths.length } });
+    const off = api.onProbeProgress?.(p => {
+      if (!cancelled) setCodec(c => (c.state === 'probing' ? { ...c, progress: p } : c));
+    });
+    api.probeClips(paths)
+      .then(({ results }) => {
+        if (cancelled) return;
+        const unsupported = Object.entries(results || {})
+          .filter(([, r]) => !r.converted && (!canPlayCodec(r.video) || r.audioOk === false))
+          .map(([filePath, r]) => ({ filePath, video: r.video, audio: r.audio }));
+        setCodec({ state: 'done', unsupported, progress: null });
+      })
+      .catch(() => {
+        if (!cancelled) setCodec({ state: 'idle', unsupported: [], progress: null });
+      })
+      .finally(() => off?.());
+
+    return () => { cancelled = true; off?.(); };
+  }, [clips]);
+
+  // ---------------------------------------------------------------
+  // 폰 원격 조작
+  // 재생뿐 아니라 고객·세션 설정·프로그램 구성까지 폰에서 다룰 수 있도록
+  // 앱 상태를 통째로 내보내고, 들어온 명령을 여기서 처리한다.
+  // ---------------------------------------------------------------
+  const [playerState, setPlayerState] = useState({ playing: false, queue: [], currentIndex: 0, speed: 1 });
+  const playerCmd = useRef(null);
+  const registerPlayerApi = useCallback(fn => { playerCmd.current = fn; }, []);
+
+  useEffect(() => {
+    window.electronAPI?.sendPlayerState?.({
+      ...playerState,
+      customers,
+      activeCustomerId: activeCustomer?.id || null,
+      sessionCfg,
+      blocks,
+      // 폰에서 동작을 추가할 때 고르는 목록. 재생에 필요없는 필드는 뺀다.
+      clips: clips.map(c => ({ id: c.id, code: c.code, name: c.name, part: c.part, reps: c.reps })),
+    });
+  }, [playerState, customers, activeCustomer, sessionCfg, blocks, clips]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onRemote) return;
+    return window.electronAPI.onRemote(cmd => {
+      const PLAYER = ['toggle','play','pause','next','prev','skip-rest','speed','goto','remove'];
+      if (PLAYER.includes(cmd.type)) { playerCmd.current?.(cmd); return; }
+
+      switch (cmd.type) {
+        case 'customer-select': {
+          const c = customers.find(x => x.id === cmd.id);
+          if (!c) break;
+          setActiveCustomer(c);
+          setSessionCfg(prev => ({ ...prev, focus: c.focusPart || prev.focus }));
+          break;
+        }
+        case 'customer-save': {
+          if (!cmd.customer) break;
+          setCustomers(prev => {
+            const exists = prev.some(x => x.id === cmd.customer.id);
+            const next = exists
+              ? prev.map(x => (x.id === cmd.customer.id ? { ...x, ...cmd.customer } : x))
+              : [...prev, { ...cmd.customer, id: cmd.customer.id || uid() }];
+            saveData('ft_customers', next);
+            return next;
+          });
+          break;
+        }
+        case 'customer-delete':
+          setCustomers(prev => {
+            const next = prev.filter(x => x.id !== cmd.id);
+            saveData('ft_customers', next);
+            return next;
+          });
+          setActiveCustomer(a => (a?.id === cmd.id ? null : a));
+          break;
+
+        case 'session-cfg':
+          setSessionCfg(prev => ({ ...prev, ...(cmd.patch || {}) }));
+          break;
+
+        case 'session-generate':
+          composeToBlocks();
+          break;
+
+        case 'block-add': {
+          const clip = clips.find(c => c.id === cmd.clipId);
+          if (!clip) break;
+          setBlocks(prev => {
+            const next = [...prev, { uid: uid(), clip, sets: 1, restBetweenSets: 20, restAfter: 60 }];
+            saveData('ft_blocks', next);
+            return next;
+          });
+          break;
+        }
+        case 'block-remove':
+          setBlocks(prev => {
+            const next = prev.filter(b => b.uid !== cmd.uid);
+            saveData('ft_blocks', next);
+            return next;
+          });
+          break;
+        case 'block-move':
+          setBlocks(prev => {
+            const i = prev.findIndex(b => b.uid === cmd.uid);
+            const j = i + (cmd.dir === 'up' ? -1 : 1);
+            if (i < 0 || j < 0 || j >= prev.length) return prev;
+            const next = [...prev];
+            [next[i], next[j]] = [next[j], next[i]];
+            saveData('ft_blocks', next);
+            return next;
+          });
+          break;
+        case 'block-update':
+          setBlocks(prev => {
+            const next = prev.map(b => (b.uid === cmd.uid ? { ...b, ...(cmd.patch || {}) } : b));
+            saveData('ft_blocks', next);
+            return next;
+          });
+          break;
+        case 'blocks-clear':
+          setBlocks([]);
+          saveData('ft_blocks', []);
+          break;
+
+        case 'set-tab':
+          if (cmd.tab) setTab(cmd.tab);
+          break;
+        default: break;
+      }
+    });
+  }, [customers, clips, activeCustomer, sessionCfg, blocks]);
+
+  // 폰에서 '자동 조합'을 눌렀을 때. 데스크톱 화면의 조합과 같은 규칙을 쓴다.
+  function composeToBlocks() {
+    const enriched = clips.map(c => ({ ...c, ...(clipAttrs[c.filePath] || clipAttrs[c.id] || {}) }));
+    const r = composeProgram({ enrichedClips: enriched, customer: activeCustomer, sessionCfg });
+    const total = r.warmupClips.length + r.mainClips.length + r.coolClips.length;
+    if (total === 0) {
+      window.electronAPI?.sendPlayerState?.({
+        ...playerState, toast: explainEmptyPool(enriched, sessionCfg),
+      });
+      return;
+    }
+    const mk = (list, phase) => list.map(clip => ({
+      uid: uid(), clip, phase,
+      sets: phase === 'main' ? r.mainSets : 1,
+      restBetweenSets: phase === 'main' ? r.restBetweenSets : 10,
+      restAfter: phase === 'warmup' ? 10 : phase === 'cooldown' ? 15 : r.restAfter,
+    }));
+    const next = [...mk(r.warmupClips, 'warmup'), ...mk(r.mainClips, 'main'), ...mk(r.coolClips, 'cooldown')];
+    setBlocks(next);
+    saveData('ft_blocks', next);
+  }
+
+  // 재생 도중 실패한 영상 한 개를 즉시 변환한다
+  async function convertOne(filePath) {
+    const api = window.electronAPI;
+    if (!api?.convertClips || !filePath) return null;
+    const { done } = await api.convertClips([filePath]);
+    const out = done?.[filePath];
+    if (out) {
+      setPlaybackMap(prev => ({ ...prev, [filePath]: out }));
+      setCodec(c => ({ ...c, unsupported: c.unsupported.filter(u => u.filePath !== filePath) }));
+    }
+    return out || null;
+  }
+
+  async function convertUnsupported() {
+    const api = window.electronAPI;
+    const paths = codec.unsupported.map(u => u.filePath);
+    if (!api?.convertClips || paths.length === 0) return;
+
+    setCodec(c => ({ ...c, state: 'converting', progress: { index: 0, total: paths.length } }));
+    const off = api.onConvertProgress?.(p => setCodec(c => ({ ...c, progress: p })));
+    try {
+      const { done, failed } = await api.convertClips(paths);
+      setPlaybackMap(prev => ({ ...prev, ...done }));
+      const stillBad = codec.unsupported.filter(u => failed?.[u.filePath]);
+      setCodec({ state: 'done', unsupported: stillBad, progress: null });
+      if (stillBad.length) alert(`${stillBad.length}개 영상은 변환하지 못했습니다.`);
+    } catch {
+      setCodec(c => ({ ...c, state: 'done', progress: null }));
+    } finally {
+      off?.();
+    }
+  }
 
   useEffect(() => {
     const api = window.electronAPI;
@@ -1273,7 +2019,9 @@ export default function App() {
               setBlocks(prev => { const next = [...prev, block]; saveData('ft_blocks', next); return next; });
             }}
             analysisDone={analysisDone} setAnalysisDone={setAnalysisDone}
-            clipAttrs={clipAttrs} setClipAttrs={setClipAttrs} />
+            clipAttrs={clipAttrs} setClipAttrs={setClipAttrs}
+            codec={codec} onConvert={convertUnsupported}
+            prefixCats={prefixCats} setPrefixCat={setPrefixCat} />
         )}
         {tab === 'customers' && (
           <CustomersTab customers={customers} setCustomers={setCustomers}
@@ -1286,7 +2034,8 @@ export default function App() {
         {tab === 'builder' && (
           <BuilderTab clips={clips} clipAttrs={clipAttrs} blocks={blocks} setBlocks={setBlocks} setTab={setTab} />
         )}
-        {tab === 'player' && <PlayerTab blocks={blocks} />}
+        {tab === 'player' && <PlayerTab blocks={blocks} playbackMap={playbackMap} onConvertOne={convertOne}
+            onReport={setPlayerState} registerApi={registerPlayerApi} />}
       </div>
     </div>
   );
