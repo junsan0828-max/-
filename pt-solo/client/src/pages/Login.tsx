@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Logo from "@/components/Logo";
+import { trpc } from "@/lib/trpc";
 
 const ERROR_MESSAGES: Record<string, string> = {
   pending: "가입 승인 대기 중입니다. 관리자에게 문의하세요.",
@@ -15,18 +16,23 @@ const AUTO_LOGIN_KEY = "fitStep-autoLogin";
 export default function Login() {
   const [errorMsg, setErrorMsg] = useState("");
   const [autoLogging, setAutoLogging] = useState(false);
+  const [showIdLogin, setShowIdLogin] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  const loginMutation = trpc.auth.login.useMutation({
+    onSuccess: () => { window.location.href = "/"; },
+    onError: (e) => setErrorMsg(e.message),
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("error");
     if (err && ERROR_MESSAGES[err]) {
       setErrorMsg(ERROR_MESSAGES[err]);
-      // 오류 발생 시 자동 로그인 플래그 제거 (무한 루프 방지)
       localStorage.removeItem(AUTO_LOGIN_KEY);
       return;
     }
-
-    // 자동 로그인: 이전에 카카오로 로그인 성공한 기록 있으면 자동 진행
     const saved = localStorage.getItem(AUTO_LOGIN_KEY);
     if (saved === "kakao") {
       setAutoLogging(true);
@@ -59,9 +65,43 @@ export default function Login() {
               다른 계정으로 로그인
             </button>
           </div>
+        ) : showIdLogin ? (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="아이디"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <input
+                type="password"
+                placeholder="비밀번호"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && loginMutation.mutate({ username, password })}
+                className="w-full h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <button
+              onClick={() => loginMutation.mutate({ username, password })}
+              disabled={loginMutation.isPending || !username || !password}
+              className="w-full h-11 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90"
+            >
+              {loginMutation.isPending ? "로그인 중..." : "로그인"}
+            </button>
+            <button
+              onClick={() => { setShowIdLogin(false); setErrorMsg(""); }}
+              className="w-full text-xs text-muted-foreground/60 underline underline-offset-2"
+            >
+              카카오로 로그인
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
             <a href="/auth/kakao"
+              onClick={() => localStorage.setItem(AUTO_LOGIN_KEY, "kakao")}
               className="flex items-center justify-center gap-3 w-full h-12 rounded-xl font-semibold transition-opacity hover:opacity-90"
               style={{ backgroundColor: "#FEE500" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="#3C1E1E">
@@ -69,9 +109,12 @@ export default function Login() {
               </svg>
               <span className="text-sm font-semibold" style={{ color: "#3C1E1E" }}>카카오로 시작하기</span>
             </a>
-            <p className="text-center text-xs text-muted-foreground/50">
-              카카오 계정으로 간편하게 로그인하세요
-            </p>
+            <button
+              onClick={() => setShowIdLogin(true)}
+              className="w-full text-xs text-muted-foreground/50 underline underline-offset-2"
+            >
+              아이디로 로그인
+            </button>
           </div>
         )}
 

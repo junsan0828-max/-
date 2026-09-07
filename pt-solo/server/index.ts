@@ -1038,6 +1038,17 @@ async function initDatabase() {
     console.log("✅ admin 계정 role → admin 으로 업데이트");
   }
 
+  // 테스트 트레이너 계정 (개발/데모용)
+  const existingTest = await db.select({ id: users.id }).from(users).where(eq(users.username, "testtrainer")).limit(1);
+  if (!existingTest[0]) {
+    const bcryptjs = await import("bcryptjs");
+    const hash = await bcryptjs.default.hash("test1234", 10);
+    const [testUser] = await db.insert(users).values({ username: "testtrainer", password: hash, role: "trainer", position: null }).returning({ id: users.id });
+    const [testTrainer] = await db.insert(trainers).values({ userId: testUser.id, trainerName: "테스트 트레이너", phone: "010-0000-0000" }).returning({ id: trainers.id });
+    await db.insert(trainerSettings).values({ trainerId: testTrainer.id, settlementRate: 50 });
+    console.log("✅ 테스트 계정 생성: testtrainer / test1234");
+  }
+
   await pool.query(`CREATE TABLE IF NOT EXISTS trainer_feedbacks (
     id SERIAL PRIMARY KEY,
     "trainerId" INTEGER NOT NULL,
