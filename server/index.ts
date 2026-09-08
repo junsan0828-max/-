@@ -675,6 +675,8 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "signatureData" TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "agreedMarketing" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "contractDate" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "membersId" INTEGER`,
+    `ALTER TABLE gym_plus_registration_requests ADD COLUMN IF NOT EXISTS "gymPlusMemberId" INTEGER`,
     // ─── 미션 시스템 (12주 다이어트페이백) ───────────────────────────────────────
     `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "programName" TEXT`,
     `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "programStartDate" TEXT`,

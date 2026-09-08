@@ -2843,10 +2843,11 @@ const gymPlusRouter = t.router({
       // 위조된 금액이 데스크/CRM에 그대로 보이면 오입금·분쟁으로 이어진다.
       const amount = REGISTRATION_PRICES[input.membershipPeriod];
 
-      await pool.query(
+      const insertRes = await pool.query(
         `INSERT INTO gym_plus_registration_requests
           (name, phone, "membershipPeriod", amount, status, "signatureData", "agreedMarketing", "contractDate", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, now()::text, now()::text)`,
+         VALUES ($1, $2, $3, $4, 'approved', $5, $6, $7, now()::text, now()::text)
+         RETURNING id`,
         [
           input.name, input.phone, input.membershipPeriod, amount,
           input.signatureData ?? "",
@@ -2854,6 +2855,45 @@ const gymPlusRouter = t.router({
           input.contractDate ?? new Date().toLocaleDateString("ko-KR"),
         ]
       );
+      const requestId = insertRes.rows[0]?.id as number | undefined;
+
+      // 등록 즉시 통합운영시스템 + 짐플러스 계정 자동 생성
+      if (requestId) {
+        try {
+          const digits = input.phone.replace(/\D/g, "");
+          const trainerRes = await pool.query(`SELECT id FROM trainers ORDER BY id ASC LIMIT 1`);
+          const trainerId = trainerRes.rows[0]?.id ?? 1;
+
+          const membersInsert = await pool.query(
+            `INSERT INTO members (name, phone, "trainerId", "visitRoute", "profileNote", status, "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, 'active', now()::text, now()::text)
+             ON CONFLICT DO NOTHING RETURNING id`,
+            [input.name, input.phone, trainerId, "ZIANTGYM+ 앱", `앱 등록 신청 (${input.membershipPeriod}) — 첫 방문 시 시작일 확인`]
+          );
+          const membersId = membersInsert.rows[0]?.id ?? null;
+
+          if (membersId) {
+            const existing = await pool.query(`SELECT id FROM gym_plus_members WHERE username = $1 LIMIT 1`, [digits]);
+            let gymPlusMemberId: number | null = existing.rows[0]?.id ?? null;
+            if (!gymPlusMemberId) {
+              const initPw = digits.slice(-4) || "0000";
+              const hashed = await bcrypt.hash(initPw, 10);
+              const gpInsert = await pool.query(
+                `INSERT INTO gym_plus_members (username, password, name, phone, "memberId", "membershipType", "isActive", "createdAt", "updatedAt")
+                 VALUES ($1, $2, $3, $4, $5, 'general', 1, now()::text, now()::text) RETURNING id`,
+                [digits, hashed, input.name, input.phone, membersId]
+              );
+              gymPlusMemberId = gpInsert.rows[0]?.id ?? null;
+            }
+            await pool.query(
+              `UPDATE gym_plus_registration_requests SET "membersId" = $1, "gymPlusMemberId" = $2 WHERE id = $3`,
+              [membersId, gymPlusMemberId, requestId]
+            );
+          }
+        } catch (e) {
+          console.error("auto-registration error:", e);
+        }
+      }
 
       // 통합운영시스템 상담 CRM에 카드 자동 생성 (fire-and-forget)
       fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
@@ -5089,6 +5129,31 @@ ${dataContext}
     };
   }),
 
+  // ─── 등록 신청 KPI ────────────────────────────────────────────────────────────
+  admin_getRegistrationKPI: adminOnlyGymPlus.query(async () => {
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const today = kstNow.toISOString().slice(0, 10);
+    const monthStart = today.slice(0, 7) + "-01";
+
+    const [pendingRes, monthRes, firstVisitRes] = await Promise.all([
+      pool.query(`SELECT COUNT(*) AS cnt FROM gym_plus_registration_requests WHERE status = 'pending'`),
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM gym_plus_registration_requests WHERE status = 'approved' AND "membersId" IS NOT NULL AND "updatedAt" >= $1`,
+        [monthStart]
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM members WHERE "membershipStart" = $1 AND "visitRoute" = 'ZIANTGYM+ 앱'`,
+        [today]
+      ),
+    ]);
+
+    return {
+      pendingCount: parseInt(pendingRes.rows[0]?.cnt ?? "0"),
+      monthNewCount: parseInt(monthRes.rows[0]?.cnt ?? "0"),
+      firstVisitToday: parseInt(firstVisitRes.rows[0]?.cnt ?? "0"),
+    };
+  }),
+
   // ─── 비회원 등록 신청 관리 ──────────────────────────────────────────────────
   admin_listRegistrationRequests: adminOnlyGymPlus.query(async () => {
     const res = await pool.query(
@@ -5108,6 +5173,59 @@ ${dataContext}
         `UPDATE gym_plus_registration_requests SET status = $1, memo = COALESCE($2, memo), "updatedAt" = now()::text WHERE id = $3`,
         [input.status, input.memo ?? null, input.id]
       );
+
+      // 승인 시 통합운영시스템 + 짐플러스 계정 자동 생성
+      if (input.status === "approved") {
+        const reqRes = await pool.query(
+          `SELECT name, phone, "membershipPeriod", "membersId", "gymPlusMemberId" FROM gym_plus_registration_requests WHERE id = $1`,
+          [input.id]
+        );
+        const req = reqRes.rows[0];
+        if (!req) return { success: true };
+
+        const digits = (req.phone as string).replace(/\D/g, "");
+
+        // 이미 생성된 경우 스킵
+        if (!req.membersId) {
+          // 통합운영시스템 members 테이블에 등록 (trainerId=1 기본값, 없으면 첫 트레이너)
+          const trainerRes = await pool.query(`SELECT id FROM trainers ORDER BY id ASC LIMIT 1`);
+          const trainerId = trainerRes.rows[0]?.id ?? 1;
+
+          const membersInsert = await pool.query(
+            `INSERT INTO members (name, phone, "trainerId", "visitRoute", "profileNote", status, "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, 'active', now()::text, now()::text)
+             ON CONFLICT DO NOTHING RETURNING id`,
+            [req.name, req.phone, trainerId, "ZIANTGYM+ 앱", `앱 등록 신청 (${req.membershipPeriod}) — 첫 방문 시 시작일 확인`]
+          );
+          const membersId = membersInsert.rows[0]?.id ?? null;
+
+          if (membersId) {
+            // 짐플러스 계정 생성 (아이디: 전화번호 숫자, 초기 비밀번호: 뒤 4자리)
+            const existingGP = await pool.query(
+              `SELECT id FROM gym_plus_members WHERE username = $1 LIMIT 1`, [digits]
+            );
+            let gymPlusMemberId: number | null = existingGP.rows[0]?.id ?? null;
+
+            if (!gymPlusMemberId) {
+              const initPw = digits.slice(-4) || "0000";
+              const hashed = await bcrypt.hash(initPw, 10);
+              const gpInsert = await pool.query(
+                `INSERT INTO gym_plus_members (username, password, name, phone, "memberId", "membershipType", "isActive", "createdAt", "updatedAt")
+                 VALUES ($1, $2, $3, $4, $5, 'general', 1, now()::text, now()::text) RETURNING id`,
+                [digits, hashed, req.name, req.phone, membersId]
+              );
+              gymPlusMemberId = gpInsert.rows[0]?.id ?? null;
+            }
+
+            // 생성된 ID를 등록 신청에 저장
+            await pool.query(
+              `UPDATE gym_plus_registration_requests SET "membersId" = $1, "gymPlusMemberId" = $2 WHERE id = $3`,
+              [membersId, gymPlusMemberId, input.id]
+            );
+          }
+        }
+      }
+
       return { success: true };
     }),
 
@@ -5514,6 +5632,41 @@ const kioskRouter = t.router({
          VALUES ($1, 0, $2, $3, 'attended', now()::text, now()::text)`,
         [member.id, today, checkTime]
       );
+
+      // 첫 방문 시 회원권 시작일·종료일 자동 설정
+      if (!member.membershipEnd && !member.membershipStart) {
+        try {
+          const memberDetail = await pool.query(
+            `SELECT "membershipStart" FROM members WHERE id = $1`, [member.id]
+          );
+          const membershipStart = memberDetail.rows[0]?.membershipStart as string | null;
+          if (!membershipStart) {
+            // 등록 신청에서 기간 조회
+            const regRes = await pool.query(
+              `SELECT "membershipPeriod" FROM gym_plus_registration_requests WHERE "membersId" = $1 AND status = 'approved' ORDER BY id DESC LIMIT 1`,
+              [member.id]
+            );
+            const period = regRes.rows[0]?.membershipPeriod as string | undefined;
+            const PERIOD_MONTHS: Record<string, number> = { "1개월": 1, "3개월": 3, "6개월": 6, "12개월": 12 };
+            const addMonths = PERIOD_MONTHS[period ?? ""] ?? 1;
+            const todayYmd = parseYmd(today)!;
+            const endYmd = addMonthsYmd(todayYmd, addMonths);
+            const endStr = fmtYmd(endYmd);
+            // members 테이블 업데이트
+            await pool.query(
+              `UPDATE members SET "membershipStart" = $1, "membershipEnd" = $2, "updatedAt" = now()::text WHERE id = $3`,
+              [today, endStr, member.id]
+            );
+            // gym_plus_members 테이블도 동기화
+            await pool.query(
+              `UPDATE gym_plus_members SET "membershipStart" = $1, "membershipEnd" = $2, "updatedAt" = now()::text WHERE "memberId" = $3`,
+              [today, endStr, member.id]
+            );
+          }
+        } catch (e) {
+          console.error("first-visit membership date set error:", e);
+        }
+      }
 
       // 포인트 적립
       let pointsEarned = 0;
