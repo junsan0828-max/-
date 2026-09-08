@@ -5373,6 +5373,108 @@ ${dataContext}
     return res.rows;
   }),
 
+  // 체중 미기록 알림 — 다이어트페이백 회원 중 당일 체중 미기록자에게 푸시 발송
+  admin_sendWeightReminder: adminOnlyGymPlus.mutation(async () => {
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const today = kstNow.toISOString().slice(0, 10);
+
+    // 오늘 체중 기록이 없는 다이어트페이백 회원의 push_subscriptions
+    const subsRes = await pool.query(
+      `SELECT ps.endpoint, ps.p256dh, ps.auth
+       FROM push_subscriptions ps
+       JOIN gym_plus_members m ON m.id = ps."gymPlusMemberId"
+       WHERE m."programName" IS NOT NULL AND m."programName" != '' AND m."isActive" = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM gym_plus_weight_logs wl
+           WHERE wl."gymPlusMemberId" = m.id
+             AND wl."loggedAt" >= $1
+             AND wl."loggedAt" < $2
+         )`,
+      [`${today}T00:00:00.000Z`, `${today}T23:59:59.999Z`]
+    );
+
+    const payload = JSON.stringify({
+      title: "체중을 기록해 주세요",
+      body: "오늘 체중이 아직 기록되지 않았어요. 다이어트페이백 미션을 위해 기록해 주세요!",
+      url: "/gym-plus/missions",
+    });
+
+    let sent = 0;
+    const errors: string[] = [];
+    for (const s of subsRes.rows) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          payload
+        );
+        sent++;
+      } catch {
+        errors.push(s.endpoint.slice(-20));
+        await pool.query(`DELETE FROM push_subscriptions WHERE endpoint = $1`, [s.endpoint]).catch(() => {});
+      }
+    }
+    return { sent, total: subsRes.rows.length, errors };
+  }),
+
+  // 회원 본인의 12주 다이어트페이백 결과 리포트
+  getDietProgramReport: gymPlusProtected.query(async ({ ctx }) => {
+    const memberId = ctx.gymPlusMemberId;
+    const memberRes = await pool.query(
+      `SELECT "programName", "programStartDate", "membershipEnd" FROM gym_plus_members WHERE id = $1`,
+      [memberId]
+    );
+    const member = memberRes.rows[0];
+    if (!member?.programName || !member?.programStartDate) return null;
+
+    const programStart = member.programStartDate as string;
+    const anchor = parseYmd(programStart);
+    if (!anchor) return null;
+    const programEnd = fmtYmd(addMonthsYmd(anchor, 3)); // 12주 ≈ 3개월
+
+    // 총 수업 참여 횟수
+    const sessionsRes = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM gym_plus_diet_sessions
+       WHERE "gymPlusMemberId" = $1 AND participated = 1
+         AND "sessionDate" >= $2`,
+      [memberId, programStart]
+    );
+
+    // 체중 변화: 프로그램 시작 후 첫 기록 vs 최신 기록
+    const weightRes = await pool.query(
+      `SELECT weight::float AS weight, "loggedAt"
+       FROM gym_plus_weight_logs
+       WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2
+       ORDER BY "loggedAt" ASC`,
+      [memberId, `${programStart}T00:00:00.000Z`]
+    );
+    const firstWeight = weightRes.rows[0]?.weight ?? null;
+    const latestWeight = weightRes.rows[weightRes.rows.length - 1]?.weight ?? null;
+    const weightChange = firstWeight && latestWeight ? Math.round((firstWeight - latestWeight) * 10) / 10 : null;
+
+    // 수령 리워드
+    const rewardsRes = await pool.query(
+      `SELECT "periodKey", "rewardMonths", "awardedAt" FROM gym_plus_mission_rewards
+       WHERE "gymPlusMemberId" = $1 AND "programName" = $2 ORDER BY "periodKey" ASC`,
+      [memberId, member.programName]
+    );
+
+    const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const isCompleted = kstToday >= programEnd;
+
+    return {
+      programName: member.programName as string,
+      programStart,
+      programEnd,
+      isCompleted,
+      totalSessions: sessionsRes.rows[0].count as number,
+      firstWeight,
+      latestWeight,
+      weightChange,
+      weightLogs: weightRes.rows.length,
+      rewards: rewardsRes.rows as { periodKey: string; rewardMonths: number; awardedAt: string }[],
+    };
+  }),
+
 });
 
 // ─── Landing ──────────────────────────────────────────────────────────────────

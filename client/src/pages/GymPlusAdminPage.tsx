@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusSettingsAdmin, GymPlusRegistrationsAdmin } from "./gym-plus/GymPlusAdmin";
 import AdminRenewalRequestsModal from "@/components/AdminRenewalRequestsModal";
 
@@ -17,9 +18,15 @@ const tabs: { key: Tab; label: string; icon: string; desc: string }[] = [
 
 function RegistrationKPIBar() {
   const { data } = trpc.gymPlus.admin_getRegistrationKPI.useQuery(undefined, { refetchInterval: 60000 });
+  const reminderMut = trpc.gymPlus.admin_sendWeightReminder.useMutation({
+    onSuccess: (res) => {
+      toast.success(`푸시 발송 완료: ${res.sent}/${res.total}명 성공`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
   if (!data) return null;
   return (
-    <div className="flex gap-3 px-6 py-3 bg-blue-50 border-b border-blue-100">
+    <div className="flex flex-wrap gap-3 px-6 py-3 bg-blue-50 border-b border-blue-100 items-center">
       <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-blue-100 shadow-sm">
         <span className="text-lg font-bold text-yellow-500">{data.pendingCount}</span>
         <span className="text-xs text-gray-500">대기 신청</span>
@@ -32,6 +39,13 @@ function RegistrationKPIBar() {
         <span className="text-lg font-bold text-green-600">{data.firstVisitToday}</span>
         <span className="text-xs text-gray-500">오늘 첫 방문</span>
       </div>
+      <button
+        onClick={() => reminderMut.mutate()}
+        disabled={reminderMut.isPending}
+        className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+      >
+        {reminderMut.isPending ? "발송 중..." : "체중 미기록 알림 발송"}
+      </button>
     </div>
   );
 }
