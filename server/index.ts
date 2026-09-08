@@ -698,6 +698,16 @@ async function initDatabase() {
     // 동시 요청으로 같은 회차 보상이 두 번 지급되는 것을 DB 레벨에서 차단
     `CREATE UNIQUE INDEX IF NOT EXISTS gym_plus_mission_rewards_period_uniq
        ON gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey")`,
+    // ─── 다이어트페이백 수업 세션 ─────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS gym_plus_diet_sessions (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "sessionDate" TEXT NOT NULL,
+      "checkinTime" TEXT NOT NULL,
+      "checkoutTime" TEXT,
+      participated INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     try {

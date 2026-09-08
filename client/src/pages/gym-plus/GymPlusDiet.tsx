@@ -222,10 +222,64 @@ export default function GymPlusDiet() {
   }, [plan]);
 
   const hasMissingBodyInfo = !health?.height || !health?.weight || !health?.birthYear || !health?.gender;
+  const { data: dietReport } = trpc.gymPlus.getDietProgramReport.useQuery();
 
   return (
     <div className="p-4 space-y-4 pb-6">
       <h1 className="font-bold text-lg">맞춤 식단</h1>
+
+      {/* 12주 다이어트페이백 결과 리포트 */}
+      {dietReport && (
+        <div className={`rounded-2xl border p-4 space-y-3 ${dietReport.isCompleted ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200" : "bg-blue-50/50 border-blue-100"}`}>
+          <div className="flex items-center gap-2">
+            <span className="text-base">{dietReport.isCompleted ? "🏆" : "📊"}</span>
+            <div>
+              <p className="text-xs font-bold text-gray-700">{dietReport.programName}</p>
+              <p className="text-[10px] text-gray-400">{dietReport.programStart} ~ {dietReport.programEnd}</p>
+            </div>
+            {dietReport.isCompleted && (
+              <span className="ml-auto text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full font-medium">완료</span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-white rounded-xl p-2.5 text-center border border-gray-100">
+              <p className="text-xl font-black text-blue-600">{dietReport.totalSessions}</p>
+              <p className="text-[9px] text-gray-400 mt-0.5">수업 참여</p>
+            </div>
+            <div className="bg-white rounded-xl p-2.5 text-center border border-gray-100">
+              <p className={`text-xl font-black ${dietReport.weightChange && dietReport.weightChange > 0 ? "text-green-600" : "text-gray-400"}`}>
+                {dietReport.weightChange !== null ? `-${dietReport.weightChange}kg` : "—"}
+              </p>
+              <p className="text-[9px] text-gray-400 mt-0.5">체중 감량</p>
+            </div>
+            <div className="bg-white rounded-xl p-2.5 text-center border border-gray-100">
+              <p className="text-xl font-black text-purple-600">{dietReport.rewards.length}</p>
+              <p className="text-[9px] text-gray-400 mt-0.5">리워드 수령</p>
+            </div>
+          </div>
+
+          {dietReport.rewards.length > 0 && (
+            <div className="space-y-1">
+              {dietReport.rewards.map((r) => (
+                <div key={r.periodKey} className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+                  <span className="text-xs">🎁</span>
+                  <span className="text-xs text-gray-600">{r.periodKey} 미션 달성</span>
+                  <span className="ml-auto text-[10px] text-green-600 font-medium">+{r.rewardMonths}개월 연장</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {dietReport.isCompleted && dietReport.weightChange !== null && dietReport.weightChange >= 1 && (
+            <div className="bg-green-500 rounded-xl px-3 py-2 text-center">
+              <p className="text-white text-xs font-bold">12주 완료! {dietReport.weightChange}kg 감량 달성</p>
+              <p className="text-green-100 text-[10px]">수고하셨습니다. 건강한 습관이 완성됐어요!</p>
+            </div>
+          )}
+        </div>
+      )}
+
 
       {/* 신체정보 없을 때 안내 */}
       {hasMissingBodyInfo && (

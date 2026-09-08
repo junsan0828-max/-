@@ -26,6 +26,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import KioskPage from "./pages/Kiosk";
+import DietKioskPage from "./pages/DietKiosk";
 import Dashboard from "./pages/Dashboard";
 import GymDashboard from "./pages/GymDashboard";
 import Members from "./pages/Members";
@@ -121,6 +122,9 @@ function App() {
 
   // 키오스크 출입 페이지 (공개, 인증 불필요)
   if (location === "/kiosk") {
+    return <DietKioskPage />;
+  }
+  if (location === "/kiosk-general") {
     return <KioskPage />;
   }
 
