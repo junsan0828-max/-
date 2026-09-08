@@ -29,9 +29,22 @@ const BODY_PART_GROUPS = [
 ];
 const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
 
+function getYoutubeVideoId(url: string): string | null {
+  const m = url?.match(/(?:(?:www\.|m\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([^&\n?#]+)/);
+  return m ? m[1] : null;
+}
+
 function getYoutubeEmbedUrl(url: string): string | null {
-  const m = url.match(/(?:(?:www\.|m\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([^&\n?#]+)/);
-  return m ? `https://www.youtube.com/embed/${m[1]}?rel=0` : null;
+  const id = getYoutubeVideoId(url);
+  return id ? `https://www.youtube.com/embed/${id}?rel=0` : null;
+}
+
+// 영상 내 랜덤 프레임 썸네일 (1=25%, 2=50%, 3=75% 지점)
+function getAutoThumbnail(videoId: number, videoUrl: string): string | null {
+  const ytId = getYoutubeVideoId(videoUrl);
+  if (!ytId) return null;
+  const frame = (videoId % 3) + 1; // 영상마다 고정된 서로 다른 지점
+  return `https://img.youtube.com/vi/${ytId}/${frame}.jpg`;
 }
 
 function CheckInModal({ onClose }: { onClose: () => void }) {
@@ -213,13 +226,15 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
               <p className="text-sm text-muted-foreground text-center py-4">등록된 추천 영상이 없습니다</p>
             ) : (
               <div className="space-y-2">
-                {recommendedVideos.map((v) => (
+                {recommendedVideos.map((v) => {
+                  const recThumb = v.thumbnailUrl || getAutoThumbnail(v.id, v.videoUrl);
+                  return (
                   <button key={v.id}
                     className="w-full flex items-center gap-3 bg-muted/40 rounded-xl p-3 text-left hover:bg-muted transition-colors"
                     onClick={() => setPreviewVideo(v)}
                   >
-                    {v.thumbnailUrl ? (
-                      <img src={v.thumbnailUrl} alt={v.title} className="w-16 h-10 object-cover rounded-lg flex-shrink-0" />
+                    {recThumb ? (
+                      <img src={recThumb} alt={v.title} className="w-16 h-10 object-cover rounded-lg flex-shrink-0" />
                     ) : (
                       <div className="w-16 h-10 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
                         <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4 text-muted-foreground">
@@ -239,7 +254,7 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
                   </button>
-                ))}
+                );})}
               </div>
             )}
 
@@ -276,13 +291,14 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
 }
 
 function VideoCard({ v, onClick }: { v: any; onClick: () => void }) {
+  const thumb = v.thumbnailUrl || getAutoThumbnail(v.id, v.videoUrl);
   return (
     <div
       className="bg-white border border-gray-100 rounded-xl overflow-hidden cursor-pointer hover:border-blue-200 hover:shadow-md transition-all"
       onClick={onClick}
     >
-      {v.thumbnailUrl ? (
-        <img src={v.thumbnailUrl} alt={v.title} className="w-full aspect-video object-cover" />
+      {thumb ? (
+        <img src={thumb} alt={v.title} className="w-full aspect-video object-cover" />
       ) : (
         <div className="w-full aspect-video bg-gray-50 flex items-center justify-center">
           <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-gray-300">
