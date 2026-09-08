@@ -5416,6 +5416,29 @@ ${dataContext}
     return { sent, total: subsRes.rows.length, errors };
   }),
 
+  // 다이어트 수업 이력 (회원 본인)
+  getDietSessions: gymPlusProtected.query(async ({ ctx }) => {
+    const memberId = ctx.gymPlusMemberId;
+    const res = await pool.query(
+      `SELECT "sessionDate", "checkinTime", "checkoutTime", participated
+       FROM gym_plus_diet_sessions
+       WHERE "gymPlusMemberId" = $1
+       ORDER BY "sessionDate" DESC, id DESC
+       LIMIT 60`,
+      [memberId]
+    );
+    return (res.rows as { sessionDate: string; checkinTime: string; checkoutTime: string | null; participated: number }[]).map(r => {
+      let elapsedMin: number | null = null;
+      if (r.checkoutTime) {
+        const [h1, m1] = r.checkinTime.split(":").map(Number);
+        const [h2, m2] = r.checkoutTime.split(":").map(Number);
+        elapsedMin = (h2 * 60 + m2) - (h1 * 60 + m1);
+      }
+      return { ...r, elapsedMin };
+    });
+  }),
+
+
   // 회원 본인의 12주 다이어트페이백 결과 리포트
   getDietProgramReport: gymPlusProtected.query(async ({ ctx }) => {
     const memberId = ctx.gymPlusMemberId;
