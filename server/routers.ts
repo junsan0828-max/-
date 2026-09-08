@@ -5438,6 +5438,7 @@ ${dataContext}
     });
   }),
 
+
   // 회원 본인의 12주 다이어트페이백 결과 리포트
   getDietProgramReport: gymPlusProtected.query(async ({ ctx }) => {
     const memberId = ctx.gymPlusMemberId;
