@@ -5731,6 +5731,94 @@ const kioskRouter = t.router({
       } catch {}
       return { name: member.name, alreadyCheckedIn: false, pointsEarned, totalPoints, showPoints, uniformEnd };
     }),
+
+  // ─── 다이어트페이백 전용 체크인 ──────────────────────────────────────────────
+  dietCheckIn: publicProcedure
+    .input(z.object({ phone: z.string().min(9) }))
+    .mutation(async ({ input }) => {
+      const digits = input.phone.replace(/\D/g, "");
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const today = kstNow.toISOString().slice(0, 10);
+      const nowTimeKst = `${String(kstNow.getUTCHours()).padStart(2,"0")}:${String(kstNow.getUTCMinutes()).padStart(2,"0")}`;
+
+      // 다이어트페이백 프로그램 회원만 허용
+      const memberRes = await pool.query(
+        `SELECT id, name, phone, "programName", "programStartDate"
+         FROM gym_plus_members
+         WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1
+           AND "programName" IS NOT NULL AND "isActive" = 1
+         ORDER BY id DESC LIMIT 1`,
+        [digits]
+      );
+      if (!memberRes.rows[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "다이어트페이백 프로그램 등록 회원이 아닙니다." });
+      }
+      const gm = memberRes.rows[0] as { id: number; name: string; phone: string; programName: string; programStartDate: string };
+
+      // 오늘 열린 세션 확인 (체크아웃 안 된 세션)
+      const openSession = await pool.query(
+        `SELECT id, "checkinTime" FROM gym_plus_diet_sessions
+         WHERE "gymPlusMemberId" = $1 AND "sessionDate" = $2 AND "checkoutTime" IS NULL
+         ORDER BY id DESC LIMIT 1`,
+        [gm.id, today]
+      );
+
+      if (openSession.rows[0]) {
+        // 두 번째 체크인 = 수업 종료
+        const session = openSession.rows[0] as { id: number; checkinTime: string };
+        const [h1, m1] = session.checkinTime.split(":").map(Number);
+        const [h2, m2] = nowTimeKst.split(":").map(Number);
+        const elapsedMin = (h2 * 60 + m2) - (h1 * 60 + m1);
+
+        if (elapsedMin < 30) {
+          // 30분 미만 → 수업 미참여
+          await pool.query(
+            `UPDATE gym_plus_diet_sessions SET "checkoutTime" = $1, participated = 0 WHERE id = $2`,
+            [nowTimeKst, session.id]
+          );
+          return {
+            name: gm.name,
+            programName: gm.programName,
+            gymPlusMemberId: gm.id,
+            action: "checkout" as const,
+            participated: false,
+            elapsedMin,
+            message: `수업 시간이 ${elapsedMin}분으로 30분 미만입니다. 참여로 인정되지 않습니다.`,
+          };
+        } else {
+          // 30분 이상 → 수업 참여 인정
+          await pool.query(
+            `UPDATE gym_plus_diet_sessions SET "checkoutTime" = $1, participated = 1 WHERE id = $2`,
+            [nowTimeKst, session.id]
+          );
+          return {
+            name: gm.name,
+            programName: gm.programName,
+            gymPlusMemberId: gm.id,
+            action: "checkout" as const,
+            participated: true,
+            elapsedMin,
+            message: `수업 완료! ${elapsedMin}분 참여 인정됩니다. 수고하셨습니다! 💪`,
+          };
+        }
+      } else {
+        // 첫 번째 체크인 = 수업 시작
+        await pool.query(
+          `INSERT INTO gym_plus_diet_sessions ("gymPlusMemberId", "sessionDate", "checkinTime", "createdAt")
+           VALUES ($1, $2, $3, now()::text)`,
+          [gm.id, today, nowTimeKst]
+        );
+        return {
+          name: gm.name,
+          programName: gm.programName,
+          gymPlusMemberId: gm.id,
+          action: "checkin" as const,
+          participated: false,
+          elapsedMin: 0,
+          message: `수업을 시작합니다! 30분 후 다시 체크인하여 수업을 종료해 주세요.`,
+        };
+      }
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
