@@ -1862,6 +1862,117 @@ export function GymPlusSettingsAdmin() {
 
       {/* 키오스크 공지사항 */}
       <KioskNoticesEditor />
+
+      {/* 다이어트페이백 미션 설정 */}
+      <MissionSettingsEditor />
+    </div>
+  );
+}
+
+function MissionSettingsEditor() {
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.gymPlus.admin_getMissionSettings.useQuery();
+  const [weightGoal, setWeightGoal] = useState("");
+  const [rewardMonths, setRewardMonths] = useState("");
+  const [periods, setPeriods] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  const saveMut = trpc.gymPlus.admin_setMissionSettings.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.admin_getMissionSettings.invalidate();
+      setEditing(false);
+      toast.success("미션 설정이 저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function startEdit() {
+    if (!data) return;
+    setWeightGoal(String(data.weightGoal));
+    setRewardMonths(String(data.rewardMonths));
+    setPeriods(String(data.periods));
+    setEditing(true);
+  }
+
+  function handleSave() {
+    const wg = parseFloat(weightGoal);
+    const rm = parseInt(rewardMonths, 10);
+    const p = parseInt(periods, 10);
+    if (isNaN(wg) || wg < 0.1 || wg > 10) { toast.error("감량 목표: 0.1~10kg"); return; }
+    if (isNaN(rm) || rm < 1 || rm > 6) { toast.error("리워드: 1~6개월"); return; }
+    if (isNaN(p) || p < 1 || p > 12) { toast.error("미션 회차: 1~12"); return; }
+    saveMut.mutate({ weightGoal: wg, rewardMonths: rm, periods: p });
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">다이어트페이백 미션 설정</p>
+          <p className="text-xs text-muted-foreground mt-0.5">감량 목표 및 리워드 기준을 설정합니다</p>
+        </div>
+        {!editing && !isLoading && (
+          <button onClick={startEdit} className="text-xs text-primary hover:underline">수정</button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">로딩 중...</p>
+      ) : editing ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">감량 목표 (kg)</label>
+              <Input
+                type="number" step="0.1" min="0.1" max="10"
+                value={weightGoal} onChange={(e) => setWeightGoal(e.target.value)}
+                className="h-9 text-sm" placeholder="1.0"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">리워드 (개월)</label>
+              <Input
+                type="number" min="1" max="6"
+                value={rewardMonths} onChange={(e) => setRewardMonths(e.target.value)}
+                className="h-9 text-sm" placeholder="1"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">미션 회차 수</label>
+              <Input
+                type="number" min="1" max="12"
+                value={periods} onChange={(e) => setPeriods(e.target.value)}
+                className="h-9 text-sm" placeholder="3"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSave} disabled={saveMut.isPending} className="h-9">저장</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)} className="h-9">취소</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "감량 목표", value: `${data?.weightGoal ?? 1.0} kg`, desc: "달성 기준" },
+            { label: "리워드", value: `${data?.rewardMonths ?? 1}개월 연장`, desc: "달성 시 지급" },
+            { label: "미션 회차", value: `${data?.periods ?? 3}회차`, desc: "총 기간" },
+          ].map((item) => (
+            <div key={item.label} className="bg-muted/30 rounded-lg p-3 text-center">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="text-base font-bold mt-0.5">{item.value}</p>
+              <p className="text-[10px] text-muted-foreground">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+        <p>• 감량 목표: 직전 회차 마지막 체중 대비 N kg 이상 감량 시 리워드 지급</p>
+        <p>• 리워드: 달성 시 회원권 연장 개월 수</p>
+        <p>• 미션 회차: 프로그램 총 회차 수 (각 회차 = 1개월)</p>
+        <p>• 변경 사항은 이후 체중 기록부터 적용됩니다</p>
+      </div>
     </div>
   );
 }

@@ -5274,21 +5274,25 @@ ${dataContext}
       const member = memberRes.rows[0];
       if (!member?.programName || !member?.programStartDate) return { rewarded: false };
 
+      // 미션 세팅 (DB → 없으면 기본값)
+      const settingRows = await pool.query(
+        `SELECT key, value FROM gym_plus_settings WHERE key IN ('mission_weight_goal', 'mission_reward_months', 'mission_periods')`
+      );
+      const settingMap = Object.fromEntries(settingRows.rows.map((r: any) => [r.key, r.value]));
+      const weightGoal = parseFloat(settingMap["mission_weight_goal"] ?? "1.0");
+      const rewardMonths = parseInt(settingMap["mission_reward_months"] ?? "1", 10);
+      const missionPeriods = parseInt(settingMap["mission_periods"] ?? String(MISSION_MAX_PERIOD), 10);
+
       // 회차는 달력월이 아니라 '프로그램 시작일 기준'으로 끊는다.
-      // 달력월로 끊으면 월중 등록자의 회차가 어긋나고, 타임존 경계에서
-      // 하루 차이 기록이 서로 다른 달로 분류돼 부당 보상이 발생할 수 있다.
       const anchor = parseYmd(member.programStartDate);
       if (!anchor) return { rewarded: false };
 
-      // 회차 i 구간 = [시작일 + i개월, 시작일 + (i+1)개월)
-      // 0회차는 기준 체중 측정 구간이라 보상이 없고, 1~3회차에서만 보상한다.
       const boundary = (i: number) => addMonthsKst(anchor, i).getTime();
       const t = now.getTime();
       let period = -1;
-      for (let i = 0; i <= MISSION_MAX_PERIOD; i++) {
+      for (let i = 0; i <= missionPeriods; i++) {
         if (t >= boundary(i) && t < boundary(i + 1)) { period = i; break; }
       }
-      // 기준 구간(0회차)이거나 프로그램 종료 후면 보상 없음
       if (period < 1) return { rewarded: false };
 
       const periodKey = `M${period}`;
@@ -5302,16 +5306,13 @@ ${dataContext}
       );
       if (!prevLogRes.rows[0]) return { rewarded: false };
 
-      if (prevLogRes.rows[0].weight - input.weight < 1.0) return { rewarded: false };
+      if (prevLogRes.rows[0].weight - input.weight < weightGoal) return { rewarded: false };
 
-      // 1kg 이상 감량 → 보상 지급.
-      // 유니크 인덱스 + ON CONFLICT로 동시 요청 시 이중 지급을 막고,
-      // 실제로 삽입된 경우에만 회원권을 연장한다.
       const inserted = await pool.query(
         `INSERT INTO gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey", "rewardMonths")
-         VALUES ($1, $2, $3, 1)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT ("gymPlusMemberId", "programName", "periodKey") DO NOTHING`,
-        [memberId, member.programName, periodKey]
+        [memberId, member.programName, periodKey, rewardMonths]
       );
       if (inserted.rowCount === 0) return { rewarded: false };
 
@@ -5372,6 +5373,42 @@ ${dataContext}
     );
     return res.rows;
   }),
+
+  // 미션 세팅 조회
+  admin_getMissionSettings: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT key, value FROM gym_plus_settings WHERE key IN ('mission_weight_goal', 'mission_reward_months', 'mission_periods')`
+    );
+    const map = Object.fromEntries(res.rows.map((r: any) => [r.key, r.value]));
+    return {
+      weightGoal: parseFloat(map["mission_weight_goal"] ?? "1.0"),
+      rewardMonths: parseInt(map["mission_reward_months"] ?? "1", 10),
+      periods: parseInt(map["mission_periods"] ?? "3", 10),
+    };
+  }),
+
+  // 미션 세팅 저장
+  admin_setMissionSettings: adminOnlyGymPlus
+    .input(z.object({
+      weightGoal: z.number().min(0.1).max(10),
+      rewardMonths: z.number().int().min(1).max(6),
+      periods: z.number().int().min(1).max(12),
+    }))
+    .mutation(async ({ input }) => {
+      const entries = [
+        ["mission_weight_goal", String(input.weightGoal)],
+        ["mission_reward_months", String(input.rewardMonths)],
+        ["mission_periods", String(input.periods)],
+      ];
+      for (const [key, value] of entries) {
+        await pool.query(
+          `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ($1, $2, now()::text)
+           ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = now()::text`,
+          [key, value]
+        );
+      }
+      return { success: true };
+    }),
 
   // 체중 미기록 알림 — 다이어트페이백 회원 중 당일 체중 미기록자에게 푸시 발송
   admin_sendWeightReminder: adminOnlyGymPlus.mutation(async () => {
