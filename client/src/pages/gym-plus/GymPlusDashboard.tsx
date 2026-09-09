@@ -5,6 +5,88 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { GymPlusEventDetailContent } from "./GymPlusEventDetail";
 import { membershipTypeLabel } from "@/lib/membership";
 
+const KAKAO_CHAT_URL = "http://pf.kakao.com/_ZZxais/chat";
+
+const MISSION_TYPE_ICON: Record<string, string> = {
+  attendance: "🏃",
+  cardio: "💧",
+  diet: "🥗",
+  inbody: "📊",
+};
+
+function MissionWeekBanner() {
+  const utils = trpc.useUtils();
+  const { data } = trpc.gymPlus.getWeeklyMissions.useQuery();
+  const submitMut = trpc.gymPlus.submitWeeklyMission.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.getWeeklyMissions.invalidate();
+      window.open(KAKAO_CHAT_URL, "_blank");
+    },
+  });
+
+  if (!data || data.currentWeek < 1 || data.currentWeek > 12) return null;
+
+  const currentWeekData = data.weeks.find(w => w.isCurrentWeek);
+  if (!currentWeekData) return null;
+
+  const sub = currentWeekData.submission;
+  const missionType = currentWeekData.missionType;
+  const isAutoMission = missionType === "attendance";
+
+  function handleCertify() {
+    if (sub) {
+      window.open(KAKAO_CHAT_URL, "_blank");
+      return;
+    }
+    if (isAutoMission) {
+      submitMut.mutate({ weekNumber: currentWeekData!.weekNumber });
+    } else {
+      submitMut.mutate({ weekNumber: currentWeekData!.weekNumber });
+      window.open(KAKAO_CHAT_URL, "_blank");
+    }
+  }
+
+  let statusBadge: React.ReactNode = null;
+  if (sub?.status === "approved") {
+    statusBadge = <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">달성 완료 ✓</span>;
+  } else if (sub?.status === "pending") {
+    statusBadge = <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">검토 중</span>;
+  } else if (sub?.status === "rejected") {
+    statusBadge = <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">미달성</span>;
+  }
+
+  return (
+    <div className="rounded-2xl overflow-hidden shadow-sm border border-[#1D4ED8]/20"
+      style={{ background: "linear-gradient(135deg, hsl(221 83% 96%), hsl(221 83% 92%))" }}>
+      <div className="px-4 py-3 border-b border-[#1D4ED8]/10 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold text-[#1D4ED8]">이번 주 미션</span>
+          <span className="text-[10px] bg-[#1D4ED8] text-white px-1.5 py-0.5 rounded-full font-semibold">{data.currentWeek}주차</span>
+        </div>
+        {statusBadge}
+      </div>
+      <div className="px-4 py-3 flex items-center gap-3">
+        <span className="text-2xl">{MISSION_TYPE_ICON[missionType]}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-[#1a2b4b] leading-snug">{currentWeekData.label}</p>
+          {!isAutoMission && <p className="text-[10px] text-gray-500 mt-0.5">카카오채널에 인증사진을 보내주세요</p>}
+          {isAutoMission && <p className="text-[10px] text-gray-500 mt-0.5">이번 주 출석 4일 이상 시 자동 달성</p>}
+        </div>
+        {sub?.status !== "approved" && (
+          <button
+            onClick={handleCertify}
+            disabled={submitMut.isPending}
+            className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50 transition-opacity"
+            style={{ background: "hsl(221 83% 44%)" }}
+          >
+            {isAutoMission ? "출석확인" : "인증하기"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function daysUntil(dateStr: string | null | undefined) {
   if (!dateStr) return null;
   const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
@@ -68,7 +150,10 @@ export default function GymPlusDashboard() {
         )}
       </div>
 
-      {/* 2. 회원권 D-day — 재등록 유도 구간이면 재등록 신청(결제) 창으로 바로 연결 */}
+      {/* 2. 다이어트페이백 이번 주 미션 배너 — 프로그램 참여 회원만 표시 */}
+      {member?.programName && <MissionWeekBanner />}
+
+      {/* 3. 회원권 D-day — 재등록 유도 구간이면 재등록 신청(결제) 창으로 바로 연결 */}
       {daysLeft !== null && (
         <button
           onClick={() => navigate(bonus ? "/gym-plus/profile?renew=1" : "/gym-plus/profile")}

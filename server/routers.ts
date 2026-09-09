@@ -5274,21 +5274,25 @@ ${dataContext}
       const member = memberRes.rows[0];
       if (!member?.programName || !member?.programStartDate) return { rewarded: false };
 
+      // 미션 세팅 (DB → 없으면 기본값)
+      const settingRows = await pool.query(
+        `SELECT key, value FROM gym_plus_settings WHERE key IN ('mission_weight_goal', 'mission_reward_months', 'mission_periods')`
+      );
+      const settingMap = Object.fromEntries(settingRows.rows.map((r: any) => [r.key, r.value]));
+      const weightGoal = parseFloat(settingMap["mission_weight_goal"] ?? "1.0");
+      const rewardMonths = parseInt(settingMap["mission_reward_months"] ?? "1", 10);
+      const missionPeriods = parseInt(settingMap["mission_periods"] ?? String(MISSION_MAX_PERIOD), 10);
+
       // 회차는 달력월이 아니라 '프로그램 시작일 기준'으로 끊는다.
-      // 달력월로 끊으면 월중 등록자의 회차가 어긋나고, 타임존 경계에서
-      // 하루 차이 기록이 서로 다른 달로 분류돼 부당 보상이 발생할 수 있다.
       const anchor = parseYmd(member.programStartDate);
       if (!anchor) return { rewarded: false };
 
-      // 회차 i 구간 = [시작일 + i개월, 시작일 + (i+1)개월)
-      // 0회차는 기준 체중 측정 구간이라 보상이 없고, 1~3회차에서만 보상한다.
       const boundary = (i: number) => addMonthsKst(anchor, i).getTime();
       const t = now.getTime();
       let period = -1;
-      for (let i = 0; i <= MISSION_MAX_PERIOD; i++) {
+      for (let i = 0; i <= missionPeriods; i++) {
         if (t >= boundary(i) && t < boundary(i + 1)) { period = i; break; }
       }
-      // 기준 구간(0회차)이거나 프로그램 종료 후면 보상 없음
       if (period < 1) return { rewarded: false };
 
       const periodKey = `M${period}`;
@@ -5302,16 +5306,13 @@ ${dataContext}
       );
       if (!prevLogRes.rows[0]) return { rewarded: false };
 
-      if (prevLogRes.rows[0].weight - input.weight < 1.0) return { rewarded: false };
+      if (prevLogRes.rows[0].weight - input.weight < weightGoal) return { rewarded: false };
 
-      // 1kg 이상 감량 → 보상 지급.
-      // 유니크 인덱스 + ON CONFLICT로 동시 요청 시 이중 지급을 막고,
-      // 실제로 삽입된 경우에만 회원권을 연장한다.
       const inserted = await pool.query(
         `INSERT INTO gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey", "rewardMonths")
-         VALUES ($1, $2, $3, 1)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT ("gymPlusMemberId", "programName", "periodKey") DO NOTHING`,
-        [memberId, member.programName, periodKey]
+        [memberId, member.programName, periodKey, rewardMonths]
       );
       if (inserted.rowCount === 0) return { rewarded: false };
 
@@ -5372,6 +5373,42 @@ ${dataContext}
     );
     return res.rows;
   }),
+
+  // 미션 세팅 조회
+  admin_getMissionSettings: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT key, value FROM gym_plus_settings WHERE key IN ('mission_weight_goal', 'mission_reward_months', 'mission_periods')`
+    );
+    const map = Object.fromEntries(res.rows.map((r: any) => [r.key, r.value]));
+    return {
+      weightGoal: parseFloat(map["mission_weight_goal"] ?? "1.0"),
+      rewardMonths: parseInt(map["mission_reward_months"] ?? "1", 10),
+      periods: parseInt(map["mission_periods"] ?? "3", 10),
+    };
+  }),
+
+  // 미션 세팅 저장
+  admin_setMissionSettings: adminOnlyGymPlus
+    .input(z.object({
+      weightGoal: z.number().min(0.1).max(10),
+      rewardMonths: z.number().int().min(1).max(6),
+      periods: z.number().int().min(1).max(12),
+    }))
+    .mutation(async ({ input }) => {
+      const entries = [
+        ["mission_weight_goal", String(input.weightGoal)],
+        ["mission_reward_months", String(input.rewardMonths)],
+        ["mission_periods", String(input.periods)],
+      ];
+      for (const [key, value] of entries) {
+        await pool.query(
+          `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ($1, $2, now()::text)
+           ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = now()::text`,
+          [key, value]
+        );
+      }
+      return { success: true };
+    }),
 
   // 체중 미기록 알림 — 다이어트페이백 회원 중 당일 체중 미기록자에게 푸시 발송
   admin_sendWeightReminder: adminOnlyGymPlus.mutation(async () => {
@@ -5438,6 +5475,164 @@ ${dataContext}
     });
   }),
 
+
+  // ─── 12주 주차별 미션 ─────────────────────────────────────────────────────────
+
+  getWeeklyMissions: gymPlusProtected.query(async ({ ctx }) => {
+    const memberId = ctx.gymPlusMemberId;
+    const memberRes = await pool.query(
+      `SELECT "programName", "programStartDate" FROM gym_plus_members WHERE id = $1`,
+      [memberId]
+    );
+    const member = memberRes.rows[0];
+    if (!member?.programName || !member?.programStartDate) return null;
+
+    const programStart = member.programStartDate as string;
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const todayKst = kstNow.toISOString().slice(0, 10);
+
+    function addDays(dateStr: string, days: number) {
+      const d = new Date(dateStr + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+    const startMs = new Date(programStart + "T00:00:00Z").getTime();
+    const todayMs = new Date(todayKst + "T00:00:00Z").getTime();
+    const daysSince = Math.floor((todayMs - startMs) / (1000 * 60 * 60 * 24));
+    const currentWeek = daysSince < 0 ? 0 : Math.min(12, Math.floor(daysSince / 7) + 1);
+
+    const subsRes = await pool.query(
+      `SELECT "weekNumber", status, note, "submittedAt" FROM gym_plus_mission_submissions WHERE "gymPlusMemberId" = $1`,
+      [memberId]
+    );
+    const subMap = new Map(subsRes.rows.map((r: any) => [r.weekNumber as number, r]));
+
+    const schedule = [
+      { week: 1, type: "attendance", label: "주 4일 이상 출석하기" },
+      { week: 2, type: "cardio", label: "유산소 누적 60분 인증하기" },
+      { week: 3, type: "diet", label: "단백질이 포함된 다이어트 식단 인증하기" },
+      { week: 4, type: "inbody", label: "인바디 촬영 후 제출하기" },
+      { week: 5, type: "attendance", label: "주 4일 이상 출석하기" },
+      { week: 6, type: "cardio", label: "유산소 누적 60분 인증하기" },
+      { week: 7, type: "diet", label: "단백질이 포함된 다이어트 식단 인증하기" },
+      { week: 8, type: "inbody", label: "인바디 촬영 후 제출하기" },
+      { week: 9, type: "attendance", label: "주 4일 이상 출석하기" },
+      { week: 10, type: "cardio", label: "유산소 누적 60분 인증하기" },
+      { week: 11, type: "diet", label: "단백질이 포함된 다이어트 식단 인증하기" },
+      { week: 12, type: "inbody", label: "최종 인바디 촬영 후 제출하기" },
+    ];
+
+    const weeks = schedule.map(({ week, type, label }) => {
+      const weekStart = addDays(programStart, (week - 1) * 7);
+      const weekEnd = addDays(programStart, week * 7 - 1);
+      const sub = subMap.get(week);
+      return {
+        weekNumber: week,
+        missionType: type,
+        label,
+        weekStart,
+        weekEnd,
+        isCurrentWeek: week === currentWeek,
+        isPast: week < currentWeek,
+        isFuture: week > currentWeek,
+        submission: sub ? { status: sub.status, note: sub.note, submittedAt: sub.submittedAt } : null,
+      };
+    });
+
+    return { programName: member.programName, programStart, currentWeek, weeks };
+  }),
+
+  submitWeeklyMission: gymPlusProtected
+    .input(z.object({ weekNumber: z.number().min(1).max(12), note: z.string().max(500).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const memberId = ctx.gymPlusMemberId;
+      const memberRes = await pool.query(
+        `SELECT "programName", "programStartDate" FROM gym_plus_members WHERE id = $1`,
+        [memberId]
+      );
+      const member = memberRes.rows[0];
+      if (!member?.programName || !member?.programStartDate)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "참여 중인 프로그램이 없습니다." });
+
+      const programStart = member.programStartDate as string;
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const todayKst = kstNow.toISOString().slice(0, 10);
+      const startMs = new Date(programStart + "T00:00:00Z").getTime();
+      const todayMs = new Date(todayKst + "T00:00:00Z").getTime();
+      const daysSince = Math.floor((todayMs - startMs) / (1000 * 60 * 60 * 24));
+      const currentWeek = daysSince < 0 ? 0 : Math.floor(daysSince / 7) + 1;
+
+      if (input.weekNumber > currentWeek || daysSince < 0)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "아직 시작되지 않은 주차입니다." });
+
+      const existRes = await pool.query(
+        `SELECT id, status FROM gym_plus_mission_submissions WHERE "gymPlusMemberId" = $1 AND "weekNumber" = $2`,
+        [memberId, input.weekNumber]
+      );
+      if (existRes.rows.length > 0)
+        throw new TRPCError({ code: "CONFLICT", message: "이미 제출한 주차입니다." });
+
+      const schedule: Record<number, string> = {
+        1: "attendance", 2: "cardio", 3: "diet", 4: "inbody",
+        5: "attendance", 6: "cardio", 7: "diet", 8: "inbody",
+        9: "attendance", 10: "cardio", 11: "diet", 12: "inbody",
+      };
+      const missionType = schedule[input.weekNumber];
+
+      let status = "pending";
+
+      if (missionType === "attendance") {
+        function addDays2(dateStr: string, days: number) {
+          const d = new Date(dateStr + "T00:00:00Z");
+          d.setUTCDate(d.getUTCDate() + days);
+          return d.toISOString().slice(0, 10);
+        }
+        const weekStart = addDays2(programStart, (input.weekNumber - 1) * 7);
+        const weekEnd = addDays2(programStart, input.weekNumber * 7 - 1);
+        const attendRes = await pool.query(
+          `SELECT COUNT(*)::int AS count FROM gym_plus_diet_sessions
+           WHERE "gymPlusMemberId" = $1 AND participated = 1
+             AND "sessionDate" >= $2 AND "sessionDate" <= $3`,
+          [memberId, weekStart, weekEnd]
+        );
+        const count = (attendRes.rows[0]?.count ?? 0) as number;
+        status = count >= 4 ? "approved" : "rejected";
+      }
+
+      const now = new Date().toISOString();
+      await pool.query(
+        `INSERT INTO gym_plus_mission_submissions
+         ("gymPlusMemberId", "weekNumber", "missionType", status, note, "submittedAt")
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [memberId, input.weekNumber, missionType, status, input.note ?? null, now]
+      );
+
+      return { success: true, status, weekNumber: input.weekNumber, autoVerified: missionType === "attendance" };
+    }),
+
+  admin_listMissionSubmissions: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT s.id, s."gymPlusMemberId", s."weekNumber", s."missionType", s.status, s.note, s."submittedAt",
+              m.name, m.phone
+       FROM gym_plus_mission_submissions s
+       JOIN gym_plus_members m ON m.id = s."gymPlusMemberId"
+       WHERE s.status = 'pending'
+       ORDER BY s."submittedAt" DESC
+       LIMIT 100`
+    );
+    return res.rows as { id: number; gymPlusMemberId: number; weekNumber: number; missionType: string; status: string; note: string | null; submittedAt: string; name: string; phone: string }[];
+  }),
+
+  admin_reviewMission: adminOnlyGymPlus
+    .input(z.object({ submissionId: z.number(), status: z.enum(["approved", "rejected"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const now = new Date().toISOString();
+      await pool.query(
+        `UPDATE gym_plus_mission_submissions SET status = $1, "reviewedAt" = $2, "reviewedBy" = $3 WHERE id = $4`,
+        [input.status, now, ctx.user.id, input.submissionId]
+      );
+      return { success: true };
+    }),
 
   // 회원 본인의 12주 다이어트페이백 결과 리포트
   getDietProgramReport: gymPlusProtected.query(async ({ ctx }) => {

@@ -708,6 +708,20 @@ async function initDatabase() {
       participated INTEGER NOT NULL DEFAULT 0,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    // ─── 12주 주차별 미션 제출 ─────────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS gym_plus_mission_submissions (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "weekNumber" INTEGER NOT NULL,
+      "missionType" TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      note TEXT,
+      "submittedAt" TEXT NOT NULL,
+      "reviewedAt" TEXT,
+      "reviewedBy" INTEGER
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS gym_plus_mission_submissions_uniq
+       ON gym_plus_mission_submissions ("gymPlusMemberId", "weekNumber")`,
   ];
   for (const stmt of alterStatements) {
     try {

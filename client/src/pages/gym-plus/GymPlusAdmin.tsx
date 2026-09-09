@@ -1127,6 +1127,57 @@ export function GymPlusWorkoutLogsAdmin() {
 // ─── 미션 프로그램 관리 ───────────────────────────────────────────────────────
 const PROGRAMS = ["12주 다이어트페이백"] as const;
 
+const MISSION_TYPE_LABELS: Record<string, string> = {
+  attendance: "🏃 출석 미션",
+  cardio: "💧 유산소 미션",
+  diet: "🥗 식단 미션",
+  inbody: "📊 인바디 미션",
+};
+
+function MissionSubmissionReview() {
+  const utils = trpc.useUtils();
+  const { data: submissions, isLoading } = trpc.gymPlus.admin_listMissionSubmissions.useQuery();
+  const reviewMut = trpc.gymPlus.admin_reviewMission.useMutation({
+    onSuccess: () => utils.gymPlus.admin_listMissionSubmissions.invalidate(),
+  });
+
+  if (isLoading) return <p className="text-xs text-muted-foreground text-center py-4">로딩 중...</p>;
+  if (!submissions?.length) return <p className="text-xs text-muted-foreground text-center py-4">검토 대기 중인 미션이 없습니다</p>;
+
+  return (
+    <div className="space-y-2">
+      {submissions.map((s: any) => (
+        <div key={s.id} className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-semibold">{s.name} <span className="text-xs text-muted-foreground">({s.phone})</span></p>
+              <p className="text-xs text-blue-600">{MISSION_TYPE_LABELS[s.missionType] ?? s.missionType} · {s.weekNumber}주차</p>
+              {s.note && <p className="text-xs text-gray-600 mt-1 bg-white rounded p-1.5">"{s.note}"</p>}
+              <p className="text-[10px] text-muted-foreground mt-1">{s.submittedAt?.slice(0, 16).replace("T", " ")}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm" className="h-8 flex-1 bg-green-600 hover:bg-green-700 text-xs"
+              onClick={() => reviewMut.mutate({ submissionId: s.id, status: "approved" })}
+              disabled={reviewMut.isPending}
+            >
+              승인
+            </Button>
+            <Button
+              size="sm" variant="outline" className="h-8 flex-1 border-red-300 text-red-500 hover:bg-red-50 text-xs"
+              onClick={() => reviewMut.mutate({ submissionId: s.id, status: "rejected" })}
+              disabled={reviewMut.isPending}
+            >
+              반려
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function GymPlusMissionsAdmin() {
   const utils = trpc.useUtils();
   const { data: progress, isLoading } = trpc.gymPlus.admin_listMissionProgress.useQuery();
@@ -1190,6 +1241,12 @@ function GymPlusMissionsAdmin() {
             {assigning ? "배정 중..." : "프로그램 배정"}
           </Button>
         </div>
+      </div>
+
+      {/* 미션 제출 심사 */}
+      <div className="bg-white border border-border rounded-lg p-4 space-y-3">
+        <p className="text-sm font-semibold">미션 제출 심사</p>
+        <MissionSubmissionReview />
       </div>
 
       {/* 참여자 현황 */}
@@ -1862,6 +1919,117 @@ export function GymPlusSettingsAdmin() {
 
       {/* 키오스크 공지사항 */}
       <KioskNoticesEditor />
+
+      {/* 다이어트페이백 미션 설정 */}
+      <MissionSettingsEditor />
+    </div>
+  );
+}
+
+function MissionSettingsEditor() {
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.gymPlus.admin_getMissionSettings.useQuery();
+  const [weightGoal, setWeightGoal] = useState("");
+  const [rewardMonths, setRewardMonths] = useState("");
+  const [periods, setPeriods] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  const saveMut = trpc.gymPlus.admin_setMissionSettings.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.admin_getMissionSettings.invalidate();
+      setEditing(false);
+      toast.success("미션 설정이 저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function startEdit() {
+    if (!data) return;
+    setWeightGoal(String(data.weightGoal));
+    setRewardMonths(String(data.rewardMonths));
+    setPeriods(String(data.periods));
+    setEditing(true);
+  }
+
+  function handleSave() {
+    const wg = parseFloat(weightGoal);
+    const rm = parseInt(rewardMonths, 10);
+    const p = parseInt(periods, 10);
+    if (isNaN(wg) || wg < 0.1 || wg > 10) { toast.error("감량 목표: 0.1~10kg"); return; }
+    if (isNaN(rm) || rm < 1 || rm > 6) { toast.error("리워드: 1~6개월"); return; }
+    if (isNaN(p) || p < 1 || p > 12) { toast.error("미션 회차: 1~12"); return; }
+    saveMut.mutate({ weightGoal: wg, rewardMonths: rm, periods: p });
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">다이어트페이백 미션 설정</p>
+          <p className="text-xs text-muted-foreground mt-0.5">감량 목표 및 리워드 기준을 설정합니다</p>
+        </div>
+        {!editing && !isLoading && (
+          <button onClick={startEdit} className="text-xs text-primary hover:underline">수정</button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">로딩 중...</p>
+      ) : editing ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">감량 목표 (kg)</label>
+              <Input
+                type="number" step="0.1" min="0.1" max="10"
+                value={weightGoal} onChange={(e) => setWeightGoal(e.target.value)}
+                className="h-9 text-sm" placeholder="1.0"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">리워드 (개월)</label>
+              <Input
+                type="number" min="1" max="6"
+                value={rewardMonths} onChange={(e) => setRewardMonths(e.target.value)}
+                className="h-9 text-sm" placeholder="1"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">미션 회차 수</label>
+              <Input
+                type="number" min="1" max="12"
+                value={periods} onChange={(e) => setPeriods(e.target.value)}
+                className="h-9 text-sm" placeholder="3"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSave} disabled={saveMut.isPending} className="h-9">저장</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)} className="h-9">취소</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "감량 목표", value: `${data?.weightGoal ?? 1.0} kg`, desc: "달성 기준" },
+            { label: "리워드", value: `${data?.rewardMonths ?? 1}개월 연장`, desc: "달성 시 지급" },
+            { label: "미션 회차", value: `${data?.periods ?? 3}회차`, desc: "총 기간" },
+          ].map((item) => (
+            <div key={item.label} className="bg-muted/30 rounded-lg p-3 text-center">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="text-base font-bold mt-0.5">{item.value}</p>
+              <p className="text-[10px] text-muted-foreground">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+        <p>• 감량 목표: 직전 회차 마지막 체중 대비 N kg 이상 감량 시 리워드 지급</p>
+        <p>• 리워드: 달성 시 회원권 연장 개월 수</p>
+        <p>• 미션 회차: 프로그램 총 회차 수 (각 회차 = 1개월)</p>
+        <p>• 변경 사항은 이후 체중 기록부터 적용됩니다</p>
+      </div>
     </div>
   );
 }
