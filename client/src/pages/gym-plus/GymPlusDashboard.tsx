@@ -24,7 +24,26 @@ function MissionWeekBanner() {
     },
   });
 
-  if (!data || data.currentWeek < 1 || data.currentWeek > 12) return null;
+  if (!data) return null;
+
+  if (data.isCompleted) {
+    return (
+      <div className="rounded-2xl overflow-hidden shadow-sm border border-green-200"
+        style={{ background: "linear-gradient(135deg, #f0fdf4, #dcfce7)" }}>
+        <div className="px-4 py-4 flex items-center gap-3">
+          <span className="text-3xl">🏆</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-extrabold text-green-800">12주 미션 완주!</p>
+            <p className="text-[11px] text-green-600 mt-0.5">
+              총 {data.approvedCount}개 미션 달성 — 체중 감량 기록이 있으면 페이백이 지급됩니다
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (data.currentWeek < 1 || data.currentWeek > 12) return null;
 
   const currentWeekData = data.weeks.find(w => w.isCurrentWeek);
   if (!currentWeekData) return null;

@@ -5499,7 +5499,9 @@ ${dataContext}
     const startMs = new Date(programStart + "T00:00:00Z").getTime();
     const todayMs = new Date(todayKst + "T00:00:00Z").getTime();
     const daysSince = Math.floor((todayMs - startMs) / (1000 * 60 * 60 * 24));
-    const currentWeek = daysSince < 0 ? 0 : Math.min(12, Math.floor(daysSince / 7) + 1);
+    const rawWeek = daysSince < 0 ? 0 : Math.floor(daysSince / 7) + 1;
+    const isCompleted = rawWeek > 12;
+    const currentWeek = isCompleted ? 13 : rawWeek;
 
     const subsRes = await pool.query(
       `SELECT "weekNumber", status, note, "submittedAt" FROM gym_plus_mission_submissions WHERE "gymPlusMemberId" = $1`,
@@ -5539,7 +5541,8 @@ ${dataContext}
       };
     });
 
-    return { programName: member.programName, programStart, currentWeek, weeks };
+    const approvedCount = [...subMap.values()].filter((s: any) => s.status === "approved").length;
+    return { programName: member.programName, programStart, currentWeek, isCompleted, approvedCount, weeks };
   }),
 
   submitWeeklyMission: gymPlusProtected
