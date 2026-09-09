@@ -402,7 +402,10 @@ function MemberOverview() {
 // ─── 빠른 작업 (데이터 조회 + 업무 명령 — 외부 전송 없음) ─────────────
 type QaMsg = { role: "user" | "bot"; text: string; link?: string; confirm?: { label: string; action: () => Promise<QaMsg> } };
 
-const QUICK_QUERY_CHIPS = ["현재 회원 수", "이번달 매출", "이번달 마감", "미수금", "만료임박", "6회이하 세션", "오늘 수업"];
+// 기본 노출은 매일 쓰거나 상단 KPI 카드에 없는 항목만. 나머지는 "전체보기"로 접어둔다.
+const CORE_QUERY_CHIPS = ["오늘 수업", "이번달 매출", "6회이하 세션"];
+const MORE_QUERY_CHIPS = ["현재 회원 수", "이번달 마감", "미수금", "만료임박"];
+const QUICK_QUERY_CHIPS = [...CORE_QUERY_CHIPS, ...MORE_QUERY_CHIPS];
 const QUICK_ACTION_CHIPS = ["회원 등록"];
 
 function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavigate: (path: string) => void }) {
@@ -410,6 +413,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<QaMsg[]>([]);
   const [busy, setBusy] = useState(false);
+  const [chipsOpen, setChipsOpen] = useState(false);
   const utils = trpc.useUtils();
   const todayStr = new Date().toISOString().split("T")[0];
   const yearMonth = todayStr.slice(0, 7);
@@ -790,7 +794,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       {open && (
         <div className="px-4 pb-4 space-y-3">
           <div className="flex flex-wrap gap-1.5">
-            {QUICK_QUERY_CHIPS.map(c => (
+            {(chipsOpen ? QUICK_QUERY_CHIPS : CORE_QUERY_CHIPS).map(c => (
               <button key={c} onClick={() => ask(c)} disabled={busy}
                 className="text-[12px] font-semibold px-2.5 py-1.5 rounded-full bg-teal-500/8 text-teal-600 hover:bg-teal-500/15 transition-colors disabled:opacity-50">
                 {c}
@@ -802,6 +806,10 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
                 {c}
               </button>
             ))}
+            <button onClick={() => setChipsOpen(v => !v)}
+              className="text-[12px] font-semibold px-2.5 py-1.5 rounded-full border border-border text-muted-foreground hover:bg-accent/50 transition-colors">
+              {chipsOpen ? "접기" : "전체보기"}
+            </button>
           </div>
           {messages.length > 0 && (
             <div className="space-y-2 max-h-64 overflow-y-auto py-1">
