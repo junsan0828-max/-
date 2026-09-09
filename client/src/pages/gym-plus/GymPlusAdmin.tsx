@@ -1127,6 +1127,57 @@ export function GymPlusWorkoutLogsAdmin() {
 // ─── 미션 프로그램 관리 ───────────────────────────────────────────────────────
 const PROGRAMS = ["12주 다이어트페이백"] as const;
 
+const MISSION_TYPE_LABELS: Record<string, string> = {
+  attendance: "🏃 출석 미션",
+  cardio: "💧 유산소 미션",
+  diet: "🥗 식단 미션",
+  inbody: "📊 인바디 미션",
+};
+
+function MissionSubmissionReview() {
+  const utils = trpc.useUtils();
+  const { data: submissions, isLoading } = trpc.gymPlus.admin_listMissionSubmissions.useQuery();
+  const reviewMut = trpc.gymPlus.admin_reviewMission.useMutation({
+    onSuccess: () => utils.gymPlus.admin_listMissionSubmissions.invalidate(),
+  });
+
+  if (isLoading) return <p className="text-xs text-muted-foreground text-center py-4">로딩 중...</p>;
+  if (!submissions?.length) return <p className="text-xs text-muted-foreground text-center py-4">검토 대기 중인 미션이 없습니다</p>;
+
+  return (
+    <div className="space-y-2">
+      {submissions.map((s: any) => (
+        <div key={s.id} className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-semibold">{s.name} <span className="text-xs text-muted-foreground">({s.phone})</span></p>
+              <p className="text-xs text-blue-600">{MISSION_TYPE_LABELS[s.missionType] ?? s.missionType} · {s.weekNumber}주차</p>
+              {s.note && <p className="text-xs text-gray-600 mt-1 bg-white rounded p-1.5">"{s.note}"</p>}
+              <p className="text-[10px] text-muted-foreground mt-1">{s.submittedAt?.slice(0, 16).replace("T", " ")}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm" className="h-8 flex-1 bg-green-600 hover:bg-green-700 text-xs"
+              onClick={() => reviewMut.mutate({ submissionId: s.id, status: "approved" })}
+              disabled={reviewMut.isPending}
+            >
+              승인
+            </Button>
+            <Button
+              size="sm" variant="outline" className="h-8 flex-1 border-red-300 text-red-500 hover:bg-red-50 text-xs"
+              onClick={() => reviewMut.mutate({ submissionId: s.id, status: "rejected" })}
+              disabled={reviewMut.isPending}
+            >
+              반려
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function GymPlusMissionsAdmin() {
   const utils = trpc.useUtils();
   const { data: progress, isLoading } = trpc.gymPlus.admin_listMissionProgress.useQuery();
@@ -1190,6 +1241,12 @@ function GymPlusMissionsAdmin() {
             {assigning ? "배정 중..." : "프로그램 배정"}
           </Button>
         </div>
+      </div>
+
+      {/* 미션 제출 심사 */}
+      <div className="bg-white border border-border rounded-lg p-4 space-y-3">
+        <p className="text-sm font-semibold">미션 제출 심사</p>
+        <MissionSubmissionReview />
       </div>
 
       {/* 참여자 현황 */}
