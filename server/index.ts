@@ -2452,6 +2452,35 @@ async function start() {
   }
 
 
+  // ── 테스트 계정(01011111111) 주 회원 연결 (memberId 없을 때만) ──
+  try {
+    const testGpm = await pool.query(
+      `SELECT id, "membershipEnd" FROM gym_plus_members WHERE username = '01011111111' AND "memberId" IS NULL LIMIT 1`
+    );
+    if (testGpm.rows[0]) {
+      const gpmRow = testGpm.rows[0];
+      const existing = await pool.query(
+        `SELECT id FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = '01011111111' LIMIT 1`
+      );
+      let memberId: number;
+      if (existing.rows[0]) {
+        memberId = existing.rows[0].id;
+      } else {
+        const kst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+        const ins = await pool.query(
+          `INSERT INTO members (name, phone, "membershipStart", "membershipEnd", "createdAt", "updatedAt")
+           VALUES ('테스트', '010-1111-1111', $1, $2, now()::text, now()::text) RETURNING id`,
+          [kst, gpmRow.membershipEnd ?? "2027-05-31"]
+        );
+        memberId = ins.rows[0].id;
+      }
+      await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [memberId, gpmRow.id]);
+      console.log(`🔧 테스트 계정 gym_plus_members → members(id=${memberId}) 연결 완료`);
+    }
+  } catch (e) {
+    console.error("테스트 계정 연결 오류:", e);
+  }
+
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
     try {
