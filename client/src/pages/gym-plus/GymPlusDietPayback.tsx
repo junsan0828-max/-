@@ -136,11 +136,21 @@ function MissionTab() {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.gymPlus.getWeeklyMissions.useQuery();
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
-  const [resultMsg, setResultMsg] = useState<{ week: number; status: string } | null>(null);
+  const [weightInput, setWeightInput] = useState("");
+  const [resultMsg, setResultMsg] = useState<{ week: number; status: string; rewarded?: boolean; extensionUntil?: string } | null>(null);
+
+  const logWeightMutation = trpc.gymPlus.logWeight.useMutation({
+    onSuccess: (res) => {
+      utils.gymPlus.getMissionStatus.invalidate();
+      utils.gymPlus.getDietProgramReport.invalidate();
+      return res;
+    },
+  });
 
   const submitMutation = trpc.gymPlus.submitWeeklyMission.useMutation({
     onSuccess: (res) => {
       setActiveWeek(null);
+      setWeightInput("");
       setResultMsg({ week: res.weekNumber, status: res.status });
       utils.gymPlus.getWeeklyMissions.invalidate();
     },
@@ -158,9 +168,19 @@ function MissionTab() {
   const { weeks, currentWeek } = data;
   const completedCount = weeks.filter(w => w.submission?.status === "approved").length;
 
-  function handleSubmit(week: (typeof weeks)[0]) {
+  async function handleSubmit(week: (typeof weeks)[0]) {
     if (week.missionType === "attendance") {
       submitMutation.mutate({ weekNumber: week.weekNumber });
+    } else if (week.missionType === "inbody") {
+      const w = parseFloat(weightInput);
+      if (isNaN(w) || w < 20 || w > 300) return;
+      // 체중 먼저 저장 → 리워드 체크
+      const weightRes = await logWeightMutation.mutateAsync({ weight: w, note: `${week.weekNumber}주차 인바디` });
+      submitMutation.mutate({ weekNumber: week.weekNumber });
+      window.open(KAKAO_CHAT_URL, "_blank");
+      if (weightRes?.rewarded && "extensionUntil" in weightRes) {
+        setResultMsg({ week: week.weekNumber, status: "pending", rewarded: true, extensionUntil: weightRes.extensionUntil as string });
+      }
     } else {
       submitMutation.mutate({ weekNumber: week.weekNumber });
       window.open(KAKAO_CHAT_URL, "_blank");
@@ -191,10 +211,13 @@ function MissionTab() {
       </div>
 
       {resultMsg && (
-        <div className={`rounded-2xl p-4 text-sm font-medium ${resultMsg.status === "approved" ? "bg-green-50 text-green-700 border border-green-200" : resultMsg.status === "rejected" ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>
-          {resultMsg.status === "approved" && "✅ 미션 달성! 수고하셨습니다."}
-          {resultMsg.status === "rejected" && "❌ 미션 조건 미달성입니다. (출석 4일 미만)"}
-          {resultMsg.status === "pending" && "📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다."}
+        <div className={`rounded-2xl p-4 text-sm font-medium space-y-1 ${resultMsg.status === "approved" ? "bg-green-50 text-green-700 border border-green-200" : resultMsg.status === "rejected" ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>
+          {resultMsg.status === "approved" && <p>✅ 미션 달성! 수고하셨습니다.</p>}
+          {resultMsg.status === "rejected" && <p>❌ 미션 조건 미달성입니다. (출석 4일 미만)</p>}
+          {resultMsg.status === "pending" && <p>📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다.</p>}
+          {resultMsg.rewarded && resultMsg.extensionUntil && (
+            <p className="text-green-700 font-bold">🎉 1개월 감량 달성! 헬스권이 {resultMsg.extensionUntil}까지 연장되었습니다.</p>
+          )}
         </div>
       )}
 
@@ -254,9 +277,29 @@ function MissionTab() {
 
               {isExpanded && canSubmit && (
                 <div className="px-4 pb-4 space-y-2 border-t border-gray-50">
-                  {week.missionType === "attendance" ? (
+                  {week.missionType === "attendance" && (
                     <p className="text-xs text-gray-500 pt-3">이번 주 수업 출석 기록을 자동으로 확인합니다. (4일 이상 출석 시 달성)</p>
-                  ) : (
+                  )}
+                  {week.missionType === "inbody" && (
+                    <div className="pt-3 space-y-2">
+                      <p className="text-xs font-semibold text-gray-700">인바디 체중 입력</p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" step="0.1" min="20" max="300"
+                          value={weightInput}
+                          onChange={(e) => setWeightInput(e.target.value)}
+                          placeholder="측정 체중 (kg)"
+                          className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        />
+                        <span className="text-sm text-gray-500 font-medium">kg</span>
+                      </div>
+                      <div className="flex items-start gap-2 bg-yellow-50 rounded-xl p-3">
+                        <span className="text-sm">💬</span>
+                        <p className="text-[11px] text-gray-600">체중 입력 후 버튼을 누르면 카카오채널이 열립니다. 인바디 사진도 함께 보내주세요.</p>
+                      </div>
+                    </div>
+                  )}
+                  {(week.missionType === "cardio" || week.missionType === "diet") && (
                     <div className="pt-3 flex items-start gap-2 bg-yellow-50 rounded-xl p-3">
                       <span className="text-base">💬</span>
                       <div>
@@ -267,11 +310,17 @@ function MissionTab() {
                   )}
                   <button
                     onClick={() => handleSubmit(week)}
-                    disabled={submitMutation.isPending}
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-opacity"
-                    style={{ background: week.missionType === "attendance" ? "hsl(221 83% 44%)" : "#FEE500", color: week.missionType === "attendance" ? "white" : "#3A1D1D" }}
+                    disabled={submitMutation.isPending || logWeightMutation.isPending || (week.missionType === "inbody" && (!weightInput || parseFloat(weightInput) < 20))}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity"
+                    style={{
+                      background: week.missionType === "attendance" ? "hsl(221 83% 44%)" : "#FEE500",
+                      color: week.missionType === "attendance" ? "white" : "#3A1D1D",
+                    }}
                   >
-                    {submitMutation.isPending ? "처리 중..." : week.missionType === "attendance" ? "출석 확인하기" : "카카오로 인증하기 💬"}
+                    {(submitMutation.isPending || logWeightMutation.isPending) ? "처리 중..." :
+                      week.missionType === "attendance" ? "출석 확인하기" :
+                      week.missionType === "inbody" ? "체중 저장 + 카카오 인증 💬" :
+                      "카카오로 인증하기 💬"}
                   </button>
                 </div>
               )}

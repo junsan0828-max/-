@@ -348,6 +348,123 @@ function PushNotificationToggle() {
   );
 }
 
+// ─── 다이어트페이백 현황 카드 ─────────────────────────────────────────────────
+
+function DietStatusCard() {
+  const utils = trpc.useUtils();
+  const { data } = trpc.gymPlus.getMissionStatus.useQuery();
+  const [weightInput, setWeightInput] = useState("");
+  const [noteInput, setNoteInput] = useState("");
+  const [rewardMsg, setRewardMsg] = useState<string | null>(null);
+
+  const logWeight = trpc.gymPlus.logWeight.useMutation({
+    onSuccess: (res) => {
+      setWeightInput("");
+      setNoteInput("");
+      utils.gymPlus.getMissionStatus.invalidate();
+      utils.gymPlus.memberMe.invalidate();
+      if (res.rewarded && "extensionUntil" in res) {
+        setRewardMsg(`🎉 감량 달성! 헬스권이 ${(res as any).extensionUntil}까지 연장됐습니다.`);
+      } else {
+        setRewardMsg("✅ 체중이 기록됐습니다.");
+      }
+      setTimeout(() => setRewardMsg(null), 5000);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (!data?.programName) return null;
+
+  const logs = data.weightLogs ?? [];
+  const startLog = logs[logs.length - 1];
+  const latestLog = logs[0];
+  const totalLoss = startLog && latestLog && startLog.weight !== latestLog.weight
+    ? parseFloat((startLog.weight - latestLog.weight).toFixed(1))
+    : null;
+  const rewardCount = (data.rewards ?? []).length;
+
+  return (
+    <div className="rounded-2xl overflow-hidden shadow-sm border border-blue-100">
+      {/* 헤더 */}
+      <div className="px-4 py-3 flex items-center justify-between"
+        style={{ background: "linear-gradient(135deg, hsl(221 83% 44%), hsl(221 83% 30%))" }}>
+        <div>
+          <p className="text-[10px] text-white/70 font-medium">다이어트페이백</p>
+          <p className="text-sm font-bold text-white">{data.programName}</p>
+        </div>
+        {rewardCount > 0 && (
+          <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">
+            +{rewardCount}개월 적립
+          </span>
+        )}
+      </div>
+
+      {/* KPI */}
+      <div className="grid grid-cols-3 divide-x divide-gray-100 bg-white">
+        {[
+          { label: "시작 체중", value: startLog ? `${startLog.weight.toFixed(1)}kg` : "—" },
+          { label: "현재 체중", value: latestLog ? `${latestLog.weight.toFixed(1)}kg` : "—" },
+          { label: "총 감량", value: totalLoss !== null && totalLoss > 0 ? `-${totalLoss}kg` : "—", green: totalLoss !== null && totalLoss > 0 },
+        ].map((item) => (
+          <div key={item.label} className="p-3 text-center">
+            <p className={`text-base font-black ${(item as any).green ? "text-green-600" : "text-gray-700"}`}>{item.value}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">{item.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 체중 입력 */}
+      <div className="bg-gray-50 px-4 py-3 space-y-2">
+        <p className="text-xs font-semibold text-gray-700">체중 기록</p>
+        {rewardMsg && (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-xs text-green-700 font-medium">{rewardMsg}</div>
+        )}
+        <div className="flex gap-2">
+          <input
+            type="number" step="0.1" min="20" max="300"
+            value={weightInput}
+            onChange={(e) => setWeightInput(e.target.value)}
+            placeholder="체중 (kg)"
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+          <input
+            type="text"
+            value={noteInput}
+            onChange={(e) => setNoteInput(e.target.value)}
+            placeholder="메모"
+            maxLength={50}
+            className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+          <button
+            onClick={() => {
+              const w = parseFloat(weightInput);
+              if (!isNaN(w) && w >= 20 && w <= 300) {
+                logWeight.mutate({ weight: w, note: noteInput || undefined });
+              }
+            }}
+            disabled={logWeight.isPending || !weightInput}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50 whitespace-nowrap"
+            style={{ background: "hsl(221 83% 44%)" }}
+          >
+            {logWeight.isPending ? "저장 중" : "저장"}
+          </button>
+        </div>
+        {/* 최근 기록 */}
+        {logs.length > 0 && (
+          <div className="space-y-1 pt-1">
+            {logs.slice(0, 3).map((log: any, i: number) => (
+              <div key={i} className="flex items-center justify-between text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{log.weight.toFixed(1)} kg</span>
+                <span>{log.loggedAt?.slice(0, 10).replace(/-/g, ".")}{log.note ? ` · ${log.note}` : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GymPlusProfile() {
   const utils = trpc.useUtils();
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
@@ -655,6 +772,9 @@ export default function GymPlusProfile() {
 
       {/* ── 서비스 상품 탭 ── */}
       {activeTab === "service" && (<>
+
+      {/* 다이어트페이백 현황 (프로그램 참여 회원만) */}
+      {member?.programName && <DietStatusCard />}
 
       {/* 포인트 카드 */}
       <div className="bg-gradient-to-br from-[#1D4ED8] to-[#2563EB] rounded-2xl p-5 text-white">
