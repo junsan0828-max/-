@@ -4039,6 +4039,11 @@ const registerMutation = protectedProcedure
     otherDetail: z.string().optional(),
     otherPrice: z.number().optional(),
 
+    // 다이어트 프로그램 (12주 기본 + 체중 감량 페이백)
+    addDiet: z.boolean().optional(),
+    dietStartWeight: z.number().optional(), // 시작 체중(kg)
+    dietPrice: z.number().optional(),       // 결제 금액
+
     // 락커
     lockerId: z.number().optional(),
     lockerStartDate: z.string().optional(),
@@ -4355,7 +4360,61 @@ const registerMutation = protectedProcedure
       }
     }
 
-    // 7. 락커 배정
+    // 7. 다이어트 프로그램 등록
+    if (input.addDiet && input.dietStartWeight) {
+      const dietPrice = input.dietPrice ?? 0;
+      const discAmt = input.discountAmount ?? 0;
+      const unpaid = input.unpaidAmount ?? 0;
+      const paid = Math.max(0, dietPrice - discAmt - unpaid);
+      const startDate = input.membershipStart ?? today;
+
+      // 만료일: 시작일 + 12주
+      const [yr, mo, dy] = startDate.split("-").map(Number);
+      const endDt = new Date(yr, mo - 1, dy);
+      endDt.setDate(endDt.getDate() + 84); // 12주 = 84일
+      const dietEnd = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+
+      // 매출 기록
+      const [dietRev] = await db.insert(revenueEntries).values({
+        memberId,
+        trainerId: resolvedTrainerId,
+        consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
+        branchId: resolvedBranchId,
+        createdBy: ctx.user.id,
+        customerName: input.name,
+        phone: input.phone ?? null,
+        programDetail: "다이어트",
+        type: "다이어트",
+        subType: input.subType ?? "신규",
+        amount: dietPrice,
+        discountAmount: discAmt,
+        paidAmount: paid,
+        unpaidAmount: unpaid,
+        paymentMethod: input.paymentMethod ?? undefined,
+        paymentDate: input.paymentDate ?? today,
+        startDate,
+        endDate: dietEnd,
+        memo: input.paymentMemo ?? null,
+      }).returning({ id: revenueEntries.id });
+      if (dietRev) revenueEntryIds.push(dietRev.id);
+
+      // diet_programs 레코드 생성
+      await pool.query(
+        `INSERT INTO diet_programs ("memberId", "startDate", "startWeight", "baseWeeks", "revenueEntryId", "updatedAt")
+         VALUES ($1, $2, $3, 12, $4, now()::text)`,
+        [memberId, startDate, input.dietStartWeight, dietRev?.id ?? null]
+      );
+
+      // 회원 membershipEnd 갱신 (현재보다 뒤일 때만)
+      if (memberId) {
+        const [mem] = await db.select({ membershipEnd: members.membershipEnd }).from(members).where(eq(members.id, memberId)).limit(1);
+        if (!mem?.membershipEnd || mem.membershipEnd < dietEnd) {
+          await db.update(members).set({ membershipEnd: dietEnd, updatedAt: now }).where(eq(members.id, memberId!));
+        }
+      }
+    }
+
+    // 8. 락커 배정
     if (input.lockerId) {
       await db.update(lockers).set({
         memberId,
@@ -4637,6 +4696,136 @@ const appStatsRouter = t.router({
     }),
 });
 
+// ─── 다이어트 프로그램 라우터 ──────────────────────────────────────────────────
+const dietRouter = t.router({
+  // 회원의 다이어트 프로그램 목록 (최신 1개 포함 전체)
+  getByMember: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const result = await pool.query<{
+        id: number; memberId: number; startDate: string; startWeight: string;
+        baseWeeks: number; revenueEntryId: number | null; createdAt: string;
+      }>(
+        `SELECT * FROM diet_programs WHERE "memberId" = $1 ORDER BY "startDate" DESC`,
+        [input.memberId]
+      );
+      return result.rows;
+    }),
+
+  // 체중 기록 목록
+  getChecks: protectedProcedure
+    .input(z.object({ programId: z.number() }))
+    .query(async ({ input }) => {
+      const result = await pool.query<{
+        id: number; programId: number; memberId: number; checkDate: string;
+        weight: string; bonusMonthsEarned: number; note: string | null; createdAt: string;
+      }>(
+        `SELECT * FROM diet_weight_checks WHERE "programId" = $1 ORDER BY "checkDate" ASC`,
+        [input.programId]
+      );
+      return result.rows;
+    }),
+
+  // 체중 기록 추가/수정
+  upsertCheck: protectedProcedure
+    .input(z.object({
+      programId: z.number(),
+      memberId: z.number(),
+      checkDate: z.string(),
+      weight: z.number(),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      // 같은 날 기록이 있으면 UPDATE
+      const existing = await pool.query(
+        `SELECT id FROM diet_weight_checks WHERE "programId" = $1 AND "checkDate" = $2 LIMIT 1`,
+        [input.programId, input.checkDate]
+      );
+
+      // 프로그램 정보로 bonusMonthsEarned 계산
+      const prog = await pool.query<{ startWeight: string }>(
+        `SELECT "startWeight" FROM diet_programs WHERE id = $1 LIMIT 1`,
+        [input.programId]
+      );
+      const startWeight = parseFloat(prog.rows[0]?.startWeight ?? "0");
+      // 이번 측정의 시작 체중 대비 감량량 (floor, 최대 9)
+      const lostKg = Math.max(0, Math.min(9, Math.floor(startWeight - input.weight)));
+      // 이전 최대 감량량 (이전 기록 중 최소 체중)
+      const prevMin = await pool.query<{ min_w: string }>(
+        `SELECT MIN(weight::numeric) AS min_w FROM diet_weight_checks WHERE "programId" = $1 AND "checkDate" < $2`,
+        [input.programId, input.checkDate]
+      );
+      const prevMinW = prevMin.rows[0]?.min_w ? parseFloat(prevMin.rows[0].min_w) : startWeight;
+      const prevLostKg = Math.max(0, Math.min(9, Math.floor(startWeight - prevMinW)));
+      // 이번 달 새로 적립되는 개월: 현재 감량량이 이전보다 크면 차이만큼 적립 (유지 시 0)
+      const bonusEarned = Math.max(0, lostKg - prevLostKg);
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE diet_weight_checks SET weight = $1, "bonusMonthsEarned" = $2, note = $3 WHERE id = $4`,
+          [input.weight, bonusEarned, input.note ?? null, existing.rows[0].id]
+        );
+        return { id: existing.rows[0].id, bonusEarned };
+      } else {
+        const r = await pool.query<{ id: number }>(
+          `INSERT INTO diet_weight_checks ("programId", "memberId", "checkDate", "weight", "bonusMonthsEarned", "note")
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          [input.programId, input.memberId, input.checkDate, input.weight, bonusEarned, input.note ?? null]
+        );
+        return { id: r.rows[0].id, bonusEarned };
+      }
+    }),
+
+  // 체중 기록 삭제
+  deleteCheck: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM diet_weight_checks WHERE id = $1`, [input.id]);
+      return { success: true };
+    }),
+
+  // 다이어트 프로그램 종료일 계산 (누적 적립 개월 포함)
+  getStatus: protectedProcedure
+    .input(z.object({ programId: z.number() }))
+    .query(async ({ input }) => {
+      const prog = await pool.query<{
+        id: number; startDate: string; startWeight: string; baseWeeks: number;
+      }>(
+        `SELECT id, "startDate", "startWeight", "baseWeeks" FROM diet_programs WHERE id = $1 LIMIT 1`,
+        [input.programId]
+      );
+      if (!prog.rows[0]) return null;
+      const { startDate, startWeight, baseWeeks } = prog.rows[0];
+
+      const checks = await pool.query<{ weight: string; checkDate: string; bonusMonthsEarned: number }>(
+        `SELECT weight, "checkDate", "bonusMonthsEarned" FROM diet_weight_checks WHERE "programId" = $1 ORDER BY "checkDate" ASC`,
+        [input.programId]
+      );
+
+      const sw = parseFloat(startWeight);
+      // 현재 누적 감량량: 가장 낮은 체중 기준
+      const weights = checks.rows.map(r => parseFloat(r.weight));
+      const minWeight = weights.length > 0 ? Math.min(...weights) : sw;
+      const totalLostKg = Math.max(0, Math.min(9, Math.floor(sw - minWeight)));
+      // 실제 적립된 개월: 체중 기록별 bonusMonthsEarned 합계 (최대 9)
+      const earnedMonths = Math.min(9, checks.rows.reduce((sum, r) => sum + (r.bonusMonthsEarned ?? 0), 0));
+
+      // 종료일: startDate + baseWeeks주 + earnedMonths개월
+      const [yr, mo, dy] = startDate.split("-").map(Number);
+      const endDt = new Date(yr, mo - 1, dy);
+      endDt.setDate(endDt.getDate() + baseWeeks * 7);
+      endDt.setMonth(endDt.getMonth() + earnedMonths);
+      const endDate = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+
+      return {
+        startDate, startWeight: sw, baseWeeks,
+        totalLostKg, earnedMonths, maxBonusMonths: 9,
+        endDate,
+        checks: checks.rows,
+      };
+    }),
+});
+
 export const gymRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
@@ -4648,6 +4837,7 @@ export const gymRouter = t.router({
   staff: staffRouter,
   settings: gymSettingsRouter,
   register: registerMutation,
+  diet: dietRouter,
   createRefundContract: refundContractRouter.createRefundContract,
   getRefundContract: refundContractRouter.getRefundContract,
   appStats: appStatsRouter,

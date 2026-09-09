@@ -46,6 +46,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [itemTypes, setItemTypes] = useState<string[]>([]);
   const [healthMonths, setHealthMonths] = useState<number | "">(1);
 
+  // 다이어트
+  const [dietStartWeight, setDietStartWeight] = useState("");
+
   // 락커
   const [addLocker, setAddLocker] = useState(false);
   const [lockerId, setLockerId] = useState("");
@@ -192,6 +195,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
   const hasPT = itemTypes.includes("PT");
   const hasHealth = itemTypes.includes("헬스");
+  const hasDiet = itemTypes.includes("다이어트");
   const hasOther = itemTypes.includes("기타");
 
   const validateForm = () => {
@@ -327,6 +331,10 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           addOther: hasOther || undefined,
           otherDetail: hasOther ? form.ptProgram || undefined : undefined,
           otherPrice: hasOther ? paymentAmt : undefined,
+          // 다이어트
+          addDiet: hasDiet || undefined,
+          dietStartWeight: hasDiet && dietStartWeight ? parseFloat(dietStartWeight) : undefined,
+          dietPrice: hasDiet ? paymentAmt : undefined,
           // 락커
           lockerId: addLocker && lockerId ? parseInt(lockerId) : undefined,
           lockerStartDate: addLocker ? form.membershipStart || today : undefined,
@@ -660,6 +668,36 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                             {m}개월
                           </button>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 다이어트 */}
+                <div className={`rounded-xl border transition-colors ${hasDiet ? "border-purple-500/60 bg-purple-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => {
+                    setItemTypes(t => hasDiet ? t.filter(x => x !== "다이어트") : [...t, "다이어트"]);
+                    if (hasDiet) setDietStartWeight("");
+                  }}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={hasDiet ? "text-purple-400" : "text-muted-foreground"}>다이어트 <span className="font-normal text-xs">(12주 + 감량 페이백)</span></span>
+                    {hasDiet && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {hasDiet && (
+                    <div className="px-4 pb-4 border-t border-purple-500/20 pt-3 space-y-2">
+                      <p className="text-xs text-muted-foreground">12주 기본 + 1kg 감량 유지 시 1개월 추가 (최대 +9개월)</p>
+                      <div>
+                        <label className="text-xs text-muted-foreground">시작 체중 (kg) <span className="text-red-400">*</span></label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="30"
+                          max="200"
+                          value={dietStartWeight}
+                          onChange={e => setDietStartWeight(e.target.value)}
+                          placeholder="예: 72.5"
+                          className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none"
+                        />
                       </div>
                     </div>
                   )}

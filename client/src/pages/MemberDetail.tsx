@@ -411,6 +411,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
   const { data: allMembers } = trpc.members.list.useQuery(undefined, { enabled: true });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
+  const { data: dietPrograms } = trpc.gym.diet.getByMember.useQuery({ memberId });
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
@@ -1374,6 +1375,11 @@ export default function MemberDetail({ memberId }: Props) {
 
         {/* ── 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4 space-y-4">
+
+          {/* 다이어트 프로그램 */}
+          {dietPrograms && dietPrograms.length > 0 && (
+            <DietProgramSection memberId={memberId} programs={dietPrograms} />
+          )}
 
           {/* PT 패키지 */}
           <Card className="bg-card border-border">
@@ -4048,6 +4054,128 @@ export default function MemberDetail({ memberId }: Props) {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─── 다이어트 프로그램 현황 섹션 ─────────────────────────────────────────────
+function DietProgramSection({ memberId, programs }: { memberId: number; programs: any[] }) {
+  const utils = trpc.useUtils();
+  const [selectedProgramId, setSelectedProgramId] = useState<number>(programs[0]?.id);
+  const [checkDate, setCheckDate] = useState("");
+  const [checkWeight, setCheckWeight] = useState("");
+  const [checkNote, setCheckNote] = useState("");
+
+  const { data: status, refetch: refetchStatus } = trpc.gym.diet.getStatus.useQuery(
+    { programId: selectedProgramId },
+    { enabled: !!selectedProgramId }
+  );
+  const { data: checks, refetch: refetchChecks } = trpc.gym.diet.getChecks.useQuery(
+    { programId: selectedProgramId },
+    { enabled: !!selectedProgramId }
+  );
+
+  const upsertMutation = trpc.gym.diet.upsertCheck.useMutation({
+    onSuccess: () => {
+      refetchStatus(); refetchChecks();
+      setCheckDate(""); setCheckWeight(""); setCheckNote("");
+      toast.success("체중 기록 저장됨");
+    },
+    onError: () => toast.error("저장 실패"),
+  });
+  const deleteMutation = trpc.gym.diet.deleteCheck.useMutation({
+    onSuccess: () => { refetchStatus(); refetchChecks(); },
+  });
+
+  const prog = programs.find(p => p.id === selectedProgramId);
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-purple-300">다이어트 프로그램</h3>
+        {programs.length > 1 && (
+          <select
+            value={selectedProgramId}
+            onChange={e => setSelectedProgramId(Number(e.target.value))}
+            className="text-xs bg-input border border-border rounded px-2 py-1 text-foreground"
+          >
+            {programs.map(p => (
+              <option key={p.id} value={p.id}>{p.startDate} 시작</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {prog && status && (
+        <>
+          {/* 현황 요약 */}
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-background/50 rounded-lg px-2 py-2">
+              <p className="text-xs text-muted-foreground">시작 체중</p>
+              <p className="text-sm font-bold text-foreground">{status.startWeight}kg</p>
+            </div>
+            <div className="bg-background/50 rounded-lg px-2 py-2">
+              <p className="text-xs text-muted-foreground">총 감량</p>
+              <p className="text-sm font-bold text-purple-300">{status.totalLostKg}kg</p>
+            </div>
+            <div className="bg-background/50 rounded-lg px-2 py-2">
+              <p className="text-xs text-muted-foreground">적립 개월</p>
+              <p className="text-sm font-bold text-emerald-400">{status.earnedMonths}개월 / 9개월</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">종료 예정일</span>
+            <span className="font-semibold text-foreground">{status.endDate}</span>
+          </div>
+
+          {/* 체중 기록 목록 */}
+          {checks && checks.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-medium">체중 기록</p>
+              {checks.map((c: any) => (
+                <div key={c.id} className="flex items-center justify-between text-xs bg-background/40 rounded-lg px-3 py-2">
+                  <span className="text-muted-foreground">{c.checkDate}</span>
+                  <span className="font-medium text-foreground">{parseFloat(c.weight).toFixed(1)}kg</span>
+                  <span className="text-emerald-400">{c.bonusMonthsEarned > 0 ? `+${c.bonusMonthsEarned}개월` : "유지"}</span>
+                  {c.note && <span className="text-muted-foreground truncate max-w-[80px]">{c.note}</span>}
+                  <button onClick={() => { if (confirm("삭제?")) deleteMutation.mutate({ id: c.id }); }}
+                    className="text-muted-foreground hover:text-red-400 ml-1">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 체중 기록 추가 */}
+          <div className="space-y-2 border-t border-purple-500/20 pt-3">
+            <p className="text-xs text-muted-foreground font-medium">체중 기록 추가</p>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" value={checkDate} max={today} onChange={e => setCheckDate(e.target.value)}
+                className="rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none" />
+              <input type="number" step="0.1" min="30" max="200" value={checkWeight} onChange={e => setCheckWeight(e.target.value)}
+                placeholder="체중 (kg)" className="rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none" />
+            </div>
+            <input value={checkNote} onChange={e => setCheckNote(e.target.value)} placeholder="메모 (선택)"
+              className="w-full rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none" />
+            <button
+              onClick={() => {
+                if (!checkDate || !checkWeight) return toast.error("날짜와 체중을 입력하세요");
+                upsertMutation.mutate({
+                  programId: selectedProgramId,
+                  memberId,
+                  checkDate,
+                  weight: parseFloat(checkWeight),
+                  note: checkNote || undefined,
+                });
+              }}
+              disabled={upsertMutation.isPending}
+              className="w-full py-2 rounded-lg text-sm font-medium bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-50"
+            >
+              {upsertMutation.isPending ? "저장 중..." : "기록 저장"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

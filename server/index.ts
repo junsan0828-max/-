@@ -1296,6 +1296,33 @@ async function initDatabase() {
   `);
   console.log("✅ 컨설턴트 기록 테이블 준비 완료");
 
+  // 다이어트 프로그램 테이블 (12주 기본 + 체중 감량 시 개월 연장 페이백)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS diet_programs (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER NOT NULL,
+      "startDate" TEXT NOT NULL,
+      "startWeight" NUMERIC(5,1) NOT NULL,
+      "baseWeeks" INTEGER NOT NULL DEFAULT 12,
+      "revenueEntryId" INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS diet_weight_checks (
+      id SERIAL PRIMARY KEY,
+      "programId" INTEGER NOT NULL,
+      "memberId" INTEGER NOT NULL,
+      "checkDate" TEXT NOT NULL,
+      "weight" NUMERIC(5,1) NOT NULL,
+      "bonusMonthsEarned" INTEGER NOT NULL DEFAULT 0,
+      "note" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )
+  `);
+  console.log("✅ 다이어트 프로그램 테이블 준비 완료");
+
   console.log("✅ 테이블 준비 완료");
 
   // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────
