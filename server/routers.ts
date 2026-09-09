@@ -6113,6 +6113,117 @@ const gymPlusRouter = t.router({
       return { success: true };
     }),
 
+  // ── 다이어트 프로그램 (GymPlus 회원용) ─────────────────────────────────────
+
+  // 내 다이어트 프로그램 현황 조회 (최신 1개)
+  dietStatus: gymPlusProtected.query(async ({ ctx }) => {
+    // gymPlusMemberId → memberId 연결
+    const gm = await pool.query<{ memberId: number | null }>(
+      `SELECT "memberId" FROM gym_plus_members WHERE id = $1 LIMIT 1`,
+      [ctx.gymPlusMemberId]
+    );
+    const memberId = gm.rows[0]?.memberId;
+    if (!memberId) return null;
+
+    const prog = await pool.query<{ id: number; startDate: string; startWeight: string; baseWeeks: number }>(
+      `SELECT id, "startDate", "startWeight", "baseWeeks" FROM diet_programs WHERE "memberId" = $1 ORDER BY "startDate" DESC LIMIT 1`,
+      [memberId]
+    );
+    if (!prog.rows[0]) return null;
+    const { id: programId, startDate, startWeight, baseWeeks } = prog.rows[0];
+
+    const checks = await pool.query<{ weight: string; checkDate: string; bonusMonthsEarned: number; note: string | null }>(
+      `SELECT weight, "checkDate", "bonusMonthsEarned", note FROM diet_weight_checks WHERE "programId" = $1 ORDER BY "checkDate" ASC`,
+      [programId]
+    );
+    const sw = parseFloat(startWeight);
+    const weights = checks.rows.map(r => parseFloat(r.weight));
+    const minWeight = weights.length > 0 ? Math.min(...weights) : sw;
+    const currentWeight = weights.length > 0 ? weights[weights.length - 1] : null;
+    const totalLostKg = Math.max(0, Math.min(9, Math.floor(sw - minWeight)));
+    const earnedMonths = Math.min(9, checks.rows.reduce((s, r) => s + (r.bonusMonthsEarned ?? 0), 0));
+
+    const [yr, mo, dy] = startDate.split("-").map(Number);
+    const endDt = new Date(yr, mo - 1, dy);
+    endDt.setDate(endDt.getDate() + baseWeeks * 7);
+    endDt.setMonth(endDt.getMonth() + earnedMonths);
+    const endDate = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+
+    return {
+      programId, memberId, startDate, startWeight: sw, baseWeeks,
+      currentWeight, totalLostKg, earnedMonths, maxBonusMonths: 9,
+      endDate, checks: checks.rows,
+    };
+  }),
+
+  // 체중 기록 (GymPlus 회원 본인)
+  dietRecordWeight: gymPlusProtected
+    .input(z.object({
+      checkDate: z.string(),
+      weight: z.number().min(20).max(300),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const gm = await pool.query<{ memberId: number | null }>(
+        `SELECT "memberId" FROM gym_plus_members WHERE id = $1 LIMIT 1`,
+        [ctx.gymPlusMemberId]
+      );
+      const memberId = gm.rows[0]?.memberId;
+      if (!memberId) throw new TRPCError({ code: "NOT_FOUND", message: "연결된 회원 정보 없음" });
+
+      const prog = await pool.query<{ id: number; startDate: string; startWeight: string; baseWeeks: number }>(
+        `SELECT id, "startDate", "startWeight", "baseWeeks" FROM diet_programs WHERE "memberId" = $1 ORDER BY "startDate" DESC LIMIT 1`,
+        [memberId]
+      );
+      if (!prog.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "다이어트 프로그램이 없습니다" });
+      const { id: programId, startDate, startWeight: swStr, baseWeeks } = prog.rows[0];
+      const startWeight = parseFloat(swStr);
+
+      // 이전 최소 체중
+      const prevMin = await pool.query<{ min_w: string }>(
+        `SELECT MIN(weight::numeric) AS min_w FROM diet_weight_checks WHERE "programId" = $1 AND "checkDate" < $2`,
+        [programId, input.checkDate]
+      );
+      const prevMinW = prevMin.rows[0]?.min_w ? parseFloat(prevMin.rows[0].min_w) : startWeight;
+      const lostKg = Math.max(0, Math.min(9, Math.floor(startWeight - input.weight)));
+      const prevLostKg = Math.max(0, Math.min(9, Math.floor(startWeight - prevMinW)));
+      const bonusEarned = Math.max(0, lostKg - prevLostKg);
+
+      // upsert
+      const existing = await pool.query(
+        `SELECT id FROM diet_weight_checks WHERE "programId" = $1 AND "checkDate" = $2 LIMIT 1`,
+        [programId, input.checkDate]
+      );
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE diet_weight_checks SET weight = $1, "bonusMonthsEarned" = $2, note = $3 WHERE id = $4`,
+          [input.weight, bonusEarned, input.note ?? null, existing.rows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO diet_weight_checks ("programId", "memberId", "checkDate", "weight", "bonusMonthsEarned", "note") VALUES ($1,$2,$3,$4,$5,$6)`,
+          [programId, memberId, input.checkDate, input.weight, bonusEarned, input.note ?? null]
+        );
+      }
+
+      // membershipEnd 자동 연장
+      const allChecks = await pool.query<{ bonusMonthsEarned: number }>(
+        `SELECT "bonusMonthsEarned" FROM diet_weight_checks WHERE "programId" = $1`, [programId]
+      );
+      const totalEarned = Math.min(9, allChecks.rows.reduce((s, r) => s + (r.bonusMonthsEarned ?? 0), 0));
+      const [yr, mo, dy] = startDate.split("-").map(Number);
+      const endDt = new Date(yr, mo - 1, dy);
+      endDt.setDate(endDt.getDate() + baseWeeks * 7);
+      endDt.setMonth(endDt.getMonth() + totalEarned);
+      const newEnd = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+      await pool.query(
+        `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text WHERE id = $2 AND (COALESCE("membershipEnd",'') < $1)`,
+        [newEnd, memberId]
+      );
+
+      return { bonusEarned, totalEarned, endDate: newEnd };
+    }),
+
   // 통합관리 시스템 회원 목록 + 짐플러스 계정 연결 여부
   admin_listMainMembers: adminOnlyGymPlus.query(async () => {
     const db = await getDb();

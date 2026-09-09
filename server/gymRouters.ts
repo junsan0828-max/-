@@ -4765,15 +4765,40 @@ const dietRouter = t.router({
           `UPDATE diet_weight_checks SET weight = $1, "bonusMonthsEarned" = $2, note = $3 WHERE id = $4`,
           [input.weight, bonusEarned, input.note ?? null, existing.rows[0].id]
         );
-        return { id: existing.rows[0].id, bonusEarned };
       } else {
-        const r = await pool.query<{ id: number }>(
+        await pool.query(
           `INSERT INTO diet_weight_checks ("programId", "memberId", "checkDate", "weight", "bonusMonthsEarned", "note")
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+           VALUES ($1, $2, $3, $4, $5, $6)`,
           [input.programId, input.memberId, input.checkDate, input.weight, bonusEarned, input.note ?? null]
         );
-        return { id: r.rows[0].id, bonusEarned };
       }
+
+      // 체중 기록 후 전체 누적 적립 개월 재계산 → membershipEnd 자동 갱신
+      const allChecks = await pool.query<{ bonusMonthsEarned: number }>(
+        `SELECT "bonusMonthsEarned" FROM diet_weight_checks WHERE "programId" = $1`,
+        [input.programId]
+      );
+      const totalEarned = Math.min(9, allChecks.rows.reduce((s, r) => s + (r.bonusMonthsEarned ?? 0), 0));
+      const progInfo = await pool.query<{ startDate: string; baseWeeks: number }>(
+        `SELECT "startDate", "baseWeeks" FROM diet_programs WHERE id = $1 LIMIT 1`,
+        [input.programId]
+      );
+      if (progInfo.rows[0]) {
+        const { startDate, baseWeeks } = progInfo.rows[0];
+        const [yr, mo, dy] = startDate.split("-").map(Number);
+        const endDt = new Date(yr, mo - 1, dy);
+        endDt.setDate(endDt.getDate() + baseWeeks * 7);
+        endDt.setMonth(endDt.getMonth() + totalEarned);
+        const newEnd = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+        // members.membershipEnd가 현재 계산값보다 짧으면 연장
+        await pool.query(
+          `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
+           WHERE id = $2 AND (COALESCE("membershipEnd", '') < $1)`,
+          [newEnd, input.memberId]
+        );
+      }
+
+      return { bonusEarned };
     }),
 
   // 체중 기록 삭제
