@@ -1594,29 +1594,27 @@ async function initDatabase() {
 
   // ── 삭제된 매출을 가리키던(고아) usedSessions=0 패키지 정리 ───────────────────
   try {
-    await pool.query(`
+    const orphaned = await pool.query(`
       DELETE FROM pt_packages p
       WHERE p."usedSessions" = 0
         AND p."revenueEntryId" IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM revenue_entries r WHERE r.id = p."revenueEntryId")
     `);
+    if ((orphaned.rowCount ?? 0) > 0) console.log(`🧹 고아 PT 패키지(매출 삭제됨) 정리: ${orphaned.rowCount}건`);
   } catch (e) {
     console.error("고아 PT 패키지 정리 오류:", e);
   }
 
-  // ── 오등록으로 삭제된 회원("한라희")의 잔여 매출 정리 ──────────────────────
-  // 과거 회원 삭제(members.delete)가 revenue_entries는 지우지 않아, 삭제된 회원의 매출이
-  // 고아로 남아 매출 목록·합계에 계속 잡히는 사고가 있었다(지금은 delete가 매출도 함께 지움).
-  // 이미 삭제된 회원 건은 남아있으므로 이름으로 특정해 1회성 정리. memberId가 실제 존재하는
-  // (동명이인) 회원을 가리키는 매출은 절대 건드리지 않는다 — "한다희"는 실존 회원이라 대상에서 제외.
+  // ── 삭제된 회원에게 연결된 고아 매출 정리 ──────────────────────────────────
+  // 과거 회원 삭제(members.delete)가 revenue_entries를 지우지 않아 고아 매출이 잔존하던
+  // 문제 잔재 정리(지금은 delete가 매출도 함께 제거함).
   try {
     const cleaned = await pool.query(`
       DELETE FROM revenue_entries
-      WHERE "customerName" = '한라희'
-        AND "memberId" IS NOT NULL
+      WHERE "memberId" IS NOT NULL
         AND "memberId" NOT IN (SELECT id FROM members)
     `);
-    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 삭제된 회원(한라희) 고아 매출 정리: ${cleaned.rowCount}건`);
+    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 삭제된 회원 고아 매출 정리: ${cleaned.rowCount}건`);
   } catch (e) {
     console.error("삭제된 회원 고아 매출 정리 오류:", e);
   }
@@ -1986,6 +1984,7 @@ async function initDatabase() {
         AND r.type = 'PT'
         AND r.sessions IS NOT NULL
         AND r.sessions <> (p."totalSessions" - COALESCE(p."serviceSessions", 0))
+        AND p.status <> 'completed'
     `);
     if ((wrongLinks.rowCount ?? 0) > 0) console.log(`🔓 세션수 불일치 매출-패키지 오연결 해제: ${wrongLinks.rowCount}건`);
 
@@ -2238,24 +2237,6 @@ async function initDatabase() {
     console.warn("⚠️ 서비스세션 totalSessions 보정 실패:", e);
   }
 
-  // ── (비활성화) PT 없는 회원 담당 트레이너 자동 해제 ─────────────────────────
-  // 매 재시작마다 실행되어, PT 패키지가 아직 없는 회원에게 "일부러" 배정한 담당
-  // 트레이너까지 지워버리는 문제가 있었다(서나연→김나연 배정이 사라짐).
-  // 상담 담당자→트레이너 오지정의 근본 원인은 이미 등록 흐름에서 막았으므로,
-  // 이 자동 해제는 끈다. 잘못 배정된 기존 건은 회원 관리에서 수동으로 해제한다.
-  // (다시 켜려면 아래 false를 true로)
-  if (false as boolean) {
-    try {
-      await pool.query(`
-        UPDATE members SET "trainerId" = NULL, "updatedAt" = now()::text
-        WHERE "trainerId" IS NOT NULL
-          AND id NOT IN (SELECT DISTINCT "memberId" FROM pt_packages WHERE "memberId" IS NOT NULL)
-          AND id NOT IN (SELECT DISTINCT "memberId" FROM revenue_entries WHERE type = 'PT' AND "memberId" IS NOT NULL)
-      `);
-    } catch (e) {
-      console.error("담당 트레이너 오지정 정리 오류:", e);
-    }
-  }
 
   // 관리자 계정 생성 (없으면 초기 씨드)
   const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).limit(1);
@@ -2264,7 +2245,7 @@ async function initDatabase() {
 
     const adminPw = bcrypt.hashSync("admin123", 10);
     await db.insert(users).values({ username: "admin", password: adminPw, role: "admin" });
-    console.log("✅ 관리자: admin / admin123");
+    console.log("✅ 관리자 계정 생성 완료");
 
     const trainerPw = bcrypt.hashSync("trainer123", 10);
     const [trainerUser] = await db.insert(users).values({ username: "trainer1", password: trainerPw, role: "trainer" }).returning();
@@ -2390,17 +2371,6 @@ async function start() {
     console.error("서비스세션 교정 오류:", e);
   }
 
-  // ── 환불 계약서 디버그 로그 ──
-  try {
-    const rcCount = await pool.query(`SELECT COUNT(*)::int AS c FROM refund_contracts`);
-    console.log(`📋 refund_contracts: ${rcCount.rows[0]?.c ?? 0}건`);
-    if (rcCount.rows[0]?.c > 0) {
-      const rcs = await pool.query(`SELECT id, "memberId", "memberName", "refundAmount", "penaltyAmount", status, "packageId" FROM refund_contracts ORDER BY "createdAt" DESC LIMIT 5`);
-      for (const rc of rcs.rows) console.log(`  → #${rc.id} ${rc.memberName} 환불${rc.refundAmount} 위약금${rc.penaltyAmount} pkg${rc.packageId} [${rc.status}]`);
-    }
-  } catch (e) {
-    console.log(`📋 refund_contracts 조회 실패: ${(e as Error).message}`);
-  }
 
   // ── 완료된 양도양수 계약 중 양수인 회원 미생성 건 자동 보정 (initDatabase 실패해도 실행) ──
   try {
@@ -2454,114 +2424,6 @@ async function start() {
     console.error("양도양수 양수인 회원 자동 보정 오류:", e);
   }
 
-  // ── 중복 회원 자동 병합: 비활성화 ────────────────────────────────────────────
-  // 매 재시작마다 실행되며 이름+전화가 같으면 되돌릴 수 없이 병합·삭제하던 로직.
-  // 공용/placeholder 번호에서 오병합 위험이 커서 자동 실행을 끈다.
-  // 중복 회원 병합은 회원 관리의 "중복 의심 → 병합"(수동)으로만 진행한다.
-  const ENABLE_AUTO_MEMBER_MERGE = false;
-  try {
-    if (!ENABLE_AUTO_MEMBER_MERGE) throw new Error("__skip_auto_merge__");
-    const dupResult = await pool.query(`
-      SELECT
-        trim(name) AS name,
-        array_agg(id ORDER BY id ASC) AS ids
-      FROM members
-      WHERE length(regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')) >= 7
-      GROUP BY trim(name), regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')
-      HAVING COUNT(*) > 1
-    `);
-    let merged = 0;
-    for (const row of dupResult.rows) {
-      const keepId: number = row.ids[0];
-      const deleteIds: number[] = row.ids.slice(1);
-      for (const delId of deleteIds) {
-        try {
-          console.log(`🔄 중복 병합 시도: '${row.name}' ID ${delId} → ${keepId}`);
-          // 출석 — 같은 날짜 중복 제거 후 이전
-          await pool.query(`
-            DELETE FROM attendances
-            WHERE "memberId" = $1 AND "attendDate" IN (
-              SELECT "attendDate" FROM attendances WHERE "memberId" = $2
-            )`, [delId, keepId]);
-          await pool.query(`UPDATE attendances SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
-          console.log(`  ✓ attendances`);
-
-          // 출석체크 — 같은 날짜 중복 제거 후 이전
-          await pool.query(`
-            DELETE FROM attendance_checks
-            WHERE "memberId" = $1 AND "checkDate" IN (
-              SELECT "checkDate" FROM attendance_checks WHERE "memberId" = $2
-            )`, [delId, keepId]);
-          await pool.query(`UPDATE attendance_checks SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
-
-          // PAR-Q — unique 제약: 기존 있으면 삭제, 없으면 이전
-          const hasParQ = await pool.query(`SELECT id FROM par_q WHERE "memberId" = $1 LIMIT 1`, [keepId]);
-          if (hasParQ.rows.length > 0) {
-            await pool.query(`DELETE FROM par_q WHERE "memberId" = $1`, [delId]);
-          } else {
-            await pool.query(`UPDATE par_q SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
-          }
-
-          // gym_plus_members — 자식 테이블 먼저 정리 후 처리
-          const gymPlusTableCheck = await pool.query(`SELECT to_regclass('gym_plus_members') IS NOT NULL AS exists`);
-          if (gymPlusTableCheck.rows[0]?.exists) {
-            const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
-            if (gymPlusDelRow.rows.length > 0) {
-              const gymPlusDelId = gymPlusDelRow.rows[0].id;
-              const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
-              if (gymPlusKeepRow.rows.length > 0) {
-                for (const childTbl of ['gym_plus_messages', 'gym_plus_workout_logs', 'gym_plus_push_subscriptions']) {
-                  const tblExists = await pool.query(`SELECT to_regclass($1) IS NOT NULL AS exists`, [childTbl]);
-                  if (tblExists.rows[0]?.exists) {
-                    await pool.query(`DELETE FROM "${childTbl}" WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
-                  }
-                }
-                await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gymPlusDelId]);
-              } else {
-                await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gymPlusDelId]);
-              }
-            }
-          }
-
-          console.log(`  ✓ gym_plus_members`);
-          // 나머지 테이블 일괄 이전
-          for (const [tbl, col] of [
-            ["pt_packages", "memberId"],
-            ["pt_pauses", "memberId"],
-            ["schedules", "memberId"],
-            ["pt_session_logs", "memberId"],
-            ["workout_memos", "memberId"],
-            ["report_tokens", "memberId"],
-            ["health_reports", "memberId"],
-            ["pt_reports", "memberId"],
-            ["payments", "memberId"],
-            ["revenue_entries", "memberId"],
-            ["lockers", "memberId"],
-            ["uniforms", "memberId"],
-            ["access_logs", "memberId"],
-          ] as const) {
-            await pool.query(`UPDATE "${tbl}" SET "${col}" = $1 WHERE "${col}" = $2`, [keepId, delId]);
-            console.log(`  ✓ ${tbl}`);
-          }
-          await pool.query(`UPDATE leads SET "registeredMemberId" = $1 WHERE "registeredMemberId" = $2`, [keepId, delId]);
-          await pool.query(`UPDATE transfer_contracts SET "transferorMemberId" = $1 WHERE "transferorMemberId" = $2`, [keepId, delId]);
-          await pool.query(`UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE "transfereeMemberId" = $2`, [keepId, delId]);
-          console.log(`  ✓ leads/transfer_contracts`);
-          await pool.query(`DELETE FROM members WHERE id = $1`, [delId]);
-          console.log(`  ✓ members DELETE`);
-          merged++;
-          console.log(`✅ 중복 회원 병합: '${row.name}' ID ${delId} → ${keepId}`);
-        } catch (innerErr) {
-          console.error(`⚠️ 중복 병합 실패: '${row.name}' ID ${delId} → ${keepId}:`, innerErr);
-        }
-      }
-    }
-    if (merged > 0) console.log(`✅ 중복 회원 총 ${merged}건 병합 완료`);
-    else console.log("✅ 중복 회원 없음");
-  } catch (e: any) {
-    if (e?.message === "__skip_auto_merge__") console.log("ℹ️ 중복 회원 자동 병합 비활성화됨 (수동 병합만)");
-    else console.error("중복 회원 병합 오류:", e);
-  }
 
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
