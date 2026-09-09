@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 
+const KAKAO_CHAT_URL = "http://pf.kakao.com/_ZZxais/chat";
+
 function formatDate(s: string) {
   return s ? s.slice(0, 10).replace(/-/g, ".") : "-";
 }
@@ -134,13 +136,11 @@ function MissionTab() {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.gymPlus.getWeeklyMissions.useQuery();
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
-  const [noteInput, setNoteInput] = useState("");
   const [resultMsg, setResultMsg] = useState<{ week: number; status: string } | null>(null);
 
   const submitMutation = trpc.gymPlus.submitWeeklyMission.useMutation({
     onSuccess: (res) => {
       setActiveWeek(null);
-      setNoteInput("");
       setResultMsg({ week: res.weekNumber, status: res.status });
       utils.gymPlus.getWeeklyMissions.invalidate();
     },
@@ -162,7 +162,8 @@ function MissionTab() {
     if (week.missionType === "attendance") {
       submitMutation.mutate({ weekNumber: week.weekNumber });
     } else {
-      submitMutation.mutate({ weekNumber: week.weekNumber, note: noteInput || undefined });
+      submitMutation.mutate({ weekNumber: week.weekNumber });
+      window.open(KAKAO_CHAT_URL, "_blank");
     }
   }
 
@@ -193,7 +194,7 @@ function MissionTab() {
         <div className={`rounded-2xl p-4 text-sm font-medium ${resultMsg.status === "approved" ? "bg-green-50 text-green-700 border border-green-200" : resultMsg.status === "rejected" ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>
           {resultMsg.status === "approved" && "✅ 미션 달성! 수고하셨습니다."}
           {resultMsg.status === "rejected" && "❌ 미션 조건 미달성입니다. (출석 4일 미만)"}
-          {resultMsg.status === "pending" && "📋 제출 완료! 담당자 확인 후 승인됩니다."}
+          {resultMsg.status === "pending" && "📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다."}
         </div>
       )}
 
@@ -256,26 +257,21 @@ function MissionTab() {
                   {week.missionType === "attendance" ? (
                     <p className="text-xs text-gray-500 pt-3">이번 주 수업 출석 기록을 자동으로 확인합니다. (4일 이상 출석 시 달성)</p>
                   ) : (
-                    <textarea
-                      value={noteInput}
-                      onChange={(e) => setNoteInput(e.target.value)}
-                      placeholder={
-                        week.missionType === "cardio" ? "예) 런닝머신 40분 + 자전거 20분" :
-                        week.missionType === "diet" ? "예) 닭가슴살 샐러드, 단백질 쉐이크" :
-                        "예) OO헬스에서 인바디 측정 완료, 체지방률 25%→23%"
-                      }
-                      rows={2}
-                      maxLength={300}
-                      className="w-full mt-2 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
-                    />
+                    <div className="pt-3 flex items-start gap-2 bg-yellow-50 rounded-xl p-3">
+                      <span className="text-base">💬</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700">카카오채널로 인증하기</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">버튼을 누르면 카카오채널이 열립니다. 인증 사진을 보내주세요.</p>
+                      </div>
+                    </div>
                   )}
                   <button
                     onClick={() => handleSubmit(week)}
-                    disabled={submitMutation.isPending || (week.missionType !== "attendance" && !noteInput.trim())}
+                    disabled={submitMutation.isPending}
                     className="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-opacity"
-                    style={{ background: "hsl(221 83% 44%)" }}
+                    style={{ background: week.missionType === "attendance" ? "hsl(221 83% 44%)" : "#FEE500", color: week.missionType === "attendance" ? "white" : "#3A1D1D" }}
                   >
-                    {submitMutation.isPending ? "제출 중..." : week.missionType === "attendance" ? "출석 확인하기" : "미션 제출하기"}
+                    {submitMutation.isPending ? "처리 중..." : week.missionType === "attendance" ? "출석 확인하기" : "카카오로 인증하기 💬"}
                   </button>
                 </div>
               )}
