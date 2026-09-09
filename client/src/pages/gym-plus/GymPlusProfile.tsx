@@ -17,8 +17,8 @@ function DietSection() {
       utils.gymPlus.dietStatus.invalidate();
       utils.gymPlus.memberMe.invalidate();
       setWeightForm((p) => ({ ...p, weight: "", note: "" }));
-      if (res.bonusAdded) {
-        setWeightMsg(`체중 기록 완료! 🎉 ${res.bonusAdded}개월 추가 서비스가 적립되었습니다.`);
+      if (res.bonusEarned > 0) {
+        setWeightMsg(`체중 기록 완료! 🎉 ${res.bonusEarned}개월 추가 서비스가 적립되었습니다.`);
       } else {
         setWeightMsg("체중이 기록되었습니다.");
       }
@@ -33,6 +33,7 @@ function DietSection() {
   const lostKg = diet.startWeight && diet.currentWeight
     ? Math.max(0, diet.startWeight - diet.currentWeight)
     : 0;
+  const earnedMonths = diet.earnedMonths ?? 0;
 
   const handleRecord = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,23 +68,23 @@ function DietSection() {
         </div>
         <div className="bg-background/50 rounded-xl p-3">
           <p className="text-[10px] text-muted-foreground">적립 개월</p>
-          <p className="font-bold text-sm mt-0.5 text-purple-300">{diet.bonusMonths ?? 0}개월</p>
+          <p className="font-bold text-sm mt-0.5 text-purple-300">{diet.earnedMonths ?? 0}개월</p>
         </div>
       </div>
 
-      {diet.bonusMonths > 0 && (
+      {diet.earnedMonths > 0 && (
         <div className="bg-purple-500/20 border border-purple-500/30 rounded-xl p-3 text-center">
           <p className="text-xs text-purple-300">
-            🎉 {diet.bonusMonths}개월 추가 서비스 적립! (최대 9개월 가능)
+            🎉 {diet.earnedMonths}개월 추가 서비스 적립! (최대 9개월 가능)
           </p>
         </div>
       )}
 
       {/* 최근 체중 기록 */}
-      {diet.recentChecks && diet.recentChecks.length > 0 && (
+      {diet.checks && diet.checks.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground font-medium">최근 기록</p>
-          {diet.recentChecks.slice(0, 5).map((c: any, i: number) => (
+          {diet.checks.slice(-5).reverse().map((c: any, i: number) => (
             <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
               <span className="text-xs text-muted-foreground">{c.checkDate?.slice(0, 10)}</span>
               <div className="flex items-center gap-2">
