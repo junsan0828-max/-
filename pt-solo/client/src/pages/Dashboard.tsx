@@ -407,6 +407,7 @@ const CORE_QUERY_CHIPS = ["오늘 수업", "이번달 매출", "6회이하 세�
 const MORE_QUERY_CHIPS = ["현재 회원 수", "이번달 마감", "미수금", "만료임박"];
 const QUICK_QUERY_CHIPS = [...CORE_QUERY_CHIPS, ...MORE_QUERY_CHIPS];
 const QUICK_ACTION_CHIPS = ["회원 등록"];
+const QUICK_SESSION_CHIPS = ["수업 완료"];
 
 function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavigate: (path: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -419,6 +420,8 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
   const yearMonth = todayStr.slice(0, 7);
 
   const createMemberMutation = trpc.members.create.useMutation();
+  const attendanceUpsertMutation = trpc.attendanceChecks.upsert.useMutation();
+  const useSessionMutation = trpc.pt.useSession.useMutation();
   const [pendingMode, setPendingMode] = useState<"register" | null>(null);
 
   async function ask(question: string) {
@@ -528,6 +531,35 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
 
   async function resolveCommand(q: string): Promise<QaMsg> {
     const has = (...kws: string[]) => kws.some(k => q.includes(k));
+
+    // 수업 완료: "김철수 수업 완료" / "김철수 수업" / "김철수 출석"
+    if (has("수업 완료", "수업완료", "출석 완료", "출석완료") || (has("수업", "출석") && !has("오늘 수업", "이번달 수업", "오늘 출석"))) {
+      const raw = q.replace(/수업\s*완료|출석\s*완료|수업완료|출석완료|수업|출석/g, "").trim();
+      const nameMatch = raw.match(/[가-힣]{2,5}/);
+      if (nameMatch) {
+        const name = nameMatch[0];
+        const allMembers = await utils.members.list.fetch();
+        const member = allMembers.find(m => m.name === name);
+        if (!member) return { role: "bot", text: `"${name}" 회원을 찾을 수 없어요.` };
+        return {
+          role: "bot",
+          text: `${name} 회원 — 오늘(${todayStr}) 수업 완료 처리 + 세션 1회 차감할까요?`,
+          confirm: {
+            label: "수업 완료",
+            action: async () => {
+              try {
+                await attendanceUpsertMutation.mutateAsync({ memberId: member.id, checkDate: todayStr, status: "attended" });
+                await useSessionMutation.mutateAsync({ memberId: member.id, sessionDate: todayStr });
+                return { role: "bot" as const, text: `✅ ${name} 수업 완료 · 세션 1회 차감됐어요.`, link: `/members/${member.id}` };
+              } catch (err: any) {
+                return { role: "bot" as const, text: err.message || "처리 중 오류가 발생했어요." };
+              }
+            },
+          },
+        };
+      }
+      return { role: "bot", text: "회원 이름을 포함해서 다시 입력해주세요.\n예: 홍길동 수업 완료" };
+    }
 
     if (has("회원 등록", "회원등록", "신규 등록", "신규등록")) {
       const raw = q.replace(/회원\s*등록|신규\s*등록/g, "").trim();
@@ -794,6 +826,12 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       {open && (
         <div className="px-4 pb-4 space-y-3">
           <div className="flex flex-wrap gap-1.5">
+            {QUICK_SESSION_CHIPS.map(c => (
+              <button key={c} onClick={() => { setInput(c + " "); }} disabled={busy}
+                className="text-[12px] font-semibold px-2.5 py-1.5 rounded-full bg-orange-500/8 text-orange-600 hover:bg-orange-500/15 transition-colors disabled:opacity-50">
+                {c}
+              </button>
+            ))}
             {(chipsOpen ? QUICK_QUERY_CHIPS : CORE_QUERY_CHIPS).map(c => (
               <button key={c} onClick={() => ask(c)} disabled={busy}
                 className="text-[12px] font-semibold px-2.5 py-1.5 rounded-full bg-teal-500/8 text-teal-600 hover:bg-teal-500/15 transition-colors disabled:opacity-50">
@@ -872,7 +910,7 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
               <Send className="h-4 w-4" />
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground">질문·업무 명령 모두 가능해요. 예: "홍길동 회원 등록", "이번달 매출"</p>
+          <p className="text-[10px] text-muted-foreground">예: "홍길동 수업 완료", "홍길동 회원 등록", "이번달 매출"</p>
         </div>
       )}
     </div>
