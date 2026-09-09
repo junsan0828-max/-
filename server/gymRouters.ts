@@ -258,6 +258,13 @@ const leadsRouter = t.router({
       return { success: true };
     }),
 
+  markAllViewed: protectedProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    await pool.query(`UPDATE leads SET "isViewed" = 1 WHERE "isViewed" = 0 AND "consultationType" = '온라인예약'`);
+    return { success: true };
+  }),
+
   unviewedCount: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return 0;

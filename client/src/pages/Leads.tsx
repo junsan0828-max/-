@@ -316,6 +316,9 @@ export default function LeadsPage() {
   const markViewedMutation = trpc.gym.leads.markViewed.useMutation({
     onSuccess: () => { utils.gym.leads.invalidate(); },
   });
+  const markAllViewedMutation = trpc.gym.leads.markAllViewed.useMutation({
+    onSuccess: () => { utils.gym.leads.invalidate(); },
+  });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.gym.staff.listConsultants.useQuery();
@@ -915,6 +918,13 @@ export default function LeadsPage() {
             <p className="text-sm font-semibold text-blue-300">미확인 온라인 예약 {unviewedCount}건</p>
             <p className="text-xs text-blue-400/70">아래 <span className="font-bold">NEW</span> 표시 카드를 확인해주세요.</p>
           </div>
+          <button
+            onClick={() => markAllViewedMutation.mutate()}
+            disabled={markAllViewedMutation.isPending}
+            className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-colors disabled:opacity-50"
+          >
+            확인
+          </button>
         </div>
       )}
 
