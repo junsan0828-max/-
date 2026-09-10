@@ -35,10 +35,12 @@ export const MEMBER_STATUS: Record<MemberStatus, { bg: string; text: string; bor
 
 // ─── PT 패키지 상태 ──────────────────────────────────────────────────────
 export const PT_STATUS: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  active:    { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/30", label: "진행중" },
-  completed: { bg: "bg-gray-500/20",  text: "text-gray-400",  border: "border-gray-500/30",  label: "완료"   },
-  expired:   { bg: "bg-red-500/20",   text: "text-red-400",   border: "border-red-500/30",   label: "만료"   },
-  paused:    { bg: "bg-yellow-500/20",text: "text-yellow-400",border: "border-yellow-500/30",label: "정지"   },
+  active:      { bg: "bg-green-500/20",  text: "text-green-400",  border: "border-green-500/30",  label: "진행중" },
+  completed:   { bg: "bg-gray-500/20",   text: "text-gray-400",   border: "border-gray-500/30",   label: "완료"   },
+  expired:     { bg: "bg-red-500/20",    text: "text-red-400",    border: "border-red-500/30",    label: "만료"   },
+  paused:      { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500/30", label: "정지"   },
+  transferred: { bg: "bg-blue-500/20",   text: "text-blue-400",   border: "border-blue-500/30",   label: "양도"   },
+  refunded:    { bg: "bg-red-500/20",    text: "text-red-400",    border: "border-red-500/30",    label: "환불"   },
 };
 
 // ─── 출석 상태 ───────────────────────────────────────────────────────────

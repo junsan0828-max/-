@@ -6,11 +6,10 @@ import { toast } from "sonner";
 type PtPkg = { id: number; packageName: string | null; totalSessions: number; usedSessions: number };
 export type MemberBasic = { id: number; name: string; phone: string | null };
 
+// 운동복·락커는 양도 불가 (센터 서비스)
 const ITEM_TYPES = [
   { key: "pt_package", label: "PT권" },
   { key: "membership", label: "헬스권" },
-  { key: "uniform", label: "운동복" },
-  { key: "locker", label: "락커" },
 ] as const;
 
 export function TransferModal({
@@ -68,9 +67,15 @@ export function TransferModal({
   });
 
   function toggleType(key: string) {
-    setSelectedTypes((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
+    setSelectedTypes((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      // PT권 선택 시 헬스권 자동 포함, PT권 해제 시 헬스권도 해제
+      if (key === "pt_package") {
+        if (!prev.includes("pt_package")) return [...next.filter(k => k !== "membership"), "membership"];
+        return next.filter(k => k !== "membership");
+      }
+      return next;
+    });
   }
 
   function togglePkg(id: number) {
@@ -170,20 +175,25 @@ export function TransferModal({
               <div>
                 <label className="text-xs text-muted-foreground mb-2 block">양도 항목 (복수 선택 가능)</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {ITEM_TYPES.map(({ key, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => toggleType(key)}
-                      className={`py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                        selectedTypes.includes(key)
-                          ? "border-orange-400 bg-orange-400/10 text-orange-400"
-                          : "border-border text-muted-foreground hover:border-orange-400/40"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  {ITEM_TYPES.map(({ key, label }) => {
+                    const isAutoIncluded = key === "membership" && selectedTypes.includes("pt_package");
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => !isAutoIncluded && toggleType(key)}
+                        className={`py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                          selectedTypes.includes(key)
+                            ? "border-orange-400 bg-orange-400/10 text-orange-400"
+                            : "border-border text-muted-foreground hover:border-orange-400/40"
+                        } ${isAutoIncluded ? "opacity-70 cursor-default" : ""}`}
+                      >
+                        {label}
+                        {isAutoIncluded && <span className="block text-[10px] mt-0.5 text-orange-300/70">PT 포함</span>}
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="text-[11px] text-muted-foreground">※ 개인 락커·운동복은 센터 서비스로 양도 불가</p>
               </div>
 
               {selectedTypes.includes("pt_package") && ptPackages.length > 0 && (
