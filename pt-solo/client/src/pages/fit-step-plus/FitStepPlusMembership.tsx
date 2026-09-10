@@ -8,7 +8,7 @@ const membershipTypeLabel: Record<string, string> = {
 
 const membershipTypeBadge: Record<string, string> = {
   general: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  premium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  premium: "bg-amber-500/10 text-amber-600 border-amber-500/30",
   vip: "bg-purple-500/10 text-purple-400 border-purple-500/30",
 };
 
@@ -66,7 +66,7 @@ export default function FitStepPlusMembership() {
             "bg-green-500/10 border border-green-500/20"
           }`}>
             <p className="text-xs text-muted-foreground">회원권 남은 기간</p>
-            <p className={`font-black text-2xl mt-0.5 ${
+            <p className={`font-bold text-2xl mt-0.5 ${
               daysLeft <= 0 ? "text-red-400" : daysLeft <= 7 ? "text-orange-400" : "text-green-400"
             }`}>
               {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
@@ -82,11 +82,11 @@ export default function FitStepPlusMembership() {
         <h2 className="font-semibold text-sm mb-3">나의 운동 통계</h2>
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-3xl font-black text-primary">{totalWorkouts}</p>
+            <p className="text-3xl font-bold text-primary">{totalWorkouts}</p>
             <p className="text-xs text-muted-foreground mt-1">전체 운동 횟수</p>
           </div>
           <div className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-3xl font-black text-primary">{monthlyWorkouts}</p>
+            <p className="text-3xl font-bold text-primary">{monthlyWorkouts}</p>
             <p className="text-xs text-muted-foreground mt-1">이번달 운동 횟수</p>
           </div>
         </div>
