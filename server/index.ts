@@ -2452,35 +2452,59 @@ async function start() {
   }
 
 
-  // ── 이고원 PT 패키지 단가 설정 (결제금액/단가 없는 패키지 한정, 1회만) ──
+  // ── 김지혜→이고원 PT 양도 처리 (김지혜 패키지 transferred, 이고원 단가 설정) ──
   try {
-    const igowon = await pool.query(
-      `SELECT m.id FROM members m WHERE m.name = '이고원' LIMIT 1`
+    const kst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+
+    // 김지혜 PT 패키지 (paused 상태) → transferred 처리 + usedSessions=12 보정
+    const jihye = await pool.query(
+      `SELECT p.id, p."totalSessions", p."usedSessions", p."paymentAmount", p."pricePerSession"
+       FROM pt_packages p
+       JOIN members m ON m.id = p."memberId"
+       WHERE m.name = '김지혜'
+         AND p.status NOT IN ('transferred','refunded','completed')
+       ORDER BY p.id DESC LIMIT 1`
     );
-    if (igowon.rows[0]) {
-      const mid = igowon.rows[0].id;
-      const pkg = await pool.query(
-        `SELECT id, "totalSessions" FROM pt_packages
-         WHERE "memberId" = $1
-           AND COALESCE("paymentAmount", 0) = 0
-           AND COALESCE("pricePerSession", 0) = 0
-           AND status NOT IN ('refunded','transferred')
-         ORDER BY id DESC LIMIT 1`,
-        [mid]
+    if (jihye.rows[0]) {
+      const jp = jihye.rows[0];
+      // 실제 사용 횟수 = 총 - 양도분(8회)
+      const correctUsed = (jp.totalSessions ?? 20) - 8;
+      await pool.query(
+        `UPDATE pt_packages
+         SET status = 'transferred', "usedSessions" = $1, "updatedAt" = now()::text
+         WHERE id = $2`,
+        [correctUsed, jp.id]
       );
-      if (pkg.rows[0]) {
-        const { id: pkgId, totalSessions } = pkg.rows[0];
-        const sessions = totalSessions ?? 8;
-        const paymentAmount = 48000 * sessions;
-        await pool.query(
-          `UPDATE pt_packages SET "paymentAmount" = $1, "pricePerSession" = 48000, "updatedAt" = now()::text WHERE id = $2`,
-          [paymentAmount, pkgId]
+      console.log(`🔧 김지혜 PT 패키지(id=${jp.id}) → transferred, usedSessions=${correctUsed}`);
+
+      // 이고원 PT 패키지 단가 설정 (단가 없는 것만)
+      const igowon = await pool.query(`SELECT id FROM members WHERE name = '이고원' LIMIT 1`);
+      if (igowon.rows[0]) {
+        const mid = igowon.rows[0].id;
+        const pricePerSess = jp.pricePerSession
+          ?? (jp.paymentAmount && jp.totalSessions ? Math.round(jp.paymentAmount / jp.totalSessions) : 48000);
+        const igoPkg = await pool.query(
+          `SELECT id, "totalSessions" FROM pt_packages
+           WHERE "memberId" = $1
+             AND COALESCE("paymentAmount", 0) = 0
+             AND COALESCE("pricePerSession", 0) = 0
+             AND status NOT IN ('refunded','transferred')
+           ORDER BY id DESC LIMIT 1`,
+          [mid]
         );
-        console.log(`🔧 이고원 PT 패키지(id=${pkgId}) 단가 설정: 48,000원/회, 결제금액 ${paymentAmount}원`);
+        if (igoPkg.rows[0]) {
+          const { id: pkgId, totalSessions } = igoPkg.rows[0];
+          const sessions = totalSessions ?? 8;
+          await pool.query(
+            `UPDATE pt_packages SET "paymentAmount" = $1, "pricePerSession" = $2, "updatedAt" = now()::text WHERE id = $3`,
+            [pricePerSess * sessions, pricePerSess, pkgId]
+          );
+          console.log(`🔧 이고원 PT 패키지(id=${pkgId}) 단가 ${pricePerSess}원/회 설정`);
+        }
       }
     }
   } catch (e) {
-    console.error("이고원 PT 패키지 단가 설정 오류:", e);
+    console.error("김지혜→이고원 양도 처리 오류:", e);
   }
 
   // ── 테스트 계정(01011111111) 주 회원 연결 (memberId 없을 때만) ──

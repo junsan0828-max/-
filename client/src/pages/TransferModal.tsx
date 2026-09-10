@@ -6,10 +6,12 @@ import { toast } from "sonner";
 type PtPkg = { id: number; packageName: string | null; totalSessions: number; usedSessions: number };
 export type MemberBasic = { id: number; name: string; phone: string | null };
 
-// 운동복·락커는 양도 불가 (센터 서비스)
+// 운동복·락커는 PT권 또는 헬스권과 함께일 때만 양도 가능 (단독 불가)
 const ITEM_TYPES = [
   { key: "pt_package", label: "PT권" },
   { key: "membership", label: "헬스권" },
+  { key: "uniform", label: "운동복" },
+  { key: "locker", label: "락커" },
 ] as const;
 
 export function TransferModal({
@@ -106,6 +108,9 @@ export function TransferModal({
 
   function handleCreate() {
     if (selectedTypes.length === 0) { toast.error("양도 항목을 선택해주세요"); return; }
+    const hasMain = selectedTypes.includes("pt_package") || selectedTypes.includes("membership");
+    const onlyService = !hasMain && (selectedTypes.includes("uniform") || selectedTypes.includes("locker"));
+    if (onlyService) { toast.error("운동복·락커는 PT권 또는 헬스권과 함께 양도할 수 있습니다"); return; }
     const isExisting = transfereeType === "existing";
     if (isExisting && !selectedTransferee) { toast.error("양수인을 선택해주세요"); return; }
     if (!isExisting && !newName.trim()) { toast.error("양수인 이름을 입력해주세요"); return; }
@@ -193,7 +198,7 @@ export function TransferModal({
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-muted-foreground">※ 개인 락커·운동복은 센터 서비스로 양도 불가</p>
+                <p className="text-[11px] text-muted-foreground">※ 운동복·락커는 PT권 또는 헬스권과 함께만 양도 가능</p>
               </div>
 
               {selectedTypes.includes("pt_package") && ptPackages.length > 0 && (
