@@ -217,7 +217,7 @@ function MissionTab() {
           {resultMsg.status === "pending" && <p>📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다.</p>}
           {resultMsg.rewarded && resultMsg.extensionUntil && (
             <p className="text-green-700 font-bold">
-              🎉 감량 달성! {resultMsg.rewardMonths ?? 1}개월 연장 — 헬스권이 {resultMsg.extensionUntil}까지 연장되었습니다.
+              🎉 감량 달성! 헬스권이 {resultMsg.extensionUntil}까지 1개월 연장되었습니다.
             </p>
           )}
         </div>

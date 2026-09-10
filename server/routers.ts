@@ -5274,75 +5274,72 @@ ${dataContext}
       const member = memberRes.rows[0];
       if (!member?.programName || !member?.programStartDate) return { rewarded: false };
 
-      // 인바디 주차(4/8/12주)에서만 페이백 계산
+      // 체크 시점: 매월 25일~말일(KST)에만 페이백 계산
       const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-      const todayKst = kstNow.toISOString().slice(0, 10);
-      const startMs = new Date(member.programStartDate + "T00:00:00Z").getTime();
-      const todayMs = new Date(todayKst + "T00:00:00Z").getTime();
-      const daysSince = Math.floor((todayMs - startMs) / (1000 * 60 * 60 * 24));
-      const currentWeek = daysSince < 0 ? 0 : Math.floor(daysSince / 7) + 1;
+      const dayOfMonth = kstNow.getUTCDate();
+      if (dayOfMonth < 25) return { rewarded: false };
 
-      const INBODY_WEEKS = [4, 8, 12];
-      if (!INBODY_WEEKS.includes(currentWeek)) return { rewarded: false };
+      const checkYear = kstNow.getUTCFullYear();
+      const checkMonth = kstNow.getUTCMonth(); // 0-indexed
+      const periodKey = `PAY-${checkYear}-${String(checkMonth + 1).padStart(2, "0")}`;
 
-      const periodKey = `W${currentWeek}`;
-
-      // 이미 이 인바디 주차에 보상받았으면 중복 지급 방지
+      // 이번 달 이미 보상받았으면 스킵
       const existingRes = await pool.query(
         `SELECT id FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "programName" = $2 AND "periodKey" = $3`,
         [memberId, member.programName, periodKey]
       );
       if (existingRes.rows[0]) return { rewarded: false };
 
-      // 비교 기준 체중: 이전 인바디 주차의 체중 (4주차는 프로그램 최초 기록)
-      function addDaysStr(dateStr: string, days: number) {
-        const d = new Date(dateStr + "T00:00:00Z");
-        d.setUTCDate(d.getUTCDate() + days);
-        return d.toISOString();
-      }
-      const prevInbodyWeek = currentWeek - 4; // 0, 4, 8
-      let compareWeight: number;
-      if (prevInbodyWeek === 0) {
-        // 4주차: 프로그램 시작 후 최초 체중 기록
-        const firstRes = await pool.query(
-          `SELECT weight::float AS weight FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" ASC LIMIT 1`,
-          [memberId]
-        );
-        if (!firstRes.rows[0]) return { rewarded: false };
-        compareWeight = firstRes.rows[0].weight;
-      } else {
-        // 8/12주차: 직전 인바디 주차 기간 중 마지막 기록
-        const prevWeekStart = addDaysStr(member.programStartDate, (prevInbodyWeek - 1) * 7);
-        const prevWeekEnd = addDaysStr(member.programStartDate, prevInbodyWeek * 7);
-        const prevRes = await pool.query(
-          `SELECT weight::float AS weight FROM gym_plus_weight_logs
-           WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2 AND "loggedAt" < $3
-           ORDER BY "loggedAt" DESC LIMIT 1`,
-          [memberId, prevWeekStart, prevWeekEnd]
-        );
-        if (!prevRes.rows[0]) return { rewarded: false };
-        compareWeight = prevRes.rows[0].weight;
-      }
-
-      const kgLost = compareWeight - input.weight;
-      if (kgLost < 1.0) return { rewarded: false };
-
-      // 1kg당 1개월, 최대 9개월 총합 상한
+      // 총 9개월 상한 체크
       const totalRes = await pool.query(
         `SELECT COALESCE(SUM("rewardMonths"), 0)::int AS total FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "programName" = $2`,
         [memberId, member.programName]
       );
       const alreadyAwarded = totalRes.rows[0].total as number;
-      const MAX_TOTAL_MONTHS = 9;
-      const rawMonths = Math.floor(kgLost);
-      const rewardMonths = Math.min(rawMonths, MAX_TOTAL_MONTHS - alreadyAwarded);
-      if (rewardMonths <= 0) return { rewarded: false };
+      if (alreadyAwarded >= 9) return { rewarded: false };
+
+      // 시작 체중(최초 기록) 조회
+      const baseRes = await pool.query(
+        `SELECT weight::float AS weight FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" ASC LIMIT 1`,
+        [memberId]
+      );
+      if (!baseRes.rows[0]) return { rewarded: false };
+      const baseWeight = baseRes.rows[0].weight as number;
+
+      // 프로그램 시작일 기준 경과 일수
+      const todayKst = kstNow.toISOString().slice(0, 10);
+      const startMs = new Date(member.programStartDate + "T00:00:00Z").getTime();
+      const todayMs = new Date(todayKst + "T00:00:00Z").getTime();
+      const daysSince = Math.floor((todayMs - startMs) / (1000 * 60 * 60 * 24));
+
+      // 첫 12주(0~83일): 시작체중 -1kg만 충족하면 됨
+      // 12주 이후: 달이 지날수록 임계값이 1kg씩 추가로 내려감
+      let threshold: number;
+      if (daysSince < 84) {
+        // 12주 이내: 시작체중 - 1kg
+        threshold = baseWeight - 1;
+      } else {
+        // 12주 이후: 프로그램 완료 월의 다음 달부터 monthNumber 계산
+        // 완료 시점의 연/월 기준으로 몇 번째 체크인지 산출
+        const programEnd = new Date(startMs + 84 * 24 * 60 * 60 * 1000);
+        const endYear = programEnd.getUTCFullYear();
+        const endMonth = programEnd.getUTCMonth();
+        const endDay = programEnd.getUTCDate();
+        // 완료일이 25일 이전이면 그 달부터 월1로 계산, 이후면 다음 달부터
+        const firstPayYear = endDay < 25 ? endYear : (endMonth === 11 ? endYear + 1 : endYear);
+        const firstPayMonth = endDay < 25 ? endMonth : (endMonth === 11 ? 0 : endMonth + 1);
+        const monthNumber = (checkYear - firstPayYear) * 12 + (checkMonth - firstPayMonth) + 1;
+        if (monthNumber < 1) return { rewarded: false };
+        threshold = baseWeight - monthNumber;
+      }
+
+      if (input.weight > threshold) return { rewarded: false };
 
       const inserted = await pool.query(
         `INSERT INTO gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey", "rewardMonths")
-         VALUES ($1, $2, $3, $4)
+         VALUES ($1, $2, $3, 1)
          ON CONFLICT ("gymPlusMemberId", "programName", "periodKey") DO NOTHING`,
-        [memberId, member.programName, periodKey, rewardMonths]
+        [memberId, member.programName, periodKey]
       );
       if (inserted.rowCount === 0) return { rewarded: false };
 
@@ -5358,7 +5355,7 @@ ${dataContext}
       const baseYmd = parseYmd(baseEndStr ?? "");
       const todayYmd = kstYmd(now);
       const from = baseYmd && ymdToUtc(baseYmd) > ymdToUtc(todayYmd) ? baseYmd : todayYmd;
-      const newEndStr = fmtYmd(addMonthsYmd(from, rewardMonths));
+      const newEndStr = fmtYmd(addMonthsYmd(from, 1));
 
       await pool.query(
         `UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`,
@@ -5371,7 +5368,7 @@ ${dataContext}
         );
       }
 
-      return { rewarded: true, rewardMonths, extensionUntil: newEndStr };
+      return { rewarded: true, rewardMonths: 1, threshold, extensionUntil: newEndStr };
     }),
 
   // ─── 미션 시스템 (관리자) ──────────────────────────────────────────────────────
