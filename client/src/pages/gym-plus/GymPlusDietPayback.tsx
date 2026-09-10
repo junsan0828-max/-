@@ -123,7 +123,7 @@ function StatusTab() {
   );
 }
 
-// ─── 미션 탭 (12주 주차별 미션) ───────────────────────────────────────────────
+// ─── 미션 탭 (매월 날짜 구간 미션) ──────────────────────────────────────────────
 
 const MISSION_TYPE_ICON: Record<string, string> = {
   attendance: "🏃",
@@ -132,26 +132,32 @@ const MISSION_TYPE_ICON: Record<string, string> = {
   inbody: "📊",
 };
 
+const MISSION_DATE_LABEL: Record<string, string> = {
+  attendance: "매월 1~7일",
+  cardio: "매월 8~14일",
+  diet: "매월 15~24일",
+  inbody: "매월 25~말일",
+};
+
 function MissionTab() {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.gymPlus.getWeeklyMissions.useQuery();
-  const [activeWeek, setActiveWeek] = useState<number | null>(null);
+  const [activePeriodKey, setActivePeriodKey] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState("");
-  const [resultMsg, setResultMsg] = useState<{ week: number; status: string; rewarded?: boolean; rewardMonths?: number; extensionUntil?: string } | null>(null);
+  const [resultMsg, setResultMsg] = useState<{ periodKey: string; status: string; rewarded?: boolean; extensionUntil?: string } | null>(null);
 
   const logWeightMutation = trpc.gymPlus.logWeight.useMutation({
-    onSuccess: (res) => {
+    onSuccess: () => {
       utils.gymPlus.getMissionStatus.invalidate();
       utils.gymPlus.getDietProgramReport.invalidate();
-      return res;
     },
   });
 
   const submitMutation = trpc.gymPlus.submitWeeklyMission.useMutation({
     onSuccess: (res) => {
-      setActiveWeek(null);
+      setActivePeriodKey(null);
       setWeightInput("");
-      setResultMsg({ week: res.weekNumber, status: res.status });
+      setResultMsg({ periodKey: res.periodKey, status: res.status });
       utils.gymPlus.getWeeklyMissions.invalidate();
     },
   });
@@ -165,170 +171,151 @@ function MissionTab() {
     );
   }
 
-  const { weeks, currentWeek } = data;
-  const completedCount = weeks.filter(w => w.submission?.status === "approved").length;
-
-  async function handleSubmit(week: (typeof weeks)[0]) {
-    if (week.missionType === "attendance") {
-      submitMutation.mutate({ weekNumber: week.weekNumber });
-    } else if (week.missionType === "inbody") {
+  async function handleSubmit(missionType: string, periodKey: string) {
+    if (missionType === "inbody") {
       const w = parseFloat(weightInput);
       if (isNaN(w) || w < 20 || w > 300) return;
-      // 체중 먼저 저장 → 리워드 체크
-      const weightRes = await logWeightMutation.mutateAsync({ weight: w, note: `${week.weekNumber}주차 인바디` });
-      submitMutation.mutate({ weekNumber: week.weekNumber });
+      const weightRes = await logWeightMutation.mutateAsync({ weight: w, note: `${periodKey} 인바디` });
+      submitMutation.mutate({ missionType: missionType as any });
       window.open(KAKAO_CHAT_URL, "_blank");
       if (weightRes?.rewarded && "extensionUntil" in weightRes) {
-        setResultMsg({ week: week.weekNumber, status: "pending", rewarded: true, rewardMonths: (weightRes as any).rewardMonths, extensionUntil: weightRes.extensionUntil as string });
+        setResultMsg({ periodKey, status: "pending", rewarded: true, extensionUntil: weightRes.extensionUntil as string });
       }
+    } else if (missionType === "attendance") {
+      submitMutation.mutate({ missionType: "attendance" });
     } else {
-      submitMutation.mutate({ weekNumber: week.weekNumber });
+      submitMutation.mutate({ missionType: missionType as any });
       window.open(KAKAO_CHAT_URL, "_blank");
     }
   }
 
+  const currentWindow = data.currentWindow;
+
   return (
     <div className="p-4 space-y-4 pb-8">
-      {/* 진행률 요약 */}
-      <div
-        className="rounded-2xl p-4 text-white"
-        style={{ background: "linear-gradient(135deg, hsl(221 83% 44%), hsl(221 83% 28%))" }}
-      >
-        <p className="text-xs opacity-75 mb-1">12주 미션 진행률</p>
-        <div className="flex items-end gap-2 mb-3">
-          <p className="text-3xl font-black">{completedCount}</p>
-          <p className="text-sm opacity-75 mb-1">/ 12 완료</p>
-        </div>
-        <div className="w-full bg-white/20 rounded-full h-2">
-          <div
-            className="bg-white rounded-full h-2 transition-all"
-            style={{ width: `${(completedCount / 12) * 100}%` }}
-          />
-        </div>
-        {currentWeek > 0 && currentWeek <= 12 && (
-          <p className="text-xs opacity-75 mt-2">현재 {currentWeek}주차 진행 중</p>
-        )}
-      </div>
+      {/* 현재 미션 배너 */}
+      {currentWindow && (
+        <div className="rounded-2xl overflow-hidden shadow-sm border border-[#1D4ED8]/20"
+          style={{ background: "linear-gradient(135deg, hsl(221 83% 96%), hsl(221 83% 90%))" }}>
+          <div className="px-4 py-2.5 border-b border-[#1D4ED8]/10 flex items-center justify-between">
+            <span className="text-xs font-bold text-[#1D4ED8]">이번 달 진행 중</span>
+            <span className="text-[10px] text-gray-500">{MISSION_DATE_LABEL[currentWindow.type]}</span>
+          </div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <span className="text-2xl">{MISSION_TYPE_ICON[currentWindow.type]}</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-[#1a2b4b]">{currentWindow.label}</p>
+              {currentWindow.submission ? (
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  currentWindow.submission.status === "approved" ? "bg-green-100 text-green-700" :
+                  currentWindow.submission.status === "pending" ? "bg-amber-100 text-amber-700" :
+                  "bg-red-100 text-red-700"
+                }`}>
+                  {currentWindow.submission.status === "approved" ? "달성 완료 ✓" :
+                   currentWindow.submission.status === "pending" ? "검토 중" : "미달성"}
+                </span>
+              ) : (
+                <span className="text-[10px] text-blue-500 font-medium">인증 대기 중</span>
+              )}
+            </div>
+            {!currentWindow.submission && (
+              <button
+                onClick={() => setActivePeriodKey(activePeriodKey === currentWindow.periodKey ? null : currentWindow.periodKey)}
+                className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-white"
+                style={{ background: "hsl(221 83% 44%)" }}
+              >
+                인증하기
+              </button>
+            )}
+          </div>
 
-      {resultMsg && (
-        <div className={`rounded-2xl p-4 text-sm font-medium space-y-1 ${resultMsg.status === "approved" ? "bg-green-50 text-green-700 border border-green-200" : resultMsg.status === "rejected" ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>
-          {resultMsg.status === "approved" && <p>✅ 미션 달성! 수고하셨습니다.</p>}
-          {resultMsg.status === "rejected" && <p>❌ 미션 조건 미달성입니다. (출석 4일 미만)</p>}
-          {resultMsg.status === "pending" && <p>📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다.</p>}
-          {resultMsg.rewarded && resultMsg.extensionUntil && (
-            <p className="text-green-700 font-bold">
-              🎉 감량 달성! 헬스권이 {resultMsg.extensionUntil}까지 1개월 연장되었습니다.
-            </p>
+          {activePeriodKey === currentWindow.periodKey && !currentWindow.submission && (
+            <div className="px-4 pb-4 space-y-2 border-t border-[#1D4ED8]/10">
+              {currentWindow.type === "attendance" && (
+                <p className="text-xs text-gray-500 pt-3">이번 달 1~7일 수업 출석 기록을 자동 확인합니다. (4일 이상 출석 시 달성)</p>
+              )}
+              {currentWindow.type === "inbody" && (
+                <div className="pt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" step="0.1" min="20" max="300"
+                      value={weightInput}
+                      onChange={(e) => setWeightInput(e.target.value)}
+                      placeholder="이번 달 체중 (kg)"
+                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                    <span className="text-sm text-gray-500 font-medium">kg</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500">입력 후 카카오채널에 인바디 사진도 함께 보내주세요.</p>
+                </div>
+              )}
+              {(currentWindow.type === "cardio" || currentWindow.type === "diet") && (
+                <p className="text-xs text-gray-500 pt-3">버튼을 누르면 카카오채널이 열립니다. 인증 사진을 보내주세요.</p>
+              )}
+              <button
+                onClick={() => handleSubmit(currentWindow.type, currentWindow.periodKey)}
+                disabled={submitMutation.isPending || logWeightMutation.isPending ||
+                  (currentWindow.type === "inbody" && (!weightInput || parseFloat(weightInput) < 20))}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                style={{
+                  background: currentWindow.type === "attendance" ? "hsl(221 83% 44%)" : "#FEE500",
+                  color: currentWindow.type === "attendance" ? "white" : "#3A1D1D",
+                }}
+              >
+                {(submitMutation.isPending || logWeightMutation.isPending) ? "처리 중..." :
+                  currentWindow.type === "attendance" ? "출석 확인하기" :
+                  currentWindow.type === "inbody" ? "체중 저장 + 카카오 인증 💬" :
+                  "카카오로 인증하기 💬"}
+              </button>
+            </div>
           )}
         </div>
       )}
 
-      {/* 주차별 미션 목록 */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-50">
-          <p className="text-sm font-bold text-gray-800">주차별 미션</p>
+      {resultMsg && (
+        <div className={`rounded-2xl p-4 text-sm font-medium space-y-1 ${
+          resultMsg.status === "approved" ? "bg-green-50 text-green-700 border border-green-200" :
+          resultMsg.status === "rejected" ? "bg-red-50 text-red-700 border border-red-200" :
+          "bg-blue-50 text-blue-700 border border-blue-200"
+        }`}>
+          {resultMsg.status === "approved" && <p>✅ 미션 달성! 수고하셨습니다.</p>}
+          {resultMsg.status === "rejected" && <p>❌ 출석 4일 미만입니다. 다음 달에 다시 도전해 주세요.</p>}
+          {resultMsg.status === "pending" && <p>📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다.</p>}
+          {resultMsg.rewarded && resultMsg.extensionUntil && (
+            <p className="font-bold">🎉 감량 달성! 헬스권이 {resultMsg.extensionUntil}까지 1개월 연장되었습니다.</p>
+          )}
         </div>
-        {weeks.map((week) => {
-          const sub = week.submission;
-          const isExpanded = activeWeek === week.weekNumber;
-          const canSubmit = !sub && (week.isCurrentWeek || week.isPast) && !week.isFuture;
+      )}
 
-          let statusColor = "#d1d5db";
-          let statusLabel = "—";
-          if (week.isFuture) { statusColor = "#d1d5db"; statusLabel = "대기"; }
-          else if (!sub) { statusColor = week.isCurrentWeek ? "hsl(221 83% 44%)" : "#9ca3af"; statusLabel = week.isCurrentWeek ? "진행 중" : "미제출"; }
-          else if (sub.status === "approved") { statusColor = "#22c55e"; statusLabel = "달성"; }
-          else if (sub.status === "pending") { statusColor = "#f59e0b"; statusLabel = "검토 중"; }
-          else if (sub.status === "rejected") { statusColor = "#ef4444"; statusLabel = "미달성"; }
-
-          return (
-            <div key={week.weekNumber} className="border-b border-gray-50 last:border-0">
-              <button
-                className="w-full px-4 py-3.5 flex items-center gap-3 text-left"
-                onClick={() => canSubmit && setActiveWeek(isExpanded ? null : week.weekNumber)}
-              >
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-sm shrink-0"
-                  style={{
-                    background: sub?.status === "approved" ? "#22c55e" : week.isCurrentWeek ? "hsl(221 83% 44%)" : week.isFuture ? "#f3f4f6" : "#f3f4f6",
-                    color: (sub?.status === "approved" || week.isCurrentWeek) ? "white" : week.isFuture ? "#d1d5db" : "#6b7280",
-                  }}
-                >
-                  {sub?.status === "approved" ? (
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.5} stroke="white" className="w-4 h-4">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>
-                  ) : (
-                    <span className="text-xs">{week.weekNumber}</span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">{MISSION_TYPE_ICON[week.missionType]}</span>
-                    <p className={`text-sm font-medium truncate ${week.isFuture ? "text-gray-300" : "text-gray-800"}`}>
-                      {week.weekNumber}주차
-                      {week.isCurrentWeek && <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold">NOW</span>}
-                    </p>
-                  </div>
-                  <p className={`text-[11px] mt-0.5 ${week.isFuture ? "text-gray-300" : "text-gray-500"}`}>{week.label}</p>
-                </div>
-                <span className="text-xs font-medium shrink-0" style={{ color: statusColor }}>
-                  {statusLabel}
-                </span>
-              </button>
-
-              {isExpanded && canSubmit && (
-                <div className="px-4 pb-4 space-y-2 border-t border-gray-50">
-                  {week.missionType === "attendance" && (
-                    <p className="text-xs text-gray-500 pt-3">이번 주 수업 출석 기록을 자동으로 확인합니다. (4일 이상 출석 시 달성)</p>
-                  )}
-                  {week.missionType === "inbody" && (
-                    <div className="pt-3 space-y-2">
-                      <p className="text-xs font-semibold text-gray-700">인바디 체중 입력</p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number" step="0.1" min="20" max="300"
-                          value={weightInput}
-                          onChange={(e) => setWeightInput(e.target.value)}
-                          placeholder="측정 체중 (kg)"
-                          className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        />
-                        <span className="text-sm text-gray-500 font-medium">kg</span>
-                      </div>
-                      <div className="flex items-start gap-2 bg-yellow-50 rounded-xl p-3">
-                        <span className="text-sm">💬</span>
-                        <p className="text-[11px] text-gray-600">체중 입력 후 버튼을 누르면 카카오채널이 열립니다. 인바디 사진도 함께 보내주세요.</p>
-                      </div>
-                    </div>
-                  )}
-                  {(week.missionType === "cardio" || week.missionType === "diet") && (
-                    <div className="pt-3 flex items-start gap-2 bg-yellow-50 rounded-xl p-3">
-                      <span className="text-base">💬</span>
-                      <div>
-                        <p className="text-xs font-semibold text-gray-700">카카오채널로 인증하기</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">버튼을 누르면 카카오채널이 열립니다. 인증 사진을 보내주세요.</p>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => handleSubmit(week)}
-                    disabled={submitMutation.isPending || logWeightMutation.isPending || (week.missionType === "inbody" && (!weightInput || parseFloat(weightInput) < 20))}
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity"
-                    style={{
-                      background: week.missionType === "attendance" ? "hsl(221 83% 44%)" : "#FEE500",
-                      color: week.missionType === "attendance" ? "white" : "#3A1D1D",
-                    }}
-                  >
-                    {(submitMutation.isPending || logWeightMutation.isPending) ? "처리 중..." :
-                      week.missionType === "attendance" ? "출석 확인하기" :
-                      week.missionType === "inbody" ? "체중 저장 + 카카오 인증 💬" :
-                      "카카오로 인증하기 💬"}
-                  </button>
-                </div>
-              )}
+      {/* 월별 미션 이력 */}
+      <div className="space-y-3">
+        {[...(data.months ?? [])].reverse().map((month) => (
+          <div key={month.yearMonth} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-gray-50 bg-gray-50/50">
+              <p className="text-xs font-bold text-gray-600">{month.displayLabel}</p>
             </div>
-          );
-        })}
+            {month.missions.map((mission) => {
+              const sub = mission.submission;
+              let statusColor = "#d1d5db"; let statusLabel = "미제출";
+              if (mission.isCurrentWindow) { statusColor = "hsl(221 83% 44%)"; statusLabel = "진행 중"; }
+              else if (!mission.isPast && !mission.isCurrentWindow) { statusColor = "#d1d5db"; statusLabel = "예정"; }
+              if (sub?.status === "approved") { statusColor = "#22c55e"; statusLabel = "달성"; }
+              else if (sub?.status === "pending") { statusColor = "#f59e0b"; statusLabel = "검토 중"; }
+              else if (sub?.status === "rejected") { statusColor = "#ef4444"; statusLabel = "미달성"; }
+
+              return (
+                <div key={mission.periodKey} className="px-4 py-3 flex items-center gap-3 border-b border-gray-50 last:border-0">
+                  <span className="text-lg">{MISSION_TYPE_ICON[mission.type]}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700">{mission.label}</p>
+                    <p className="text-[10px] text-gray-400">{MISSION_DATE_LABEL[mission.type]}</p>
+                  </div>
+                  <span className="text-xs font-semibold shrink-0" style={{ color: statusColor }}>{statusLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

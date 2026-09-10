@@ -26,44 +26,26 @@ function MissionWeekBanner() {
 
   if (!data) return null;
 
-  if (data.isCompleted) {
-    return (
-      <div className="rounded-2xl overflow-hidden shadow-sm border border-green-200"
-        style={{ background: "linear-gradient(135deg, #f0fdf4, #dcfce7)" }}>
-        <div className="px-4 py-4 flex items-center gap-3">
-          <span className="text-3xl">🏆</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-extrabold text-green-800">12주 미션 완주!</p>
-            <p className="text-[11px] text-green-600 mt-0.5">
-              총 {data.approvedCount}개 미션 달성 — 체중 감량 기록이 있으면 페이백이 지급됩니다
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const currentWindow = data.currentWindow;
+  if (!currentWindow) return null;
 
-  if (data.currentWeek < 1 || data.currentWeek > 12) return null;
-
-  const currentWeekData = data.weeks.find(w => w.isCurrentWeek);
-  if (!currentWeekData) return null;
-
-  const sub = currentWeekData.submission;
-  const missionType = currentWeekData.missionType;
+  const sub = currentWindow.submission;
+  const missionType = currentWindow.type;
   const isAutoMission = missionType === "attendance";
 
   function handleCertify() {
-    if (sub) {
-      window.open(KAKAO_CHAT_URL, "_blank");
-      return;
-    }
+    if (sub) { window.open(KAKAO_CHAT_URL, "_blank"); return; }
     if (isAutoMission) {
-      submitMut.mutate({ weekNumber: currentWeekData!.weekNumber });
+      submitMut.mutate({ missionType: "attendance" });
     } else {
-      submitMut.mutate({ weekNumber: currentWeekData!.weekNumber });
+      submitMut.mutate({ missionType: missionType as any });
       window.open(KAKAO_CHAT_URL, "_blank");
     }
   }
+
+  const DATE_LABEL: Record<string, string> = {
+    attendance: "1~7일", cardio: "8~14일", diet: "15~24일", inbody: "25~말일",
+  };
 
   let statusBadge: React.ReactNode = null;
   if (sub?.status === "approved") {
@@ -79,17 +61,17 @@ function MissionWeekBanner() {
       style={{ background: "linear-gradient(135deg, hsl(221 83% 96%), hsl(221 83% 92%))" }}>
       <div className="px-4 py-3 border-b border-[#1D4ED8]/10 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold text-[#1D4ED8]">이번 주 미션</span>
-          <span className="text-[10px] bg-[#1D4ED8] text-white px-1.5 py-0.5 rounded-full font-semibold">{data.currentWeek}주차</span>
+          <span className="text-xs font-bold text-[#1D4ED8]">이번 달 미션</span>
+          <span className="text-[10px] bg-[#1D4ED8] text-white px-1.5 py-0.5 rounded-full font-semibold">{DATE_LABEL[missionType]}</span>
         </div>
         {statusBadge}
       </div>
       <div className="px-4 py-3 flex items-center gap-3">
         <span className="text-2xl">{MISSION_TYPE_ICON[missionType]}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-[#1a2b4b] leading-snug">{currentWeekData.label}</p>
+          <p className="text-sm font-semibold text-[#1a2b4b] leading-snug">{currentWindow.label}</p>
           {!isAutoMission && <p className="text-[10px] text-gray-500 mt-0.5">카카오채널에 인증사진을 보내주세요</p>}
-          {isAutoMission && <p className="text-[10px] text-gray-500 mt-0.5">이번 주 출석 4일 이상 시 자동 달성</p>}
+          {isAutoMission && <p className="text-[10px] text-gray-500 mt-0.5">이번 달 1~7일 출석 4일 이상 시 자동 달성</p>}
         </div>
         {sub?.status !== "approved" && (
           <button

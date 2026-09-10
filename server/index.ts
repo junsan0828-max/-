@@ -722,6 +722,11 @@ async function initDatabase() {
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS gym_plus_mission_submissions_uniq
        ON gym_plus_mission_submissions ("gymPlusMemberId", "weekNumber")`,
+    `ALTER TABLE gym_plus_mission_submissions ADD COLUMN IF NOT EXISTS "periodKey" TEXT`,
+    `ALTER TABLE gym_plus_mission_submissions ALTER COLUMN "weekNumber" DROP NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS gym_plus_mission_submissions_period_uniq
+       ON gym_plus_mission_submissions ("gymPlusMemberId", "periodKey")
+       WHERE "periodKey" IS NOT NULL`,
   ];
   for (const stmt of alterStatements) {
     try {
