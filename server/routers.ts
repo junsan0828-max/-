@@ -5366,6 +5366,15 @@ ${dataContext}
           `UPDATE members SET "membershipEnd" = $1 WHERE id = $2`,
           [newEndStr, member.memberId]
         );
+        // 통합운영시스템 특이사항에 페이백 연장 이력 자동 추가
+        const noteLogLine = `[다이어트페이백] ${todayKst} 체중 ${input.weight}kg 확인 → +1개월 연장 (만료: ${newEndStr})`;
+        await pool.query(
+          `UPDATE members SET "profileNote" = CASE
+             WHEN "profileNote" IS NULL OR "profileNote" = '' THEN $1
+             ELSE "profileNote" || E'\n' || $1
+           END WHERE id = $2`,
+          [noteLogLine, member.memberId]
+        );
       }
 
       return { rewarded: true, rewardMonths: 1, threshold, extensionUntil: newEndStr };
