@@ -137,7 +137,7 @@ function MissionTab() {
   const { data, isLoading } = trpc.gymPlus.getWeeklyMissions.useQuery();
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
   const [weightInput, setWeightInput] = useState("");
-  const [resultMsg, setResultMsg] = useState<{ week: number; status: string; rewarded?: boolean; extensionUntil?: string } | null>(null);
+  const [resultMsg, setResultMsg] = useState<{ week: number; status: string; rewarded?: boolean; rewardMonths?: number; extensionUntil?: string } | null>(null);
 
   const logWeightMutation = trpc.gymPlus.logWeight.useMutation({
     onSuccess: (res) => {
@@ -179,7 +179,7 @@ function MissionTab() {
       submitMutation.mutate({ weekNumber: week.weekNumber });
       window.open(KAKAO_CHAT_URL, "_blank");
       if (weightRes?.rewarded && "extensionUntil" in weightRes) {
-        setResultMsg({ week: week.weekNumber, status: "pending", rewarded: true, extensionUntil: weightRes.extensionUntil as string });
+        setResultMsg({ week: week.weekNumber, status: "pending", rewarded: true, rewardMonths: (weightRes as any).rewardMonths, extensionUntil: weightRes.extensionUntil as string });
       }
     } else {
       submitMutation.mutate({ weekNumber: week.weekNumber });
@@ -216,7 +216,9 @@ function MissionTab() {
           {resultMsg.status === "rejected" && <p>❌ 미션 조건 미달성입니다. (출석 4일 미만)</p>}
           {resultMsg.status === "pending" && <p>📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다.</p>}
           {resultMsg.rewarded && resultMsg.extensionUntil && (
-            <p className="text-green-700 font-bold">🎉 1개월 감량 달성! 헬스권이 {resultMsg.extensionUntil}까지 연장되었습니다.</p>
+            <p className="text-green-700 font-bold">
+              🎉 감량 달성! {resultMsg.rewardMonths ?? 1}개월 연장 — 헬스권이 {resultMsg.extensionUntil}까지 연장되었습니다.
+            </p>
           )}
         </div>
       )}

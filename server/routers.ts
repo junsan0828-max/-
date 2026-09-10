@@ -5274,39 +5274,69 @@ ${dataContext}
       const member = memberRes.rows[0];
       if (!member?.programName || !member?.programStartDate) return { rewarded: false };
 
-      // 미션 세팅 (DB → 없으면 기본값)
-      const settingRows = await pool.query(
-        `SELECT key, value FROM gym_plus_settings WHERE key IN ('mission_weight_goal', 'mission_reward_months', 'mission_periods')`
+      // 인바디 주차(4/8/12주)에서만 페이백 계산
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const todayKst = kstNow.toISOString().slice(0, 10);
+      const startMs = new Date(member.programStartDate + "T00:00:00Z").getTime();
+      const todayMs = new Date(todayKst + "T00:00:00Z").getTime();
+      const daysSince = Math.floor((todayMs - startMs) / (1000 * 60 * 60 * 24));
+      const currentWeek = daysSince < 0 ? 0 : Math.floor(daysSince / 7) + 1;
+
+      const INBODY_WEEKS = [4, 8, 12];
+      if (!INBODY_WEEKS.includes(currentWeek)) return { rewarded: false };
+
+      const periodKey = `W${currentWeek}`;
+
+      // 이미 이 인바디 주차에 보상받았으면 중복 지급 방지
+      const existingRes = await pool.query(
+        `SELECT id FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "programName" = $2 AND "periodKey" = $3`,
+        [memberId, member.programName, periodKey]
       );
-      const settingMap = Object.fromEntries(settingRows.rows.map((r: any) => [r.key, r.value]));
-      const weightGoal = parseFloat(settingMap["mission_weight_goal"] ?? "1.0");
-      const rewardMonths = parseInt(settingMap["mission_reward_months"] ?? "1", 10);
-      const missionPeriods = parseInt(settingMap["mission_periods"] ?? String(MISSION_MAX_PERIOD), 10);
+      if (existingRes.rows[0]) return { rewarded: false };
 
-      // 회차는 달력월이 아니라 '프로그램 시작일 기준'으로 끊는다.
-      const anchor = parseYmd(member.programStartDate);
-      if (!anchor) return { rewarded: false };
-
-      const boundary = (i: number) => addMonthsKst(anchor, i).getTime();
-      const t = now.getTime();
-      let period = -1;
-      for (let i = 0; i <= missionPeriods; i++) {
-        if (t >= boundary(i) && t < boundary(i + 1)) { period = i; break; }
+      // 비교 기준 체중: 이전 인바디 주차의 체중 (4주차는 프로그램 최초 기록)
+      function addDaysStr(dateStr: string, days: number) {
+        const d = new Date(dateStr + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString();
       }
-      if (period < 1) return { rewarded: false };
+      const prevInbodyWeek = currentWeek - 4; // 0, 4, 8
+      let compareWeight: number;
+      if (prevInbodyWeek === 0) {
+        // 4주차: 프로그램 시작 후 최초 체중 기록
+        const firstRes = await pool.query(
+          `SELECT weight::float AS weight FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" ASC LIMIT 1`,
+          [memberId]
+        );
+        if (!firstRes.rows[0]) return { rewarded: false };
+        compareWeight = firstRes.rows[0].weight;
+      } else {
+        // 8/12주차: 직전 인바디 주차 기간 중 마지막 기록
+        const prevWeekStart = addDaysStr(member.programStartDate, (prevInbodyWeek - 1) * 7);
+        const prevWeekEnd = addDaysStr(member.programStartDate, prevInbodyWeek * 7);
+        const prevRes = await pool.query(
+          `SELECT weight::float AS weight FROM gym_plus_weight_logs
+           WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2 AND "loggedAt" < $3
+           ORDER BY "loggedAt" DESC LIMIT 1`,
+          [memberId, prevWeekStart, prevWeekEnd]
+        );
+        if (!prevRes.rows[0]) return { rewarded: false };
+        compareWeight = prevRes.rows[0].weight;
+      }
 
-      const periodKey = `M${period}`;
+      const kgLost = compareWeight - input.weight;
+      if (kgLost < 1.0) return { rewarded: false };
 
-      // 직전 회차의 마지막 체중과 비교
-      const prevLogRes = await pool.query(
-        `SELECT weight::float AS weight FROM gym_plus_weight_logs
-         WHERE "gymPlusMemberId" = $1 AND "loggedAt" >= $2 AND "loggedAt" < $3
-         ORDER BY "loggedAt" DESC LIMIT 1`,
-        [memberId, new Date(boundary(period - 1)).toISOString(), new Date(boundary(period)).toISOString()]
+      // 1kg당 1개월, 최대 9개월 총합 상한
+      const totalRes = await pool.query(
+        `SELECT COALESCE(SUM("rewardMonths"), 0)::int AS total FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "programName" = $2`,
+        [memberId, member.programName]
       );
-      if (!prevLogRes.rows[0]) return { rewarded: false };
-
-      if (prevLogRes.rows[0].weight - input.weight < weightGoal) return { rewarded: false };
+      const alreadyAwarded = totalRes.rows[0].total as number;
+      const MAX_TOTAL_MONTHS = 9;
+      const rawMonths = Math.floor(kgLost);
+      const rewardMonths = Math.min(rawMonths, MAX_TOTAL_MONTHS - alreadyAwarded);
+      if (rewardMonths <= 0) return { rewarded: false };
 
       const inserted = await pool.query(
         `INSERT INTO gym_plus_mission_rewards ("gymPlusMemberId", "programName", "periodKey", "rewardMonths")
@@ -5316,8 +5346,7 @@ ${dataContext}
       );
       if (inserted.rowCount === 0) return { rewarded: false };
 
-      // 회원권 만료일의 원본은 통합관리 members 테이블이다(memberMe 참고).
-      // 연결된 회원이 있으면 그 값을 기준으로 연장하고 양쪽 모두 갱신해야 앱에 반영된다.
+      // 회원권 만료일: 통합관리 members 테이블이 원본, 양쪽 동시 갱신
       let baseEndStr: string | null = member.membershipEnd ?? null;
       if (member.memberId) {
         const mainRes = await pool.query(
@@ -5326,11 +5355,10 @@ ${dataContext}
         baseEndStr = mainRes.rows[0]?.membershipEnd ?? baseEndStr;
       }
 
-      // 이미 만료됐거나 값이 없으면 오늘 기준으로 연장한다.
       const baseYmd = parseYmd(baseEndStr ?? "");
       const todayYmd = kstYmd(now);
       const from = baseYmd && ymdToUtc(baseYmd) > ymdToUtc(todayYmd) ? baseYmd : todayYmd;
-      const newEndStr = fmtYmd(addMonthsYmd(from, 1));
+      const newEndStr = fmtYmd(addMonthsYmd(from, rewardMonths));
 
       await pool.query(
         `UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`,
@@ -5343,7 +5371,7 @@ ${dataContext}
         );
       }
 
-      return { rewarded: true, period, extensionUntil: newEndStr };
+      return { rewarded: true, rewardMonths, extensionUntil: newEndStr };
     }),
 
   // ─── 미션 시스템 (관리자) ──────────────────────────────────────────────────────
