@@ -261,7 +261,48 @@ export const transferRouter = t.router({
           // Transfer the item to the new transferee member
           if (transfereeMemberId && contract.itemId) {
             if (contract.itemType === "pt_package") {
-              await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+              // PT 패키지 양도: 원본 패키지 정보 조회 → 잔여 세션/단가를 새 패키지로 복사 → 원본은 transferred 처리
+              const origPkg = await pool.query(
+                `SELECT "totalSessions", "usedSessions", "paymentAmount", "pricePerSession",
+                        "packageName", "trainerId", "startDate", "serviceSessions", "serviceSessionPrice", "paymentMethod"
+                 FROM pt_packages WHERE id = $1 LIMIT 1`,
+                [contract.itemId]
+              );
+              if (origPkg.rows[0]) {
+                const op = origPkg.rows[0];
+                const remaining = Math.max(0, (op.totalSessions ?? 0) - (op.usedSessions ?? 0));
+                const pricePerSess = op.pricePerSession
+                  ?? (op.paymentAmount && op.totalSessions ? Math.round(op.paymentAmount / op.totalSessions) : null);
+                // 양수인 새 패키지 생성
+                await pool.query(
+                  `INSERT INTO pt_packages
+                     ("memberId", "trainerId", "packageName", "totalSessions", "usedSessions",
+                      "paymentAmount", "pricePerSession", "startDate", "paymentMethod",
+                      "serviceSessions", "serviceSessionPrice", status, "createdAt", "updatedAt")
+                   VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,'active',$11,$11)`,
+                  [
+                    transfereeMemberId,
+                    op.trainerId,
+                    op.packageName ?? '웨이트피티',
+                    remaining,
+                    pricePerSess != null ? pricePerSess * remaining : null,
+                    pricePerSess,
+                    now,
+                    op.paymentMethod ?? '계좌이체',
+                    op.serviceSessions ?? 0,
+                    op.serviceSessionPrice ?? 0,
+                    now,
+                  ]
+                );
+                // 원본 패키지 → transferred 상태로 닫기
+                await pool.query(
+                  `UPDATE pt_packages SET status = 'transferred', "updatedAt" = $1 WHERE id = $2`,
+                  [now, contract.itemId]
+                );
+              } else {
+                // 원본 패키지 없으면 기존 방식(memberId 이전)으로 폴백
+                await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+              }
             } else if (contract.itemType === "membership") {
               await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
             } else if (contract.itemType === "locker") {
