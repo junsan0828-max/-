@@ -2452,6 +2452,37 @@ async function start() {
   }
 
 
+  // ── 이고원 PT 패키지 단가 설정 (결제금액/단가 없는 패키지 한정, 1회만) ──
+  try {
+    const igowon = await pool.query(
+      `SELECT m.id FROM members m WHERE m.name = '이고원' LIMIT 1`
+    );
+    if (igowon.rows[0]) {
+      const mid = igowon.rows[0].id;
+      const pkg = await pool.query(
+        `SELECT id, "totalSessions" FROM pt_packages
+         WHERE "memberId" = $1
+           AND COALESCE("paymentAmount", 0) = 0
+           AND COALESCE("pricePerSession", 0) = 0
+           AND status NOT IN ('refunded','transferred')
+         ORDER BY id DESC LIMIT 1`,
+        [mid]
+      );
+      if (pkg.rows[0]) {
+        const { id: pkgId, totalSessions } = pkg.rows[0];
+        const sessions = totalSessions ?? 8;
+        const paymentAmount = 48000 * sessions;
+        await pool.query(
+          `UPDATE pt_packages SET "paymentAmount" = $1, "pricePerSession" = 48000, "updatedAt" = now()::text WHERE id = $2`,
+          [paymentAmount, pkgId]
+        );
+        console.log(`🔧 이고원 PT 패키지(id=${pkgId}) 단가 설정: 48,000원/회, 결제금액 ${paymentAmount}원`);
+      }
+    }
+  } catch (e) {
+    console.error("이고원 PT 패키지 단가 설정 오류:", e);
+  }
+
   // ── 테스트 계정(01011111111) 주 회원 연결 (memberId 없을 때만) ──
   try {
     const testGpm = await pool.query(
