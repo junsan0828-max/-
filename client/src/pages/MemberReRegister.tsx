@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Dumbbell, Activity, Lock, Shirt, Search, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Dumbbell, Activity, Lock, Shirt, Search, X, AlertTriangle, Salad } from "lucide-react";
 
 function calcEndDateByPT(start: string, sessions: string): string {
   if (!start || !sessions) return "";
@@ -79,6 +79,11 @@ export default function MemberReRegister() {
   const [uniformMonths, setUniformMonths] = useState<number>(1);
   const [uniformEnd, setUniformEnd] = useState("");
   const [uniformPrice, setUniformPrice] = useState("");
+
+  // 다이어트
+  const [addDiet, setAddDiet] = useState(false);
+  const [dietStartWeight, setDietStartWeight] = useState("");
+  const [dietPrice, setDietPrice] = useState("");
 
   // 상담 담당자
   const [consultantId, setConsultantId] = useState("");
@@ -187,9 +192,10 @@ export default function MemberReRegister() {
     (addHealth && !isNaN(parseInt(healthPrice)) ? parseInt(healthPrice) : 0) +
     (addPt && !isServiceSession && !isNaN(parseInt(ptPrice)) ? parseInt(ptPrice) : 0) +
     (addLocker && !isNaN(parseInt(lockerPrice)) ? parseInt(lockerPrice) : 0) +
-    (addUniform && !isNaN(parseInt(uniformPrice)) ? parseInt(uniformPrice) : 0);
+    (addUniform && !isNaN(parseInt(uniformPrice)) ? parseInt(uniformPrice) : 0) +
+    (addDiet && !isNaN(parseInt(dietPrice)) ? parseInt(dietPrice) : 0);
 
-  const anySelected = addPt || addHealth || addLocker || addUniform;
+  const anySelected = addPt || addHealth || addLocker || addUniform || addDiet;
   // 잔여 PT 세션 (재등록 시 이전 패키지 소진 여부 경고용)
   const remainingPt = selectedMember ? ((selectedMember as any).ptSessions ?? 0) : 0;
   const ptStartConflict = addPt && remainingPt > 0 && (!membershipStart || membershipStart <= today);
@@ -221,7 +227,8 @@ export default function MemberReRegister() {
     if (addHealth && !healthMonths) { toast.error("헬스 이용 기간을 선택해주세요"); return; }
     if (addPt && !isServiceSession && !ptProgram) { toast.error("PT 프로그램명을 입력해주세요"); return; }
     if (addPt && !isServiceSession && !ptSessions) { toast.error("PT 횟수를 선택해주세요"); return; }
-    const hasPaidItem = (addPt && !isServiceSession) || addHealth || (addLocker && lockerPrice) || (addUniform && uniformPrice);
+    if (addDiet && !dietStartWeight) { toast.error("시작 체중을 입력해주세요"); return; }
+    const hasPaidItem = (addPt && !isServiceSession) || addHealth || (addLocker && lockerPrice) || (addUniform && uniformPrice) || addDiet;
     if (hasPaidItem && !paymentMethod) { toast.error("결제 방법을 선택해주세요"); return; }
     if (hasPaidItem && !paymentDate) { toast.error("결제일자를 입력해주세요"); return; }
     if (ptStartConflict) { toast.error(`이전 PT 잔여 ${remainingPt}회 있음. 새 패키지 시작일을 이전 패키지 완료 후 날짜로 설정해주세요.`); return; }
@@ -273,6 +280,10 @@ export default function MemberReRegister() {
         uniformEndDate: addUniform ? uniformEnd || undefined : undefined,
         uniformRentalType: addUniform ? (uniformPrice && parseInt(uniformPrice) > 0 ? "paid" : "service") : undefined,
         uniformPrice: addUniform ? (uniformPrice ? parseInt(uniformPrice) : 0) : undefined,
+        // 다이어트
+        addDiet: addDiet || undefined,
+        dietStartWeight: addDiet && dietStartWeight ? parseFloat(dietStartWeight) : undefined,
+        dietPrice: addDiet ? (dietPrice ? parseInt(dietPrice) : 0) : undefined,
       });
 
       toast.success("등록되었습니다.");
@@ -416,6 +427,7 @@ export default function MemberReRegister() {
                 { key: "pt", label: "PT 등록", sub: "PT 세션 등록", icon: Dumbbell, active: addPt, color: "primary", toggle: () => setAddPt(v => !v) },
                 { key: "locker", label: "락커", sub: "락커 배정", icon: Lock, active: addLocker, color: "amber", toggle: () => setAddLocker(v => !v) },
                 { key: "uniform", label: "운동복", sub: "운동복 대여", icon: Shirt, active: addUniform, color: "purple", toggle: () => setAddUniform(v => !v) },
+                { key: "diet", label: "다이어트", sub: "12주 + 감량 페이백", icon: Salad, active: addDiet, color: "teal", toggle: () => setAddDiet(v => !v) },
               ].map(({ key, label, sub, icon: Icon, active, color, toggle }) => (
                 <button key={key} type="button" onClick={toggle}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
@@ -710,6 +722,30 @@ export default function MemberReRegister() {
           </Card>
         )}
 
+        {/* ── 다이어트 프로그램 정보 ── */}
+        {addDiet && (
+          <Card className="bg-card border-teal-500/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-teal-400">다이어트 프로그램 정보</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">12주 프로그램 · 매월 마지막주 체중기록 · 1kg 감량마다 1개월 페이백 (최대 9개월)</p>
+              <div>
+                <Label className="text-xs text-muted-foreground">시작 체중 (kg) *</Label>
+                <Input type="number" step="0.1" min="0" value={dietStartWeight}
+                  onChange={e => setDietStartWeight(e.target.value)}
+                  placeholder="예: 75.5" className="bg-input border-border mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                <Input type="number" min="0" value={dietPrice}
+                  onChange={e => setDietPrice(e.target.value)}
+                  placeholder="0" className="bg-input border-border mt-1" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ── 서비스 내역 ── */}
         {(addPt || addHealth) && (
           <Card className="bg-card border-border">
@@ -898,6 +934,12 @@ export default function MemberReRegister() {
                   <div className="flex justify-between text-sm">
                     <span className="text-purple-400">운동복</span>
                     <span className="font-medium">{uniformPrice ? parseInt(uniformPrice).toLocaleString() : 0}원</span>
+                  </div>
+                )}
+                {addDiet && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-teal-400">다이어트 (12주)</span>
+                    <span className="font-medium">{dietPrice ? parseInt(dietPrice).toLocaleString() : 0}원</span>
                   </div>
                 )}
                 {unpaidAmount && parseInt(unpaidAmount) > 0 && (
