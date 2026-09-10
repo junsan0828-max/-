@@ -1340,8 +1340,6 @@ function TrainerDashboard() {
         );
       })()}
 
-      <QuickAskCard trainerName={trainerName} onNavigate={setLocation} />
-
       {/* 전체 기능 */}
       <div className="rounded-2xl bg-card border border-border overflow-hidden">
         <button onClick={() => setAllFeaturesOpen(v => !v)}

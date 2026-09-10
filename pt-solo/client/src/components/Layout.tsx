@@ -8,6 +8,7 @@ import {
   UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, BookMarked, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList, Layers, Globe,
 } from "lucide-react";
 import PageGuideModal, { hasGuide, syncServerDismissed } from "./PageGuideModal";
+import QuickAskFloat from "./QuickAskFloat";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -254,6 +255,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
       </div>
+      {!isAdmin && user?.username && (
+        <QuickAskFloat trainerName={user.username} />
+      )}
     </div>
   );
 }
