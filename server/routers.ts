@@ -2219,9 +2219,9 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
-  // 패키지 상태 변경 (진행/정지/완료/만료/환불)
+  // 패키지 상태 변경 (진행/정지/완료/만료/환불/양도)
   updateStatus: protectedProcedure
-    .input(z.object({ packageId: z.number(), status: z.enum(["active", "paused", "completed", "expired", "refunded"]) }))
+    .input(z.object({ packageId: z.number(), status: z.enum(["active", "paused", "completed", "expired", "refunded", "transferred"]) }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

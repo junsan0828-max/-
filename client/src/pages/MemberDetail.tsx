@@ -1533,9 +1533,9 @@ export default function MemberDetail({ memberId }: Props) {
 
                         {/* 상태 변경 버튼 */}
                         <div className="mt-3 flex gap-1.5 flex-wrap">
-                          {(["active","paused","completed","refunded"] as const).map((s) => {
-                            const labels: Record<string, string> = { active:"진행", paused:"정지", completed:"완료", refunded:"환불" };
-                            const colors: Record<string, string> = { active:"border-green-500/40 text-green-400", paused:"border-yellow-500/40 text-yellow-400", completed:"border-gray-500/40 text-gray-400", refunded:"border-red-500/40 text-red-400" };
+                          {(["active","paused","completed","transferred","refunded"] as const).map((s) => {
+                            const labels: Record<string, string> = { active:"진행", paused:"정지", completed:"완료", transferred:"양도", refunded:"환불" };
+                            const colors: Record<string, string> = { active:"border-green-500/40 text-green-400", paused:"border-yellow-500/40 text-yellow-400", completed:"border-gray-500/40 text-gray-400", transferred:"border-blue-500/40 text-blue-400", refunded:"border-red-500/40 text-red-400" };
                             const isCur = pkg.status === s;
                             return (
                               <button key={s} onClick={() => !isCur && updateStatusMutation.mutate({ packageId: pkg.id, status: s })}
