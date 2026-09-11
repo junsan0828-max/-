@@ -2536,6 +2536,26 @@ async function start() {
     console.error("테스트 계정 연결 오류:", e);
   }
 
+  // ── PT 가격 설정 보정 (0이거나 명백히 잘못된 값일 때만) ──
+  try {
+    await pool.query(`
+      UPDATE gym_settings SET
+        "weightPt10Price" = CASE WHEN "weightPt10Price" < 100000 THEN 500000  ELSE "weightPt10Price" END,
+        "weightPt20Price" = CASE WHEN "weightPt20Price" < 100000 THEN 960000  ELSE "weightPt20Price" END,
+        "weightPt30Price" = CASE WHEN "weightPt30Price" < 100000 THEN 1380000 ELSE "weightPt30Price" END,
+        "weightPt40Price" = CASE WHEN "weightPt40Price" < 100000 THEN 1760000 ELSE "weightPt40Price" END,
+        "weightPt50Price" = CASE WHEN "weightPt50Price" < 100000 THEN 2100000 ELSE "weightPt50Price" END,
+        "carePt10Price"   = CASE WHEN "carePt10Price"   < 100000 THEN 600000  ELSE "carePt10Price"   END,
+        "carePt20Price"   = CASE WHEN "carePt20Price"   < 100000 THEN 1060000 ELSE "carePt20Price"   END,
+        "carePt30Price"   = CASE WHEN "carePt30Price"   < 100000 THEN 1530000 ELSE "carePt30Price"   END,
+        "carePt40Price"   = CASE WHEN "carePt40Price"   < 100000 THEN 1960000 ELSE "carePt40Price"   END,
+        "carePt50Price"   = CASE WHEN "carePt50Price"   < 100000 THEN 2350000 ELSE "carePt50Price"   END
+    `);
+    console.log("🔧 PT 가격 설정 보정 완료 (100,000원 미만인 항목만 수정)");
+  } catch (e) {
+    console.error("PT 가격 설정 보정 오류:", e);
+  }
+
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
     try {
