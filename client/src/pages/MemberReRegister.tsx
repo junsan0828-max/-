@@ -106,7 +106,7 @@ export default function MemberReRegister() {
 
   const selectedMember = members.find(m => String(m.id) === selectedMemberId);
 
-  // 회원 선택 시 날짜 자동 기입
+  // 회원 선택 시 날짜 자동 기입 + 기존 락커 연동
   useEffect(() => {
     if (!selectedMember) return;
     const memberEnd = (selectedMember as any).membershipEnd ?? "";
@@ -116,7 +116,15 @@ export default function MemberReRegister() {
     setMembershipEnd(calcEndDateByMonths(autoStart, healthMonths));
     setLockerEnd(calcEndDateByMonths(autoStart, healthMonths));
     setUniformEnd(calcEndDateByMonths(autoStart, healthMonths));
-  }, [selectedMemberId]);
+    // 기존 락커 자동 연동
+    const existingLocker = (allLockers ?? []).find((l: any) => l.memberId === selectedMember.id);
+    if (existingLocker) {
+      setAddLocker(true);
+      setLockerId(String(existingLocker.id));
+    } else {
+      setLockerId("");
+    }
+  }, [selectedMemberId, allLockers]);
 
   // URL memberId pre-fill (헬스권 수정에서 진입)
   useEffect(() => {
@@ -174,7 +182,10 @@ export default function MemberReRegister() {
     if (price > 0) setUniformPrice(String(price));
   }, [gymSettings, addUniform]);
 
-  const availableLockers = (allLockers ?? []).filter((l: any) => !l.isOccupied);
+  // 비어있는 락커 + 선택된 회원이 현재 사용 중인 락커(연장용)
+  const availableLockers = (allLockers ?? []).filter(
+    (l: any) => !l.isOccupied || (selectedMemberId && l.memberId === parseInt(selectedMemberId))
+  );
   const lockerGroups: { branchId: number | null; name: string; lockers: any[] }[] = [];
   for (const l of availableLockers) {
     const bid = l.branchId ?? null;
