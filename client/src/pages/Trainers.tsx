@@ -13,7 +13,8 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { ChevronRight, Users, TrendingUp, UserPlus, BarChart3, ChevronLeft } from "lucide-react";
+import { ChevronRight, Users, TrendingUp, UserPlus, BarChart3, ChevronLeft, X, Phone } from "lucide-react";
+import { fmtPhone } from "@/lib/utils";
 
 function fmt(n: number) { return n.toLocaleString(); }
 
@@ -27,12 +28,111 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
+type ModalFilter = "all" | "rereg_done" | "rereg_planned" | "churn" | "undecided";
+
+function ExpiringMembersModal({ trainerId, trainerName, filter, onClose }: {
+  trainerId: number; trainerName: string; filter: ModalFilter; onClose: () => void;
+}) {
+  const [, setLocation] = useLocation();
+  const { data: members = [], isLoading } = trpc.admin.getTrainerExpiringMembers.useQuery({ trainerId });
+
+  const FILTER_LABELS: Record<ModalFilter, string> = {
+    all: "이번달 만료",
+    rereg_done: "재등록 완료",
+    rereg_planned: "재등록 예정",
+    churn: "이탈 예정",
+    undecided: "미정",
+  };
+
+  const filtered = filter === "all"
+    ? members.filter(m => m.category !== "next_month")
+    : members.filter(m => m.category === filter);
+
+  // 재등록 탭은 완료+예정 함께, 내부에서 구분
+  const showReregSplit = filter === "all" || filter === "rereg_done" || filter === "rereg_planned";
+  const reregDone = members.filter(m => m.category === "rereg_done");
+  const reregPlanned = members.filter(m => m.category === "rereg_planned");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="w-full max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div>
+            <p className="font-semibold text-sm">{trainerName} · {FILTER_LABELS[filter]}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{filtered.length}명</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-3 space-y-2">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">해당 회원이 없습니다</p>
+          ) : filter === "all" ? (
+            // 전체(이번달 만료): 카테고리별 그룹핑
+            <>
+              {reregDone.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-emerald-400 px-1 mb-1.5">재등록 완료 {reregDone.length}명</p>
+                  {reregDone.map(m => <MemberRow key={m.id} m={m} onNavigate={() => { setLocation(`/members/${m.id}`); onClose(); }} />)}
+                </div>
+              )}
+              {reregPlanned.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-blue-400 px-1 mb-1.5">재등록 예정 {reregPlanned.length}명</p>
+                  {reregPlanned.map(m => <MemberRow key={m.id} m={m} onNavigate={() => { setLocation(`/members/${m.id}`); onClose(); }} />)}
+                </div>
+              )}
+              {members.filter(m => m.category === "churn").length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-red-400 px-1 mb-1.5">이탈 예정 {members.filter(m => m.category === "churn").length}명</p>
+                  {members.filter(m => m.category === "churn").map(m => <MemberRow key={m.id} m={m} onNavigate={() => { setLocation(`/members/${m.id}`); onClose(); }} />)}
+                </div>
+              )}
+              {members.filter(m => m.category === "undecided").length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-muted-foreground px-1 mb-1.5">미정 {members.filter(m => m.category === "undecided").length}명</p>
+                  {members.filter(m => m.category === "undecided").map(m => <MemberRow key={m.id} m={m} onNavigate={() => { setLocation(`/members/${m.id}`); onClose(); }} />)}
+                </div>
+              )}
+            </>
+          ) : (
+            filtered.map(m => <MemberRow key={m.id} m={m} onNavigate={() => { setLocation(`/members/${m.id}`); onClose(); }} />)
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MemberRow({ m, onNavigate }: { m: any; onNavigate: () => void }) {
+  const categoryColor: Record<string, string> = {
+    rereg_done: "text-emerald-400",
+    rereg_planned: "text-blue-400",
+    churn: "text-red-400",
+    undecided: "text-muted-foreground",
+  };
+  return (
+    <button onClick={onNavigate} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-background border border-border hover:border-primary/40 transition-colors text-left">
+      <div>
+        <p className="text-sm font-medium">{m.name}</p>
+        {m.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Phone className="h-3 w-3" />{fmtPhone(m.phone)}</p>}
+      </div>
+      <div className="text-right">
+        <p className="text-xs text-muted-foreground">잔여 {m.remaining}회</p>
+        {m.membershipEnd && <p className="text-[11px] text-muted-foreground">{m.membershipEnd}</p>}
+      </div>
+    </button>
+  );
+}
+
 function TrainerList() {
   const [, setLocation] = useLocation();
   const { data: trainers, isLoading, refetch } = trpc.admin.listTrainers.useQuery();
   const { data: branchList } = trpc.admin.listBranches.useQuery();
   const { data: expiringSummary } = trpc.admin.getTrainersExpiringSummary.useQuery();
   const [createOpen, setCreateOpen] = useState(false);
+  const [modal, setModal] = useState<{ trainerId: number; trainerName: string; filter: ModalFilter } | null>(null);
   const [form, setForm] = useState({
     username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none",
   });
@@ -148,7 +248,7 @@ function TrainerList() {
           {trainers.map((trainer) => {
             const exp = expiringSummary?.[trainer.id];
             const hasExpiring = exp && exp.total > 0;
-            const undecided = hasExpiring ? exp.total - exp.rereg - exp.churn : 0;
+            const undecided = hasExpiring ? exp.total - exp.rereg - (exp.reregDone ?? 0) - exp.churn : 0;
             const nextMonthExp = exp?.nextMonth ?? 0;
             return (
               <button key={trainer.id} onClick={() => setLocation(`/trainers/${trainer.id}`)}
@@ -172,24 +272,34 @@ function TrainerList() {
                       {(hasExpiring || nextMonthExp > 0) && (
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {hasExpiring && (
-                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/25 font-medium">
+                            <button type="button" onClick={e => { e.stopPropagation(); setModal({ trainerId: trainer.id, trainerName: trainer.trainerName, filter: "all" }); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/25 font-medium hover:bg-purple-500/25 transition-colors">
                               이번달 만료 {exp.total}명
-                            </span>
+                            </button>
+                          )}
+                          {(exp?.reregDone ?? 0) > 0 && (
+                            <button type="button" onClick={e => { e.stopPropagation(); setModal({ trainerId: trainer.id, trainerName: trainer.trainerName, filter: "rereg_done" }); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-colors">
+                              재등록 완료 {exp.reregDone}명
+                            </button>
                           )}
                           {exp?.rereg > 0 && (
-                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                              재등록 {exp.rereg}명
-                            </span>
+                            <button type="button" onClick={e => { e.stopPropagation(); setModal({ trainerId: trainer.id, trainerName: trainer.trainerName, filter: "rereg_planned" }); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 transition-colors">
+                              재등록 예정 {exp.rereg}명
+                            </button>
                           )}
                           {exp?.churn > 0 && (
-                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/25">
+                            <button type="button" onClick={e => { e.stopPropagation(); setModal({ trainerId: trainer.id, trainerName: trainer.trainerName, filter: "churn" }); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 transition-colors">
                               이탈 {exp.churn}명
-                            </span>
+                            </button>
                           )}
                           {undecided > 0 && (
-                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-muted/40 text-muted-foreground border border-border">
+                            <button type="button" onClick={e => { e.stopPropagation(); setModal({ trainerId: trainer.id, trainerName: trainer.trainerName, filter: "undecided" }); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded-md bg-muted/40 text-muted-foreground border border-border hover:bg-muted/60 transition-colors">
                               미정 {undecided}명
-                            </span>
+                            </button>
                           )}
                           {nextMonthExp > 0 && (
                             <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 font-medium">
@@ -206,6 +316,14 @@ function TrainerList() {
             );
           })}
         </div>
+      )}
+      {modal && (
+        <ExpiringMembersModal
+          trainerId={modal.trainerId}
+          trainerName={modal.trainerName}
+          filter={modal.filter}
+          onClose={() => setModal(null)}
+        />
       )}
     </div>
   );

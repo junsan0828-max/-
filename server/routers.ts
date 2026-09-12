@@ -4553,7 +4553,7 @@ const adminRouter = t.router({
       const nmStart = nextMonthStart.toISOString().substring(0, 10);
       const nmEnd = nextMonthEnd.toISOString().substring(0, 10);
 
-      const byTrainer: Record<number, { total: number; rereg: number; churn: number }> = {};
+      const byTrainer: Record<number, { total: number; rereg: number; reregDone: number; churn: number }> = {};
       const byTrainerNext: Record<number, number> = {};
       for (const m of allActiveMembers) {
         if (!m.trainerId) continue;
@@ -4563,14 +4563,18 @@ const adminRouter = t.router({
         if (!latest) continue;
         const remaining = (latest.totalSessions ?? 0) - (latest.usedSessions ?? 0);
         const hasNewer = pkgs.some(p => p.id !== latest.id && (p.startDate ?? "") > (latest.startDate ?? ""));
-        if (hasNewer) continue;
 
         if (remaining <= threshold || latest.status !== "active") {
-          if (!byTrainer[m.trainerId]) byTrainer[m.trainerId] = { total: 0, rereg: 0, churn: 0 };
-          byTrainer[m.trainerId].total++;
-          if (m.renewalIntent === "재등록예정") byTrainer[m.trainerId].rereg++;
-          if (m.renewalIntent === "이탈예정") byTrainer[m.trainerId].churn++;
-        } else if (latest.expiryDate && latest.expiryDate >= nmStart && latest.expiryDate <= nmEnd) {
+          if (!byTrainer[m.trainerId]) byTrainer[m.trainerId] = { total: 0, rereg: 0, reregDone: 0, churn: 0 };
+          if (hasNewer) {
+            byTrainer[m.trainerId].total++;
+            byTrainer[m.trainerId].reregDone++;
+          } else {
+            byTrainer[m.trainerId].total++;
+            if (m.renewalIntent === "재등록예정") byTrainer[m.trainerId].rereg++;
+            if (m.renewalIntent === "이탈예정") byTrainer[m.trainerId].churn++;
+          }
+        } else if (!hasNewer && latest.expiryDate && latest.expiryDate >= nmStart && latest.expiryDate <= nmEnd) {
           byTrainerNext[m.trainerId] = (byTrainerNext[m.trainerId] ?? 0) + 1;
         }
       }
@@ -4580,11 +4584,73 @@ const adminRouter = t.router({
         trainerId: tid,
         total: byTrainer[tid]?.total ?? 0,
         rereg: byTrainer[tid]?.rereg ?? 0,
+        reregDone: byTrainer[tid]?.reregDone ?? 0,
         churn: byTrainer[tid]?.churn ?? 0,
         nextMonth: byTrainerNext[tid] ?? 0,
       }));
 
       return Object.fromEntries(summary.map(s => [s.trainerId, s]));
+    }),
+
+  // 트레이너 만료 회원 상세 목록 (모달용)
+  getTrainerExpiringMembers: protectedProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const threshold = 5;
+
+      const activeMembers = await db.select({
+        id: members.id, name: members.name, phone: members.phone,
+        membershipEnd: members.membershipEnd, renewalIntent: members.renewalIntent,
+      }).from(members).where(and(eq(members.status, "active"), eq(members.trainerId, input.trainerId)));
+
+      const memberIds = activeMembers.map(m => m.id);
+      const allPkgs = memberIds.length > 0
+        ? await db.select({
+            id: ptPackages.id, memberId: ptPackages.memberId,
+            totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions,
+            status: ptPackages.status, startDate: ptPackages.startDate, expiryDate: ptPackages.expiryDate,
+          }).from(ptPackages).where(inArray(ptPackages.memberId, memberIds))
+        : [];
+
+      const today = kstDate();
+      const todayD = new Date(today + "T00:00:00");
+      const nmStart = new Date(todayD.getFullYear(), todayD.getMonth() + 1, 1).toISOString().substring(0, 10);
+      const nmEnd = new Date(todayD.getFullYear(), todayD.getMonth() + 2, 0).toISOString().substring(0, 10);
+
+      type Category = "rereg_done" | "rereg_planned" | "churn" | "undecided" | "next_month";
+      const result: Array<{
+        id: number; name: string; phone: string | null;
+        membershipEnd: string | null; renewalIntent: string | null;
+        remaining: number; category: Category;
+      }> = [];
+
+      for (const m of activeMembers) {
+        const pkgs = allPkgs.filter(p => p.memberId === m.id)
+          .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? "") || b.id - a.id);
+        const latest = pkgs[0];
+        if (!latest) continue;
+        const remaining = (latest.totalSessions ?? 0) - (latest.usedSessions ?? 0);
+        const hasNewer = pkgs.some(p => p.id !== latest.id && (p.startDate ?? "") > (latest.startDate ?? ""));
+
+        let category: Category;
+        if (remaining <= threshold || latest.status !== "active") {
+          if (hasNewer) category = "rereg_done";
+          else if (m.renewalIntent === "재등록예정") category = "rereg_planned";
+          else if (m.renewalIntent === "이탈예정") category = "churn";
+          else category = "undecided";
+        } else if (latest.expiryDate && latest.expiryDate >= nmStart && latest.expiryDate <= nmEnd) {
+          category = "next_month";
+        } else continue;
+
+        result.push({ id: m.id, name: m.name, phone: m.phone ?? null, membershipEnd: m.membershipEnd ?? null, renewalIntent: m.renewalIntent ?? null, remaining, category });
+      }
+
+      return result;
     }),
 
   mergeDuplicateMembers: protectedProcedure
