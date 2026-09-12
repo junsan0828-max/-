@@ -619,17 +619,23 @@ export default function TrainerDetail({ trainerId }: Props) {
                         </span>
                       </div>
                       {m.renewalIntent && (
-                        <span className={`text-[11px] ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : "text-red-400"}`}>
-                          {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : "✘ 이탈 예정"}
+                        <span className={`text-[11px] ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : m.renewalIntent === "이월" ? "text-cyan-400" : "text-red-400"}`}>
+                          {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : m.renewalIntent === "이월" ? "↩ 이월" : "✘ 이탈 예정"}
                         </span>
                       )}
                     </div>
-                    <div className="flex gap-1.5 shrink-0">
+                    <div className="flex gap-1.5 shrink-0 flex-wrap">
                       <button
                         onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "재등록예정" ? null : "재등록예정" })}
                         className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "재등록예정" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"}`}
                       >
                         재등록
+                      </button>
+                      <button
+                        onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이월" ? null : "이월" })}
+                        className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "이월" ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" : "border-border text-muted-foreground hover:border-cyan-500/50 hover:text-cyan-400"}`}
+                      >
+                        이월
                       </button>
                       <button
                         onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이탈예정" ? null : "이탈예정" })}

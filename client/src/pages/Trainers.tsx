@@ -28,7 +28,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-type ModalFilter = "all" | "rereg_done" | "rereg_planned" | "churn" | "undecided";
+type ModalFilter = "all" | "rereg_done" | "rereg_planned" | "churn" | "carryOver" | "undecided";
 
 function ExpiringMembersModal({ trainerId, trainerName, filter, onClose }: {
   trainerId: number; trainerName: string; filter: ModalFilter; onClose: () => void;
@@ -41,6 +41,7 @@ function ExpiringMembersModal({ trainerId, trainerName, filter, onClose }: {
     rereg_done: "재등록 완료",
     rereg_planned: "재등록 예정",
     churn: "이탈 예정",
+    carryOver: "이월",
     undecided: "미정",
   };
 
@@ -87,6 +88,12 @@ function ExpiringMembersModal({ trainerId, trainerName, filter, onClose }: {
                 <div>
                   <p className="text-[11px] font-semibold text-red-400 px-1 mb-1.5">이탈 예정 {members.filter(m => m.category === "churn").length}명</p>
                   {members.filter(m => m.category === "churn").map(m => <MemberRow key={m.id} m={m} onNavigate={() => { setLocation(`/members/${m.id}`); onClose(); }} />)}
+                </div>
+              )}
+              {members.filter(m => m.category === "carryOver").length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-cyan-400 px-1 mb-1.5">이월 {members.filter(m => m.category === "carryOver").length}명</p>
+                  {members.filter(m => m.category === "carryOver").map(m => <MemberRow key={m.id} m={m} onNavigate={() => { setLocation(`/members/${m.id}`); onClose(); }} />)}
                 </div>
               )}
               {members.filter(m => m.category === "undecided").length > 0 && (
@@ -248,7 +255,7 @@ function TrainerList() {
           {trainers.map((trainer) => {
             const exp = expiringSummary?.[trainer.id];
             const hasExpiring = exp && exp.total > 0;
-            const undecided = hasExpiring ? exp.total - exp.rereg - (exp.reregDone ?? 0) - exp.churn : 0;
+            const undecided = hasExpiring ? exp.total - exp.rereg - (exp.reregDone ?? 0) - exp.churn - (exp.carryOver ?? 0) : 0;
             const nextMonthExp = exp?.nextMonth ?? 0;
             return (
               <button key={trainer.id} onClick={() => setLocation(`/trainers/${trainer.id}`)}
@@ -293,6 +300,12 @@ function TrainerList() {
                             <button type="button" onClick={e => { e.stopPropagation(); setModal({ trainerId: trainer.id, trainerName: trainer.trainerName, filter: "churn" }); }}
                               className="text-[11px] px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 transition-colors">
                               이탈 {exp.churn}명
+                            </button>
+                          )}
+                          {(exp?.carryOver ?? 0) > 0 && (
+                            <button type="button" onClick={e => { e.stopPropagation(); setModal({ trainerId: trainer.id, trainerName: trainer.trainerName, filter: "carryOver" }); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded-md bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500/25 transition-colors">
+                              이월 {exp.carryOver}명
                             </button>
                           )}
                           {undecided > 0 && (

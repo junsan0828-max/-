@@ -4553,7 +4553,7 @@ const adminRouter = t.router({
       const nmStart = nextMonthStart.toISOString().substring(0, 10);
       const nmEnd = nextMonthEnd.toISOString().substring(0, 10);
 
-      const byTrainer: Record<number, { total: number; rereg: number; reregDone: number; churn: number }> = {};
+      const byTrainer: Record<number, { total: number; rereg: number; reregDone: number; churn: number; carryOver: number }> = {};
       const byTrainerNext: Record<number, number> = {};
       for (const m of allActiveMembers) {
         if (!m.trainerId) continue;
@@ -4565,14 +4565,15 @@ const adminRouter = t.router({
         const hasNewer = pkgs.some(p => p.id !== latest.id && (p.startDate ?? "") > (latest.startDate ?? ""));
 
         if (remaining <= threshold || latest.status !== "active") {
-          if (!byTrainer[m.trainerId]) byTrainer[m.trainerId] = { total: 0, rereg: 0, reregDone: 0, churn: 0 };
+          if (!byTrainer[m.trainerId]) byTrainer[m.trainerId] = { total: 0, rereg: 0, reregDone: 0, churn: 0, carryOver: 0 };
           if (hasNewer) {
             byTrainer[m.trainerId].total++;
             byTrainer[m.trainerId].reregDone++;
           } else {
             byTrainer[m.trainerId].total++;
             if (m.renewalIntent === "재등록예정") byTrainer[m.trainerId].rereg++;
-            if (m.renewalIntent === "이탈예정") byTrainer[m.trainerId].churn++;
+            else if (m.renewalIntent === "이탈예정") byTrainer[m.trainerId].churn++;
+            else if (m.renewalIntent === "이월") byTrainer[m.trainerId].carryOver++;
           }
         } else if (!hasNewer && latest.expiryDate && latest.expiryDate >= nmStart && latest.expiryDate <= nmEnd) {
           byTrainerNext[m.trainerId] = (byTrainerNext[m.trainerId] ?? 0) + 1;
@@ -4586,6 +4587,7 @@ const adminRouter = t.router({
         rereg: byTrainer[tid]?.rereg ?? 0,
         reregDone: byTrainer[tid]?.reregDone ?? 0,
         churn: byTrainer[tid]?.churn ?? 0,
+        carryOver: byTrainer[tid]?.carryOver ?? 0,
         nextMonth: byTrainerNext[tid] ?? 0,
       }));
 
@@ -4622,7 +4624,7 @@ const adminRouter = t.router({
       const nmStart = new Date(todayD.getFullYear(), todayD.getMonth() + 1, 1).toISOString().substring(0, 10);
       const nmEnd = new Date(todayD.getFullYear(), todayD.getMonth() + 2, 0).toISOString().substring(0, 10);
 
-      type Category = "rereg_done" | "rereg_planned" | "churn" | "undecided" | "next_month";
+      type Category = "rereg_done" | "rereg_planned" | "churn" | "carryOver" | "undecided" | "next_month";
       const result: Array<{
         id: number; name: string; phone: string | null;
         membershipEnd: string | null; renewalIntent: string | null;
@@ -4642,6 +4644,7 @@ const adminRouter = t.router({
           if (hasNewer) category = "rereg_done";
           else if (m.renewalIntent === "재등록예정") category = "rereg_planned";
           else if (m.renewalIntent === "이탈예정") category = "churn";
+          else if (m.renewalIntent === "이월") category = "carryOver";
           else category = "undecided";
         } else if (latest.expiryDate && latest.expiryDate >= nmStart && latest.expiryDate <= nmEnd) {
           category = "next_month";
