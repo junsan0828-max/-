@@ -7,6 +7,13 @@ import { membershipTypeLabel } from "@/lib/membership";
 
 const KAKAO_CHAT_URL = "http://pf.kakao.com/_ZZxais/chat";
 
+const MISSION_HINT: Record<string, string> = {
+  attendance: "이번 달 1~7일 출석 4일 이상 시 자동 달성",
+  cardio: "운동탭에서 유산소운동 2회 기록 시 자동 달성",
+  diet: "카카오채널에 식단 사진을 보내주세요",
+  inbody: "카카오채널에 인바디 사진을 보내주세요",
+};
+
 const MISSION_TYPE_ICON: Record<string, string> = {
   attendance: "🏃",
   cardio: "💧",
@@ -16,11 +23,16 @@ const MISSION_TYPE_ICON: Record<string, string> = {
 
 function MissionWeekBanner() {
   const utils = trpc.useUtils();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { data } = trpc.gymPlus.getWeeklyMissions.useQuery();
   const submitMut = trpc.gymPlus.submitWeeklyMission.useMutation({
     onSuccess: () => {
+      setErrorMsg(null);
       utils.gymPlus.getWeeklyMissions.invalidate();
-      window.open(KAKAO_CHAT_URL, "_blank");
+    },
+    onError: (err) => {
+      setErrorMsg(err.message || "미션 제출에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      utils.gymPlus.getWeeklyMissions.invalidate();
     },
   });
 
@@ -31,16 +43,14 @@ function MissionWeekBanner() {
 
   const sub = currentWindow.submission;
   const missionType = currentWindow.type;
-  const isAutoMission = missionType === "attendance";
+  // 출석·유산소는 기록을 서버가 자동 확인한다. 식단·인바디만 카카오채널 인증이 필요하다.
+  const isAutoMission = missionType === "attendance" || missionType === "cardio";
 
   function handleCertify() {
+    setErrorMsg(null);
     if (sub) { window.open(KAKAO_CHAT_URL, "_blank"); return; }
-    if (isAutoMission) {
-      submitMut.mutate({ missionType: "attendance" });
-    } else {
-      submitMut.mutate({ missionType: missionType as any });
-      window.open(KAKAO_CHAT_URL, "_blank");
-    }
+    submitMut.mutate({ missionType: missionType as any });
+    if (!isAutoMission) window.open(KAKAO_CHAT_URL, "_blank");
   }
 
   const DATE_LABEL: Record<string, string> = {
@@ -70,8 +80,7 @@ function MissionWeekBanner() {
         <span className="text-2xl">{MISSION_TYPE_ICON[missionType]}</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-[#1a2b4b] leading-snug">{currentWindow.label}</p>
-          {!isAutoMission && <p className="text-[10px] text-gray-500 mt-0.5">카카오채널에 인증사진을 보내주세요</p>}
-          {isAutoMission && <p className="text-[10px] text-gray-500 mt-0.5">이번 달 1~7일 출석 4일 이상 시 자동 달성</p>}
+          <p className="text-[10px] text-gray-500 mt-0.5">{MISSION_HINT[missionType]}</p>
         </div>
         {sub?.status !== "approved" && (
           <button
@@ -80,10 +89,17 @@ function MissionWeekBanner() {
             className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50 transition-opacity"
             style={{ background: "hsl(221 83% 44%)" }}
           >
-            {isAutoMission ? "출석확인" : "인증하기"}
+            {submitMut.isPending ? "확인 중..." : isAutoMission ? "기록확인" : "인증하기"}
           </button>
         )}
       </div>
+      {errorMsg && (
+        <div className="px-4 pb-3 -mt-1">
+          <p className="text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            ⚠️ {errorMsg}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

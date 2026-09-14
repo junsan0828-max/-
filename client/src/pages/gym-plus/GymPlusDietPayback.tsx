@@ -191,12 +191,16 @@ function MissionTab() {
   const { data, isLoading } = trpc.gymPlus.getWeeklyMissions.useQuery();
   const [activePeriodKey, setActivePeriodKey] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState("");
-  const [resultMsg, setResultMsg] = useState<{ periodKey: string; status: string; rewarded?: boolean; extensionUntil?: string } | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [resultMsg, setResultMsg] = useState<{ periodKey: string; status: string; rewarded?: boolean; extensionUntil?: string; syncFailed?: boolean } | null>(null);
 
   const logWeightMutation = trpc.gymPlus.logWeight.useMutation({
     onSuccess: () => {
       utils.gymPlus.getMissionStatus.invalidate();
       utils.gymPlus.getDietProgramReport.invalidate();
+    },
+    onError: (err) => {
+      setErrorMsg(err.message || "체중 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     },
   });
 
@@ -204,7 +208,12 @@ function MissionTab() {
     onSuccess: (res) => {
       setActivePeriodKey(null);
       setWeightInput("");
+      setErrorMsg(null);
       setResultMsg({ periodKey: res.periodKey, status: res.status });
+      utils.gymPlus.getWeeklyMissions.invalidate();
+    },
+    onError: (err) => {
+      setErrorMsg(err.message || "미션 제출에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       utils.gymPlus.getWeeklyMissions.invalidate();
     },
   });
@@ -219,14 +228,27 @@ function MissionTab() {
   }
 
   async function handleSubmit(missionType: string, periodKey: string) {
+    setErrorMsg(null);
     if (missionType === "inbody") {
       const w = parseFloat(weightInput);
-      if (isNaN(w) || w < 20 || w > 300) return;
-      const weightRes = await logWeightMutation.mutateAsync({ weight: w, note: `${periodKey} 인바디` });
+      if (isNaN(w) || w < 20 || w > 300) {
+        setErrorMsg("체중을 20~300kg 사이로 입력해 주세요.");
+        return;
+      }
+      let weightRes;
+      try {
+        weightRes = await logWeightMutation.mutateAsync({ weight: w, note: `${periodKey} 인바디` });
+      } catch {
+        return; // onError에서 메시지 표시. 저장 실패 시 미션 제출로 넘어가지 않는다.
+      }
       submitMutation.mutate({ missionType: missionType as any });
       window.open(KAKAO_CHAT_URL, "_blank");
       if (weightRes?.rewarded && "extensionUntil" in weightRes) {
-        setResultMsg({ periodKey, status: "pending", rewarded: true, extensionUntil: weightRes.extensionUntil as string });
+        setResultMsg({
+          periodKey, status: "pending", rewarded: true,
+          extensionUntil: weightRes.extensionUntil as string,
+          syncFailed: "syncFailed" in weightRes ? Boolean(weightRes.syncFailed) : false,
+        });
       }
     } else if (missionType === "attendance" || missionType === "cardio") {
       submitMutation.mutate({ missionType: missionType as any });
@@ -338,6 +360,17 @@ function MissionTab() {
         </div>
       )}
 
+      {errorMsg && (
+        <div className="rounded-2xl p-4 text-sm font-medium bg-red-50 text-red-700 border border-red-200 flex items-start gap-2">
+          <span className="shrink-0">⚠️</span>
+          <div className="flex-1">
+            <p>{errorMsg}</p>
+            <p className="text-[11px] text-red-500 mt-1">문제가 계속되면 데스크에 문의해 주세요.</p>
+          </div>
+          <button onClick={() => setErrorMsg(null)} className="shrink-0 text-red-400 text-xs">닫기</button>
+        </div>
+      )}
+
       {resultMsg && (
         <div className={`rounded-2xl p-4 text-sm font-medium space-y-1 ${
           resultMsg.status === "approved" ? "bg-green-50 text-green-700 border border-green-200" :
@@ -353,6 +386,11 @@ function MissionTab() {
           {resultMsg.status === "pending" && <p>📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다.</p>}
           {resultMsg.rewarded && resultMsg.extensionUntil && (
             <p className="font-bold">🎉 감량 달성! 헬스권이 {resultMsg.extensionUntil}까지 1개월 연장되었습니다.</p>
+          )}
+          {resultMsg.rewarded && resultMsg.syncFailed && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-1">
+              ⚠️ 회원 정보 연결이 확인되지 않아 데스크 확인이 필요합니다. 방문 시 직원에게 알려주세요.
+            </p>
           )}
         </div>
       )}

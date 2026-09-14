@@ -5268,7 +5268,8 @@ ${dataContext}
       );
 
       const memberRes = await pool.query(
-        `SELECT "programName", "programStartDate", "membershipEnd", "memberId" FROM gym_plus_members WHERE id = $1`,
+        `SELECT "programName", "programStartDate", "membershipEnd", "memberId", phone, username
+         FROM gym_plus_members WHERE id = $1`,
         [memberId]
       );
       const member = memberRes.rows[0];
@@ -5343,11 +5344,34 @@ ${dataContext}
       );
       if (inserted.rowCount === 0) return { rewarded: false };
 
+      // 연장을 반영할 통합관리 members.id 확정.
+      // memberId 연결이 비어 있으면 전화번호로 찾아 연결한다. 연결이 끊긴 회원의 페이백이
+      // 통합운영시스템에 반영되지 않고 조용히 사라지는 것을 막는다.
+      let targetMemberId: number | null = member.memberId ?? null;
+      if (!targetMemberId) {
+        const digits = String(member.phone || member.username || "").replace(/\D/g, "");
+        if (digits.length >= 4) {
+          const matched = await pool.query(
+            `SELECT id FROM members
+             WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1
+             ORDER BY (status = 'active') DESC, id DESC LIMIT 1`,
+            [digits]
+          );
+          targetMemberId = matched.rows[0]?.id ?? null;
+          if (targetMemberId) {
+            await pool.query(
+              `UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2 AND "memberId" IS NULL`,
+              [targetMemberId, memberId]
+            );
+          }
+        }
+      }
+
       // 회원권 만료일: 통합관리 members 테이블이 원본, 양쪽 동시 갱신
       let baseEndStr: string | null = member.membershipEnd ?? null;
-      if (member.memberId) {
+      if (targetMemberId) {
         const mainRes = await pool.query(
-          `SELECT "membershipEnd" FROM members WHERE id = $1`, [member.memberId]
+          `SELECT "membershipEnd" FROM members WHERE id = $1`, [targetMemberId]
         );
         baseEndStr = mainRes.rows[0]?.membershipEnd ?? baseEndStr;
       }
@@ -5361,23 +5385,32 @@ ${dataContext}
         `UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`,
         [newEndStr, memberId]
       );
-      if (member.memberId) {
-        await pool.query(
-          `UPDATE members SET "membershipEnd" = $1 WHERE id = $2`,
-          [newEndStr, member.memberId]
-        );
-        // 통합운영시스템 특이사항에 페이백 연장 이력 자동 추가
+      if (targetMemberId) {
+        // 통합운영시스템 만료일 + 특이사항 이력을 한 번에 갱신
         const noteLogLine = `[다이어트페이백] ${todayKst} 체중 ${input.weight}kg 확인 → +1개월 연장 (만료: ${newEndStr})`;
         await pool.query(
-          `UPDATE members SET "profileNote" = CASE
-             WHEN "profileNote" IS NULL OR "profileNote" = '' THEN $1
-             ELSE "profileNote" || E'\n' || $1
-           END WHERE id = $2`,
-          [noteLogLine, member.memberId]
+          `UPDATE members SET
+             "membershipEnd" = $1,
+             "profileNote" = CASE
+               WHEN "profileNote" IS NULL OR "profileNote" = '' THEN $2
+               ELSE "profileNote" || E'\n' || $2
+             END
+           WHERE id = $3`,
+          [newEndStr, noteLogLine, targetMemberId]
+        );
+      } else {
+        console.error(
+          `⚠️ 페이백 연동 실패: gym_plus_members.id=${memberId} 를 통합관리 members와 연결하지 못했습니다. 수동 확인 필요.`
         );
       }
 
-      return { rewarded: true, rewardMonths: 1, threshold, extensionUntil: newEndStr };
+      return {
+        rewarded: true,
+        rewardMonths: 1,
+        threshold,
+        extensionUntil: newEndStr,
+        syncFailed: !targetMemberId,
+      };
     }),
 
   // ─── 미션 시스템 (관리자) ──────────────────────────────────────────────────────
