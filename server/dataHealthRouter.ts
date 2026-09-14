@@ -357,6 +357,108 @@ export const dataHealthRouter = t.router({
       rows: trainerMismatch.rows,
     });
 
+    // ④-3c-1 패키지 횟수가 "산 횟수"보다 적음 — 자동 보정이 깎았을 수 있는 건.
+    //     매출(revenue_entries)의 sessions·serviceSessions는 startup 자동 보정이 건드린
+    //     적이 없어서 원본으로 쓸 수 있다. 반대로 pt_packages.totalSessions는 과거
+    //     "서비스세션 이중계산 보정"이 재시작마다 반으로 줄이는 버그가 있었다
+    //     (8회 → 4회 → 2회). 그 흔적을 여기서 드러낸다.
+    const sessionsShort = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName",'(없음)') AS "트레이너",
+             p.id AS "패키지ID", p."packageName" AS "프로그램",
+             p."totalSessions" AS "현재총횟수",
+             (COALESCE(r.sessions,0) + COALESCE(r."serviceSessions",0)) AS "매출기준총횟수",
+             ((COALESCE(r.sessions,0) + COALESCE(r."serviceSessions",0)) - p."totalSessions") AS "부족한횟수",
+             COALESCE(p."usedSessions",0) AS "저장된사용", logs.cnt AS "수업일지",
+             p."startDate" AS "시작일", p.status AS "상태"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers t ON t.id = p."trainerId"
+      JOIN revenue_entries r ON r.id = p."revenueEntryId"
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS cnt FROM pt_session_logs sl
+        WHERE sl."packageId" = p.id AND (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+      ) logs ON true
+      WHERE r.type = 'PT'
+        AND p.status <> 'refunded'
+        AND (COALESCE(r.sessions,0) + COALESCE(r."serviceSessions",0)) > p."totalSessions"
+      ORDER BY ((COALESCE(r.sessions,0) + COALESCE(r."serviceSessions",0)) - p."totalSessions") DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "package_sessions_short",
+      title: "패키지 횟수가 결제한 횟수보다 적음",
+      severity: "critical",
+      description: "결제 기록에는 더 많은 횟수를 샀는데 패키지에는 적게 들어가 있습니다. 회원이 쓸 수 있는 잔여가 실제보다 적게 나옵니다. '매출기준총횟수'가 결제 근거이고 '현재총횟수'가 지금 값이니, 회원에게 안내한 횟수와 대조해 패키지를 고쳐주세요.",
+      rows: sessionsShort.rows,
+    });
+
+    // ④-3c-2 서비스세션 패키지 횟수 ↔ 매출에 기록된 서비스 횟수 대조.
+    //     서비스세션은 무상이라 패키지에 매출이 안 붙는 경우가 많아 위 대조에서 빠진다.
+    //     대신 회원 단위로 "매출에 적힌 서비스 횟수 합"과 비교한다.
+    const serviceSessionMismatch = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName",'(없음)') AS "트레이너",
+             pkg."패키지수", pkg."서비스패키지횟수합", svc."매출서비스횟수합",
+             (svc."매출서비스횟수합" - pkg."서비스패키지횟수합") AS "차이",
+             pkg."사용합", pkg."가장오래된등록일"
+      FROM members m
+      LEFT JOIN trainers t ON t.id = m."trainerId"
+      JOIN LATERAL (
+        SELECT COUNT(*)::int AS "패키지수",
+               COALESCE(SUM(p."totalSessions"),0)::int AS "서비스패키지횟수합",
+               COALESCE(SUM(p."usedSessions"),0)::int AS "사용합",
+               MIN(p."createdAt") AS "가장오래된등록일"
+        FROM pt_packages p
+        WHERE p."memberId" = m.id AND p."packageName" = '서비스세션' AND p.status <> 'refunded'
+      ) pkg ON true
+      JOIN LATERAL (
+        SELECT COALESCE(SUM(r."serviceSessions"),0)::int AS "매출서비스횟수합"
+        FROM revenue_entries r
+        WHERE r."memberId" = m.id AND r.type = 'PT'
+      ) svc ON true
+      WHERE pkg."패키지수" > 0
+        AND pkg."서비스패키지횟수합" <> svc."매출서비스횟수합"
+      ORDER BY ABS(svc."매출서비스횟수합" - pkg."서비스패키지횟수합") DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "service_sessions_mismatch",
+      title: "서비스 횟수가 등록 기록과 다름",
+      severity: "warning",
+      description: "무상으로 준 서비스 횟수가 등록 당시 기록과 다릅니다. '매출서비스횟수합'이 등록할 때 적어둔 값이고 '서비스패키지횟수합'이 지금 회원에게 잡혀 있는 값입니다. 차이가 양수면 회원이 받을 횟수가 줄어든 상태입니다. 등록 당시 안내한 서비스 횟수와 대조해주세요.",
+      rows: serviceSessionMismatch.rows,
+    });
+
+    // ④-3c-3 양도 처리된 패키지의 사용 횟수 검증.
+    //     과거 startup에 특정 회원 이름으로 "usedSessions = 총횟수 − 8" 을 매 부팅마다
+    //     덮어쓰는 코드가 있었다. 재등록한 새 패키지까지 양도 처리로 바뀌었다.
+    //     수업일지 개수와 양도 계약서를 나란히 보여 실제 값과 대조할 수 있게 한다.
+    const transferredCheck = await pool.query(`
+      SELECT m.name AS "회원", p.id AS "패키지ID", p."packageName" AS "프로그램",
+             p."totalSessions" AS "총횟수", COALESCE(p."usedSessions",0) AS "저장된사용",
+             logs.cnt AS "수업일지", (COALESCE(p."usedSessions",0) - logs.cnt) AS "차이",
+             COALESCE(tc."itemDescription", '(양도 계약서 없음)') AS "양도계약",
+             COALESCE(tc.status, '-') AS "계약상태",
+             p."startDate" AS "시작일", p."updatedAt" AS "최종변경"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS cnt FROM pt_session_logs sl
+        WHERE sl."packageId" = p.id AND (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+      ) logs ON true
+      LEFT JOIN transfer_contracts tc
+        ON tc."itemType" = 'pt_package' AND tc."itemId" = p.id
+      WHERE p.status = 'transferred'
+      ORDER BY (tc.id IS NULL) DESC, ABS(COALESCE(p."usedSessions",0) - logs.cnt) DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "transferred_package_check",
+      title: "양도 처리된 패키지 사용 횟수 확인",
+      severity: "warning",
+      description: "양도로 닫힌 패키지입니다. '양도계약'이 '(양도 계약서 없음)'이면 실제 양도가 아니라 잘못 닫혔을 수 있으니 먼저 보세요. '저장된사용'과 '수업일지'가 다른 것은 정상일 수 있습니다(시스템 도입 전 수업이나 오프라인 수업은 일지가 없습니다) — 양도한 횟수가 맞는지만 계약서와 대조해주세요.",
+      rows: transferredCheck.rows,
+    });
+
     // ④-3d 매출이 아예 연결되지 않은 PT 패키지.
     //      "언제 등록한 건지" 알 수 있게 생성일을 함께 보여준다. 2026-04-23은 기존 회원
     //      일괄 임포트분이고(정수연 사례: 시트상 4/08 등록), 그 외 날짜는 앱에서 수동으로
