@@ -139,6 +139,53 @@ const MISSION_DATE_LABEL: Record<string, string> = {
   inbody: "매월 25~말일",
 };
 
+const MISSION_GUIDE = [
+  { icon: "🏃", period: "매월 1~7일", title: "출석 미션", desc: "이달 1~7일 수업에 4일 이상 출석하면 자동 달성됩니다." },
+  { icon: "💧", period: "매월 8~14일", title: "유산소 미션", desc: "운동탭에서 '유산소운동'으로 2회 이상 기록하면 자동 달성됩니다." },
+  { icon: "🥗", period: "매월 15~24일", title: "식단 미션", desc: "단백질 위주 식단 사진을 카카오채널로 전송하면 트레이너가 확인 후 승인합니다." },
+  { icon: "📊", period: "매월 25~말일", title: "인바디 미션", desc: "이달 체중을 입력하고 인바디 사진을 카카오채널로 보내주세요. 감량 기준 달성 시 헬스권 1개월 연장!" },
+];
+
+function MissionGuideCard() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-2xl overflow-hidden border border-amber-200 bg-amber-50 shadow-sm">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full px-4 py-3 flex items-center justify-between text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">📋</span>
+          <span className="text-sm font-bold text-amber-800">미션 안내</span>
+          <span className="text-[10px] text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">매달 4가지 미션</span>
+        </div>
+        <span className="text-amber-500 text-xs">{open ? "접기 ▲" : "펼치기 ▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-amber-200 divide-y divide-amber-100">
+          {MISSION_GUIDE.map((g) => (
+            <div key={g.title} className="px-4 py-3 flex gap-3">
+              <span className="text-xl shrink-0 mt-0.5">{g.icon}</span>
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-xs font-bold text-amber-900">{g.title}</p>
+                  <span className="text-[10px] text-amber-600">{g.period}</span>
+                </div>
+                <p className="text-xs text-amber-700 leading-relaxed">{g.desc}</p>
+              </div>
+            </div>
+          ))}
+          <div className="px-4 py-3">
+            <p className="text-[11px] text-amber-600 leading-relaxed">
+              💡 <strong>다이어트 페이백</strong>: 12주 프로그램 종료 후, 매달 25~말일 인바디 체크에서 기준 체중 이하 유지 시 헬스권 1개월 자동 연장 (최대 9개월)
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MissionTab() {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.gymPlus.getWeeklyMissions.useQuery();
@@ -194,6 +241,9 @@ function MissionTab() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
+      {/* 미션 안내 */}
+      <MissionGuideCard />
+
       {/* 현재 미션 배너 */}
       {currentWindow && (
         <div className="rounded-2xl overflow-hidden shadow-sm border border-[#1D4ED8]/20"
