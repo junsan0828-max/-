@@ -36,7 +36,6 @@ export default function MemberReRegister() {
   const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: gymSettings } = trpc.gym.settings.get.useQuery();
-  const { data: trainerList } = trpc.trainers.list.useQuery();
   const { data: consultantList } = trpc.gym.staff.listConsultants.useQuery();
   const { data: currentUser } = trpc.auth.me.useQuery();
 
@@ -413,21 +412,9 @@ export default function MemberReRegister() {
               <SelectValue placeholder="상담 담당자 선택" />
             </SelectTrigger>
             <SelectContent>
-              {(() => {
-                const seen = new Set<string>();
-                const items: { id: string; name: string }[] = [];
-                for (const c of (consultantList ?? [])) {
-                  const id = String(c.id);
-                  if (!seen.has(id)) { seen.add(id); items.push({ id, name: c.username }); }
-                }
-                for (const t of (trainerList ?? [])) {
-                  const id = String(t.userId ?? t.id);
-                  if (!seen.has(id)) { seen.add(id); items.push({ id, name: t.trainerName }); }
-                }
-                return items.map(({ id, name }) => (
-                  <SelectItem key={id} value={id}>{name}</SelectItem>
-                ));
-              })()}
+              {(consultantList ?? []).map((c: any) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.username}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -3650,11 +3650,19 @@ const staffRouter = t.router({
   listConsultants: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    // 같은 사람이 users(로그인 아이디)와 trainers(실명)에 모두 있으면 id는 같고 이름만 달라
+    // UNION으로는 중복이 안 걸러진다. id 기준으로 하나만 남기고 실명(trainers)을 우선한다.
     const rows = await db.execute(sql`
-      SELECT u.id, u.username FROM users u WHERE u.role = 'consultant'
-      UNION
-      SELECT t."userId" AS id, t."trainerName" AS username
-      FROM trainers t WHERE t."userId" IS NOT NULL
+      SELECT id, username FROM (
+        SELECT DISTINCT ON (id) id, username FROM (
+          SELECT t."userId" AS id, t."trainerName" AS username, 1 AS pri
+          FROM trainers t WHERE t."userId" IS NOT NULL
+          UNION ALL
+          SELECT u.id, u.username, 2 AS pri
+          FROM users u WHERE u.role = 'consultant'
+        ) merged
+        ORDER BY id, pri
+      ) deduped
       ORDER BY username
     `);
     return (rows.rows ?? rows) as { id: number; username: string }[];
