@@ -307,7 +307,9 @@ export const dataHealthRouter = t.router({
 
     // ④-3b 패키지는 있는데 연결된 매출이 사라짐 — 매출을 지웠는데 패키지가 남은 경우.
     //      수업까지 진행됐다면 받은 돈이 장부에서 빠진 것이라 매출 누락이다.
-    //      (사용 0회짜리는 startup 정리가 알아서 지우므로 여기선 수업이 있는 것만 본다)
+    //      사용 0회짜리도 함께 본다: 예전에는 startup이 자동으로 지웠지만, 그 삭제가
+    //      "잘못 올린 매출 한 건을 지웠더니 회원 잔여 횟수가 통째로 사라지는" 사고를
+    //      만들어서 껐다. 이제 여기 드러내고 사람이 판단한다.
     const orphanPackage = await pool.query(`
       SELECT p.id AS "패키지ID", m.name AS "회원", p."revenueEntryId" AS "사라진매출ID",
              p."packageName" AS "프로그램", p."totalSessions" AS "총횟수",
@@ -316,16 +318,43 @@ export const dataHealthRouter = t.router({
       JOIN members m ON m.id = p."memberId"
       WHERE p."revenueEntryId" IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM revenue_entries r WHERE r.id = p."revenueEntryId")
-        AND p."usedSessions" > 0
-      ORDER BY m.name
+      ORDER BY p."usedSessions" DESC, m.name
       LIMIT 50
     `);
     groups.push({
       key: "package_without_revenue",
       title: "패키지는 있는데 매출이 사라짐",
       severity: "critical",
-      description: "수업까지 진행된 패키지인데 연결된 매출 기록이 없습니다. 받은 돈이 매출 장부에서 빠져 있습니다.",
+      description: "연결된 매출 기록이 없는 패키지입니다. 사용 횟수가 0보다 크면 수업까지 진행된 것이라 받은 돈이 장부에서 빠진 상태입니다. 0회라면 매출을 잘못 지웠거나 패키지가 잘못 만들어진 것이니, 매출을 복구할지 패키지를 지울지 확인해주세요.",
       rows: orphanPackage.rows,
+    });
+
+    // ④-3c 회원 담당 트레이너와 패키지 담당 트레이너가 다른 진행 중 패키지.
+    //      PT 정산은 패키지의 trainerId 기준이라, 둘이 어긋나면 실적이 엉뚱한 사람에게 잡힌다.
+    //      예전에는 startup이 매 부팅마다 회원 담당으로 덮어썼는데, 그게 배포할 때마다
+    //      트레이너 실적이 바뀌는 원인이었다(일부러 다르게 둔 배정까지 되돌렸다). 지금은
+    //      재배정 시점에만 함께 옮기고, 남은 불일치는 여기서 확인한다.
+    const trainerMismatch = await pool.query(`
+      SELECT p.id AS "패키지ID", m.name AS "회원",
+             tm."trainerName" AS "회원담당", tp."trainerName" AS "패키지담당",
+             p."packageName" AS "프로그램", p."totalSessions" AS "총횟수",
+             p."usedSessions" AS "사용", p."startDate" AS "시작일"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers tm ON tm.id = m."trainerId"
+      LEFT JOIN trainers tp ON tp.id = p."trainerId"
+      WHERE p.status = 'active'
+        AND m."trainerId" IS NOT NULL
+        AND p."trainerId" IS DISTINCT FROM m."trainerId"
+      ORDER BY m.name
+      LIMIT 50
+    `);
+    groups.push({
+      key: "package_trainer_mismatch",
+      title: "회원 담당과 패키지 담당 트레이너가 다름",
+      severity: "warning",
+      description: "진행 중인 PT 패키지의 담당이 회원 카드의 담당 트레이너와 다릅니다. 정산은 패키지 담당 기준이라 실적이 다른 트레이너에게 잡힙니다. 일부러 그렇게 둔 것이면 그대로 두고, 아니면 회원 정보에서 담당 트레이너를 다시 지정하면 패키지도 함께 옮겨집니다.",
+      rows: trainerMismatch.rows,
     });
 
     // ④-3d 매출이 아예 연결되지 않은 PT 패키지.

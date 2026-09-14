@@ -1621,29 +1621,38 @@ async function initDatabase() {
 
   // ── 삭제된 매출을 가리키던(고아) usedSessions=0 패키지 정리 ───────────────────
   try {
+    // [비활성→리포트] 대표가 잘못 올라간 매출 한 건을 지우면, 그 매출을 물고 있던
+    // 패키지가 다음 재시작에 조용히 사라져 회원의 잔여 횟수가 통째로 없어졌다.
+    // 「데이터 점검 > 패키지는 있는데 매출이 사라짐」에서 확인하고 처리한다(원칙 10).
     const orphaned = await pool.query(`
-      DELETE FROM pt_packages p
+      SELECT p.id
+      FROM pt_packages p
       WHERE p."usedSessions" = 0
         AND p."revenueEntryId" IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM revenue_entries r WHERE r.id = p."revenueEntryId")
     `);
-    if ((orphaned.rowCount ?? 0) > 0) console.log(`🧹 고아 PT 패키지(매출 삭제됨) 정리: ${orphaned.rowCount}건`);
+    if ((orphaned.rowCount ?? 0) > 0)
+      console.log(`📋 매출이 삭제된 PT 패키지 ${orphaned.rowCount}건 — 데이터 점검 탭에서 확인 (자동 삭제 안 함)`);
   } catch (e) {
-    console.error("고아 PT 패키지 정리 오류:", e);
+    console.error("고아 PT 패키지 점검 오류:", e);
   }
 
   // ── 삭제된 회원에게 연결된 고아 매출 정리 ──────────────────────────────────
   // 과거 회원 삭제(members.delete)가 revenue_entries를 지우지 않아 고아 매출이 잔존하던
   // 문제 잔재 정리(지금은 delete가 매출도 함께 제거함).
   try {
+    // [비활성→리포트] 매출은 원본이다(원칙 1). 회원 행이 없다는 이유로 받은 돈 기록을
+    // 자동으로 지우면 장부에서 금액이 사라진다. 회원 삭제는 이제 매출도 함께 처리하므로
+    // 여기 잡히는 건은 과거 잔재이고, 지울지는 대표가 판단한다.
     const cleaned = await pool.query(`
-      DELETE FROM revenue_entries
+      SELECT id FROM revenue_entries
       WHERE "memberId" IS NOT NULL
         AND "memberId" NOT IN (SELECT id FROM members)
     `);
-    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 삭제된 회원 고아 매출 정리: ${cleaned.rowCount}건`);
+    if ((cleaned.rowCount ?? 0) > 0)
+      console.log(`📋 삭제된 회원에 연결된 매출 ${cleaned.rowCount}건 — 확인 필요 (자동 삭제 안 함)`);
   } catch (e) {
-    console.error("삭제된 회원 고아 매출 정리 오류:", e);
+    console.error("삭제된 회원 고아 매출 점검 오류:", e);
   }
 
   // ── 삭제된 회원에게 배정된 채 남은 락커/운동복 정리 ──────────────────────────
@@ -1753,28 +1762,33 @@ async function initDatabase() {
         AND r."paymentDate" = p."paymentDate"
         AND r."sessions" IS NOT NULL
         AND r."sessions" = (p."totalSessions" - COALESCE(p."serviceSessions", 0))
+        -- 이미 다른 패키지가 그 매출을 물고 있으면 붙이지 않는다.
+        -- (매출 1건에 패키지 2개 = 잔여 횟수가 실제보다 많아지는 상태)
+        AND NOT EXISTS (
+          SELECT 1 FROM pt_packages q WHERE q."revenueEntryId" = r.id
+        )
     `);
 
-    // 2) revenueEntryId가 없는 패키지는 subType '이전' 제외 PT 매출로 연결 시도 (이름+날짜 기준)
-    await pool.query(`
-      UPDATE pt_packages p
-      SET "revenueEntryId" = r.id
-      FROM revenue_entries r
-      WHERE p."revenueEntryId" IS NULL
-        AND r.type = 'PT'
-        AND r."memberId" = p."memberId"
-        AND r."subType" IS DISTINCT FROM '이전'
-      AND r.id = (
-        SELECT id FROM revenue_entries r2
-        WHERE r2.type = 'PT' AND r2."memberId" = p."memberId"
-          AND r2."subType" IS DISTINCT FROM '이전'
-        ORDER BY ABS(EXTRACT(EPOCH FROM (
-          (COALESCE(r2."paymentDate", r2."createdAt"))::timestamp
-          - (COALESCE(p."paymentDate", p."createdAt"))::timestamp
-        )))
-        LIMIT 1
-      )
-    `);
+    // 2) [비활성] "날짜가 가장 가까운 매출에 붙이기" 자동 연결 — 진동 루프의 시작점이었다.
+    //
+    // 세션수를 전혀 보지 않고 날짜만으로 이어 붙였다(기간 제한도 없었다). 그래서
+    // ① 패키지가 여러 개인 회원은 엉뚱한 매출에 엇갈려 연결되고(박종범 사례: 케어피티 30회가
+    //    이벤트피티 3회 매출에 붙어 결제금액이 뒤바뀜),
+    // ② 아래 2-b-2가 "세션수가 안 맞는다"며 그 연결을 다시 끊고,
+    // ③ 연결이 끊긴 매출은 3)이 "패키지가 없다"고 보고 새로 만들고,
+    // ④ 그 복제본을 아래 정리 블록이 지우고 → 다음 재배포에 ①부터 반복.
+    // 재배포할 때마다 중복 패키지·잔여 횟수·트레이너 실적이 움직인 직접 원인이다.
+    //
+    // 1)의 정확 매칭(결제일·세션수 완전 일치)만 남기고 추측 연결은 하지 않는다.
+    // 남은 건은 「데이터 관리 > 데이터 점검」의 "매출이 연결되지 않은 PT 패키지"에서 확인한다.
+    {
+      const unlinked = await pool.query<{ count: string }>(`
+        SELECT COUNT(*) AS count FROM pt_packages p
+        WHERE p."revenueEntryId" IS NULL AND p.status <> 'transferred'
+      `);
+      const n = parseInt(unlinked.rows[0]?.count ?? "0", 10);
+      if (n > 0) console.log(`📋 매출 미연결 PT 패키지 ${n}건 — 데이터 점검 탭에서 확인 (자동 연결 안 함)`);
+    }
 
     // 3) 아직도 revenueEntryId 없는 revenue_entries → 새 패키지 생성
     const ptRevs = await db
@@ -1789,8 +1803,14 @@ async function initDatabase() {
         sql`${revenueEntries.subType} IS DISTINCT FROM '이전'`,
       ));
 
+    // [비활성] 자동 생성을 끈다 — 위 2)의 진동 루프에서 "만드는" 축이 이 블록이었다.
+    // 연결이 끊긴 매출을 "패키지 없음"으로 보고 새로 만들었고, 그 복제본을 아래 정리 블록이
+    // 지웠다. 재배포마다 생성↔삭제가 반복되면서 잔여 횟수와 트레이너 실적이 흔들렸다.
+    // 매출만 있고 패키지가 없는 건은 「데이터 점검 > PT 매출이 있는데 패키지가 없음」에서
+    // 대표가 확인하고 만든다. 아래 로직은 판단 근거로 남겨두되 실행하지 않는다.
+    const AUTO_CREATE_PT_PACKAGES: boolean = false;
     let created = 0;
-    for (const rev of ptRevs) {
+    for (const rev of (AUTO_CREATE_PT_PACKAGES ? ptRevs : [])) {
       if (!rev.memberId) continue;
       // revenueEntryId로 중복 체크 (NULL-safe)
       const linked = await pool.query<{ count: string }>(
@@ -1875,8 +1895,19 @@ async function initDatabase() {
       created++;
     }
     if (created > 0) console.log(`✅ PT 매출 기반 패키지 자동 생성: ${created}건`);
+
+    // 리포트: 패키지가 없는 PT 매출 건수 (생성은 하지 않는다)
+    const noPkg = await pool.query<{ count: string }>(`
+      SELECT COUNT(*) AS count FROM revenue_entries r
+      WHERE r.type = 'PT' AND r."memberId" IS NOT NULL
+        AND r.sessions IS NOT NULL
+        AND r."subType" IS DISTINCT FROM '이전'
+        AND NOT EXISTS (SELECT 1 FROM pt_packages p WHERE p."revenueEntryId" = r.id)
+    `);
+    const nNoPkg = parseInt(noPkg.rows[0]?.count ?? "0", 10);
+    if (nNoPkg > 0) console.log(`📋 패키지 없는 PT 매출 ${nNoPkg}건 — 데이터 점검 탭에서 확인 (자동 생성 안 함)`);
   } catch (e) {
-    console.error("PT 패키지 자동 생성 오류:", e);
+    console.error("PT 패키지 점검 오류:", e);
   }
 
   // ── 백필이 만든 "결제일자 없는 빈 복제본" PT 패키지 제거 ──────────────────────
@@ -1884,8 +1915,11 @@ async function initDatabase() {
   //       결제일자가 "있는" 원본 패키지가 별도로 존재하는 경우 → 복제본만 삭제.
   //       (정상적인 두 건(둘 다 결제일자 있음)은 절대 건드리지 않음)
   try {
+    // [비활성→리포트] 자동 생성을 껐으므로 "백필이 만든 복제본"도 더는 생기지 않는다.
+    // 삭제까지 자동으로 두면 사람이 정상 등록한 패키지를 지울 위험만 남는다(원칙 3·10).
     const cleaned = await pool.query(`
-      DELETE FROM pt_packages p
+      SELECT p.id
+      FROM pt_packages p
       WHERE p."usedSessions" = 0
         AND p."paymentDate" IS NULL
         AND EXISTS (
@@ -1898,17 +1932,21 @@ async function initDatabase() {
             AND q."paymentDate" IS NOT NULL
         )
     `);
-    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 빈 복제 PT 패키지 정리: ${cleaned.rowCount}건`);
+    if ((cleaned.rowCount ?? 0) > 0)
+      console.log(`📋 결제일 없는 중복 의심 PT 패키지 ${cleaned.rowCount}건 — 데이터 점검 탭에서 확인 (자동 삭제 안 함)`);
   } catch (e) {
-    console.error("빈 복제 PT 패키지 정리 오류:", e);
+    console.error("빈 복제 PT 패키지 점검 오류:", e);
   }
 
   // ── 완료된 패키지가 있는데 같은 내용의 active 0회 사용 복제본 제거 ────────────
   // PT 완료 후 서버 재시작 시 매출 기반으로 새 패키지가 생기는 사고 방지.
   // 같은 회원·같은 세션수·같은 시작일로 completed 패키지가 있으면 active 0회 사용본 삭제.
   try {
+    // [비활성→리포트] 같은 이유. 진행 0회라는 것만으로 지우면, 선결제 재등록분을
+    // 수업 시작 전에 삭제해버린다(2026-09-01 b118694 사고와 같은 판단 오류).
     const dupActive = await pool.query(`
-      DELETE FROM pt_packages p
+      SELECT p.id
+      FROM pt_packages p
       WHERE p.status = 'active'
         AND p."usedSessions" = 0
         AND EXISTS (
@@ -1926,9 +1964,10 @@ async function initDatabase() {
             )
         )
     `);
-    if ((dupActive.rowCount ?? 0) > 0) console.log(`🧹 완료 패키지 복제본 정리: ${dupActive.rowCount}건`);
+    if ((dupActive.rowCount ?? 0) > 0)
+      console.log(`📋 완료 패키지와 겹치는 진행 0회 PT 패키지 ${dupActive.rowCount}건 — 데이터 점검 탭에서 확인 (자동 삭제 안 함)`);
   } catch (e) {
-    console.error("완료 패키지 복제본 정리 오류:", e);
+    console.error("완료 패키지 복제본 점검 오류:", e);
   }
 
   // ── 담당 트레이너 변경이 안 따라간 진행 중 PT 패키지 보정 ────────────────────
@@ -1938,18 +1977,23 @@ async function initDatabase() {
   // 새 트레이너로 보이는데 PT 관리에는 안 뜨는 사고로 이어졌다(양희정 사례).
   // 완료/환불된 과거 패키지는 정산 소급 방지를 위해 건드리지 않는다.
   try {
+    // [비활성→리포트] 재배정 시점에 이미 패키지를 함께 옮긴다
+    // (routers.ts members.update:745, admin.assignTrainerToMember:3812).
+    // 그래서 이 블록이 실제로 덮어쓰는 건 "회원 담당과 일부러 다르게 둔 패키지"뿐이다.
+    // PT 정산은 패키지의 trainerId 기준이므로, 진행 중인 패키지의 귀속을 매 부팅마다
+    // 현재 담당으로 밀어버리면 트레이너 실적·정산이 배포할 때마다 바뀐다(원칙 3·6).
     const trainerSynced = await pool.query(`
-      UPDATE pt_packages p
-      SET "trainerId" = m."trainerId", "updatedAt" = now()::text
-      FROM members m
-      WHERE p."memberId" = m.id
-        AND p.status = 'active'
+      SELECT p.id
+      FROM pt_packages p
+      JOIN members m ON p."memberId" = m.id
+      WHERE p.status = 'active'
         AND m."trainerId" IS NOT NULL
         AND p."trainerId" IS DISTINCT FROM m."trainerId"
     `);
-    if ((trainerSynced.rowCount ?? 0) > 0) console.log(`🔗 PT 패키지 담당 트레이너 동기화: ${trainerSynced.rowCount}건`);
+    if ((trainerSynced.rowCount ?? 0) > 0)
+      console.log(`📋 회원 담당과 다른 트레이너로 된 진행 중 PT 패키지 ${trainerSynced.rowCount}건 — 확인 필요 (자동 변경 안 함)`);
   } catch (e) {
-    console.error("PT 패키지 담당 트레이너 동기화 오류:", e);
+    console.error("PT 패키지 담당 트레이너 점검 오류:", e);
   }
 
   // ── PT 세션 ↔ 패키지 연결/단가 보정 (정산 단가 0원 방지) ──────────────────────
@@ -2003,17 +2047,20 @@ async function initDatabase() {
     // 패키지가 여러 개인 회원은 서로 다른 매출에 잘못 엇갈려 연결될 수 있었다(박종범 사례:
     // 케어피티 30회 패키지가 이벤트피티 3회 매출에 연결되어 결제금액이 뒤바뀜). 세션수가
     // 객관적으로 안 맞는 연결만 끊어서, 아래 2-c가 정확한 매출로 다시 이어붙이게 한다.
+    // [비활성→리포트] 오연결을 만들던 "날짜 기준 추측 연결"(위 2))을 껐으므로, 여기서
+    // 연결을 끊을 이유도 사라졌다. 끊는 동작만 남겨두면 매출 연결이 조용히 사라져
+    // 회원 화면에서 결제 기록이 안 보이게 된다(원칙 10: 참조를 끊는 삭제 금지).
     const wrongLinks = await pool.query(`
-      UPDATE pt_packages p
-      SET "revenueEntryId" = NULL
-      FROM revenue_entries r
-      WHERE p."revenueEntryId" = r.id
-        AND r.type = 'PT'
+      SELECT p.id
+      FROM pt_packages p
+      JOIN revenue_entries r ON p."revenueEntryId" = r.id
+      WHERE r.type = 'PT'
         AND r.sessions IS NOT NULL
         AND r.sessions <> (p."totalSessions" - COALESCE(p."serviceSessions", 0))
         AND p.status <> 'completed'
     `);
-    if ((wrongLinks.rowCount ?? 0) > 0) console.log(`🔓 세션수 불일치 매출-패키지 오연결 해제: ${wrongLinks.rowCount}건`);
+    if ((wrongLinks.rowCount ?? 0) > 0)
+      console.log(`📋 세션수가 매출과 다른 PT 패키지 ${wrongLinks.rowCount}건 — 데이터 점검 탭에서 확인 (자동 해제 안 함)`);
 
     // 2-c) revenueEntryId가 아예 안 걸린 패키지(gym.register 등록 경로로 생긴 패키지는 원래
     // revenueEntryId를 안 채움)도 memberId+시작일+세션수로 매출을 찾아 결제금액을 맞춘다.
