@@ -2293,11 +2293,16 @@ async function initDatabase() {
   // 이후 기존 마이그레이션이 serviceSessions = totalSessions 으로 맞춰 둘 다 2배.
   // 조건: 서비스세션 패키지, 둘 다 같고, 짝수이며, 2 초과, 미사용, 버그 기간 생성분만.
   try {
+    // [비활성→리포트] 이 보정은 멱등이 아니었다. 조건이 "총횟수 = 서비스횟수"뿐이라
+    // 한 번 반으로 줄인 결과가 다음 부팅에 또 조건을 만족한다:
+    //   8회 → (배포) 4회 → (배포) 2회   ※ "> 2" 가드에 걸려 2에서 멈춤
+    // 게다가 아래 "서비스세션 패키지 serviceSessions 교정"이 serviceSessions를
+    // totalSessions와 같게 맞추기 때문에, 원래 정상이던 패키지까지 이 반감 루프에
+    // 끌려 들어갔다. 대표가 횟수를 제대로 맞춰놔도 다음 배포에 반토막 나던 경로다.
+    // 실제로 2배로 기록된 건이 남아 있다면 아래 리포트로 확인하고 화면에서 고친다.
     const svcFixRes = await pool.query(
-      `UPDATE pt_packages
-       SET "totalSessions" = "totalSessions" / 2,
-           "serviceSessions" = "serviceSessions" / 2,
-           "updatedAt" = now()::text
+      `SELECT id, "totalSessions", "serviceSessions"
+       FROM pt_packages
        WHERE "packageName" = '서비스세션'
          AND "totalSessions" = "serviceSessions"
          AND "totalSessions" % 2 = 0
@@ -2306,9 +2311,9 @@ async function initDatabase() {
          AND "createdAt"::timestamp < '2026-08-14 00:00:00'`
     );
     if ((svcFixRes.rowCount ?? 0) > 0)
-      console.log(`✅ 서비스세션 totalSessions 이중계산 보정: ${svcFixRes.rowCount}건`);
+      console.log(`📋 서비스세션 횟수 확인 필요 ${svcFixRes.rowCount}건 — 자동 보정 안 함 (과거 반감 루프 차단)`);
   } catch (e) {
-    console.warn("⚠️ 서비스세션 totalSessions 보정 실패:", e);
+    console.warn("⚠️ 서비스세션 totalSessions 점검 실패:", e);
   }
 
 
@@ -2499,60 +2504,15 @@ async function start() {
   }
 
 
-  // ── 김지혜→이고원 PT 양도 처리 (김지혜 패키지 transferred, 이고원 단가 설정) ──
-  try {
-    const kst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
-
-    // 김지혜 PT 패키지 (paused 상태) → transferred 처리 + usedSessions=12 보정
-    const jihye = await pool.query(
-      `SELECT p.id, p."totalSessions", p."usedSessions", p."paymentAmount", p."pricePerSession"
-       FROM pt_packages p
-       JOIN members m ON m.id = p."memberId"
-       WHERE m.name = '김지혜'
-         AND p.status NOT IN ('transferred','refunded','completed')
-       ORDER BY p.id DESC LIMIT 1`
-    );
-    if (jihye.rows[0]) {
-      const jp = jihye.rows[0];
-      // 실제 사용 횟수 = 총 - 양도분(8회)
-      const correctUsed = (jp.totalSessions ?? 20) - 8;
-      await pool.query(
-        `UPDATE pt_packages
-         SET status = 'transferred', "usedSessions" = $1, "updatedAt" = now()::text
-         WHERE id = $2`,
-        [correctUsed, jp.id]
-      );
-      console.log(`🔧 김지혜 PT 패키지(id=${jp.id}) → transferred, usedSessions=${correctUsed}`);
-
-      // 이고원 PT 패키지 단가 설정 (단가 없는 것만)
-      const igowon = await pool.query(`SELECT id FROM members WHERE name = '이고원' LIMIT 1`);
-      if (igowon.rows[0]) {
-        const mid = igowon.rows[0].id;
-        const pricePerSess = jp.pricePerSession
-          ?? (jp.paymentAmount && jp.totalSessions ? Math.round(jp.paymentAmount / jp.totalSessions) : 48000);
-        const igoPkg = await pool.query(
-          `SELECT id, "totalSessions" FROM pt_packages
-           WHERE "memberId" = $1
-             AND COALESCE("paymentAmount", 0) = 0
-             AND COALESCE("pricePerSession", 0) = 0
-             AND status NOT IN ('refunded','transferred')
-           ORDER BY id DESC LIMIT 1`,
-          [mid]
-        );
-        if (igoPkg.rows[0]) {
-          const { id: pkgId, totalSessions } = igoPkg.rows[0];
-          const sessions = totalSessions ?? 8;
-          await pool.query(
-            `UPDATE pt_packages SET "paymentAmount" = $1, "pricePerSession" = $2, "updatedAt" = now()::text WHERE id = $3`,
-            [pricePerSess * sessions, pricePerSess, pkgId]
-          );
-          console.log(`🔧 이고원 PT 패키지(id=${pkgId}) 단가 ${pricePerSess}원/회 설정`);
-        }
-      }
-    }
-  } catch (e) {
-    console.error("김지혜→이고원 양도 처리 오류:", e);
-  }
+  // ── [제거] 김지혜→이고원 PT 양도 일회성 보정 ────────────────────────────────
+  // 2026-08 양도 1건을 고치려고 넣은 코드가 매 부팅마다 돌고 있었다. 이름으로 찾아
+  // "가장 최근 패키지"를 집었기 때문에, 그 회원이 재등록하면 새 패키지가 그때마다
+  //   · 김지혜: status='transferred', usedSessions = totalSessions − 8 로 덮여
+  //     진행 중인 PT가 배포할 때마다 종료 처리되고 잔여가 사라졌고,
+  //   · 이고원: 0원짜리 패키지(서비스세션 포함)에 48,000원/회 단가와 결제금액이 붙어
+  //     정산 금액이 배포할 때마다 늘어났다.
+  // 대표가 수동으로 맞춰놓은 값이 다음 배포에 되돌아가던 직접 원인이라 삭제한다.
+  // 개별 회원 교정은 코드가 아니라 화면에서 처리한다(원칙 3).
 
   // ── 테스트 계정(01011111111) 주 회원 연결 (memberId 없을 때만) ──
   try {
