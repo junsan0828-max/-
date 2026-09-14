@@ -428,32 +428,31 @@ export default function MemberReRegister() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Tailwind JIT는 `border-${color}-500` 같은 동적 클래스를 만들지 못한다.
+                (teal 계열이 실제로 CSS에서 누락돼 다이어트 선택 상태가 표시되지 않았다)
+                따라서 활성 스타일은 반드시 리터럴 클래스로 적는다. */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                { key: "health", label: "헬스권", sub: "헬스 이용 등록", icon: Activity, active: addHealth, color: "emerald", toggle: () => setAddHealth(v => !v) },
-                { key: "pt", label: "PT 등록", sub: "PT 세션 등록", icon: Dumbbell, active: addPt, color: "primary", toggle: () => setAddPt(v => !v) },
-                { key: "locker", label: "락커", sub: "락커 배정", icon: Lock, active: addLocker, color: "amber", toggle: () => setAddLocker(v => !v) },
-                { key: "uniform", label: "운동복", sub: "운동복 대여", icon: Shirt, active: addUniform, color: "purple", toggle: () => setAddUniform(v => !v) },
-                { key: "diet", label: "다이어트", sub: "12주 + 감량 페이백", icon: Salad, active: addDiet, color: "teal", toggle: () => setAddDiet(v => !v) },
-              ].map(({ key, label, sub, icon: Icon, active, color, toggle }) => (
+                { key: "health", label: "헬스권", sub: "헬스 이용 등록", icon: Activity, active: addHealth, toggle: () => setAddHealth(v => !v),
+                  onCls: "border-emerald-500 bg-emerald-500/10", onIconBg: "bg-emerald-500/20", onFg: "text-emerald-400" },
+                { key: "pt", label: "PT 등록", sub: "PT 세션 등록", icon: Dumbbell, active: addPt, toggle: () => setAddPt(v => !v),
+                  onCls: "border-primary bg-primary/10", onIconBg: "bg-primary/20", onFg: "text-primary" },
+                { key: "locker", label: "락커", sub: "락커 배정", icon: Lock, active: addLocker, toggle: () => setAddLocker(v => !v),
+                  onCls: "border-amber-500 bg-amber-500/10", onIconBg: "bg-amber-500/20", onFg: "text-amber-400" },
+                { key: "uniform", label: "운동복", sub: "운동복 대여", icon: Shirt, active: addUniform, toggle: () => setAddUniform(v => !v),
+                  onCls: "border-purple-500 bg-purple-500/10", onIconBg: "bg-purple-500/20", onFg: "text-purple-400" },
+                { key: "diet", label: "다이어트", sub: "12주 + 감량 페이백", icon: Salad, active: addDiet, toggle: () => setAddDiet(v => !v),
+                  onCls: "border-teal-500 bg-teal-500/10", onIconBg: "bg-teal-500/20", onFg: "text-teal-400" },
+              ].map(({ key, label, sub, icon: Icon, active, toggle, onCls, onIconBg, onFg }) => (
                 <button key={key} type="button" onClick={toggle}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    active
-                      ? color === "primary" ? "border-primary bg-primary/10"
-                        : `border-${color}-500 bg-${color}-500/10`
-                      : "border-border hover:bg-accent"
+                    active ? onCls : "border-border hover:bg-accent"
                   }`}>
-                  <div className={`p-2.5 rounded-full ${active
-                    ? color === "primary" ? "bg-primary/20" : `bg-${color}-500/20`
-                    : "bg-muted"}`}>
-                    <Icon className={`h-5 w-5 ${active
-                      ? color === "primary" ? "text-primary" : `text-${color}-400`
-                      : "text-muted-foreground"}`} />
+                  <div className={`p-2.5 rounded-full ${active ? onIconBg : "bg-muted"}`}>
+                    <Icon className={`h-5 w-5 ${active ? onFg : "text-muted-foreground"}`} />
                   </div>
                   <div className="text-center">
-                    <p className={`text-sm font-semibold ${active
-                      ? color === "primary" ? "text-primary" : `text-${color}-400`
-                      : "text-foreground"}`}>{label}</p>
+                    <p className={`text-sm font-semibold ${active ? onFg : "text-foreground"}`}>{label}</p>
                     <p className="text-xs text-muted-foreground">{sub}</p>
                   </div>
                 </button>
@@ -763,14 +762,15 @@ export default function MemberReRegister() {
             </CardHeader>
             <CardContent className="space-y-2">
               {[
-                { id: "PT", label: "PT", color: "blue" },
-                { id: "헬스", label: "헬스", color: "emerald" },
-                { id: "락커", label: "락커", color: "amber" },
-                { id: "운동복", label: "운동복", color: "purple" },
-              ].map(({ id, label, color }) => {
+                // 동적 클래스 조합은 Tailwind JIT가 못 만든다 — 리터럴로 적는다
+                { id: "PT", label: "PT", onBox: "border-blue-500/60 bg-blue-500/5", onFg: "text-blue-400", onChip: "bg-blue-500/20 text-blue-400" },
+                { id: "헬스", label: "헬스", onBox: "border-emerald-500/60 bg-emerald-500/5", onFg: "text-emerald-400", onChip: "bg-emerald-500/20 text-emerald-400" },
+                { id: "락커", label: "락커", onBox: "border-amber-500/60 bg-amber-500/5", onFg: "text-amber-400", onChip: "bg-amber-500/20 text-amber-400" },
+                { id: "운동복", label: "운동복", onBox: "border-purple-500/60 bg-purple-500/5", onFg: "text-purple-400", onChip: "bg-purple-500/20 text-purple-400" },
+              ].map(({ id, label, onBox, onFg, onChip }) => {
                 const sel = serviceItems.includes(id);
                 return (
-                  <div key={id} className={`rounded-xl border transition-colors ${sel ? `border-${color}-500/60 bg-${color}-500/5` : "border-border"}`}>
+                  <div key={id} className={`rounded-xl border transition-colors ${sel ? onBox : "border-border"}`}>
                     <button type="button"
                       onClick={() => {
                         setServiceItems(s => sel ? s.filter(x => x !== id) : [...s, id]);
@@ -779,8 +779,8 @@ export default function MemberReRegister() {
                         if (id === "락커") setServiceLockerNum("");
                       }}
                       className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium">
-                      <span className={sel ? `text-${color}-400` : "text-muted-foreground"}>{label}</span>
-                      {sel && <span className={`text-[10px] px-2 py-0.5 rounded-full bg-${color}-500/20 text-${color}-400`}>선택됨</span>}
+                      <span className={sel ? onFg : "text-muted-foreground"}>{label}</span>
+                      {sel && <span className={`text-[10px] px-2 py-0.5 rounded-full ${onChip}`}>선택됨</span>}
                     </button>
                     {sel && id === "PT" && (
                       <div className="px-4 pb-3 border-t border-blue-500/20 pt-2 flex gap-2">
