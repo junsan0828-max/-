@@ -783,9 +783,17 @@ export default function RegistrationManagement() {
                       if (!memberMap.has(who)) memberMap.set(who, []);
                       memberMap.get(who)!.push(r);
                     });
+                    // 날짜 문자열 안전 파싱 (잘못된 포맷이면 0으로 처리)
+                    const safeDateMs = (d: string | null | undefined) => {
+                      if (!d) return 0;
+                      const ms = new Date(d).getTime();
+                      return isNaN(ms) ? 0 : ms;
+                    };
                     // 각 회원 내 등록을 결제일 내림차순 정렬
                     memberMap.forEach((entries) => {
-                      entries.sort((a: any, b: any) => (b.paymentDate ?? b.startDate ?? "").localeCompare(a.paymentDate ?? a.startDate ?? ""));
+                      entries.sort((a: any, b: any) =>
+                        safeDateMs(b.paymentDate ?? b.startDate) - safeDateMs(a.paymentDate ?? a.startDate)
+                      );
                     });
                     // 같은 결제일 항목을 묶어 "등록 건" 단위로 만듦
                     const buildDateGroups = (entries: any[]) => {
@@ -797,7 +805,12 @@ export default function RegistrationManagement() {
                       });
                       return Array.from(dateMap.values());
                     };
-                    const memberEntries = Array.from(memberMap.entries()).slice(0, 100);
+                    // 회원 카드 전체를 "최근 결제일" 기준 내림차순 정렬
+                    const memberEntries = Array.from(memberMap.entries())
+                      .sort(([, a], [, b]) =>
+                        safeDateMs(b[0]?.paymentDate ?? b[0]?.startDate) - safeDateMs(a[0]?.paymentDate ?? a[0]?.startDate)
+                      )
+                      .slice(0, 100);
 
                     const renderItems = (items: any[]) => items.map((r: any) => {
                       const si = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);

@@ -2556,6 +2556,23 @@ async function start() {
     console.error("PT 가격 설정 보정 오류:", e);
   }
 
+  // ── 잘못된 paymentDate 포맷 교정 (YYYYMM-MM-DD → YYYY-MM-DD) ──
+  try {
+    const badDates = await pool.query(
+      `SELECT id, "paymentDate" FROM revenue_entries
+       WHERE "paymentDate" ~ '^[0-9]{6}-[0-9]{2}-[0-9]{2}$'`
+    );
+    for (const row of badDates.rows) {
+      // "202608-08-25" → "2026-08-25" (앞 4자리 + "-" + 뒤 5자리)
+      const fixed = row.paymentDate.substring(0, 4) + "-" + row.paymentDate.substring(6);
+      await pool.query(`UPDATE revenue_entries SET "paymentDate" = $1 WHERE id = $2`, [fixed, row.id]);
+      console.log(`🔧 paymentDate 교정: ${row.paymentDate} → ${fixed} (id=${row.id})`);
+    }
+    if (badDates.rows.length === 0) console.log("✅ paymentDate 포맷 이상 없음");
+  } catch (e) {
+    console.error("paymentDate 교정 오류:", e);
+  }
+
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
     try {
