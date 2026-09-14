@@ -181,9 +181,10 @@ function MissionTab() {
       if (weightRes?.rewarded && "extensionUntil" in weightRes) {
         setResultMsg({ periodKey, status: "pending", rewarded: true, extensionUntil: weightRes.extensionUntil as string });
       }
-    } else if (missionType === "attendance") {
-      submitMutation.mutate({ missionType: "attendance" });
+    } else if (missionType === "attendance" || missionType === "cardio") {
+      submitMutation.mutate({ missionType: missionType as any });
     } else {
+      // diet: 카카오채널로 인증 사진 전송 안내
       submitMutation.mutate({ missionType: missionType as any });
       window.open(KAKAO_CHAT_URL, "_blank");
     }
@@ -234,6 +235,23 @@ function MissionTab() {
               {currentWindow.type === "attendance" && (
                 <p className="text-xs text-gray-500 pt-3">이번 달 1~7일 수업 출석 기록을 자동 확인합니다. (4일 이상 출석 시 달성)</p>
               )}
+              {currentWindow.type === "cardio" && (
+                <div className="pt-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700">📋 유산소 미션 인증 방법</p>
+                  <p className="text-xs text-gray-600">① 이번 달 8~14일 사이에 <strong>유산소운동</strong> 카테고리로 운동을 <strong>2회 이상</strong> 기록하세요.</p>
+                  <p className="text-xs text-gray-600">② 아래 버튼을 누르면 자동으로 기록을 확인하고 달성 여부를 알려드립니다.</p>
+                  <p className="text-[11px] text-blue-500">💡 운동 기록은 상단 운동탭 → 유산소운동에서 저장하세요.</p>
+                </div>
+              )}
+              {currentWindow.type === "diet" && (
+                <div className="pt-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700">📋 식단 미션 인증 방법</p>
+                  <p className="text-xs text-gray-600">① 이번 달 15~24일 사이에 단백질 위주 식단 사진을 찍어두세요.</p>
+                  <p className="text-xs text-gray-600">② 아래 버튼을 눌러 <strong>카카오채널</strong>로 이동한 뒤, 식단 사진을 전송해 주세요.</p>
+                  <p className="text-xs text-gray-600">③ 담당 트레이너 확인 후 미션이 승인됩니다.</p>
+                  <p className="text-[11px] text-amber-600">⚠️ 사진 전송 없이는 미션이 승인되지 않습니다.</p>
+                </div>
+              )}
               {currentWindow.type === "inbody" && (
                 <div className="pt-3 space-y-2">
                   <div className="flex items-center gap-2">
@@ -249,23 +267,21 @@ function MissionTab() {
                   <p className="text-[11px] text-gray-500">입력 후 카카오채널에 인바디 사진도 함께 보내주세요.</p>
                 </div>
               )}
-              {(currentWindow.type === "cardio" || currentWindow.type === "diet") && (
-                <p className="text-xs text-gray-500 pt-3">버튼을 누르면 카카오채널이 열립니다. 인증 사진을 보내주세요.</p>
-              )}
               <button
                 onClick={() => handleSubmit(currentWindow.type, currentWindow.periodKey)}
                 disabled={submitMutation.isPending || logWeightMutation.isPending ||
                   (currentWindow.type === "inbody" && (!weightInput || parseFloat(weightInput) < 20))}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{
-                  background: currentWindow.type === "attendance" ? "hsl(221 83% 44%)" : "#FEE500",
-                  color: currentWindow.type === "attendance" ? "white" : "#3A1D1D",
+                  background: currentWindow.type === "attendance" || currentWindow.type === "cardio" ? "hsl(221 83% 44%)" : "#FEE500",
+                  color: currentWindow.type === "attendance" || currentWindow.type === "cardio" ? "white" : "#3A1D1D",
                 }}
               >
                 {(submitMutation.isPending || logWeightMutation.isPending) ? "처리 중..." :
                   currentWindow.type === "attendance" ? "출석 확인하기" :
+                  currentWindow.type === "cardio" ? "유산소 기록 확인하기" :
                   currentWindow.type === "inbody" ? "체중 저장 + 카카오 인증 💬" :
-                  "카카오로 인증하기 💬"}
+                  "카카오로 식단 인증하기 💬"}
               </button>
             </div>
           )}
@@ -279,7 +295,11 @@ function MissionTab() {
           "bg-blue-50 text-blue-700 border border-blue-200"
         }`}>
           {resultMsg.status === "approved" && <p>✅ 미션 달성! 수고하셨습니다.</p>}
-          {resultMsg.status === "rejected" && <p>❌ 출석 4일 미만입니다. 다음 달에 다시 도전해 주세요.</p>}
+          {resultMsg.status === "rejected" && (
+            activePeriodKey?.includes("cardio")
+              ? <p>❌ 이번 달 8~14일 유산소운동 기록이 2회 미만입니다. 운동탭에서 유산소운동을 기록해 주세요.</p>
+              : <p>❌ 출석 4일 미만입니다. 다음 달에 다시 도전해 주세요.</p>
+          )}
           {resultMsg.status === "pending" && <p>📋 카카오채널로 인증사진을 보내주세요. 확인 후 승인됩니다.</p>}
           {resultMsg.rewarded && resultMsg.extensionUntil && (
             <p className="font-bold">🎉 감량 달성! 헬스권이 {resultMsg.extensionUntil}까지 1개월 연장되었습니다.</p>

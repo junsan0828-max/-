@@ -5619,11 +5619,10 @@ ${dataContext}
         throw new TRPCError({ code: "CONFLICT", message: "이번 달 해당 미션을 이미 제출했습니다." });
 
       let status = "pending";
+      let autoVerified = false;
 
       if (input.missionType === "attendance") {
         // 이번 달 1~7일 출석 자동 검증
-        const year = kstNow.getUTCFullYear();
-        const month = kstNow.getUTCMonth() + 1;
         const rangeStart = `${todayYM}-01`;
         const rangeEnd   = `${todayYM}-07`;
         const attendRes = await pool.query(
@@ -5634,6 +5633,20 @@ ${dataContext}
         );
         const count = (attendRes.rows[0]?.count ?? 0) as number;
         status = count >= 4 ? "approved" : "rejected";
+        autoVerified = true;
+      } else if (input.missionType === "cardio") {
+        // 이번 달 8~14일 유산소 운동 자동 검증 (2회 이상)
+        const rangeStart = `${todayYM}-08`;
+        const rangeEnd   = `${todayYM}-14`;
+        const cardioRes = await pool.query(
+          `SELECT COUNT(*)::int AS count FROM gym_plus_workout_logs
+           WHERE "gymPlusMemberId" = $1 AND title = '유산소운동'
+             AND "logDate" >= $2 AND "logDate" <= $3`,
+          [memberId, rangeStart, rangeEnd]
+        );
+        const count = (cardioRes.rows[0]?.count ?? 0) as number;
+        status = count >= 2 ? "approved" : "rejected";
+        autoVerified = true;
       }
 
       const now = new Date().toISOString();
@@ -5644,7 +5657,7 @@ ${dataContext}
         [memberId, input.missionType, periodKey, status, input.note ?? null, now]
       );
 
-      return { success: true, status, periodKey, autoVerified: input.missionType === "attendance" };
+      return { success: true, status, periodKey, autoVerified };
     }),
 
   admin_listMissionSubmissions: adminOnlyGymPlus.query(async () => {
