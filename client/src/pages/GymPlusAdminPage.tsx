@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusSettingsAdmin, GymPlusRegistrationsAdmin } from "./gym-plus/GymPlusAdmin";
+import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusSettingsAdmin, GymPlusRegistrationsAdmin, GymPlusLinkCheckAdmin } from "./gym-plus/GymPlusAdmin";
 import AdminRenewalRequestsModal from "@/components/AdminRenewalRequestsModal";
 
-type Tab = "members" | "videos" | "events" | "logs" | "products" | "settings" | "registrations";
+type Tab = "members" | "videos" | "events" | "logs" | "products" | "settings" | "registrations" | "linkcheck";
 
 const tabs: { key: Tab; label: string; icon: string; desc: string }[] = [
   { key: "members", label: "회원관리", icon: "◎", desc: "짐+ 회원 목록 및 동기화" },
+  { key: "linkcheck", label: "연동점검", icon: "⚯", desc: "통합운영시스템 회원 연결 상태 점검" },
   { key: "videos", label: "운동영상", icon: "▶", desc: "영상 카테고리 및 업로드" },
   { key: "events", label: "공지 / 이벤트", icon: "★", desc: "이벤트 및 공지 관리" },
   { key: "logs", label: "운동기록", icon: "≡", desc: "회원 운동기록 열람 / 영상 연결" },
@@ -111,6 +112,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "products" && <GymPlusProductsAdmin />}
             {activeTab === "settings" && <GymPlusSettingsAdmin />}
             {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
+            {activeTab === "linkcheck" && <GymPlusLinkCheckAdmin />}
           </div>
         </main>
       </div>
@@ -126,6 +128,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "products" && <GymPlusProductsAdmin />}
             {activeTab === "settings" && <GymPlusSettingsAdmin />}
             {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
+            {activeTab === "linkcheck" && <GymPlusLinkCheckAdmin />}
           </div>
         </main>
 

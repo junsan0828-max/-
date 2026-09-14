@@ -3826,6 +3826,131 @@ ${dataContext}
     }));
   }),
 
+  // ─── 통합운영시스템 연동 점검 ──────────────────────────────────────────────────
+  // memberId 연결이 끊긴 짐플러스 계정을 찾아 전화번호 매칭 후보와 함께 보여준다.
+  // 연결이 비어 있으면 페이백 연장이 통합운영시스템에 반영되지 않는다.
+  admin_listLinkIssues: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `WITH unlinked AS (
+         SELECT g.id, g.name, g.username, g.phone, g."membershipEnd", g."programName",
+                REGEXP_REPLACE(COALESCE(NULLIF(g.phone, ''), g.username, ''), '[^0-9]', '', 'g') AS digits
+         FROM gym_plus_members g
+         WHERE g."memberId" IS NULL
+       )
+       SELECT u.id, u.name, u.username, u.phone, u."membershipEnd", u."programName",
+              m.id AS "candidateId", m.name AS "candidateName",
+              m.phone AS "candidatePhone", m.status AS "candidateStatus",
+              m."membershipEnd" AS "candidateEnd",
+              cnt.total::int AS "candidateCount"
+       FROM unlinked u
+       LEFT JOIN LATERAL (
+         SELECT id, name, phone, status, "membershipEnd"
+         FROM members
+         WHERE LENGTH(u.digits) >= 4
+           AND REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = u.digits
+         ORDER BY (status = 'active') DESC, id DESC
+         LIMIT 1
+       ) m ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS total FROM members
+         WHERE LENGTH(u.digits) >= 4
+           AND REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = u.digits
+       ) cnt ON TRUE
+       ORDER BY (m.id IS NULL), u.name`
+    );
+
+    const rows = res.rows as {
+      id: number; name: string | null; username: string; phone: string | null;
+      membershipEnd: string | null; programName: string | null;
+      candidateId: number | null; candidateName: string | null;
+      candidatePhone: string | null; candidateStatus: string | null;
+      candidateEnd: string | null; candidateCount: number | null;
+    }[];
+
+    const totalRes = await pool.query(`SELECT COUNT(*)::int AS total FROM gym_plus_members`);
+    const total = (totalRes.rows[0]?.total ?? 0) as number;
+
+    return {
+      total,
+      unlinkedCount: rows.length,
+      linkedCount: total - rows.length,
+      autoFixable: rows.filter(r => r.candidateId !== null && (r.candidateCount ?? 0) === 1).length,
+      ambiguous: rows.filter(r => (r.candidateCount ?? 0) > 1).length,
+      noMatch: rows.filter(r => r.candidateId === null).length,
+      issues: rows,
+    };
+  }),
+
+  // 짐플러스 계정을 통합관리 회원과 연결. targetMemberId 미지정 시 전화번호 단일 매칭만 자동 연결.
+  admin_linkGymPlusMember: adminOnlyGymPlus
+    .input(z.object({
+      gymPlusMemberId: z.number().int(),
+      targetMemberId: z.number().int().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const gmRes = await pool.query(
+        `SELECT id, phone, username, "memberId" FROM gym_plus_members WHERE id = $1`,
+        [input.gymPlusMemberId]
+      );
+      const gm = gmRes.rows[0];
+      if (!gm) throw new TRPCError({ code: "NOT_FOUND", message: "짐플러스 회원을 찾을 수 없습니다." });
+      if (gm.memberId) throw new TRPCError({ code: "CONFLICT", message: "이미 연결된 계정입니다." });
+
+      let targetId = input.targetMemberId ?? null;
+      if (!targetId) {
+        const digits = String(gm.phone || gm.username || "").replace(/\D/g, "");
+        if (digits.length < 4)
+          throw new TRPCError({ code: "BAD_REQUEST", message: "전화번호가 없어 자동 연결할 수 없습니다. 회원을 직접 선택해 주세요." });
+        const matched = await pool.query(
+          `SELECT id FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1`,
+          [digits]
+        );
+        if (matched.rows.length === 0)
+          throw new TRPCError({ code: "NOT_FOUND", message: "전화번호가 일치하는 통합관리 회원이 없습니다." });
+        if (matched.rows.length > 1)
+          throw new TRPCError({ code: "CONFLICT", message: `전화번호가 같은 회원이 ${matched.rows.length}명입니다. 회원을 직접 선택해 주세요.` });
+        targetId = matched.rows[0].id as number;
+      } else {
+        const exists = await pool.query(`SELECT id FROM members WHERE id = $1`, [targetId]);
+        if (exists.rows.length === 0)
+          throw new TRPCError({ code: "NOT_FOUND", message: "통합관리 회원을 찾을 수 없습니다." });
+      }
+
+      const updated = await pool.query(
+        `UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2 AND "memberId" IS NULL`,
+        [targetId, input.gymPlusMemberId]
+      );
+      if (updated.rowCount === 0)
+        throw new TRPCError({ code: "CONFLICT", message: "연결에 실패했습니다. 목록을 새로고침해 주세요." });
+
+      return { success: true, linkedMemberId: targetId };
+    }),
+
+  // 전화번호가 정확히 1명과 일치하는 건만 일괄 연결. 모호하거나 매칭 없는 건은 건너뛴다.
+  admin_autoLinkGymPlusMembers: adminOnlyGymPlus.mutation(async () => {
+    const res = await pool.query(
+      `WITH unlinked AS (
+         SELECT id, REGEXP_REPLACE(COALESCE(NULLIF(phone, ''), username, ''), '[^0-9]', '', 'g') AS digits
+         FROM gym_plus_members WHERE "memberId" IS NULL
+       ),
+       single_match AS (
+         SELECT u.id, MIN(m.id) AS "targetId"
+         FROM unlinked u
+         JOIN members m
+           ON REGEXP_REPLACE(COALESCE(m.phone,''), '[^0-9]', '', 'g') = u.digits
+         WHERE LENGTH(u.digits) >= 4
+         GROUP BY u.id
+         HAVING COUNT(*) = 1
+       )
+       UPDATE gym_plus_members g
+       SET "memberId" = s."targetId"
+       FROM single_match s
+       WHERE g.id = s.id AND g."memberId" IS NULL
+       RETURNING g.id`
+    );
+    return { linked: res.rowCount ?? 0 };
+  }),
+
   // 통합 회원에게 짐플러스 계정 생성 (memberId로 연결)
   admin_createLinkedMember: adminOnlyGymPlus
     .input(z.object({

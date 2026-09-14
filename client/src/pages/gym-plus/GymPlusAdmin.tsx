@@ -2196,3 +2196,156 @@ function KioskNoticesEditor() {
     </div>
   );
 }
+
+// ─── 통합운영시스템 연동 점검 ──────────────────────────────────────────────────
+// memberId 연결이 끊긴 짐플러스 계정은 페이백 연장이 통합운영시스템에 반영되지 않는다.
+
+function LinkIssueRow({ issue, onRefresh }: { issue: any; onRefresh: () => void }) {
+  const [manualId, setManualId] = useState("");
+  const linkMut = trpc.gymPlus.admin_linkGymPlusMember.useMutation({
+    onSuccess: (res) => {
+      toast.success(`연결 완료 (통합관리 회원 #${res.linkedMemberId})`);
+      onRefresh();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const count = issue.candidateCount ?? 0;
+  const isAuto = issue.candidateId !== null && count === 1;
+  const isAmbiguous = count > 1;
+
+  return (
+    <div className="border border-border rounded-lg p-3 space-y-2 bg-card">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-sm text-foreground">{issue.name || issue.username}</span>
+            <span className="text-xs text-muted-foreground">{issue.phone || issue.username}</span>
+            {issue.programName && (
+              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{issue.programName}</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {isAuto && (
+              <>매칭: <span className="text-green-600 font-medium">{issue.candidateName}</span>
+                {" "}(#{issue.candidateId} · {issue.candidateStatus === "active" ? "활성" : issue.candidateStatus})</>
+            )}
+            {isAmbiguous && <span className="text-amber-600 font-medium">전화번호가 같은 회원 {count}명 — 직접 선택 필요</span>}
+            {!isAuto && !isAmbiguous && <span className="text-red-600 font-medium">일치하는 통합관리 회원 없음</span>}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isAuto ? (
+            <Button
+              size="sm"
+              className="h-8"
+              disabled={linkMut.isPending}
+              onClick={() => linkMut.mutate({ gymPlusMemberId: issue.id })}
+            >
+              {linkMut.isPending ? "연결 중..." : "연결하기"}
+            </Button>
+          ) : (
+            <>
+              <Input
+                value={manualId}
+                onChange={(e) => setManualId(e.target.value)}
+                placeholder="회원 ID"
+                className="h-8 w-24 text-xs"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                disabled={linkMut.isPending || !manualId.trim()}
+                onClick={() => {
+                  const id = parseInt(manualId, 10);
+                  if (isNaN(id)) { toast.error("회원 ID를 숫자로 입력해 주세요."); return; }
+                  linkMut.mutate({ gymPlusMemberId: issue.id, targetMemberId: id });
+                }}
+              >
+                직접 연결
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function GymPlusLinkCheckAdmin() {
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.gymPlus.admin_listLinkIssues.useQuery();
+  const refresh = () => utils.gymPlus.admin_listLinkIssues.invalidate();
+
+  const autoLinkMut = trpc.gymPlus.admin_autoLinkGymPlusMembers.useMutation({
+    onSuccess: (res) => {
+      toast.success(res.linked > 0 ? `${res.linked}건 자동 연결 완료` : "자동 연결할 건이 없습니다.");
+      refresh();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  if (isLoading) return <p className="text-sm text-muted-foreground p-4">불러오는 중...</p>;
+  if (!data) return <p className="text-sm text-muted-foreground p-4">데이터를 불러올 수 없습니다.</p>;
+
+  const linkRate = data.total > 0 ? Math.round((data.linkedCount / data.total) * 100) : 100;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card><CardContent className="p-3 text-center">
+          <p className={`text-2xl font-bold ${linkRate === 100 ? "text-green-600" : "text-amber-600"}`}>{linkRate}%</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">연결률 ({data.linkedCount}/{data.total})</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-3 text-center">
+          <p className="text-2xl font-bold text-green-600">{data.autoFixable}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">자동 연결 가능</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-3 text-center">
+          <p className="text-2xl font-bold text-amber-600">{data.ambiguous}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">중복 — 선택 필요</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-3 text-center">
+          <p className="text-2xl font-bold text-red-600">{data.noMatch}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">매칭 없음</p>
+        </CardContent></Card>
+      </div>
+
+      {data.unlinkedCount === 0 ? (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
+          <p className="text-green-700 font-medium">✅ 모든 짐플러스 계정이 통합운영시스템과 연결되어 있습니다.</p>
+          <p className="text-xs text-green-600 mt-1">페이백 연장이 정상 반영됩니다.</p>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-medium text-amber-800">
+                연결 끊긴 계정 {data.unlinkedCount}건 — 페이백 연장이 통합운영시스템에 반영되지 않습니다.
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                전화번호가 1명과만 일치하는 {data.autoFixable}건은 한 번에 연결할 수 있습니다.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="h-9 shrink-0"
+              disabled={autoLinkMut.isPending || data.autoFixable === 0}
+              onClick={() => autoLinkMut.mutate()}
+            >
+              {autoLinkMut.isPending ? "연결 중..." : `자동 연결 (${data.autoFixable}건)`}
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {data.issues.map((issue: any) => (
+              <LinkIssueRow key={issue.id} issue={issue} onRefresh={refresh} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
