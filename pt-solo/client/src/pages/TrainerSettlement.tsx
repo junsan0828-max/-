@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -554,6 +554,12 @@ function AnalysisTab() {
 }
 
 export default function TrainerSettlement() {
+  // 어떤 경로로 들어왔든(온보딩 버튼·하단 탭·사이드바) 이 화면에 도달하면
+  // 대시보드 온보딩의 "매출 확인하기" 단계를 완료 처리한다.
+  useEffect(() => {
+    try { localStorage.setItem("fitstep_settlement_visited", "1"); } catch { /* 저장소 차단 환경 */ }
+  }, []);
+
   const search = useSearch();
   const params = new URLSearchParams(search);
   const tabParam = params.get("tab");

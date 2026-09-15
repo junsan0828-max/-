@@ -1161,7 +1161,9 @@ function TrainerDashboard() {
   const { data: parqMissing } = trpc.parQ.listMissing.useQuery();
   const { data: leadsData } = trpc.leads.list.useQuery();
   const [onboardingSkipped, setOnboardingSkipped] = useState(() => localStorage.getItem("fitstep_onboarding_skipped") === "1");
-  const [settlementVisited, setSettlementVisited] = useState(() => localStorage.getItem("fitstep_settlement_visited") === "1");
+  // 정산 화면 방문 여부는 TrainerSettlement에서 기록한다. 대시보드로 돌아올 때
+  // 이 컴포넌트가 다시 마운트되므로 여기서 읽으면 최신 값이 된다.
+  const settlementVisited = localStorage.getItem("fitstep_settlement_visited") === "1";
   const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
   const currentYearMonth = todayStr.slice(0, 7);
@@ -1298,7 +1300,7 @@ function TrainerDashboard() {
       </div>
 
       {/* 이번달 실입금 (전체 폭) */}
-      <button onClick={() => { localStorage.setItem("fitstep_settlement_visited", "1"); setSettlementVisited(true); setLocation("/settlement"); }}
+      <button onClick={() => setLocation("/settlement")}
         className="w-full rounded-2xl border p-4 text-left active:scale-95 transition-transform flex items-center justify-between"
         style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.10) 0%, hsl(172 66% 50% / 0.06) 100%)", borderColor: "hsl(142 76% 36% / 0.25)" }}>
         <div>
@@ -1317,7 +1319,7 @@ function TrainerDashboard() {
           { label: "회원 등록", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", onClick: () => setRegisterTypeOpen(true) },
           { label: "수업 시작", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", onClick: () => setLocation("/attendance") },
           { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", onClick: () => setJournalOpen(true) },
-          { label: "정산·매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", onClick: () => { localStorage.setItem("fitstep_settlement_visited", "1"); setSettlementVisited(true); setLocation("/settlement"); } },
+          { label: "정산·매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", onClick: () => setLocation("/settlement") },
         ] as const).map(item => (
           <button key={item.label} onClick={item.onClick}
             className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">
