@@ -496,6 +496,79 @@ export const dataHealthRouter = t.router({
       rows: inflatedUsed.rows,
     });
 
+    // ④-3c-5 수업일이 패키지 시작일보다 앞선 세션 — 패키지 오배정.
+    //     예전 "세션-패키지 재연결" 보정이 회원당 패키지 하나(최신 활성)만 골라
+    //     날짜를 보지 않고 몰아넣었다. 그래서 5월 수업이 7월 시작 재등록 패키지에
+    //     붙는 일이 생겼다(최문욱 5/12·5/15 → 7/10 시작 패키지).
+    //     이전 패키지 잔여는 남고 새 패키지는 시작 전부터 깎여 양쪽이 다 틀어진다.
+    //     보정 로직은 날짜 기준으로 고쳤지만, 이미 옮겨진 건은 사람이 확인해야 한다.
+    const logBeforeStart = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName",'(없음)') AS "트레이너",
+             sl.id AS "일지ID", sl."sessionDate" AS "수업일",
+             p.id AS "붙은패키지", p."packageName" AS "프로그램",
+             p."startDate" AS "패키지시작일",
+             (SELECT p2.id FROM pt_packages p2
+               WHERE p2."memberId" = sl."memberId"
+                 AND (COALESCE(p2."pricePerSession",0) > 0 OR COALESCE(p2."paymentAmount",0) > 0)
+                 AND (p2."startDate" IS NULL OR p2."startDate" <= sl."sessionDate")
+               ORDER BY p2."startDate" DESC NULLS LAST, p2.id DESC
+               LIMIT 1) AS "가야할패키지"
+      FROM pt_session_logs sl
+      JOIN pt_packages p ON p.id = sl."packageId"
+      JOIN members m ON m.id = sl."memberId"
+      LEFT JOIN trainers t ON t.id = sl."trainerId"
+      WHERE (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+        AND sl."sessionDate" IS NOT NULL
+        AND p."startDate" IS NOT NULL
+        AND sl."sessionDate" < p."startDate"
+      ORDER BY m.name, sl."sessionDate"
+      LIMIT 50
+    `);
+    groups.push({
+      key: "log_before_package_start",
+      title: "수업일이 패키지 시작일보다 앞섬",
+      severity: "critical",
+      description: "이 수업은 아직 시작하지도 않은 패키지에서 차감되고 있습니다. 이전 패키지 잔여는 남고 새 패키지는 시작 전부터 깎여, 양쪽 잔여가 모두 틀어집니다. '가야할패키지'가 수업일 기준으로 맞는 패키지입니다. 담당 트레이너에게 확인한 뒤 옮기고, 두 패키지의 사용 횟수를 함께 맞춰주세요.",
+      rows: logBeforeStart.rows,
+    });
+
+    // ④-3c-6 시스템 사용 이후(2026-05~) 패키지인데 사용 횟수가 수업일지보다 많음.
+    //     그 이전 패키지는 오프라인·도입 전 수업이라 일지가 없는 게 정상이므로 제외한다
+    //     (원칙 9: 수업일지 개수 ≠ 사용 횟수). 2026-05 이후 건은 일지가 있어야 맞다.
+    const usedOverLogs = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName",'(없음)') AS "트레이너",
+             p.id AS "패키지ID", p."packageName" AS "프로그램",
+             p."totalSessions" AS "총횟수", COALESCE(p."usedSessions",0) AS "저장된사용",
+             l.days AS "수업일지수",
+             (COALESCE(p."usedSessions",0) - l.days) AS "근거없는차감",
+             (p."totalSessions" - COALESCE(p."usedSessions",0)) AS "현재잔여",
+             (p."totalSessions" - l.days) AS "일지기준잔여",
+             COALESCE(p."paymentDate", p."startDate", r."paymentDate") AS "결제일",
+             p.status AS "상태"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers t ON t.id = p."trainerId"
+      LEFT JOIN revenue_entries r ON r.id = p."revenueEntryId"
+      JOIN LATERAL (
+        SELECT COUNT(DISTINCT sl."sessionDate")::int AS days
+        FROM pt_session_logs sl
+        WHERE sl."packageId" = p.id AND (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+      ) l ON true
+      WHERE p.status <> 'refunded'
+        AND COALESCE(p."serviceSessions",0) = 0
+        AND COALESCE(p."paymentDate", p."startDate", r."paymentDate") >= '2026-05-01'
+        AND COALESCE(p."usedSessions",0) > l.days
+      ORDER BY (COALESCE(p."usedSessions",0) - l.days) DESC, m.name
+      LIMIT 50
+    `);
+    groups.push({
+      key: "used_over_logs",
+      title: "수업 기록보다 많이 차감된 패키지",
+      severity: "warning",
+      description: "시스템을 쓰기 시작한 2026-05 이후에 결제된 패키지인데, 수업일지 수보다 사용 횟수가 많습니다. 그만큼 근거 없이 잔여가 깎여 있습니다. 다만 일지를 안 쓰고 진행한 수업이 있으면 정상이므로, 담당 트레이너에게 확인한 뒤 회원 상세에서 사용 횟수를 고쳐주세요. (2026-04 이전 건은 도입 전 수업이라 일지가 없는 게 정상이므로 제외했습니다.)",
+      rows: usedOverLogs.rows,
+    });
+
     // ④-3d 매출이 아예 연결되지 않은 PT 패키지.
     //      "언제 등록한 건지" 알 수 있게 생성일을 함께 보여준다. 2026-04-23은 기존 회원
     //      일괄 임포트분이고(정수연 사례: 시트상 4/08 등록), 그 외 날짜는 앱에서 수동으로
