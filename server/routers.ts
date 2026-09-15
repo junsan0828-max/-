@@ -5487,21 +5487,34 @@ ${dataContext}
       );
       if (existingRes.rows[0]) return { rewarded: false };
 
-      // 총 9개월 상한 체크
+      // 통합운영시스템 등록 정보 (시작체중 실측 · 그쪽에서 이미 지급한 개월수)
+      const mainMemberId = await resolveMainMemberId({
+        id: memberId, memberId: member.memberId ?? null,
+        phone: member.phone, username: member.username,
+      });
+      const mainInfo = mainMemberId ? await getMainSystemDietInfo(mainMemberId) : null;
+
+      // 총 9개월 상한 체크. 통합운영시스템이 지급한 개월수까지 합산해
+      // 같은 감량으로 양쪽에서 이중 지급되는 것을 막는다.
       const totalRes = await pool.query(
         `SELECT COALESCE(SUM("rewardMonths"), 0)::int AS total FROM gym_plus_mission_rewards WHERE "gymPlusMemberId" = $1 AND "programName" = $2`,
         [memberId, member.programName]
       );
-      const alreadyAwarded = totalRes.rows[0].total as number;
-      if (alreadyAwarded >= 9) return { rewarded: false };
+      const awardedHere = totalRes.rows[0].total as number;
+      const awardedMain = mainInfo?.bonusMonths ?? 0;
+      if (awardedHere + awardedMain >= 9) return { rewarded: false };
 
-      // 시작 체중(최초 기록) 조회
-      const baseRes = await pool.query(
-        `SELECT weight::float AS weight FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" ASC LIMIT 1`,
-        [memberId]
-      );
-      if (!baseRes.rows[0]) return { rewarded: false };
-      const baseWeight = baseRes.rows[0].weight as number;
+      // 시작 체중: 데스크 인바디 실측(diet_programs.startWeight)을 우선한다.
+      // 없을 때만 회원이 앱에 처음 입력한 값으로 대체한다.
+      let baseWeight: number | null = mainInfo?.startWeight ?? null;
+      if (baseWeight === null) {
+        const baseRes = await pool.query(
+          `SELECT weight::float AS weight FROM gym_plus_weight_logs WHERE "gymPlusMemberId" = $1 ORDER BY "loggedAt" ASC LIMIT 1`,
+          [memberId]
+        );
+        baseWeight = (baseRes.rows[0]?.weight ?? null) as number | null;
+      }
+      if (baseWeight === null) return { rewarded: false };
 
       // 프로그램 시작일 기준 경과 일수
       const todayKst = kstNow.toISOString().slice(0, 10);
@@ -5540,28 +5553,8 @@ ${dataContext}
       );
       if (inserted.rowCount === 0) return { rewarded: false };
 
-      // 연장을 반영할 통합관리 members.id 확정.
-      // memberId 연결이 비어 있으면 전화번호로 찾아 연결한다. 연결이 끊긴 회원의 페이백이
-      // 통합운영시스템에 반영되지 않고 조용히 사라지는 것을 막는다.
-      let targetMemberId: number | null = member.memberId ?? null;
-      if (!targetMemberId) {
-        const digits = String(member.phone || member.username || "").replace(/\D/g, "");
-        if (digits.length >= 4) {
-          const matched = await pool.query(
-            `SELECT id FROM members
-             WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1
-             ORDER BY (status = 'active') DESC, id DESC LIMIT 1`,
-            [digits]
-          );
-          targetMemberId = matched.rows[0]?.id ?? null;
-          if (targetMemberId) {
-            await pool.query(
-              `UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2 AND "memberId" IS NULL`,
-              [targetMemberId, memberId]
-            );
-          }
-        }
-      }
+      // 연장을 반영할 통합관리 members.id (위에서 이미 확정, 연결도 저장됨)
+      const targetMemberId = mainMemberId;
 
       // 회원권 만료일: 통합관리 members 테이블이 원본, 양쪽 동시 갱신
       let baseEndStr: string | null = member.membershipEnd ?? null;
@@ -5745,10 +5738,19 @@ ${dataContext}
   getWeeklyMissions: gymPlusProtected.query(async ({ ctx }) => {
     const memberId = ctx.gymPlusMemberId;
     const memberRes = await pool.query(
-      `SELECT "programName", "programStartDate" FROM gym_plus_members WHERE id = $1`,
+      `SELECT "programName", "programStartDate", "memberId", phone, username
+       FROM gym_plus_members WHERE id = $1`,
       [memberId]
     );
     const member = memberRes.rows[0];
+    // 통합운영시스템에만 등록된 회원도 앱에서 미션을 볼 수 있게 옮겨 적는다.
+    if (member && (!member.programName || !member.programStartDate)) {
+      const synced = await syncDietProgramFromMainSystem({ id: memberId, memberId: member.memberId ?? null, phone: member.phone, username: member.username });
+      if (synced) {
+        member.programName = synced.programName;
+        member.programStartDate = synced.programStartDate;
+      }
+    }
     if (!member?.programName || !member?.programStartDate) return null;
 
     const programStart = member.programStartDate as string;
@@ -6138,50 +6140,94 @@ const landingRouter = t.router({
   }),
 });
 
+// ─── C1: 다이어트페이백 등록은 통합운영시스템이 원천 ────────────────────────────
+// 등록(diet_programs)은 매출과 묶여 있어 통합운영시스템이 소유하고, 짐플러스는 읽기만 한다.
+// 실행 데이터(미션·출석·페이백 지급)는 짐플러스가 소유한다.
+// 두 시스템이 다른 DB를 쓰는 환경에서는 테이블이 없으므로 조용히 건너뛴다.
+
+// 짐플러스 계정에 대응하는 통합관리 members.id를 확정한다. 연결이 비어 있으면
+// 전화번호로 찾아 연결까지 저장해, 관리자가 연결 버튼을 누르지 않아도 되게 한다.
+async function resolveMainMemberId(
+  gm: { id: number; memberId: number | null; phone?: string | null; username?: string | null }
+): Promise<number | null> {
+  if (gm.memberId) return gm.memberId;
+  const digits = String(gm.phone || gm.username || "").replace(/\D/g, "");
+  if (digits.length < 4) return null;
+  const matched = await pool.query(
+    `SELECT id FROM members
+     WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1
+     ORDER BY (status = 'active') DESC, id DESC LIMIT 1`,
+    [digits]
+  );
+  const mainId = (matched.rows[0]?.id ?? null) as number | null;
+  if (mainId) {
+    await pool.query(
+      `UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2 AND "memberId" IS NULL`,
+      [mainId, gm.id]
+    );
+  }
+  return mainId;
+}
+
+// 통합운영시스템의 다이어트페이백 정보. 시작체중은 데스크 인바디 실측이라
+// 회원이 앱에 처음 입력한 값보다 정확하고, bonusMonths는 그쪽에서 이미 지급한
+// 개월수라 짐플러스 지급분과 합쳐야 총 9개월 상한이 지켜진다.
+async function getMainSystemDietInfo(mainMemberId: number): Promise<{
+  startDate: string | null; startWeight: number | null; bonusMonths: number;
+} | null> {
+  try {
+    const t = await pool.query(`SELECT to_regclass('public.diet_programs') AS t`);
+    if (!t.rows[0]?.t) return null;
+
+    const dp = await pool.query(
+      `SELECT id, "startDate", "startWeight"::float AS "startWeight"
+       FROM diet_programs WHERE "memberId" = $1 ORDER BY id DESC LIMIT 1`,
+      [mainMemberId]
+    );
+    if (!dp.rows[0]) return null;
+
+    let bonusMonths = 0;
+    const wc = await pool.query(`SELECT to_regclass('public.diet_weight_checks') AS t`);
+    if (wc.rows[0]?.t) {
+      const b = await pool.query(
+        `SELECT COALESCE(SUM("bonusMonthsEarned"), 0)::int AS total
+         FROM diet_weight_checks WHERE "programId" = $1`,
+        [dp.rows[0].id]
+      );
+      bonusMonths = (b.rows[0]?.total ?? 0) as number;
+    }
+
+    return {
+      startDate: dp.rows[0].startDate ?? null,
+      startWeight: dp.rows[0].startWeight ?? null,
+      bonusMonths,
+    };
+  } catch (e) {
+    console.error("⚠️ diet_programs 조회 실패:", (e as Error).message);
+    return null;
+  }
+}
+
 // 통합운영시스템(diet_programs)의 다이어트페이백 등록을 짐플러스로 옮겨 적는다.
 // 두 시스템은 DB는 공유하지만 등록을 서로 다른 테이블에 저장하고 동기화가 없다.
 // diet_programs는 통합운영시스템 소유라 읽기만 하고, 짐플러스 쪽에만 기록한다.
 async function syncDietProgramFromMainSystem(
-  gm: { id: number; memberId: number | null; phone: string | null; username: string | null },
-  digits: string
+  gm: { id: number; memberId: number | null; phone?: string | null; username?: string | null }
 ): Promise<{ programName: string; programStartDate: string } | null> {
   try {
-    const tableRes = await pool.query(`SELECT to_regclass('public.diet_programs') AS t`);
-    if (!tableRes.rows[0]?.t) return null;
-
-    // 통합관리 members.id 확정. 연결이 비어 있으면 전화번호로 찾는다.
-    let mainId: number | null = gm.memberId ?? null;
-    if (!mainId && digits.length >= 4) {
-      const matched = await pool.query(
-        `SELECT id FROM members
-         WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1
-         ORDER BY (status = 'active') DESC, id DESC LIMIT 1`,
-        [digits]
-      );
-      mainId = matched.rows[0]?.id ?? null;
-      if (mainId) {
-        await pool.query(
-          `UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2 AND "memberId" IS NULL`,
-          [mainId, gm.id]
-        );
-      }
-    }
+    const mainId = await resolveMainMemberId(gm);
     if (!mainId) return null;
 
-    const dp = await pool.query(
-      `SELECT "startDate" FROM diet_programs WHERE "memberId" = $1 ORDER BY id DESC LIMIT 1`,
-      [mainId]
-    );
-    const startDate = dp.rows[0]?.startDate as string | undefined;
-    if (!startDate) return null;
+    const info = await getMainSystemDietInfo(mainId);
+    if (!info?.startDate) return null;
 
     const programName = "다이어트페이백";
     await pool.query(
       `UPDATE gym_plus_members SET "programName" = $1, "programStartDate" = $2 WHERE id = $3`,
-      [programName, startDate, gm.id]
+      [programName, info.startDate, gm.id]
     );
-    console.log(`✅ 다이어트페이백 동기화: gym_plus_members.id=${gm.id} ← members.id=${mainId} (시작 ${startDate})`);
-    return { programName, programStartDate: startDate };
+    console.log(`✅ 다이어트페이백 동기화: gym_plus_members.id=${gm.id} ← members.id=${mainId} (시작 ${info.startDate})`);
+    return { programName, programStartDate: info.startDate };
   } catch (e) {
     // 통합운영시스템 스키마 변경으로 실패해도 체크인 자체는 막지 않는다.
     console.error("⚠️ diet_programs 동기화 실패:", (e as Error).message);
@@ -6414,7 +6460,7 @@ const kioskRouter = t.router({
       // 짐플러스에 등록이 비어 있으면 그쪽을 확인해 옮겨 적는다. 대표가 양쪽에 각각
       // 등록하지 않아도, 연결 버튼을 누르지 않아도 키오스크와 회원앱이 함께 동작한다.
       if (!found.programName || !found.programStartDate) {
-        const synced = await syncDietProgramFromMainSystem(found, digits);
+        const synced = await syncDietProgramFromMainSystem(found);
         if (synced) {
           found.programName = synced.programName;
           found.programStartDate = synced.programStartDate;
