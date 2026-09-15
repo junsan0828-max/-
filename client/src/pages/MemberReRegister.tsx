@@ -237,7 +237,8 @@ export default function MemberReRegister() {
     if (addHealth && !healthMonths) { toast.error("헬스 이용 기간을 선택해주세요"); return; }
     if (addPt && !isServiceSession && !ptProgram) { toast.error("PT 프로그램명을 입력해주세요"); return; }
     if (addPt && !isServiceSession && !ptSessions) { toast.error("PT 횟수를 선택해주세요"); return; }
-    if (addDiet && !dietStartWeight) { toast.error("시작 체중을 입력해주세요"); return; }
+    // "0"은 문자열로는 참이라 통과해버린다 — 숫자로 확인한다.
+    if (addDiet && !(parseFloat(dietStartWeight) > 0)) { toast.error("다이어트 시작 체중을 입력해주세요"); return; }
     const hasPaidItem = (addPt && !isServiceSession) || addHealth || (addLocker && lockerPrice) || (addUniform && uniformPrice) || addDiet;
     if (hasPaidItem && !paymentMethod) { toast.error("결제 방법을 선택해주세요"); return; }
     if (hasPaidItem && !paymentDate) { toast.error("결제일자를 입력해주세요"); return; }

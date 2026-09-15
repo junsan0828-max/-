@@ -569,6 +569,29 @@ export const dataHealthRouter = t.router({
       rows: usedOverLogs.rows,
     });
 
+    // ④-3c-7 다이어트 매출은 있는데 프로그램이 없는 회원.
+    //     등록 화면에서 시작 체중을 비운 채 저장하면 예전에는 매출도 프로그램도 만들지
+    //     않고 조용히 넘어갔다(지금은 막는다). 매출만 다른 경로로 들어간 경우도 여기 잡힌다.
+    //     프로그램이 없으면 회원 앱에 "등록 회원이 아닙니다"만 뜨고 체중 기록도 못 한다.
+    const dietRevNoProgram = await pool.query(`
+      SELECT m.id AS "회원ID", m.name AS "회원", m.phone AS "연락처",
+             r.id AS "매출ID", r."paymentDate" AS "결제일", r.amount AS "금액",
+             r."startDate" AS "시작일", r."endDate" AS "종료일"
+      FROM revenue_entries r
+      JOIN members m ON m.id = r."memberId"
+      WHERE r.type = '다이어트'
+        AND NOT EXISTS (SELECT 1 FROM diet_programs d WHERE d."memberId" = r."memberId")
+      ORDER BY r."paymentDate" DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "diet_revenue_without_program",
+      title: "다이어트 결제는 있는데 프로그램이 없음",
+      severity: "critical",
+      description: "결제는 받았는데 다이어트 프로그램이 만들어지지 않았습니다. 회원 앱에 '등록 회원이 아닙니다'가 뜨고 체중 기록도 못 합니다. 회원 상세의 다이어트 항목에서 시작일과 시작 체중을 넣어 프로그램을 만들어주세요. (재등록하면 매출이 중복됩니다.)",
+      rows: dietRevNoProgram.rows,
+    });
+
     // ④-3d 매출이 아예 연결되지 않은 PT 패키지.
     //      "언제 등록한 건지" 알 수 있게 생성일을 함께 보여준다. 2026-04-23은 기존 회원
     //      일괄 임포트분이고(정수연 사례: 시트상 4/08 등록), 그 외 날짜는 앱에서 수동으로

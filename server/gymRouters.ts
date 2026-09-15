@@ -4369,6 +4369,17 @@ const registerMutation = protectedProcedure
     }
 
     // 7. 다이어트 프로그램 등록
+    // 시작 체중이 없으면 조용히 건너뛰지 않고 막는다.
+    // 예전에는 `if (addDiet && dietStartWeight)` 한 줄이라, 체중을 비워두면 매출도
+    // 프로그램도 만들지 않은 채 "등록 완료"로 끝났다. 결제는 받았는데 시스템에는
+    // 아무것도 남지 않고, 회원 앱에는 "등록 회원이 아닙니다"만 떴다.
+    if (input.addDiet && !(typeof input.dietStartWeight === "number" && input.dietStartWeight > 0)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "다이어트 프로그램은 시작 체중이 있어야 등록됩니다. 시작 체중(kg)을 입력해주세요.",
+      });
+    }
+
     if (input.addDiet && input.dietStartWeight) {
       const dietPrice = input.dietPrice ?? 0;
       const discAmt = input.discountAmount ?? 0;
@@ -4706,6 +4717,54 @@ const appStatsRouter = t.router({
 
 // ─── 다이어트 프로그램 라우터 ──────────────────────────────────────────────────
 const dietRouter = t.router({
+  // 기존 회원에게 다이어트 프로그램을 직접 등록한다(복구·누락 보정용).
+  // 등록 화면에서 시작 체중을 비운 채 저장하면 프로그램이 만들어지지 않았는데,
+  // 나중에 붙일 방법이 없어 재등록(=매출 중복)밖에 길이 없었다.
+  createProgram: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      startDate: z.string(),
+      startWeight: z.number().min(20).max(300),
+      baseWeeks: z.number().min(1).max(52).default(12),
+      revenueEntryId: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 등록할 수 있습니다." });
+      }
+      const [mem] = await db.select({ id: members.id, membershipEnd: members.membershipEnd })
+        .from(members).where(eq(members.id, input.memberId)).limit(1);
+      if (!mem) throw new TRPCError({ code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." });
+
+      // 같은 시작일로 이미 있으면 중복 생성하지 않는다(원칙 4: 중복 방지는 생성 시점에서).
+      const dup = await pool.query(
+        `SELECT id FROM diet_programs WHERE "memberId" = $1 AND "startDate" = $2 LIMIT 1`,
+        [input.memberId, input.startDate]
+      );
+      if (dup.rows[0]) {
+        throw new TRPCError({ code: "CONFLICT", message: "같은 시작일의 다이어트 프로그램이 이미 있습니다." });
+      }
+
+      const row = await pool.query<{ id: number }>(
+        `INSERT INTO diet_programs ("memberId","startDate","startWeight","baseWeeks","revenueEntryId","updatedAt")
+         VALUES ($1,$2,$3,$4,$5, now()::text) RETURNING id`,
+        [input.memberId, input.startDate, input.startWeight, input.baseWeeks, input.revenueEntryId ?? null]
+      );
+
+      // 프로그램 기간(기본 12주)이 현재 만료일보다 뒤면 회원권을 그만큼 늘린다.
+      // 페이백 개월은 여기서 건드리지 않는다 — 체중 기록이 들어올 때 얹힌다.
+      const [yr, mo, dy] = input.startDate.substring(0, 10).split("-").map(Number);
+      const endDt = new Date(yr, mo - 1, dy);
+      endDt.setDate(endDt.getDate() + input.baseWeeks * 7);
+      const programEnd = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+      if (!mem.membershipEnd || mem.membershipEnd < programEnd) {
+        await db.update(members)
+          .set({ membershipEnd: programEnd, updatedAt: new Date().toISOString() })
+          .where(eq(members.id, input.memberId));
+      }
+      return { id: row.rows[0].id, programEndDate: programEnd };
+    }),
+
   // 회원의 다이어트 프로그램 목록 (최신 1개 포함 전체)
   getByMember: protectedProcedure
     .input(z.object({ memberId: z.number() }))
