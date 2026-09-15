@@ -135,7 +135,7 @@ app.get("/api/admin/debug/member-sessions", async (req, res) => {
     if (!name) return res.status(400).json({ error: "name 파라미터가 필요합니다. 예: ?name=최문욱" });
 
     const mem = await pool.query(
-      `SELECT id, name, phone FROM members WHERE name = $1 ORDER BY id LIMIT 10`, [name]
+      `SELECT id, name, phone, "membershipEnd" FROM members WHERE name = $1 ORDER BY id LIMIT 10`, [name]
     );
     if (mem.rowCount === 0) return res.json({ error: `'${name}' 회원을 찾을 수 없습니다.` });
 
@@ -188,8 +188,23 @@ app.get("/api/admin/debug/member-sessions", async (req, res) => {
         logs.rows.filter((l: any) => !l.isDraft && l.sessionDate).map((l: any) => l.sessionDate)
       ).size;
 
+      const diet = await pool.query(`
+        SELECT p.id, p."startDate", p."startWeight", p."baseWeeks",
+               COALESCE(p."appliedMonths",0) AS "회원권에_반영한_개월",
+               COALESCE((SELECT SUM(c."bonusMonthsEarned") FROM diet_weight_checks c
+                         WHERE c."programId" = p.id),0)::int AS "적립된_개월"
+        FROM diet_programs p WHERE p."memberId" = $1 ORDER BY p."startDate" DESC
+      `, [m.id]);
+      const dietGrants = await pool.query(`
+        SELECT id, "programId", months, "totalEarned", "previousEnd", "newEnd",
+               source, actor, note, substring("createdAt",1,16) AS "시각"
+        FROM diet_payback_grants WHERE "memberId" = $1 ORDER BY id DESC LIMIT 50
+      `, [m.id]);
+
       out.push({
-        회원: { id: m.id, name: m.name, phone: m.phone },
+        회원: { id: m.id, name: m.name, phone: m.phone, 회원권만료일: m.membershipEnd },
+        다이어트: diet.rows,
+        다이어트_페이백_기록: dietGrants.rows,
         요약: {
           매출로_산_횟수: totalBought,
           패키지_사용합: totalUsed,
@@ -1418,6 +1433,27 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )
   `);
+  // 페이백으로 회원권 만료일을 움직인 기록 원장.
+  // 만료일은 덮어써지는 값이라, 이 표가 없으면 "원래 며칠이었는지"를 되돌아볼 방법이 없다.
+  // point_membership_extensions(포인트 연장)와 같은 방식이다 — previousEnd/newEnd를 남긴다.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS diet_payback_grants (
+      id SERIAL PRIMARY KEY,
+      "programId" INTEGER NOT NULL,
+      "memberId" INTEGER NOT NULL,
+      "months" INTEGER NOT NULL,        -- 이번에 더한(+) / 되돌린(-) 개월
+      "totalEarned" INTEGER NOT NULL,   -- 이 시점의 누적 적립 개월
+      "previousEnd" TEXT,               -- 반영 전 회원권 만료일
+      "newEnd" TEXT,                    -- 반영 후 (반영 못 했으면 NULL)
+      "source" TEXT NOT NULL,           -- member_app / admin / admin_delete / backfill
+      "actor" TEXT,
+      "note" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_diet_payback_grants_program ON diet_payback_grants("programId")`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_diet_payback_grants_member ON diet_payback_grants("memberId")`);
+
   console.log("✅ 다이어트 프로그램 테이블 준비 완료");
 
   // ── 다이어트 페이백 appliedMonths 1회 백필 ──────────────────────────────────
@@ -1459,7 +1495,18 @@ async function initDatabase() {
         `UPDATE diet_programs SET "appliedMonths" = $1, "paybackBackfilledAt" = now()::text WHERE id = $2`,
         [appliedMonths, row.id]
       );
-      if (appliedMonths > 0) applied++;
+      if (appliedMonths > 0) {
+        applied++;
+        // 만료일을 바꾼 건 아니지만, "이만큼은 이미 반영된 것으로 봤다"는 판정을 남긴다.
+        // 나중에 숫자가 이상할 때 이 판정이 맞았는지부터 확인할 수 있어야 한다.
+        await pool.query(
+          `INSERT INTO diet_payback_grants
+             ("programId","memberId",months,"totalEarned","previousEnd","newEnd",source,actor,note)
+           VALUES ($1,$2,0,$3,$4,$4,'backfill',NULL,$5)`,
+          [row.id, row.memberId, appliedMonths, row.membershipEnd,
+           `예전 공식(시작일+${row.baseWeeks ?? 12}주+${appliedMonths}개월)의 결과와 현재 만료일이 같아 이미 반영된 것으로 판정`]
+        );
+      }
     }
     if (targets.rowCount) {
       console.log(`🔧 다이어트 페이백 백필: ${targets.rowCount}건 판정 (이미 반영된 건 ${applied}건)`);

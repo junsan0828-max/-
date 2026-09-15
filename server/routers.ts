@@ -6284,7 +6284,11 @@ const gymPlusRouter = t.router({
       }
 
       // 페이백 개월을 회원권 만료일에 반영 — 계산은 db.ts 한 곳을 공유한다(원칙 7).
-      const res = await recalcDietPayback(programId);
+      const res = await recalcDietPayback(programId, {
+        source: "member_app",
+        actor: `짐+회원#${ctx.gymPlusMemberId}`,
+        note: `체중 ${input.weight}kg (${input.checkDate}) 기록`,
+      });
       const [mrow] = await db.select({ membershipEnd: members.membershipEnd })
         .from(members).where(eq(members.id, memberId)).limit(1);
 

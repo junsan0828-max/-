@@ -4743,7 +4743,7 @@ const dietRouter = t.router({
       weight: z.number(),
       note: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       // 같은 날 기록이 있으면 UPDATE
       const existing = await pool.query(
         `SELECT id FROM diet_weight_checks WHERE "programId" = $1 AND "checkDate" = $2 LIMIT 1`,
@@ -4782,7 +4782,11 @@ const dietRouter = t.router({
       }
 
       // 페이백 개월을 회원권 만료일에 반영 — 계산은 db.ts 한 곳을 공유한다(원칙 7).
-      const res = await recalcDietPayback(input.programId);
+      const res = await recalcDietPayback(input.programId, {
+        source: "admin",
+        actor: ctx.user?.username,
+        note: `체중 ${input.weight}kg (${input.checkDate}) 기록`,
+      });
       return { bonusEarned, totalEarned: res?.earned ?? 0, newEnd: res?.changed ? res.newEnd : undefined };
     }),
 
@@ -4791,17 +4795,38 @@ const dietRouter = t.router({
   // 만료일이 남아, 주지 않아야 할 개월이 계속 살아 있었다.
   deleteCheck: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const row = await pool.query<{ programId: number }>(
-        `SELECT "programId" FROM diet_weight_checks WHERE id = $1 LIMIT 1`, [input.id]
+    .mutation(async ({ ctx, input }) => {
+      const row = await pool.query<{ programId: number; checkDate: string; weight: string }>(
+        `SELECT "programId", "checkDate", weight FROM diet_weight_checks WHERE id = $1 LIMIT 1`, [input.id]
       );
       await pool.query(`DELETE FROM diet_weight_checks WHERE id = $1`, [input.id]);
-      const programId = row.rows[0]?.programId;
-      if (programId) {
-        const res = await recalcDietPayback(programId);
+      const prev = row.rows[0];
+      if (prev?.programId) {
+        const res = await recalcDietPayback(prev.programId, {
+          source: "admin_delete",
+          actor: ctx.user?.username,
+          note: `체중 기록 삭제 (${prev.checkDate} · ${prev.weight}kg)`,
+        });
         return { success: true, totalEarned: res?.earned ?? 0, newEnd: res?.changed ? res.newEnd : undefined };
       }
       return { success: true };
+    }),
+
+  // 페이백으로 회원권 만료일이 움직인 기록 — 숫자가 이상할 때 되짚어 보는 원장.
+  getGrants: protectedProcedure
+    .input(z.object({ programId: z.number().optional(), memberId: z.number().optional() }))
+    .query(async ({ input }) => {
+      if (!input.programId && !input.memberId) return [];
+      const rows = await pool.query(
+        `SELECT id, "programId", "memberId", months, "totalEarned",
+                "previousEnd", "newEnd", source, actor, note, "createdAt"
+         FROM diet_payback_grants
+         WHERE ($1::int IS NULL OR "programId" = $1)
+           AND ($2::int IS NULL OR "memberId" = $2)
+         ORDER BY id DESC LIMIT 200`,
+        [input.programId ?? null, input.memberId ?? null]
+      );
+      return rows.rows;
     }),
 
   // 다이어트 프로그램 종료일 계산 (누적 적립 개월 포함)

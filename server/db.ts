@@ -75,7 +75,14 @@ export function addMonths(dateStr: string, months: number): string {
 //  · 재등록 등 다른 연장과 겹쳐도 어긋나지 않고
 //  · 체중 기록을 지우거나 고치면 그만큼 되돌아가고
 //  · 같은 상태에서 몇 번을 호출해도 결과가 같다(멱등).
-export async function recalcDietPayback(programId: number) {
+// 만료일은 덮어써지는 값이라, 움직일 때마다 diet_payback_grants에 previousEnd/newEnd를
+// 남긴다. 그래야 나중에 숫자가 이상할 때 "원래 며칠이었고 누가 언제 왜 바꿨는지"를
+// 되짚을 수 있다(point_membership_extensions와 같은 방식).
+export async function recalcDietPayback(
+  programId: number,
+  ctx?: { source?: "member_app" | "admin" | "admin_delete" | "backfill"; actor?: string; note?: string }
+) {
+  const source = ctx?.source ?? "admin";
   const prog = await pool.query<{ memberId: number; applied: number }>(
     `SELECT "memberId", COALESCE("appliedMonths",0) AS applied FROM diet_programs WHERE id = $1 LIMIT 1`,
     [programId]
@@ -95,9 +102,17 @@ export async function recalcDietPayback(programId: number) {
     `SELECT "membershipEnd" FROM members WHERE id = $1 LIMIT 1`, [memberId]
   );
   const current = mem.rows[0]?.membershipEnd;
+
   if (!current) {
     // 기준이 될 만료일이 없으면 날짜는 건드리지 않는다(추측해서 만들지 않는다).
-    // 적립 개월은 기록해 두고, 만료일이 생긴 뒤 다시 반영되도록 applied는 올리지 않는다.
+    // applied도 올리지 않아, 만료일이 생긴 뒤 다시 반영된다. 시도한 사실만 남긴다.
+    await pool.query(
+      `INSERT INTO diet_payback_grants
+         ("programId","memberId",months,"totalEarned","previousEnd","newEnd",source,actor,note)
+       VALUES ($1,$2,$3,$4,NULL,NULL,$5,$6,$7)`,
+      [programId, memberId, delta, earned, source, ctx?.actor ?? null,
+       "회원권 만료일이 없어 반영하지 못함 — 만료일 입력 후 체중을 다시 저장하면 반영된다"]
+    );
     return { earned, applied, delta, changed: false as const, reason: "회원권 만료일 없음" };
   }
 
@@ -109,6 +124,12 @@ export async function recalcDietPayback(programId: number) {
   await pool.query(
     `UPDATE diet_programs SET "appliedMonths" = $1, "updatedAt" = now()::text WHERE id = $2`,
     [earned, programId]
+  );
+  await pool.query(
+    `INSERT INTO diet_payback_grants
+       ("programId","memberId",months,"totalEarned","previousEnd","newEnd",source,actor,note)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [programId, memberId, delta, earned, current, newEnd, source, ctx?.actor ?? null, ctx?.note ?? null]
   );
   return { earned, applied, delta, previousEnd: current, newEnd, changed: true as const };
 }
