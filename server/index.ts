@@ -1011,7 +1011,13 @@ async function initDatabase() {
       SET "usedSessions" = l.cnt,
           status = CASE WHEN l.cnt >= p."totalSessions" THEN 'completed' ELSE p.status END
       FROM (
-        SELECT "packageId" AS pid, COUNT(*)::int AS cnt
+        -- 같은 날 수업일지가 두 번 들어간 경우(몰아서 입력하다 이미 넣은 날을 다시 입력)
+        -- COUNT(*)로 세면 하지도 않은 수업이 잔여에서 차감된다. 정산은 회원·날짜로 묶어
+        -- 한 번만 세므로(routers.ts의 "회원ID|수업일" 키), 여기도 같은 기준을
+        -- 써야 한다 — 기준이 갈리면 "정산은 1회인데 잔여는 2회 깎이는" 상태가 된다(원칙 7).
+        -- 게다가 이 동기화는 상향만 하므로(원칙 9), 한 번 부풀면 중복 일지를 지워도
+        -- 잔여가 영영 돌아오지 않는다.
+        SELECT "packageId" AS pid, COUNT(DISTINCT "sessionDate")::int AS cnt
         FROM pt_session_logs
         WHERE "packageId" IS NOT NULL AND ("isDraft" IS NULL OR "isDraft" = 0)
         GROUP BY "packageId"

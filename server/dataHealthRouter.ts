@@ -459,6 +459,43 @@ export const dataHealthRouter = t.router({
       rows: transferredCheck.rows,
     });
 
+    // ④-3c-4 같은 날 중복 수업일지 때문에 잔여가 실제보다 적게 깎인 패키지.
+    //     정산은 회원·날짜로 묶어 한 번만 세는데, usedSessions 동기화는 로그 건수를
+    //     그대로 셌다. 게다가 상향만 하므로(원칙 9) 중복 일지를 나중에 지워도 잔여가
+    //     돌아오지 않는다. 동기화 기준은 고쳤지만 이미 부푼 값은 사람이 확인해서 고쳐야
+    //     한다(사용 횟수의 원본은 사람이 입력한 값이다 — 원칙 3).
+    //     "저장된사용 >= 수업일지건수" 조건으로, 동기화가 부푼 값을 그대로 넣은 건만 본다.
+    const inflatedUsed = await pool.query(`
+      SELECT m.name AS "회원", COALESCE(t."trainerName",'(없음)') AS "트레이너",
+             p.id AS "패키지ID", p."packageName" AS "프로그램",
+             p."totalSessions" AS "총횟수",
+             COALESCE(p."usedSessions",0) AS "저장된사용",
+             l.total AS "수업일지건수", l.days AS "실제수업일수",
+             (l.total - l.days) AS "중복건수",
+             (p."totalSessions" - COALESCE(p."usedSessions",0)) AS "현재잔여",
+             (p."totalSessions" - COALESCE(p."usedSessions",0) + (l.total - l.days)) AS "바로잡은잔여"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers t ON t.id = p."trainerId"
+      JOIN LATERAL (
+        SELECT COUNT(*)::int AS total, COUNT(DISTINCT sl."sessionDate")::int AS days
+        FROM pt_session_logs sl
+        WHERE sl."packageId" = p.id AND (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+      ) l ON true
+      WHERE l.total > l.days
+        AND COALESCE(p."usedSessions",0) >= l.total
+        AND p.status <> 'refunded'
+      ORDER BY (l.total - l.days) DESC, m.name
+      LIMIT 50
+    `);
+    groups.push({
+      key: "inflated_used_sessions",
+      title: "중복 수업일지로 잔여가 덜 남은 회원",
+      severity: "critical",
+      description: "같은 날짜에 수업일지가 두 번 이상 들어가, 하지 않은 수업이 잔여에서 차감됐습니다. '바로잡은잔여'가 정상값입니다. 담당 트레이너에게 실제 수업 횟수를 확인한 뒤, 회원 상세에서 사용 횟수를 고쳐주세요. 중복 일지도 함께 정리해야 합니다.",
+      rows: inflatedUsed.rows,
+    });
+
     // ④-3d 매출이 아예 연결되지 않은 PT 패키지.
     //      "언제 등록한 건지" 알 수 있게 생성일을 함께 보여준다. 2026-04-23은 기존 회원
     //      일괄 임포트분이고(정수연 사례: 시트상 4/08 등록), 그 외 날짜는 앱에서 수동으로
