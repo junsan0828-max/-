@@ -1321,7 +1321,7 @@ function TrainerDashboard() {
       {/* 주요 액션 4개 */}
       <div className="grid grid-cols-4 gap-2">
         {([
-          { label: "회원 등록", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", onClick: () => setRegisterTypeOpen(true) },
+          { label: "등록/상담", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", onClick: () => setRegisterTypeOpen(true) },
           { label: "수업 시작", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", onClick: () => setLocation("/attendance") },
           { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", onClick: () => setJournalOpen(true) },
           { label: "정산·매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", onClick: () => setLocation("/settlement") },

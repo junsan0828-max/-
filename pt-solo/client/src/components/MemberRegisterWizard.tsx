@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { UserPlus, RefreshCw, ChevronDown, ChevronLeft, X, Check, Search } from "lucide-react";
+import { UserPlus, RefreshCw, ChevronDown, ChevronLeft, X, Check, Search, MessageSquare } from "lucide-react";
 
 const DRAFT_KEY = "fitstep_member_draft";
 
@@ -13,12 +13,13 @@ const PRESET_PACKAGES = [
 ];
 
 type Draft = {
-  mode: "new" | "renew" | null;
+  mode: "new" | "renew" | "consultation" | null;
   name: string;
   phone: string;
   gender: string;
   birthDate: string;
   visitRoute: string;
+  consultMemo: string;
   sessions: number | null;
   customSessions: string;
   paidAmount: string;
@@ -29,7 +30,7 @@ type Draft = {
 };
 
 const EMPTY: Draft = {
-  mode: null, name: "", phone: "", gender: "", birthDate: "", visitRoute: "",
+  mode: null, name: "", phone: "", gender: "", birthDate: "", visitRoute: "", consultMemo: "",
   sessions: null, customSessions: "", paidAmount: "", membershipStart: "", membershipEnd: "",
   paymentMethod: "", step: 1,
 };
@@ -62,6 +63,7 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
   const utils = trpc.useUtils();
   const createMutation = trpc.members.create.useMutation();
   const addPackageMutation = trpc.pt.addPackage.useMutation();
+  const createLeadMutation = trpc.leads.create.useMutation();
   const { data: lowSessions = [] } = trpc.members.getLowSessions.useQuery({ threshold: 6 }, { enabled: open && d.mode === "renew" });
   const { data: allMembers = [] } = trpc.members.list.useQuery(undefined, { enabled: open && d.mode === "renew" });
 
@@ -135,9 +137,27 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
     }
   }
 
+  async function submitConsultation() {
+    if (!d.name.trim()) return;
+    try {
+      const payload: any = { name: d.name.trim() };
+      if (d.phone.trim()) payload.phone = d.phone.trim();
+      const noteParts: string[] = [];
+      if (d.visitRoute) noteParts.push(`유입: ${d.visitRoute}`);
+      if (d.consultMemo.trim()) noteParts.push(d.consultMemo.trim());
+      if (noteParts.length > 0) payload.consultationNote = noteParts.join("\n");
+      await createLeadMutation.mutateAsync(payload);
+      clearDraft();
+      utils.leads.invalidate();
+      setDone({ id: 0, name: d.name.trim() });
+    } catch (err: any) {
+      toast.error(err.message || "상담 등록에 실패했어요.");
+    }
+  }
+
   if (!open) return null;
 
-  const busy = createMutation.isPending || addPackageMutation.isPending;
+  const busy = createMutation.isPending || addPackageMutation.isPending || createLeadMutation.isPending;
   const renewCandidates = renewSearch.trim()
     ? (allMembers as any[]).filter(m => m.name.includes(renewSearch.trim()))
     : (lowSessions as any[]);
@@ -156,9 +176,9 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
             </button>
           )}
           <span className="text-sm font-semibold flex-1">
-            {done ? "등록 완료" : d.mode === "renew" ? "재등록" : "회원 등록"}
+            {done ? (d.mode === "consultation" ? "상담 등록 완료" : "등록 완료") : d.mode === "renew" ? "재등록" : d.mode === "consultation" ? "상담 등록" : "회원 등록"}
           </span>
-          {!done && <span className="text-[11px] text-muted-foreground">{d.step} / 3</span>}
+          {!done && d.mode !== "consultation" && <span className="text-[11px] text-muted-foreground">{d.step} / 3</span>}
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-0.5">
             <X className="h-4 w-4" />
           </button>
@@ -172,15 +192,23 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
                 <Check className="h-7 w-7 text-green-500" />
               </div>
               <div>
-                <p className="text-sm font-semibold">{done.name} 회원 {d.mode === "renew" ? "재등록" : "등록"} 완료</p>
-                {sessions > 0 && <p className="text-xs text-muted-foreground mt-1">PT {sessions}회가 함께 등록됐어요.</p>}
+                <p className="text-sm font-semibold">{done.name} {d.mode === "consultation" ? "상담" : d.mode === "renew" ? "재등록" : "등록"} 완료</p>
+                {d.mode !== "consultation" && sessions > 0 && <p className="text-xs text-muted-foreground mt-1">PT {sessions}회가 함께 등록됐어요.</p>}
+                {d.mode === "consultation" && <p className="text-xs text-muted-foreground mt-1">상담 목록에 추가됐어요.</p>}
               </div>
               <div className="space-y-2 pt-2">
                 <p className="text-[11px] font-semibold text-muted-foreground">다음 할 일</p>
-                <button onClick={() => { navigate(`/members/${done.id}`); onClose(); }}
-                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90">
-                  {d.mode === "renew" ? "입금 처리하기" : "첫 수업 기록하기"}
-                </button>
+                {d.mode === "consultation" ? (
+                  <button onClick={() => { navigate("/leads"); onClose(); }}
+                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90">
+                    상담 목록 보기
+                  </button>
+                ) : (
+                  <button onClick={() => { navigate(`/members/${done.id}`); onClose(); }}
+                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90">
+                    {d.mode === "renew" ? "입금 처리하기" : "첫 수업 기록하기"}
+                  </button>
+                )}
                 <button onClick={onClose}
                   className="w-full py-3 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-accent/50">
                   나중에
@@ -189,17 +217,27 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
             </div>
           ) : (
             <>
-              {/* ───── 1단계: 신규 / 재등록 ───── */}
+              {/* ───── 1단계: 상담 / 신규 등록 / 재등록 ───── */}
               {d.step === 1 && (
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold mb-4">어떤 등록인가요?</p>
+                  <p className="text-sm font-semibold mb-4">어떤 건가요?</p>
+                  <button onClick={() => setD(p => ({ ...p, mode: "consultation", step: 2 }))}
+                    className="w-full flex items-center gap-3 p-4 rounded-2xl border border-border hover:border-primary hover:bg-accent/40 transition-colors text-left">
+                    <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+                      <MessageSquare className="h-4 w-4 text-violet-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">상담</p>
+                      <p className="text-[11px] text-muted-foreground">상담 고객 정보 기록</p>
+                    </div>
+                  </button>
                   <button onClick={() => setD(p => ({ ...p, mode: "new", step: 2 }))}
                     className="w-full flex items-center gap-3 p-4 rounded-2xl border border-border hover:border-primary hover:bg-accent/40 transition-colors text-left">
                     <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
                       <UserPlus className="h-4 w-4 text-indigo-500" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">신규 회원</p>
+                      <p className="text-sm font-semibold">신규 등록</p>
                       <p className="text-[11px] text-muted-foreground">처음 등록하는 회원</p>
                     </div>
                   </button>
@@ -283,6 +321,25 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* ───── 2단계 (상담): 이름·연락처·메모 ───── */}
+              {d.step === 2 && d.mode === "consultation" && (
+                <div className="space-y-4">
+                  <p className="text-sm font-semibold">상담 고객 정보</p>
+                  <input autoFocus value={d.name} onChange={e => set("name", e.target.value)} placeholder="이름"
+                    className="w-full px-3 py-3 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  <input value={d.phone} onChange={e => set("phone", e.target.value)} placeholder="연락처 (선택)" inputMode="numeric"
+                    className="w-full px-3 py-3 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  <input value={d.visitRoute} onChange={e => set("visitRoute", e.target.value)} placeholder="유입 경로 (인스타, 지인 소개 등)"
+                    className="w-full px-3 py-3 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  <textarea value={d.consultMemo} onChange={e => set("consultMemo", e.target.value)} placeholder="상담 메모 (목적, 특이사항 등)" rows={3}
+                    className="w-full px-3 py-3 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none" />
+                  <button onClick={submitConsultation} disabled={!d.name.trim() || busy}
+                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 hover:opacity-90">
+                    {busy ? "등록 중..." : "상담 등록"}
+                  </button>
                 </div>
               )}
 
