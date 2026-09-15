@@ -103,20 +103,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navGroups = (isAdmin ? [{ items: adminNavItems }] : trainerNavGroups).filter(g => g.items.length > 0);
 
-  // 모바일 하단 탭 — 매일 쓰는 4개만 노출하고 나머지는 [전체]가 메뉴 전체를 연다.
-  // path가 없는 탭(전체)은 사이드바 오버레이를 여는 용도.
+  // 모바일 하단 탭. 수업은 회원 안의 동작이라 따로 두지 않는다.
+  // 작업실(기능)이 FIT STEP의 차별점이자 나머지 메뉴 진입점 역할을 겸한다.
+  // path가 없는 탭은 사이드바 오버레이를 여는 용도.
   const bottomTabs: { path?: string; label: string; icon: typeof LayoutDashboard }[] = isAdmin
     ? [
         { path: "/", label: "현황", icon: LayoutDashboard },
         { path: "/admin/trainers", label: "STEPER", icon: ShieldCheck },
         { path: "/admin/notices", label: "공지", icon: Bell },
+        { path: "/workshop", label: "기능", icon: Wrench },
         { label: "전체", icon: Menu },
       ]
     : [
         { path: "/", label: "홈", icon: LayoutDashboard },
         { path: "/pt", label: "회원", icon: Dumbbell },
-        { path: "/sessions", label: "수업", icon: BookOpen },
-        { path: "/settlement", label: "분석", icon: TrendingUp },
+        { path: "/leads", label: "상담", icon: UserPlus },
+        { path: "/settlement", label: "매출", icon: TrendingUp },
+        { path: "/workshop", label: "기능", icon: Wrench },
         { label: "전체", icon: Menu },
       ];
 
@@ -270,12 +273,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 key={tab.label}
                 onClick={() => { if (tab.path) { setSidebarOpen(false); setLocation(tab.path); } else { setSidebarOpen(true); } }}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors ${
+                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2 transition-colors ${
                   active ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                <tab.icon className="h-5 w-5" />
-                <span className="text-[10px] font-medium">{tab.label}</span>
+                <tab.icon className="h-[18px] w-[18px] shrink-0" />
+                <span className="text-[9.5px] font-medium leading-none whitespace-nowrap">{tab.label}</span>
               </button>
             );
           })}
