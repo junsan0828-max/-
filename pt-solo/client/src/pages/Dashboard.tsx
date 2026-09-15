@@ -1054,7 +1054,12 @@ function GettingStarted({
     { done: step1Done, num: 1, title: "상담 기록하기", desc: "첫 상담 고객을 상담 관리에 등록하세요", actionLabel: "상담 등록 →", action: () => onNavigate("/leads") },
     { done: step2Done, num: 2, title: "회원·계약 등록", desc: "PT 회원과 계약 내역을 추가하세요", actionLabel: "회원 등록 →", action: onRegisterMember },
     { done: step3Done, num: 3, title: "수업 일지 작성", desc: "첫 PT 수업을 출석·일지로 기록하세요", actionLabel: "수업 기록 →", action: () => onNavigate("/attendance") },
-    { done: step4Done, num: 4, title: "매출 확인하기", desc: "정산 화면에서 내 수입을 확인하세요", actionLabel: "매출 보기 →", action: () => onNavigate("/settlement") },
+    { done: step4Done, num: 4, title: "매출 확인하기", desc: "정산 화면에서 내 수입을 확인하세요", actionLabel: "매출 보기 →",
+      action: () => {
+        // 정산 화면에서도 기록하지만, 눌린 시점에 확실히 남겨둔다.
+        try { localStorage.setItem("fitstep_settlement_visited", "1"); } catch { /* 저장소 차단 환경 */ }
+        onNavigate("/settlement");
+      } },
   ];
 
   return (
