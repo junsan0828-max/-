@@ -26,6 +26,7 @@ import EContractManager from "@/components/editors/EContractManager";
 import RefundContractManager from "@/components/editors/RefundContractManager";
 import TransferContractManager from "@/components/editors/TransferContractManager";
 import { WorkoutLogSection, TrainerDietManager, VideoSection, WS_CATALOG } from "@/pages/Workshop";
+import MemberRegisterWizard, { readDraft, clearDraft } from "@/components/MemberRegisterWizard";
 
 // 작업실을 거치지 않고 대시보드 모달로 바로 여는 기능 — 하나씩 여기 추가하며 이전 중
 const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet", "fitstep_videos", "member_overview"]);
@@ -1142,6 +1143,8 @@ function TrainerDashboard() {
     onError: (e) => toast.error(e.message),
   });
   const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
+  const [resumeDraft, setResumeDraft] = useState(false);
+  const [draft, setDraft] = useState(() => readDraft());
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
 
@@ -1228,6 +1231,27 @@ function TrainerDashboard() {
           onNavigate={setLocation}
           onRegisterMember={() => setRegisterTypeOpen(true)}
         />
+      )}
+
+      {/* 작성 중인 회원 등록 (중간 이탈분) */}
+      {draft && (
+        <div className="rounded-2xl bg-amber-500/8 border border-amber-500/25 p-3.5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+            <Pencil className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">작성 중인 등록 · {draft.name}</p>
+            <p className="text-[11px] text-muted-foreground">이어서 마무리할 수 있어요</p>
+          </div>
+          <button onClick={() => { setResumeDraft(true); setRegisterTypeOpen(true); }}
+            className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-[11px] font-semibold shrink-0 hover:opacity-90">
+            이어서
+          </button>
+          <button onClick={() => { clearDraft(); setDraft(null); }}
+            className="text-muted-foreground hover:text-foreground p-1 shrink-0" aria-label="작성 중인 등록 삭제">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       {/* KPI 카드 5개 */}
@@ -1730,40 +1754,12 @@ function TrainerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* 회원 등록 유형 선택 모달 */}
-      <Dialog open={registerTypeOpen} onOpenChange={setRegisterTypeOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-indigo-500" />
-              회원 등록
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">등록 유형을 선택해주세요</p>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <button onClick={() => { setRegisterTypeOpen(false); setLocation("/pt?register=1"); }}
-              className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 active:scale-95 transition-all">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 flex items-center justify-center">
-                <UserPlus className="h-6 w-6 text-indigo-500" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-indigo-600">신규 등록</p>
-                <p className="text-[12px] text-muted-foreground mt-0.5">새 회원 추가</p>
-              </div>
-            </button>
-            <button onClick={() => { setRegisterTypeOpen(false); setLocation("/members"); }}
-              className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 flex items-center justify-center">
-                <RefreshCw className="h-6 w-6 text-emerald-500" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-emerald-600">재등록</p>
-                <p className="text-[12px] text-muted-foreground mt-0.5">기존 회원 연장</p>
-              </div>
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* 회원 등록 위저드 */}
+      <MemberRegisterWizard
+        open={registerTypeOpen}
+        resumeDraft={resumeDraft}
+        onClose={() => { setRegisterTypeOpen(false); setResumeDraft(false); setDraft(readDraft()); }}
+      />
 
       {/* 기능 편집 모달 (작업실 경유 없이 대시보드에서 바로) */}
       <Dialog open={!!editorModalId} onOpenChange={(o) => { if (!o) setEditorModalId(null); }}>
