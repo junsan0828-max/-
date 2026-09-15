@@ -31,8 +31,19 @@ export function GymPlusMembersAdmin() {
   const [linkForm, setLinkForm] = useState({ membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "" });
   const [editForm, setEditForm] = useState({ password: "", membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "", isActive: 1 });
 
+  const { data: unlinked } = trpc.gymPlus.admin_listUnlinkedAccounts.useQuery();
+
   const createLinkedMutation = trpc.gymPlus.admin_createLinkedMember.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMainMembers.invalidate(); setLinkTarget(null); toast.success("짐플러스 계정이 생성되었습니다."); },
+    onSuccess: (res: any) => {
+      utils.gymPlus.admin_listMainMembers.invalidate();
+      utils.gymPlus.admin_listUnlinkedAccounts.invalidate();
+      setLinkTarget(null);
+      toast.success(
+        res?.created ? "짐플러스 계정이 생성되었습니다."
+        : res?.linked ? "기존 짐플러스 계정을 회원에 연결했습니다."
+        : "이미 연결되어 있습니다."
+      );
+    },
     onError: (err) => toast.error(err.message),
   });
 
@@ -56,6 +67,42 @@ export function GymPlusMembersAdmin() {
           전체 회원 ({mainMembers?.length ?? 0}명) · 짐+ 연동 {connectedCount}명
         </p>
       </div>
+
+      {/* 회원과 연결되지 않은 짐+ 계정 — 이게 비어 있지 않으면 그 회원은 앱에서
+          다이어트 페이백·회원권이 안 보인다(dietStatus가 memberId로 조회하기 때문). */}
+      {unlinked && unlinked.length > 0 && (
+        <div className="border border-amber-500/40 bg-amber-500/5 rounded-xl p-3 space-y-2">
+          <div>
+            <p className="text-sm font-semibold text-amber-400">회원과 연결 안 된 계정 {unlinked.length}건</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              연결 전까지 이 계정은 앱에서 다이어트 페이백·회원권이 보이지 않습니다.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            {unlinked.map((g: any) => (
+              <div key={g.id} className="flex items-center justify-between gap-2 bg-card border border-border rounded-lg px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{g.name || "(이름 없음)"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    @{g.username}
+                    {g["후보회원"]
+                      ? <span className="ml-2 text-emerald-400">→ {g["후보회원"]} ({fmtPhone(g["후보연락처"])})</span>
+                      : <span className="ml-2 text-red-400">일치하는 회원 없음</span>}
+                  </p>
+                </div>
+                <Button size="sm" className="h-7 text-[10px] px-2 flex-shrink-0"
+                  disabled={!g["후보회원ID"] || createLinkedMutation.isPending}
+                  onClick={() => createLinkedMutation.mutate({ memberId: g["후보회원ID"] })}>
+                  연결
+                </Button>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            "일치하는 회원 없음"은 통합관리에 그 전화번호의 회원이 없다는 뜻입니다. 회원을 먼저 등록해주세요.
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
@@ -92,7 +139,7 @@ export function GymPlusMembersAdmin() {
                       onClick={() => {
                         setLinkTarget({ id: m.id, name: m.name, phone: m.phone, membershipStart: m.membershipStart, membershipEnd: m.membershipEnd });
                         setLinkForm({ membershipType: "general", membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "" });
-                      }}>계정 생성</Button>
+                      }}>계정 연결</Button>
                   )}
                 </div>
               </div>
@@ -104,7 +151,7 @@ export function GymPlusMembersAdmin() {
       {/* 짐플러스 계정 생성 다이얼로그 */}
       <Dialog open={!!linkTarget} onOpenChange={(o) => { if (!o) setLinkTarget(null); }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>{linkTarget?.name} — 짐플러스 계정 생성</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{linkTarget?.name} — 짐플러스 계정 연결</DialogTitle></DialogHeader>
           <div className="space-y-3 pb-2">
             {/* 자동 설정 안내 */}
             <div className="bg-muted/60 rounded-xl p-3 space-y-1">

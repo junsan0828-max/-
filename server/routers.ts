@@ -6323,7 +6323,12 @@ const gymPlusRouter = t.router({
     }));
   }),
 
-  // 통합 회원에게 짐플러스 계정 생성 (memberId로 연결)
+  // 통합 회원에 짐플러스 계정 연결 — 없으면 만들고, 이미 있으면 "연결"한다.
+  //
+  // 예전에는 같은 전화번호로 계정이 있으면 무조건 CONFLICT로 막았다. 그래서 회원과
+  // 연결되지 않은(memberId IS NULL) 계정이 하나라도 있으면, 그 회원은 연결도 생성도
+  // 못 하고 영구히 막혔다. 다이어트 페이백 화면(dietStatus)은 gym_plus_members.memberId가
+  // 있어야 뜨기 때문에, 그 회원에게는 프로그램을 등록해도 "등록 회원이 아닙니다"만 나왔다.
   admin_createLinkedMember: adminOnlyGymPlus
     .input(z.object({
       memberId: z.number(),
@@ -6345,9 +6350,49 @@ const gymPlusRouter = t.router({
       const last4 = digitsOnly.slice(-4);
       const username = digitsOnly; // always store as digits-only e.g. 01077051640
 
-      const existing = await db.select({ id: gymPlusMembers.id })
-        .from(gymPlusMembers).where(eq(gymPlusMembers.username, username)).limit(1);
-      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 짐플러스 계정이 존재합니다." });
+      // 기존 계정 탐색 — 표기(하이픈)가 달라도 숫자만 비교한다. 로그인도 같은 방식이라
+      // 여기서 못 찾으면 로그인은 되는데 연결은 안 되는 엇갈림이 생긴다.
+      const found = await pool.query<{ id: number; memberId: number | null; username: string }>(
+        `SELECT id, "memberId", username FROM gym_plus_members
+         WHERE REGEXP_REPLACE(COALESCE(username,''),'[^0-9]','','g') = $1
+            OR REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = $1`,
+        [digitsOnly]
+      );
+
+      const alreadyMine = found.rows.find(r => r.memberId === input.memberId);
+      if (alreadyMine) {
+        return { id: alreadyMine.id, username: alreadyMine.username, created: false, linked: false };
+      }
+
+      const unlinked = found.rows.find(r => r.memberId == null);
+      if (unlinked) {
+        await pool.query(
+          `UPDATE gym_plus_members
+           SET "memberId" = $1, name = $2, phone = $3,
+               "membershipStart" = COALESCE($4, "membershipStart"),
+               "membershipEnd"   = COALESCE($5, "membershipEnd"),
+               "updatedAt" = now()::text
+           WHERE id = $6`,
+          [
+            input.memberId, mainMember[0].name, phone,
+            input.membershipStart ?? mainMember[0].membershipStart ?? null,
+            input.membershipEnd ?? mainMember[0].membershipEnd ?? null,
+            unlinked.id,
+          ]
+        );
+        return { id: unlinked.id, username: unlinked.username, created: false, linked: true };
+      }
+
+      if (found.rows.length > 0) {
+        // 다른 회원에게 이미 연결돼 있다 — 전화번호 중복이므로 자동으로 뺏지 않는다.
+        const other = await pool.query<{ name: string }>(
+          `SELECT name FROM members WHERE id = $1 LIMIT 1`, [found.rows[0].memberId]
+        );
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `이 전화번호의 짐플러스 계정은 이미 '${other.rows[0]?.name ?? "다른 회원"}'에게 연결돼 있습니다. 전화번호 중복을 먼저 정리해주세요.`,
+        });
+      }
 
       const hashed = await bcrypt.hash(last4, 10);
       const [row] = await db.insert(gymPlusMembers).values({
@@ -6362,8 +6407,30 @@ const gymPlusRouter = t.router({
         membershipEnd: input.membershipEnd ?? mainMember[0].membershipEnd ?? undefined,
       }).returning();
       const { password: _, ...safe } = row;
-      return safe;
+      return { ...safe, created: true, linked: false };
     }),
+
+  // 회원과 연결되지 않은 짐플러스 계정 목록 + 전화번호로 추정한 후보 회원.
+  // admin_listMainMembers는 회원 기준이라 memberId가 NULL인 계정은 화면에 아예 안 나온다.
+  admin_listUnlinkedAccounts: adminOnlyGymPlus.query(async () => {
+    const rows = await pool.query(`
+      SELECT g.id, g.username, g.name, g.phone, g."membershipEnd", g."createdAt",
+             cand.id AS "후보회원ID", cand.name AS "후보회원", cand.phone AS "후보연락처"
+      FROM gym_plus_members g
+      LEFT JOIN LATERAL (
+        SELECT m.id, m.name, m.phone FROM members m
+        WHERE REGEXP_REPLACE(COALESCE(m.phone,''),'[^0-9]','','g') <> ''
+          AND REGEXP_REPLACE(COALESCE(m.phone,''),'[^0-9]','','g')
+              = REGEXP_REPLACE(COALESCE(NULLIF(g.phone,''), g.username),'[^0-9]','','g')
+        ORDER BY m.id
+        LIMIT 1
+      ) cand ON true
+      WHERE g."memberId" IS NULL
+      ORDER BY g."createdAt" DESC
+      LIMIT 200
+    `);
+    return rows.rows;
+  }),
 
   admin_listMembers: adminOnlyGymPlus.query(async () => {
     const db = await getDb();
