@@ -236,9 +236,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       return;
     }
     if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
-    // 시작 체중이 없으면 서버가 다이어트 등록을 만들지 않는다(감량 계산 기준이 없어서).
-    // 예전에는 여기서 안 막고 서버도 조용히 건너뛰어, 결제만 받고 아무것도 안 남았다.
-    if (hasDiet && !(parseFloat(dietStartWeight) > 0)) { toast.error("다이어트 시작 체중을 입력해주세요"); return; }
+    // 다이어트 시작 체중은 필수가 아니다 — 회원 앱(자이언트짐+)에서 첫 체중을 받아
+    // 기준으로 잡는다. 여기서는 비워둬도 프로그램이 만들어진다.
     // 더블 제출 방지: 진행 중이면 무시 (버튼 disabled보다 앞서 동작하는 즉시 가드)
     if (submittingRef.current) return;
     submittingRef.current = true;

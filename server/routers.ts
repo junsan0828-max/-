@@ -6205,11 +6205,13 @@ const gymPlusRouter = t.router({
       `SELECT weight, "checkDate", "bonusMonthsEarned", note FROM diet_weight_checks WHERE "programId" = $1 ORDER BY "checkDate" ASC`,
       [programId]
     );
-    const sw = parseFloat(startWeight);
+    // 시작 체중은 회원 앱에서 첫 기록이 들어올 때 정해진다. 그 전까지는 null이다.
+    const sw = startWeight == null ? null : parseFloat(startWeight);
     const weights = checks.rows.map(r => parseFloat(r.weight));
     const minWeight = weights.length > 0 ? Math.min(...weights) : sw;
     const currentWeight = weights.length > 0 ? weights[weights.length - 1] : null;
-    const totalLostKg = Math.max(0, Math.min(9, Math.floor(sw - minWeight)));
+    const totalLostKg = sw == null || minWeight == null
+      ? 0 : Math.max(0, Math.min(9, Math.floor(sw - minWeight)));
     const earnedMonths = Math.min(9, checks.rows.reduce((s, r) => s + (r.bonusMonthsEarned ?? 0), 0));
 
     // 프로그램 자체의 종료 예정일(12주). 페이백과는 별개다.
@@ -6228,6 +6230,8 @@ const gymPlusRouter = t.router({
 
     return {
       programId, memberId, startDate, startWeight: sw, baseWeeks,
+      // sw가 null이면 아직 시작 체중이 없다 — 앱에서 첫 체중을 받아 기준으로 잡으면 된다.
+      needsStartWeight: sw == null,
       currentWeight, totalLostKg, earnedMonths, maxBonusMonths: 9,
       endDate, programEndDate, checks: checks.rows,
     };
@@ -6248,13 +6252,27 @@ const gymPlusRouter = t.router({
       const memberId = gm.rows[0]?.memberId;
       if (!memberId) throw new TRPCError({ code: "NOT_FOUND", message: "연결된 회원 정보 없음" });
 
-      const prog = await pool.query<{ id: number; startDate: string; startWeight: string; baseWeeks: number }>(
+      const prog = await pool.query<{ id: number; startDate: string; startWeight: string | null; baseWeeks: number }>(
         `SELECT id, "startDate", "startWeight", "baseWeeks" FROM diet_programs WHERE "memberId" = $1 ORDER BY "startDate" DESC LIMIT 1`,
         [memberId]
       );
       if (!prog.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "다이어트 프로그램이 없습니다" });
       const { id: programId, startDate, startWeight: swStr, baseWeeks } = prog.rows[0];
-      const startWeight = parseFloat(swStr);
+
+      // 시작 체중은 데스크에서 비워둘 수 있다(입력·검증은 회원 앱 담당).
+      // 비어 있으면 이번에 들어온 첫 체중이 기준이 된다. 기준을 잡는 기록이므로 적립은 0이다.
+      let startWeight: number;
+      let baselineSet = false;
+      if (swStr == null) {
+        startWeight = input.weight;
+        await pool.query(
+          `UPDATE diet_programs SET "startWeight" = $1, "updatedAt" = now()::text WHERE id = $2 AND "startWeight" IS NULL`,
+          [input.weight, programId]
+        );
+        baselineSet = true;
+      } else {
+        startWeight = parseFloat(swStr);
+      }
 
       // 이전 최소 체중
       const prevMin = await pool.query<{ min_w: string }>(
@@ -6264,7 +6282,8 @@ const gymPlusRouter = t.router({
       const prevMinW = prevMin.rows[0]?.min_w ? parseFloat(prevMin.rows[0].min_w) : startWeight;
       const lostKg = Math.max(0, Math.min(9, Math.floor(startWeight - input.weight)));
       const prevLostKg = Math.max(0, Math.min(9, Math.floor(startWeight - prevMinW)));
-      const bonusEarned = Math.max(0, lostKg - prevLostKg);
+      // 기준을 처음 잡는 기록이면 감량분이 없다(자기 자신과의 차이는 0).
+      const bonusEarned = baselineSet ? 0 : Math.max(0, lostKg - prevLostKg);
 
       // upsert
       const existing = await pool.query(
@@ -6296,6 +6315,9 @@ const gymPlusRouter = t.router({
         bonusEarned,
         totalEarned: res?.earned ?? 0,
         endDate: mrow?.membershipEnd ?? null,
+        startWeight,
+        // true면 이번 기록이 시작 체중(기준)으로 잡혔다는 뜻 — 적립은 0이다.
+        baselineSet,
         note: res && !res.changed && "reason" in res ? res.reason : undefined,
       };
     }),

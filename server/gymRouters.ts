@@ -4369,18 +4369,14 @@ const registerMutation = protectedProcedure
     }
 
     // 7. 다이어트 프로그램 등록
-    // 시작 체중이 없으면 조용히 건너뛰지 않고 막는다.
-    // 예전에는 `if (addDiet && dietStartWeight)` 한 줄이라, 체중을 비워두면 매출도
-    // 프로그램도 만들지 않은 채 "등록 완료"로 끝났다. 결제는 받았는데 시스템에는
-    // 아무것도 남지 않고, 회원 앱에는 "등록 회원이 아닙니다"만 떴다.
-    if (input.addDiet && !(typeof input.dietStartWeight === "number" && input.dietStartWeight > 0)) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "다이어트 프로그램은 시작 체중이 있어야 등록됩니다. 시작 체중(kg)을 입력해주세요.",
-      });
-    }
-
-    if (input.addDiet && input.dietStartWeight) {
+    // 시작 체중은 자이언트짐++(회원 앱)에서 입력·검증한다. 데스크에서는 비워둘 수 있고,
+    // 앱에서 첫 체중이 들어오면 그 값이 기준이 된다.
+    //
+    // 다만 체중이 없다고 해서 등록 자체를 건너뛰지는 않는다. 예전에는
+    // `if (addDiet && dietStartWeight)` 한 줄이라 체중이 비면 매출도 프로그램도 만들지
+    // 않은 채 "등록 완료"로 끝났다. 결제는 받았는데 아무것도 남지 않고, 회원 앱에는
+    // "등록 회원이 아닙니다"만 떴다(테스트 계정 사례). 그 실패는 되살리지 않는다.
+    if (input.addDiet) {
       const dietPrice = input.dietPrice ?? 0;
       const discAmt = input.discountAmount ?? 0;
       const unpaid = input.unpaidAmount ?? 0;
@@ -4417,11 +4413,13 @@ const registerMutation = protectedProcedure
       }).returning({ id: revenueEntries.id });
       if (dietRev) revenueEntryIds.push(dietRev.id);
 
-      // diet_programs 레코드 생성
+      // diet_programs 레코드 생성 — 시작 체중은 비어 있을 수 있다(앱에서 첫 기록 시 채워짐)
       await pool.query(
         `INSERT INTO diet_programs ("memberId", "startDate", "startWeight", "baseWeeks", "revenueEntryId", "updatedAt")
          VALUES ($1, $2, $3, 12, $4, now()::text)`,
-        [memberId, startDate, input.dietStartWeight, dietRev?.id ?? null]
+        [memberId, startDate,
+         typeof input.dietStartWeight === "number" && input.dietStartWeight > 0 ? input.dietStartWeight : null,
+         dietRev?.id ?? null]
       );
 
       // 회원 membershipEnd 갱신 (현재보다 뒤일 때만)
@@ -4724,7 +4722,8 @@ const dietRouter = t.router({
     .input(z.object({
       memberId: z.number(),
       startDate: z.string(),
-      startWeight: z.number().min(20).max(300),
+      // 시작 체중은 회원 앱에서 받는다 — 여기서는 비워둘 수 있다.
+      startWeight: z.number().min(20).max(300).optional(),
       baseWeeks: z.number().min(1).max(52).default(12),
       revenueEntryId: z.number().optional(),
     }))
@@ -4748,7 +4747,7 @@ const dietRouter = t.router({
       const row = await pool.query<{ id: number }>(
         `INSERT INTO diet_programs ("memberId","startDate","startWeight","baseWeeks","revenueEntryId","updatedAt")
          VALUES ($1,$2,$3,$4,$5, now()::text) RETURNING id`,
-        [input.memberId, input.startDate, input.startWeight, input.baseWeeks, input.revenueEntryId ?? null]
+        [input.memberId, input.startDate, input.startWeight ?? null, input.baseWeeks, input.revenueEntryId ?? null]
       );
 
       // 프로그램 기간(기본 12주)이 현재 만료일보다 뒤면 회원권을 그만큼 늘린다.
@@ -4814,7 +4813,22 @@ const dietRouter = t.router({
         `SELECT "startWeight" FROM diet_programs WHERE id = $1 LIMIT 1`,
         [input.programId]
       );
-      const startWeight = parseFloat(prog.rows[0]?.startWeight ?? "0");
+      // 시작 체중이 비어 있으면(데스크 등록 시 미입력) 이번 기록이 기준이 된다.
+      // 회원 앱 쪽 dietRecordWeight와 같은 처리다 — 두 경로가 갈리면 적립이 어긋난다(원칙 7).
+      // 예전에는 null을 "0kg"으로 읽어 감량량이 음수가 되고 적립이 항상 0이었다.
+      const rawSw = prog.rows[0]?.startWeight;
+      let startWeight: number;
+      let baselineSet = false;
+      if (rawSw == null) {
+        startWeight = input.weight;
+        await pool.query(
+          `UPDATE diet_programs SET "startWeight" = $1, "updatedAt" = now()::text WHERE id = $2 AND "startWeight" IS NULL`,
+          [input.weight, input.programId]
+        );
+        baselineSet = true;
+      } else {
+        startWeight = parseFloat(rawSw);
+      }
       // 이번 측정의 시작 체중 대비 감량량 (floor, 최대 9)
       const lostKg = Math.max(0, Math.min(9, Math.floor(startWeight - input.weight)));
       // 이전 최대 감량량 (이전 기록 중 최소 체중)
@@ -4825,7 +4839,8 @@ const dietRouter = t.router({
       const prevMinW = prevMin.rows[0]?.min_w ? parseFloat(prevMin.rows[0].min_w) : startWeight;
       const prevLostKg = Math.max(0, Math.min(9, Math.floor(startWeight - prevMinW)));
       // 이번 달 새로 적립되는 개월: 현재 감량량이 이전보다 크면 차이만큼 적립 (유지 시 0)
-      const bonusEarned = Math.max(0, lostKg - prevLostKg);
+      // 기준을 처음 잡는 기록이면 자기 자신과의 차이라 적립이 없다.
+      const bonusEarned = baselineSet ? 0 : Math.max(0, lostKg - prevLostKg);
 
       if (existing.rows.length > 0) {
         await pool.query(
@@ -4906,11 +4921,13 @@ const dietRouter = t.router({
         [input.programId]
       );
 
-      const sw = parseFloat(startWeight);
+      // 시작 체중은 회원 앱에서 첫 기록이 들어올 때 정해진다 — 그 전까지는 null이다.
+      const sw = startWeight == null ? null : parseFloat(startWeight as any);
       // 현재 누적 감량량: 가장 낮은 체중 기준
       const weights = checks.rows.map(r => parseFloat(r.weight));
       const minWeight = weights.length > 0 ? Math.min(...weights) : sw;
-      const totalLostKg = Math.max(0, Math.min(9, Math.floor(sw - minWeight)));
+      const totalLostKg = sw == null || minWeight == null
+        ? 0 : Math.max(0, Math.min(9, Math.floor(sw - minWeight)));
       // 실제 적립된 개월: 체중 기록별 bonusMonthsEarned 합계 (최대 9)
       const earnedMonths = Math.min(9, checks.rows.reduce((sum, r) => sum + (r.bonusMonthsEarned ?? 0), 0));
 
@@ -4931,6 +4948,7 @@ const dietRouter = t.router({
 
       return {
         startDate, startWeight: sw, baseWeeks,
+        needsStartWeight: sw == null,
         totalLostKg, earnedMonths, maxBonusMonths: 9,
         endDate, programEndDate,
         checks: checks.rows,

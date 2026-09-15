@@ -4088,6 +4088,13 @@ function DietProgramSection({ memberId, programs }: { memberId: number; programs
     onSuccess: () => { refetchStatus(); refetchChecks(); },
   });
 
+  // 페이백 지급 내역 — 체중 판정은 자이언트짐+가 하고, 여기는 "몇 개월 늘렸는지"의 원장이다.
+  const { data: grants } = trpc.gym.diet.getGrants.useQuery(
+    { programId: selectedProgramId },
+    { enabled: !!selectedProgramId }
+  );
+  const grantedMonths = (grants ?? []).reduce((s: number, g: any) => s + (g.months ?? 0), 0);
+
   const prog = programs.find(p => p.id === selectedProgramId);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -4114,20 +4121,52 @@ function DietProgramSection({ memberId, programs }: { memberId: number; programs
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-background/50 rounded-lg px-2 py-2">
               <p className="text-xs text-muted-foreground">시작 체중</p>
-              <p className="text-sm font-bold text-foreground">{status.startWeight}kg</p>
+              <p className="text-sm font-bold text-foreground">
+                {status.startWeight != null
+                  ? `${status.startWeight}kg`
+                  : <span className="text-muted-foreground font-normal">앱 첫 기록 대기</span>}
+              </p>
             </div>
             <div className="bg-background/50 rounded-lg px-2 py-2">
               <p className="text-xs text-muted-foreground">총 감량</p>
               <p className="text-sm font-bold text-purple-300">{status.totalLostKg}kg</p>
             </div>
             <div className="bg-background/50 rounded-lg px-2 py-2">
-              <p className="text-xs text-muted-foreground">적립 개월</p>
-              <p className="text-sm font-bold text-emerald-400">{status.earnedMonths}개월 / 9개월</p>
+              <p className="text-xs text-muted-foreground">지급 개월</p>
+              <p className="text-sm font-bold text-emerald-400">{grantedMonths}개월 / 9개월</p>
             </div>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">종료 예정일</span>
+            <span className="text-muted-foreground">회원권 만료일</span>
             <span className="font-semibold text-foreground">{status.endDate}</span>
+          </div>
+          {status.programEndDate && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">프로그램 종료 예정</span>
+              <span className="text-muted-foreground">{status.programEndDate}</span>
+            </div>
+          )}
+
+          {/* 페이백 지급 내역 — 회원권이 언제 얼마나 늘었는지 순서대로 */}
+          <div className="rounded-lg border border-border bg-background/40 p-2.5 space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground">페이백 지급 내역</p>
+            {(grants ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">아직 지급된 페이백이 없습니다.</p>
+            ) : (
+              <div className="space-y-1">
+                {[...(grants ?? [])].reverse().map((g: any) => (
+                  <div key={g.id} className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground shrink-0">{String(g.createdAt ?? "").slice(0, 10)}</span>
+                    <span className={`font-semibold shrink-0 ${g.months > 0 ? "text-emerald-400" : g.months < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                      {g.months > 0 ? `+${g.months}개월` : g.months < 0 ? `${g.months}개월` : "기록"}
+                    </span>
+                    <span className="text-muted-foreground truncate flex-1 text-right">
+                      {g.previousEnd ?? "-"} → {g.newEnd ?? "반영 안 됨"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 체중 기록 목록 */}

@@ -516,6 +516,130 @@ app.post("/api/point-extension", async (req, res) => {
   }
 });
 
+// ─── 다이어트 페이백 개월 지급 (자이언트짐++에서 호출) ────────────────────────
+// 체중 데이터와 감량 판정은 자이언트짐++가 가진다. 여기서는 "몇 개월 지급"만 받아
+// 헬스권 만료일을 그만큼 늘리고, 회원 내역에 순서대로 기록한다.
+//
+//   POST /api/diet-payback
+//   { gymPlusMemberId | memberId, months?, requestId, note?, approvedBy? }
+//
+// requestId는 필수다. 같은 신청이 두 번 들어와도 한 번만 지급된다(포인트 연장과 동일).
+const DIET_PAYBACK_MAX_MONTHS = 9;
+app.post("/api/diet-payback", async (req, res) => {
+  const { gymPlusMemberId, memberId: memberIdInput, months, requestId, note, approvedBy } = req.body ?? {};
+  if (!requestId) return res.status(400).json({ error: "requestId는 필수입니다." });
+  if (!gymPlusMemberId && !memberIdInput) {
+    return res.status(400).json({ error: "gymPlusMemberId 또는 memberId가 필요합니다." });
+  }
+  const grantMonths = months == null ? 1 : Number(months);
+  if (!Number.isInteger(grantMonths) || grantMonths < 1 || grantMonths > DIET_PAYBACK_MAX_MONTHS) {
+    return res.status(400).json({ error: `months는 1~${DIET_PAYBACK_MAX_MONTHS} 사이의 정수여야 합니다.` });
+  }
+
+  try {
+    // 멱등성: 같은 신청이 이미 처리됐으면 그 결과를 그대로 돌려준다.
+    const dup = await pool.query(
+      `SELECT * FROM diet_payback_grants WHERE "requestId" = $1 LIMIT 1`, [requestId]
+    );
+    if (dup.rows[0]) {
+      const r = dup.rows[0];
+      return res.json({
+        success: true, alreadyProcessed: true,
+        months: r.months, previousEnd: r.previousEnd, newMembershipEnd: r.newEnd, memberId: r.memberId,
+      });
+    }
+
+    // 회원 찾기 — 짐+ 계정이 오면 연결된 통합운영 회원으로 넘어간다.
+    let linkedMemberId: number | null = memberIdInput ? Number(memberIdInput) : null;
+    let appMemberId: number | null = gymPlusMemberId ? Number(gymPlusMemberId) : null;
+    if (!linkedMemberId && appMemberId) {
+      const gp = await pool.query<{ memberId: number | null; name: string | null; phone: string | null }>(
+        `SELECT "memberId", name, phone FROM gym_plus_members WHERE id = $1 LIMIT 1`, [appMemberId]
+      );
+      if (!gp.rows[0]) return res.status(404).json({ error: "짐플러스 계정을 찾을 수 없습니다." });
+      linkedMemberId = gp.rows[0].memberId ?? null;
+      if (!linkedMemberId) {
+        return res.status(409).json({
+          error: "짐플러스 계정이 통합운영 회원과 연결돼 있지 않습니다. 관리 화면에서 먼저 연결해주세요.",
+          code: "NOT_LINKED",
+        });
+      }
+    }
+
+    const mem = await pool.query<{ id: number; name: string; membershipEnd: string | null }>(
+      `SELECT id, name, "membershipEnd" FROM members WHERE id = $1 LIMIT 1`, [linkedMemberId]
+    );
+    if (!mem.rows[0]) return res.status(404).json({ error: "회원을 찾을 수 없습니다." });
+    const member = mem.rows[0];
+
+    // 해당 회원의 최신 다이어트 프로그램 (없어도 지급은 하되 기록에 남긴다)
+    const prog = await pool.query<{ id: number }>(
+      `SELECT id FROM diet_programs WHERE "memberId" = $1 ORDER BY "startDate" DESC LIMIT 1`, [linkedMemberId]
+    );
+    const programId = prog.rows[0]?.id ?? null;
+
+    // 누적 상한 9개월 — 프로그램 단위로 이미 지급한 개월을 합산한다.
+    if (programId) {
+      const sum = await pool.query<{ total: number }>(
+        `SELECT COALESCE(SUM(months),0)::int AS total FROM diet_payback_grants WHERE "programId" = $1`,
+        [programId]
+      );
+      const already = sum.rows[0]?.total ?? 0;
+      if (already + grantMonths > DIET_PAYBACK_MAX_MONTHS) {
+        return res.status(400).json({
+          error: `페이백 상한(${DIET_PAYBACK_MAX_MONTHS}개월)을 넘습니다. 이미 ${already}개월 지급됨.`,
+          code: "EXCEEDS_MAX",
+          alreadyGranted: already,
+        });
+      }
+    }
+
+    // 기준일: 회원권 만료일이 원본. 이미 지났으면 오늘(KST)부터 늘린다.
+    const todayKst = new Date(Date.now() + 9 * 3600000).toISOString().substring(0, 10);
+    const base = member.membershipEnd && member.membershipEnd >= todayKst ? member.membershipEnd : todayKst;
+    const newEnd = addMonths(base, grantMonths);
+
+    // 이력 먼저 기록 — UNIQUE requestId로 동시에 들어온 중복도 여기서 걸린다.
+    await pool.query(
+      `INSERT INTO diet_payback_grants
+         ("programId","memberId",months,"totalEarned","previousEnd","newEnd",source,actor,note,"requestId")
+       VALUES ($1,$2,$3,$4,$5,$6,'member_app',$7,$8,$9)`,
+      [programId, linkedMemberId, grantMonths, grantMonths, member.membershipEnd, newEnd,
+       approvedBy ?? "자이언트짐+", note ?? "다이어트 페이백 지급", requestId]
+    );
+
+    await pool.query(
+      `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text WHERE id = $2`,
+      [newEnd, linkedMemberId]
+    );
+    if (programId) {
+      await pool.query(
+        `UPDATE diet_programs SET "appliedMonths" = COALESCE("appliedMonths",0) + $1, "updatedAt" = now()::text WHERE id = $2`,
+        [grantMonths, programId]
+      );
+    }
+    if (appMemberId) {
+      await pool.query(`UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`, [newEnd, appMemberId]);
+    }
+
+    console.log(`🥗 다이어트 페이백: ${member.name} · ${grantMonths}개월 (${member.membershipEnd ?? "-"} → ${newEnd})`);
+    return res.json({
+      success: true,
+      months: grantMonths,
+      previousEnd: member.membershipEnd,
+      newMembershipEnd: newEnd,
+      memberId: linkedMemberId,
+      programId,
+    });
+  } catch (e: any) {
+    if (e?.code === "23505") {
+      return res.status(409).json({ error: "이미 처리된 신청입니다.", code: "ALREADY_PROCESSED" });
+    }
+    console.error("/api/diet-payback error:", e);
+    return res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
@@ -1421,6 +1545,9 @@ async function initDatabase() {
   `);
   await pool.query(`ALTER TABLE diet_programs ADD COLUMN IF NOT EXISTS "appliedMonths" INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE diet_programs ADD COLUMN IF NOT EXISTS "paybackBackfilledAt" TEXT`);
+  // 시작 체중 입력·검증은 자이언트짐++(회원 앱)가 담당한다. 데스크 등록 시점에는
+  // 비어 있을 수 있어야 하고, 앱에서 첫 체중이 들어올 때 그 값이 기준이 된다.
+  await pool.query(`ALTER TABLE diet_programs ALTER COLUMN "startWeight" DROP NOT NULL`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS diet_weight_checks (
       id SERIAL PRIMARY KEY,
@@ -1451,6 +1578,9 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )
   `);
+  // 짐+가 보낸 신청 ID. 재시도·중복 클릭으로 회원권이 두 번 늘어나는 것을 막는다.
+  await pool.query(`ALTER TABLE diet_payback_grants ADD COLUMN IF NOT EXISTS "requestId" TEXT`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_diet_payback_grants_request ON diet_payback_grants("requestId") WHERE "requestId" IS NOT NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_diet_payback_grants_program ON diet_payback_grants("programId")`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_diet_payback_grants_member ON diet_payback_grants("memberId")`);
 

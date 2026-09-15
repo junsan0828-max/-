@@ -237,8 +237,7 @@ export default function MemberReRegister() {
     if (addHealth && !healthMonths) { toast.error("헬스 이용 기간을 선택해주세요"); return; }
     if (addPt && !isServiceSession && !ptProgram) { toast.error("PT 프로그램명을 입력해주세요"); return; }
     if (addPt && !isServiceSession && !ptSessions) { toast.error("PT 횟수를 선택해주세요"); return; }
-    // "0"은 문자열로는 참이라 통과해버린다 — 숫자로 확인한다.
-    if (addDiet && !(parseFloat(dietStartWeight) > 0)) { toast.error("다이어트 시작 체중을 입력해주세요"); return; }
+    // 시작 체중은 필수가 아니다 — 회원 앱에서 첫 체중을 받아 기준으로 잡는다.
     const hasPaidItem = (addPt && !isServiceSession) || addHealth || (addLocker && lockerPrice) || (addUniform && uniformPrice) || addDiet;
     if (hasPaidItem && !paymentMethod) { toast.error("결제 방법을 선택해주세요"); return; }
     if (hasPaidItem && !paymentDate) { toast.error("결제일자를 입력해주세요"); return; }
@@ -738,7 +737,9 @@ export default function MemberReRegister() {
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">12주 프로그램 · 매월 마지막주 체중기록 · 1kg 감량마다 1개월 페이백 (최대 9개월)</p>
               <div>
-                <Label className="text-xs text-muted-foreground">시작 체중 (kg) *</Label>
+                <Label className="text-xs text-muted-foreground">
+                  시작 체중 (kg) <span className="text-muted-foreground/70">— 비워두면 회원 앱 첫 기록이 기준이 됩니다</span>
+                </Label>
                 <Input type="number" step="0.1" min="0" value={dietStartWeight}
                   onChange={e => setDietStartWeight(e.target.value)}
                   placeholder="예: 75.5" className="bg-input border-border mt-1" />
