@@ -6269,17 +6269,29 @@ const kioskRouter = t.router({
       const today = kstNow.toISOString().slice(0, 10);
       const nowTimeKst = `${String(kstNow.getUTCHours()).padStart(2,"0")}:${String(kstNow.getUTCMinutes()).padStart(2,"0")}`;
 
-      // 다이어트페이백 프로그램 회원만 허용
+      // 계정 조회는 phone 우선, 없으면 username(전화번호 숫자)으로 찾는다.
+      // 계정 생성 경로에 따라 phone이 비어 있을 수 있어 username까지 봐야 한다.
+      // 프로그램 등록 여부는 따로 판정해 원인별로 다른 안내를 준다.
       const memberRes = await pool.query(
-        `SELECT id, name, phone, "programName", "programStartDate"
+        `SELECT id, name, phone, "programName", "programStartDate", "isActive"
          FROM gym_plus_members
-         WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1
-           AND "programName" IS NOT NULL AND "isActive" = 1
-         ORDER BY id DESC LIMIT 1`,
+         WHERE REGEXP_REPLACE(COALESCE(NULLIF(phone, ''), username, ''), '[^0-9]', '', 'g') = $1
+         ORDER BY ("programName" IS NOT NULL) DESC, "isActive" DESC, id DESC
+         LIMIT 1`,
         [digits]
       );
-      if (!memberRes.rows[0]) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "다이어트페이백 프로그램 등록 회원이 아닙니다." });
+      const found = memberRes.rows[0];
+      if (!found) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원이 아닙니다. 데스크에 문의해 주세요." });
+      }
+      if (found.isActive !== 1) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "비활성 계정입니다. 데스크에 문의해 주세요." });
+      }
+      if (!found.programName || !found.programStartDate) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${found.name}님은 다이어트페이백 프로그램이 등록되어 있지 않습니다. 데스크에 문의해 주세요.`,
+        });
       }
       const gm = memberRes.rows[0] as { id: number; name: string; phone: string; programName: string; programStartDate: string };
 
