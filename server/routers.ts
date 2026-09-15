@@ -5746,7 +5746,7 @@ ${dataContext}
     // 통합운영시스템에만 등록된 회원도 앱에서 미션을 볼 수 있게 옮겨 적는다.
     if (member && (!member.programName || !member.programStartDate)) {
       const synced = await syncDietProgramFromMainSystem({ id: memberId, memberId: member.memberId ?? null, phone: member.phone, username: member.username });
-      if (synced) {
+      if (synced.ok) {
         member.programName = synced.programName;
         member.programStartDate = synced.programStartDate;
       }
@@ -6211,27 +6211,36 @@ async function getMainSystemDietInfo(mainMemberId: number): Promise<{
 // 통합운영시스템(diet_programs)의 다이어트페이백 등록을 짐플러스로 옮겨 적는다.
 // 두 시스템은 DB는 공유하지만 등록을 서로 다른 테이블에 저장하고 동기화가 없다.
 // diet_programs는 통합운영시스템 소유라 읽기만 하고, 짐플러스 쪽에만 기록한다.
+// 짐플러스 관리 화면의 등록명과 같아야 지급 이력(gym_plus_mission_rewards) 조회가 맞는다.
+const DIET_PROGRAM_NAME = "12주 다이어트페이백";
+
+// 실패해도 예외를 던지지 않고 사유를 돌려준다. 호출부가 회원에게 원인을 안내할 수 있어야
+// 데스크가 어느 단계를 고쳐야 하는지 화면만 보고 판단할 수 있다.
 async function syncDietProgramFromMainSystem(
   gm: { id: number; memberId: number | null; phone?: string | null; username?: string | null }
-): Promise<{ programName: string; programStartDate: string } | null> {
+): Promise<
+  | { ok: true; programName: string; programStartDate: string }
+  | { ok: false; reason: string }
+> {
   try {
+    const t = await pool.query(`SELECT to_regclass('public.diet_programs') AS t`);
+    if (!t.rows[0]?.t) return { ok: false, reason: "통합운영시스템 연결 없음" };
+
     const mainId = await resolveMainMemberId(gm);
-    if (!mainId) return null;
+    if (!mainId) return { ok: false, reason: "회원 정보 미연결" };
 
     const info = await getMainSystemDietInfo(mainId);
-    if (!info?.startDate) return null;
+    if (!info?.startDate) return { ok: false, reason: "통합운영시스템에 등록 없음" };
 
-    const programName = "다이어트페이백";
     await pool.query(
       `UPDATE gym_plus_members SET "programName" = $1, "programStartDate" = $2 WHERE id = $3`,
-      [programName, info.startDate, gm.id]
+      [DIET_PROGRAM_NAME, info.startDate, gm.id]
     );
     console.log(`✅ 다이어트페이백 동기화: gym_plus_members.id=${gm.id} ← members.id=${mainId} (시작 ${info.startDate})`);
-    return { programName, programStartDate: info.startDate };
+    return { ok: true, programName: DIET_PROGRAM_NAME, programStartDate: info.startDate };
   } catch (e) {
-    // 통합운영시스템 스키마 변경으로 실패해도 체크인 자체는 막지 않는다.
     console.error("⚠️ diet_programs 동기화 실패:", (e as Error).message);
-    return null;
+    return { ok: false, reason: "조회 오류" };
   }
 }
 
@@ -6459,17 +6468,22 @@ const kioskRouter = t.router({
       // 통합운영시스템은 다이어트페이백 등록을 diet_programs에 저장하고 programName은 쓰지 않는다.
       // 짐플러스에 등록이 비어 있으면 그쪽을 확인해 옮겨 적는다. 대표가 양쪽에 각각
       // 등록하지 않아도, 연결 버튼을 누르지 않아도 키오스크와 회원앱이 함께 동작한다.
+      let syncFailReason: string | null = null;
       if (!found.programName || !found.programStartDate) {
         const synced = await syncDietProgramFromMainSystem(found);
-        if (synced) {
+        if (synced.ok) {
           found.programName = synced.programName;
           found.programStartDate = synced.programStartDate;
+        } else {
+          syncFailReason = synced.reason;
         }
       }
       if (!found.programName || !found.programStartDate) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `${found.name}님은 다이어트페이백 프로그램이 등록되어 있지 않습니다. 데스크에 문의해 주세요.`,
+          message: `${found.name}님은 다이어트페이백 프로그램이 등록되어 있지 않습니다. 데스크에 문의해 주세요.${
+            syncFailReason ? ` (사유: ${syncFailReason} · 계정 #${found.id})` : ""
+          }`,
         });
       }
       const gm = found as { id: number; name: string; phone: string; programName: string; programStartDate: string };
