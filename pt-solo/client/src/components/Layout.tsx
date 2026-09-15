@@ -103,6 +103,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navGroups = (isAdmin ? [{ items: adminNavItems }] : trainerNavGroups).filter(g => g.items.length > 0);
 
+  // 모바일 하단 탭 — 매일 쓰는 4개만 노출하고 나머지는 [전체]가 메뉴 전체를 연다.
+  // path가 없는 탭(전체)은 사이드바 오버레이를 여는 용도.
+  const bottomTabs: { path?: string; label: string; icon: typeof LayoutDashboard }[] = isAdmin
+    ? [
+        { path: "/", label: "현황", icon: LayoutDashboard },
+        { path: "/admin/trainers", label: "STEPER", icon: ShieldCheck },
+        { path: "/admin/notices", label: "공지", icon: Bell },
+        { label: "전체", icon: Menu },
+      ]
+    : [
+        { path: "/", label: "홈", icon: LayoutDashboard },
+        { path: "/pt", label: "회원", icon: Dumbbell },
+        { path: "/sessions", label: "수업", icon: BookOpen },
+        { path: "/settlement", label: "분석", icon: TrendingUp },
+        { label: "전체", icon: Menu },
+      ];
+
   const isActive = (path: string) => {
     if (path === "/") return location === "/";
     return location.startsWith(path);
@@ -221,12 +238,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex flex-col flex-1 min-w-0">
-        {/* 모바일 상단 바 */}
+        {/* 모바일 상단 바 — 메뉴는 하단 [전체] 탭으로 옮겼으므로 햄버거 없음 */}
         <header className="md:hidden sticky top-0 z-40 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-          <button onClick={() => setSidebarOpen(true)} className="text-muted-foreground hover:text-foreground p-1 -ml-1">
-            <Menu className="h-5 w-5" />
-          </button>
-          <button onClick={() => setLocation("/")} className="flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
+          <button onClick={() => setLocation("/")} className="flex items-center gap-1">
             <span className="text-xl tracking-wider" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>FIT</span>
             <span className="text-xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
@@ -241,10 +255,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto px-4 py-6 max-w-3xl">
+          {/* 하단 탭바 높이(약 60px)만큼 여백을 둬서 마지막 요소가 가려지지 않게 */}
+          <div className="container mx-auto px-4 py-6 max-w-3xl pb-24 md:pb-6">
             {children}
           </div>
         </main>
+
+        {/* 모바일 하단 탭바 */}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          {bottomTabs.map(tab => {
+            const active = tab.path ? isActive(tab.path) : sidebarOpen;
+            return (
+              <button
+                key={tab.label}
+                onClick={() => { if (tab.path) { setSidebarOpen(false); setLocation(tab.path); } else { setSidebarOpen(true); } }}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors ${
+                  active ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <tab.icon className="h-5 w-5" />
+                <span className="text-[10px] font-medium">{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
         {/* 자동으로 뜨던 안내/홍보 팝업(앱 설치 안내, 프로필 완성 200P, 30초 성장 설문,
             기본정보 입력)은 전부 제거함. 페이지 가이드는 상단 [?] 버튼으로 직접 눌렀을 때만 표시. */}
         {guideOpen && (

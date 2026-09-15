@@ -385,8 +385,8 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
     <>
       {/* 패널 */}
       {open && (
-        <div className="fixed bottom-20 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-          style={{ maxHeight: "min(520px, calc(100dvh - 120px))" }}>
+        <div className="fixed bottom-36 md:bottom-20 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={{ maxHeight: "min(520px, calc(100dvh - 200px))" }}>
           {/* 헤더 */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
             <div className="w-5 h-5 rounded-md bg-teal-500/15 flex items-center justify-center">
@@ -503,7 +503,7 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
       {/* 플로팅 버튼 */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="fixed bottom-5 right-4 z-50 w-13 h-13 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white shadow-lg transition-all active:scale-95 flex items-center justify-center"
+        className="fixed bottom-20 md:bottom-5 right-4 z-50 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white shadow-lg transition-all active:scale-95 flex items-center justify-center"
         style={{ width: "52px", height: "52px" }}
         aria-label="빠른 작업"
       >
