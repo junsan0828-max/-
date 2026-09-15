@@ -2274,6 +2274,95 @@ function LinkIssueRow({ issue, onRefresh }: { issue: any; onRefresh: () => void 
   );
 }
 
+function DietDiagnosePanel() {
+  const [phone, setPhone] = useState("");
+  const [query, setQuery] = useState<string | null>(null);
+  const { data, isLoading } = trpc.gymPlus.admin_diagnoseDietMember.useQuery(
+    { phone: query ?? "" },
+    { enabled: !!query && query.replace(/\D/g, "").length >= 4 }
+  );
+
+  const ok = data?.verdict?.startsWith("정상");
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+      <div>
+        <p className="text-sm font-medium text-foreground">다이어트페이백 연동 진단</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          키오스크에서 거부될 때 어느 단계에서 끊겼는지 확인합니다.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") setQuery(phone); }}
+          placeholder="전화번호 (예: 010-1111-1111)"
+          className="h-9 flex-1"
+        />
+        <Button size="sm" className="h-9" onClick={() => setQuery(phone)} disabled={phone.replace(/\D/g, "").length < 4}>
+          진단
+        </Button>
+      </div>
+
+      {isLoading && query && <p className="text-xs text-muted-foreground">조회 중...</p>}
+
+      {data && (
+        <div className="space-y-2 text-xs">
+          <div className={`rounded-md px-3 py-2 font-medium ${ok ? "bg-green-50 text-green-700 border border-green-200" : "bg-amber-50 text-amber-800 border border-amber-200"}`}>
+            {ok ? "✅" : "⚠️"} {data.verdict}
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded-md border border-border p-2 space-y-0.5">
+              <p className="font-medium text-foreground mb-1">짐플러스 계정 {data.gymPlusCount > 1 && <span className="text-amber-600">({data.gymPlusCount}건 중복)</span>}</p>
+              {data.gymPlus ? (
+                <>
+                  <p className="text-muted-foreground">#{data.gymPlus.id} {data.gymPlus.name}</p>
+                  <p className="text-muted-foreground">phone: {data.gymPlus.phone || <span className="text-red-500">비어있음</span>}</p>
+                  <p className="text-muted-foreground">아이디: {data.gymPlus.username}</p>
+                  <p className="text-muted-foreground">
+                    회원연결: {data.gymPlus.memberId ? `members #${data.gymPlus.memberId}` : <span className="text-red-500">없음</span>}
+                  </p>
+                  <p className="text-muted-foreground">
+                    프로그램: {data.gymPlus.programName
+                      ? `${data.gymPlus.programName} (${data.gymPlus.programStartDate})`
+                      : <span className="text-red-500">없음</span>}
+                  </p>
+                </>
+              ) : <p className="text-red-500">계정 없음</p>}
+            </div>
+
+            <div className="rounded-md border border-border p-2 space-y-0.5">
+              <p className="font-medium text-foreground mb-1">통합관리 회원</p>
+              {data.mainMembers.length > 0 ? data.mainMembers.map((m: any) => (
+                <p key={m.id} className="text-muted-foreground">
+                  #{m.id} {m.name} · {m.status} · 만료 {m.membershipEnd || "-"}
+                </p>
+              )) : <p className="text-red-500">일치하는 회원 없음</p>}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border p-2 space-y-0.5">
+            <p className="font-medium text-foreground mb-1">
+              통합운영시스템 등록 (diet_programs)
+              {!data.dietProgramsExists && <span className="text-red-500 ml-1">— 이 DB에 테이블 없음</span>}
+            </p>
+            {data.dietProgramsError && <p className="text-red-500">오류: {data.dietProgramsError}</p>}
+            {data.dietProgramsExists && (
+              data.dietPrograms.length > 0 ? data.dietPrograms.map((d: any) => (
+                <p key={d.id} className="text-muted-foreground">
+                  members #{d.memberId} · 시작 {d.startDate} · 시작체중 {d.startWeight}kg · {d.baseWeeks}주
+                </p>
+              )) : <p className="text-red-500">등록 없음</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GymPlusLinkCheckAdmin() {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.gymPlus.admin_listLinkIssues.useQuery();
@@ -2294,6 +2383,8 @@ export function GymPlusLinkCheckAdmin() {
 
   return (
     <div className="space-y-4">
+      <DietDiagnosePanel />
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="p-3 text-center">
           <p className={`text-2xl font-bold ${linkRate === 100 ? "text-green-600" : "text-amber-600"}`}>{linkRate}%</p>

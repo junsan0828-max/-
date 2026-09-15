@@ -3881,6 +3881,77 @@ ${dataContext}
     };
   }),
 
+  // 전화번호 하나로 다이어트페이백 연동 상태를 전부 보여준다.
+  // 키오스크가 거부될 때 어느 단계에서 끊겼는지 데스크가 바로 확인하기 위한 진단용.
+  admin_diagnoseDietMember: adminOnlyGymPlus
+    .input(z.object({ phone: z.string().min(4) }))
+    .query(async ({ input }) => {
+      const digits = input.phone.replace(/\D/g, "");
+
+      const gpRes = await pool.query(
+        `SELECT id, name, phone, username, "memberId", "isActive", "programName", "programStartDate"
+         FROM gym_plus_members
+         WHERE REGEXP_REPLACE(COALESCE(NULLIF(phone, ''), username, ''), '[^0-9]', '', 'g') = $1
+         ORDER BY ("programName" IS NOT NULL) DESC, "isActive" DESC, id DESC`,
+        [digits]
+      );
+      const gymPlus = gpRes.rows[0] ?? null;
+
+      const mRes = await pool.query(
+        `SELECT id, name, phone, status, "membershipEnd" FROM members
+         WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1
+         ORDER BY (status = 'active') DESC, id DESC`,
+        [digits]
+      );
+
+      let dietProgramsExists = false;
+      let dietPrograms: any[] = [];
+      let dietProgramsError: string | null = null;
+      try {
+        const t = await pool.query(`SELECT to_regclass('public.diet_programs') AS t`);
+        dietProgramsExists = Boolean(t.rows[0]?.t);
+        if (dietProgramsExists) {
+          const candidateIds = mRes.rows.map((r: any) => r.id as number);
+          if (gymPlus?.memberId) candidateIds.push(gymPlus.memberId as number);
+          if (candidateIds.length > 0) {
+            const dp = await pool.query(
+              `SELECT id, "memberId", "startDate", "startWeight", "baseWeeks"
+               FROM diet_programs WHERE "memberId" = ANY($1::int[]) ORDER BY id DESC`,
+              [[...new Set(candidateIds)]]
+            );
+            dietPrograms = dp.rows;
+          }
+        }
+      } catch (e) {
+        dietProgramsError = (e as Error).message;
+      }
+
+      // 어느 단계에서 끊겼는지 판정
+      let verdict: string;
+      if (!gymPlus) verdict = "짐플러스 계정이 없습니다. 계정을 먼저 만들어 주세요.";
+      else if (gymPlus.isActive !== 1) verdict = "짐플러스 계정이 비활성 상태입니다.";
+      else if (gymPlus.programName && gymPlus.programStartDate) verdict = "정상입니다. 키오스크 체크인이 가능합니다.";
+      else if (!dietProgramsExists)
+        verdict = dietProgramsError
+          ? `diet_programs 조회 실패: ${dietProgramsError}`
+          : "이 DB에 diet_programs 테이블이 없습니다. 통합운영시스템과 다른 DB를 쓰고 있을 수 있습니다.";
+      else if (mRes.rows.length === 0) verdict = "전화번호가 일치하는 통합관리 회원이 없습니다.";
+      else if (dietPrograms.length === 0)
+        verdict = "통합운영시스템에도 다이어트페이백 등록이 없습니다. 통합운영시스템에서 먼저 등록해 주세요.";
+      else verdict = "등록은 있으나 짐플러스에 반영되지 않았습니다. 키오스크 체크인 시 자동 반영됩니다.";
+
+      return {
+        digits,
+        gymPlus,
+        gymPlusCount: gpRes.rows.length,
+        mainMembers: mRes.rows,
+        dietProgramsExists,
+        dietPrograms,
+        dietProgramsError,
+        verdict,
+      };
+    }),
+
   // 짐플러스 계정을 통합관리 회원과 연결. targetMemberId 미지정 시 전화번호 단일 매칭만 자동 연결.
   admin_linkGymPlusMember: adminOnlyGymPlus
     .input(z.object({
