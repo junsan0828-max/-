@@ -95,7 +95,7 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
             if (parsed.membershipStart) infos.push(`시작: ${parsed.membershipStart}`);
             if (parsed.membershipEnd) infos.push(`만료: ${parsed.membershipEnd}`);
             const infoStr = infos.length > 0 ? `\n${infos.join(" / ")}` : "";
-            return { role: "bot" as const, text: `✅ ${parsed.name} 회원이 등록되었습니다.${infoStr}`, link: `/members/${result.id}` };
+            return { role: "bot" as const, text: `${parsed.name} 회원이 등록되었습니다.${infoStr}`, link: `/members/${result.id}` };
           } catch (err: any) {
             return { role: "bot" as const, text: err.message || "회원 등록에 실패했어요." };
           }
@@ -165,7 +165,7 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
               try {
                 await attendanceUpsertMutation.mutateAsync({ memberId: member.id, checkDate: todayStr, status: "attended" });
                 await useSessionMutation.mutateAsync({ memberId: member.id, sessionDate: todayStr });
-                return { role: "bot" as const, text: `✅ ${name} 수업 완료 · 세션 1회 차감됐어요.`, link: `/members/${member.id}` };
+                return { role: "bot" as const, text: `${name} 수업 완료 · 세션 1회 차감됐어요.`, link: `/members/${member.id}` };
               } catch (err: any) {
                 return { role: "bot" as const, text: err.message || "처리 중 오류가 발생했어요." };
               }
@@ -225,7 +225,7 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
               try {
                 const result = await createMemberMutation.mutateAsync(payload);
                 const infos = [...(parsed.phone ? [`연락처: ${parsed.phone}`] : []), ...(parsed.paymentMethod ? [`결제: ${parsed.paymentMethod}`] : [])];
-                return { role: "bot" as const, text: `✅ ${parsed.name} 회원이 등록되었습니다.${infos.length ? "\n" + infos.join(" / ") : ""}`, link: `/members/${result.id}` };
+                return { role: "bot" as const, text: `${parsed.name} 회원이 등록되었습니다.${infos.length ? "\n" + infos.join(" / ") : ""}`, link: `/members/${result.id}` };
               } catch (err: any) {
                 return { role: "bot" as const, text: err.message || "회원 등록에 실패했어요." };
               }
@@ -244,7 +244,7 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
           action: async () => {
             try {
               const result = await createMemberMutation.mutateAsync({ name: nameCandidate, grade: "basic", status: "active" });
-              return { role: "bot" as const, text: `✅ ${nameCandidate} 회원이 등록되었습니다.`, link: `/members/${result.id}` };
+              return { role: "bot" as const, text: `${nameCandidate} 회원이 등록되었습니다.`, link: `/members/${result.id}` };
             } catch (err: any) {
               return { role: "bot" as const, text: err.message || "회원 등록에 실패했어요." };
             }
@@ -342,7 +342,7 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
     }
     if (has("미수금", "미납")) {
       const unpaid = await utils.members.getWithUnpaid.fetch();
-      if (unpaid.length === 0) return "미수금이 있는 회원이 없어요. 깔끔합니다 👍";
+      if (unpaid.length === 0) return "미수금이 있는 회원이 없어요. 깔끔합니다.";
       const total = unpaid.reduce((s, m) => s + (m.unpaidAmount ?? 0), 0);
       const names = unpaid.slice(0, 3).map(m => m.name).join(", ");
       return `미수금 회원은 ${unpaid.length}명, 총 ${total.toLocaleString()}원이에요. (${names}${unpaid.length > 3 ? ` 외 ${unpaid.length - 3}명` : ""})`;
