@@ -53,6 +53,66 @@ export function isServiceLog(l: {
   return svc > 0 && total > 0 && svc >= total;
 }
 
+// 날짜 문자열에 개월을 더한다. JS setMonth는 1/31 + 1개월 = 3/3 으로 넘어가므로
+// 말일을 넘지 않게 자른다(1/31 + 1개월 = 2/28).
+export function addMonths(dateStr: string, months: number): string {
+  const [y, m, d] = dateStr.substring(0, 10).split("-").map(Number);
+  const dt = new Date(y, m - 1, 1);
+  dt.setMonth(dt.getMonth() + months);
+  const lastDay = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+  dt.setDate(Math.min(d, lastDay));
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+// 다이어트 페이백 개월을 회원권 만료일에 반영한다 — 이 로직 하나를 공유한다(원칙 7).
+//
+// 페이백 1개월 = "기존 회원권 만료일 + 1개월"이다. 그래서 절대 날짜로 덮어쓰지 않는다.
+// 예전 방식은 "다이어트 시작일 + 12주 + 적립개월"을 계산해 그보다 짧을 때만 반영했다.
+// 회원이 더 긴 회원권(예: 헬스 1년권)을 이미 갖고 있으면 조건이 거짓이 되어,
+// 3kg을 빼도 만료일이 하루도 늘지 않았다.
+//
+// 대신 이미 반영한 개월수(appliedMonths)와의 차이만큼만 더하거나 뺀다. 그래서
+//  · 재등록 등 다른 연장과 겹쳐도 어긋나지 않고
+//  · 체중 기록을 지우거나 고치면 그만큼 되돌아가고
+//  · 같은 상태에서 몇 번을 호출해도 결과가 같다(멱등).
+export async function recalcDietPayback(programId: number) {
+  const prog = await pool.query<{ memberId: number; applied: number }>(
+    `SELECT "memberId", COALESCE("appliedMonths",0) AS applied FROM diet_programs WHERE id = $1 LIMIT 1`,
+    [programId]
+  );
+  if (!prog.rows[0]) return null;
+  const { memberId, applied } = prog.rows[0];
+
+  const sum = await pool.query<{ earned: number }>(
+    `SELECT COALESCE(SUM("bonusMonthsEarned"),0)::int AS earned FROM diet_weight_checks WHERE "programId" = $1`,
+    [programId]
+  );
+  const earned = Math.max(0, Math.min(9, sum.rows[0]?.earned ?? 0));
+  const delta = earned - applied;
+  if (delta === 0) return { earned, applied, delta: 0, changed: false as const };
+
+  const mem = await pool.query<{ membershipEnd: string | null }>(
+    `SELECT "membershipEnd" FROM members WHERE id = $1 LIMIT 1`, [memberId]
+  );
+  const current = mem.rows[0]?.membershipEnd;
+  if (!current) {
+    // 기준이 될 만료일이 없으면 날짜는 건드리지 않는다(추측해서 만들지 않는다).
+    // 적립 개월은 기록해 두고, 만료일이 생긴 뒤 다시 반영되도록 applied는 올리지 않는다.
+    return { earned, applied, delta, changed: false as const, reason: "회원권 만료일 없음" };
+  }
+
+  const newEnd = addMonths(current, delta);
+  await pool.query(
+    `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text WHERE id = $2`,
+    [newEnd, memberId]
+  );
+  await pool.query(
+    `UPDATE diet_programs SET "appliedMonths" = $1, "updatedAt" = now()::text WHERE id = $2`,
+    [earned, programId]
+  );
+  return { earned, applied, delta, previousEnd: current, newEnd, changed: true as const };
+}
+
 function calcPricePerSession(paymentAmount: number, sessions: number, paymentMethod?: string | null, transferAmount?: number | null, cardAmount?: number | null) {
   if (paymentMethod === "혼합" && transferAmount != null && cardAmount != null) {
     const base = transferAmount + Math.round(cardAmount / 1.1);

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq, and, desc, sql, like, gte, lte, inArray, isNotNull } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
-import { getDb, pool } from "./db";
+import { getDb, pool, recalcDietPayback } from "./db";
 import {
   channels,
   leads,
@@ -4781,39 +4781,26 @@ const dietRouter = t.router({
         );
       }
 
-      // 체중 기록 후 전체 누적 적립 개월 재계산 → membershipEnd 자동 갱신
-      const allChecks = await pool.query<{ bonusMonthsEarned: number }>(
-        `SELECT "bonusMonthsEarned" FROM diet_weight_checks WHERE "programId" = $1`,
-        [input.programId]
-      );
-      const totalEarned = Math.min(9, allChecks.rows.reduce((s, r) => s + (r.bonusMonthsEarned ?? 0), 0));
-      const progInfo = await pool.query<{ startDate: string; baseWeeks: number }>(
-        `SELECT "startDate", "baseWeeks" FROM diet_programs WHERE id = $1 LIMIT 1`,
-        [input.programId]
-      );
-      if (progInfo.rows[0]) {
-        const { startDate, baseWeeks } = progInfo.rows[0];
-        const [yr, mo, dy] = startDate.split("-").map(Number);
-        const endDt = new Date(yr, mo - 1, dy);
-        endDt.setDate(endDt.getDate() + baseWeeks * 7);
-        endDt.setMonth(endDt.getMonth() + totalEarned);
-        const newEnd = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
-        // members.membershipEnd가 현재 계산값보다 짧으면 연장
-        await pool.query(
-          `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
-           WHERE id = $2 AND (COALESCE("membershipEnd", '') < $1)`,
-          [newEnd, input.memberId]
-        );
-      }
-
-      return { bonusEarned };
+      // 페이백 개월을 회원권 만료일에 반영 — 계산은 db.ts 한 곳을 공유한다(원칙 7).
+      const res = await recalcDietPayback(input.programId);
+      return { bonusEarned, totalEarned: res?.earned ?? 0, newEnd: res?.changed ? res.newEnd : undefined };
     }),
 
-  // 체중 기록 삭제
+  // 체중 기록 삭제 — 지운 만큼 회원권 연장도 되돌린다.
+  // 예전에는 기록만 지우고 만료일을 그대로 뒀다. 잘못 입력한 체중을 지워도 늘어난
+  // 만료일이 남아, 주지 않아야 할 개월이 계속 살아 있었다.
   deleteCheck: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
+      const row = await pool.query<{ programId: number }>(
+        `SELECT "programId" FROM diet_weight_checks WHERE id = $1 LIMIT 1`, [input.id]
+      );
       await pool.query(`DELETE FROM diet_weight_checks WHERE id = $1`, [input.id]);
+      const programId = row.rows[0]?.programId;
+      if (programId) {
+        const res = await recalcDietPayback(programId);
+        return { success: true, totalEarned: res?.earned ?? 0, newEnd: res?.changed ? res.newEnd : undefined };
+      }
       return { success: true };
     }),
 
@@ -4843,17 +4830,25 @@ const dietRouter = t.router({
       // 실제 적립된 개월: 체중 기록별 bonusMonthsEarned 합계 (최대 9)
       const earnedMonths = Math.min(9, checks.rows.reduce((sum, r) => sum + (r.bonusMonthsEarned ?? 0), 0));
 
-      // 종료일: startDate + baseWeeks주 + earnedMonths개월
+      // 프로그램 종료 예정일(12주). 페이백과는 별개다.
       const [yr, mo, dy] = startDate.split("-").map(Number);
       const endDt = new Date(yr, mo - 1, dy);
       endDt.setDate(endDt.getDate() + baseWeeks * 7);
-      endDt.setMonth(endDt.getMonth() + earnedMonths);
-      const endDate = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+      const programEndDate = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+
+      // 화면에 보여줄 만료일은 실제 회원권 만료일이다(페이백이 이미 얹혀 있다).
+      // 시작일 기준으로 다시 계산하면 다른 회원권을 가진 회원에게 실제보다 이른 날짜가 보인다.
+      const memRow = await pool.query<{ membershipEnd: string | null }>(
+        `SELECT m."membershipEnd" FROM members m
+         JOIN diet_programs p ON p."memberId" = m.id WHERE p.id = $1 LIMIT 1`,
+        [input.programId]
+      );
+      const endDate = memRow.rows[0]?.membershipEnd ?? programEndDate;
 
       return {
         startDate, startWeight: sw, baseWeeks,
         totalLostKg, earnedMonths, maxBonusMonths: 9,
-        endDate,
+        endDate, programEndDate,
         checks: checks.rows,
       };
     }),

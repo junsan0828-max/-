@@ -7,7 +7,7 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
-import { db, pool } from "./db";
+import { db, pool, addMonths } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries, healthReports, ptReports } from "../drizzle/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
@@ -1397,10 +1397,15 @@ async function initDatabase() {
       "startWeight" NUMERIC(5,1) NOT NULL,
       "baseWeeks" INTEGER NOT NULL DEFAULT 12,
       "revenueEntryId" INTEGER,
+      -- 회원권 만료일에 이미 반영한 페이백 개월수. 절대 날짜로 덮어쓰지 않고
+      -- 이 값과의 차이만큼만 더하거나 빼기 위한 기준이다(db.ts recalcDietPayback).
+      "appliedMonths" INTEGER NOT NULL DEFAULT 0,
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )
   `);
+  await pool.query(`ALTER TABLE diet_programs ADD COLUMN IF NOT EXISTS "appliedMonths" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE diet_programs ADD COLUMN IF NOT EXISTS "paybackBackfilledAt" TEXT`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS diet_weight_checks (
       id SERIAL PRIMARY KEY,
@@ -1414,6 +1419,54 @@ async function initDatabase() {
     )
   `);
   console.log("✅ 다이어트 프로그램 테이블 준비 완료");
+
+  // ── 다이어트 페이백 appliedMonths 1회 백필 ──────────────────────────────────
+  // 예전 방식은 만료일을 "다이어트 시작일 + 12주 + 적립개월"이라는 절대 날짜로 계산해
+  // 그보다 짧을 때만 반영했다. 그래서 다이어트만 등록한 회원은 반영됐고, 더 긴 회원권을
+  // 이미 가진 회원은 한 달도 반영되지 않았다.
+  // 새 방식(기존 만료일 + 개월)으로 넘어가면서, 이미 반영된 건을 0으로 두면 다음 기록 때
+  // 같은 개월을 또 얹어 이중 지급이 된다. 그래서 "예전 공식의 결과와 현재 만료일이 같은가"로
+  // 반영 여부를 판정해 appliedMonths를 채운다.
+  // paybackBackfilledAt으로 1회만 실행한다(원칙 2: 멱등).
+  try {
+    const targets = await pool.query<{
+      id: number; memberId: number; startDate: string; baseWeeks: number;
+      earned: number; membershipEnd: string | null;
+    }>(`
+      SELECT p.id, p."memberId", p."startDate", p."baseWeeks",
+             COALESCE((SELECT SUM(c."bonusMonthsEarned") FROM diet_weight_checks c
+                       WHERE c."programId" = p.id), 0)::int AS earned,
+             m."membershipEnd"
+      FROM diet_programs p
+      LEFT JOIN members m ON m.id = p."memberId"
+      WHERE p."paybackBackfilledAt" IS NULL
+    `);
+    let applied = 0;
+    for (const row of targets.rows) {
+      const earned = Math.max(0, Math.min(9, row.earned ?? 0));
+      let appliedMonths = 0;
+      if (earned > 0 && row.membershipEnd && row.startDate) {
+        // 예전 공식 재현: 시작일 + baseWeeks*7일 → 거기에 earned 개월
+        const [y, mo, d] = row.startDate.substring(0, 10).split("-").map(Number);
+        const dt = new Date(y, mo - 1, d);
+        dt.setDate(dt.getDate() + (row.baseWeeks ?? 12) * 7);
+        const base = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        if (row.membershipEnd.substring(0, 10) === addMonths(base, earned)) {
+          appliedMonths = earned; // 예전 공식대로 이미 반영돼 있다
+        }
+      }
+      await pool.query(
+        `UPDATE diet_programs SET "appliedMonths" = $1, "paybackBackfilledAt" = now()::text WHERE id = $2`,
+        [appliedMonths, row.id]
+      );
+      if (appliedMonths > 0) applied++;
+    }
+    if (targets.rowCount) {
+      console.log(`🔧 다이어트 페이백 백필: ${targets.rowCount}건 판정 (이미 반영된 건 ${applied}건)`);
+    }
+  } catch (e) {
+    console.error("다이어트 페이백 백필 오류:", e);
+  }
 
   console.log("✅ 테이블 준비 완료");
 

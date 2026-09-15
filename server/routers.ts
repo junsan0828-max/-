@@ -8,7 +8,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, or, desc, asc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { getDb, getDashboardStats, pool, isServiceLog } from "./db";
+import { getDb, getDashboardStats, pool, isServiceLog, recalcDietPayback } from "./db";
 import {
   users,
   trainers,
@@ -6212,16 +6212,24 @@ const gymPlusRouter = t.router({
     const totalLostKg = Math.max(0, Math.min(9, Math.floor(sw - minWeight)));
     const earnedMonths = Math.min(9, checks.rows.reduce((s, r) => s + (r.bonusMonthsEarned ?? 0), 0));
 
+    // 프로그램 자체의 종료 예정일(12주). 페이백과는 별개다.
     const [yr, mo, dy] = startDate.split("-").map(Number);
     const endDt = new Date(yr, mo - 1, dy);
     endDt.setDate(endDt.getDate() + baseWeeks * 7);
-    endDt.setMonth(endDt.getMonth() + earnedMonths);
-    const endDate = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+    const programEndDate = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
+
+    // 회원에게 보여줄 만료일은 실제 회원권 만료일이다.
+    // 페이백은 "기존 회원권 만료일 + 적립개월"로 이미 반영돼 있다. 여기서 시작일 기준으로
+    // 다시 계산하면, 다른 회원권을 함께 가진 회원에게 실제보다 이른 날짜가 보인다.
+    const memRow = await pool.query<{ membershipEnd: string | null }>(
+      `SELECT "membershipEnd" FROM members WHERE id = $1 LIMIT 1`, [memberId]
+    );
+    const endDate = memRow.rows[0]?.membershipEnd ?? programEndDate;
 
     return {
       programId, memberId, startDate, startWeight: sw, baseWeeks,
       currentWeight, totalLostKg, earnedMonths, maxBonusMonths: 9,
-      endDate, checks: checks.rows,
+      endDate, programEndDate, checks: checks.rows,
     };
   }),
 
@@ -6275,22 +6283,17 @@ const gymPlusRouter = t.router({
         );
       }
 
-      // membershipEnd 자동 연장
-      const allChecks = await pool.query<{ bonusMonthsEarned: number }>(
-        `SELECT "bonusMonthsEarned" FROM diet_weight_checks WHERE "programId" = $1`, [programId]
-      );
-      const totalEarned = Math.min(9, allChecks.rows.reduce((s, r) => s + (r.bonusMonthsEarned ?? 0), 0));
-      const [yr, mo, dy] = startDate.split("-").map(Number);
-      const endDt = new Date(yr, mo - 1, dy);
-      endDt.setDate(endDt.getDate() + baseWeeks * 7);
-      endDt.setMonth(endDt.getMonth() + totalEarned);
-      const newEnd = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, "0")}-${String(endDt.getDate()).padStart(2, "0")}`;
-      await pool.query(
-        `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text WHERE id = $2 AND (COALESCE("membershipEnd",'') < $1)`,
-        [newEnd, memberId]
-      );
+      // 페이백 개월을 회원권 만료일에 반영 — 계산은 db.ts 한 곳을 공유한다(원칙 7).
+      const res = await recalcDietPayback(programId);
+      const [mrow] = await db.select({ membershipEnd: members.membershipEnd })
+        .from(members).where(eq(members.id, memberId)).limit(1);
 
-      return { bonusEarned, totalEarned, endDate: newEnd };
+      return {
+        bonusEarned,
+        totalEarned: res?.earned ?? 0,
+        endDate: mrow?.membershipEnd ?? null,
+        note: res && !res.changed && "reason" in res ? res.reason : undefined,
+      };
     }),
 
   // 통합관리 시스템 회원 목록 + 짐플러스 계정 연결 여부
