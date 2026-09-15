@@ -1178,7 +1178,7 @@ function MissionSubmissionReview() {
   );
 }
 
-function GymPlusMissionsAdmin() {
+export function GymPlusMissionsAdmin() {
   const utils = trpc.useUtils();
   const { data: progress, isLoading } = trpc.gymPlus.admin_listMissionProgress.useQuery();
   const { data: members } = trpc.gymPlus.admin_listMembers.useQuery();
