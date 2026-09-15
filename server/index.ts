@@ -123,6 +123,92 @@ app.get("/api/admin/debug/trainer-packages", async (req, res) => {
   }
 });
 
+// 회원 한 명의 PT 횟수 정산 근거를 한 번에 확인한다 (읽기 전용, 관리자 세션 필요).
+// 잔여가 안 맞을 때 "패키지·수업일지·매출" 셋을 나란히 놓고 어디서 어긋났는지 본다.
+//   사용법: /api/admin/debug/member-sessions?name=최문욱
+app.get("/api/admin/debug/member-sessions", async (req, res) => {
+  if (!(req.session as any)?.user) return res.status(401).json({ error: "unauthorized" });
+  const user = (req.session as any).user;
+  if (user.role !== "admin" && user.role !== "sub_admin") return res.status(403).json({ error: "forbidden" });
+  try {
+    const name = (req.query.name as string) || "";
+    if (!name) return res.status(400).json({ error: "name 파라미터가 필요합니다. 예: ?name=최문욱" });
+
+    const mem = await pool.query(
+      `SELECT id, name, phone FROM members WHERE name = $1 ORDER BY id LIMIT 10`, [name]
+    );
+    if (mem.rowCount === 0) return res.json({ error: `'${name}' 회원을 찾을 수 없습니다.` });
+
+    const out: any[] = [];
+    for (const m of mem.rows) {
+      const pkgs = await pool.query(`
+        SELECT p.id, p."packageName", p."totalSessions", p."serviceSessions", p."usedSessions",
+               p.status, p."startDate", p."paymentDate", p."revenueEntryId", p."trainerId",
+               t."trainerName",
+               l.total AS "수업일지건수", l.days AS "고유수업일수", (l.total - l.days) AS "중복건수",
+               (p."totalSessions" - COALESCE(p."usedSessions",0)) AS "현재잔여"
+        FROM pt_packages p
+        LEFT JOIN trainers t ON t.id = p."trainerId"
+        JOIN LATERAL (
+          SELECT COUNT(*)::int AS total, COUNT(DISTINCT sl."sessionDate")::int AS days
+          FROM pt_session_logs sl
+          WHERE sl."packageId" = p.id AND (sl."isDraft" IS NULL OR sl."isDraft" = 0)
+        ) l ON true
+        WHERE p."memberId" = $1
+        ORDER BY p.id
+      `, [m.id]);
+
+      const logs = await pool.query(`
+        SELECT sl.id, sl."sessionDate", sl."packageId", sl."trainerId", t."trainerName",
+               sl."isServiceSession", sl."isDraft", substring(sl."createdAt",1,16) AS "입력시각"
+        FROM pt_session_logs sl
+        LEFT JOIN trainers t ON t.id = sl."trainerId"
+        WHERE sl."memberId" = $1
+        ORDER BY sl."sessionDate" NULLS FIRST, sl.id
+      `, [m.id]);
+
+      const dupDates = await pool.query(`
+        SELECT "sessionDate", COUNT(*)::int AS cnt
+        FROM pt_session_logs
+        WHERE "memberId" = $1 AND ("isDraft" IS NULL OR "isDraft" = 0)
+        GROUP BY "sessionDate" HAVING COUNT(*) > 1
+        ORDER BY "sessionDate"
+      `, [m.id]);
+
+      const revs = await pool.query(`
+        SELECT id, type, "subType", sessions, "serviceSessions", amount, "paymentDate", "startDate"
+        FROM revenue_entries WHERE "memberId" = $1 ORDER BY "paymentDate", id
+      `, [m.id]);
+
+      const totalBought = revs.rows
+        .filter((r: any) => r.type === "PT")
+        .reduce((s: number, r: any) => s + (r.sessions ?? 0) + (r.serviceSessions ?? 0), 0);
+      const totalUsed = pkgs.rows.reduce((s: number, p: any) => s + (p.usedSessions ?? 0), 0);
+      const distinctDays = new Set(
+        logs.rows.filter((l: any) => !l.isDraft && l.sessionDate).map((l: any) => l.sessionDate)
+      ).size;
+
+      out.push({
+        회원: { id: m.id, name: m.name, phone: m.phone },
+        요약: {
+          매출로_산_횟수: totalBought,
+          패키지_사용합: totalUsed,
+          실제_수업일수: distinctDays,
+          "잔여(현재)": pkgs.rows.reduce((s: number, p: any) => s + ((p.totalSessions ?? 0) - (p.usedSessions ?? 0)), 0),
+          "잔여(수업일수 기준)": totalBought - distinctDays,
+        },
+        패키지: pkgs.rows,
+        중복입력된날짜: dupDates.rows,
+        수업일지: logs.rows,
+        매출: revs.rows,
+      });
+    }
+    res.json({ count: out.length, members: out });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // tRPC API
 app.use(
   "/trpc",
