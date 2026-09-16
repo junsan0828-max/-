@@ -6,6 +6,7 @@ import AdminPage from "./pages/AdminPage";
 import PostureAnalysis from "./pages/PostureAnalysis";
 import ContractPrint from "./pages/ContractPrint";
 import ContractForm from "./pages/ContractForm";
+import SequenceMaker from "./pages/SequenceMaker";
 
 const path   = window.location.pathname;
 const params = new URLSearchParams(window.location.search);
@@ -13,6 +14,7 @@ const isContractView = path.startsWith("/contract") && (params.has("name") || pa
 
 const App = path.startsWith("/admin")    ? AdminPage
            : path.startsWith("/posture") ? PostureAnalysis
+           : path.startsWith("/sequence") ? SequenceMaker
            : path.startsWith("/contract") ? (isContractView ? ContractPrint : ContractForm)
            : DietPlanner;
 

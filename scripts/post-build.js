@@ -23,6 +23,12 @@ const routes = [
     description: "FIT STEP 헬스장 회원 계약서. 계약 내역·약관·서명을 포함한 전자 계약서를 인쇄하거나 공유하세요.",
     url: "https://noble-unity-production-8100.up.railway.app/contract",
   },
+  {
+    dir: "sequence",
+    title: "FIT STEP 시퀀스 메이커",
+    description: "수업 시퀀스(운동 루틴)를 만들고 링크·PDF로 공유하세요. 운동 순서·세트·횟수·영상을 담은 전문가용 시퀀스 도구.",
+    url: "https://noble-unity-production-8100.up.railway.app/sequence",
+  },
 ];
 
 for (const { dir, title, description, url } of routes) {
@@ -48,6 +54,7 @@ const serveConfig = {
     { source: "/posture",  destination: "/posture/index.html" },
     { source: "/admin",    destination: "/admin/index.html" },
     { source: "/contract", destination: "/contract/index.html" },
+    { source: "/sequence", destination: "/sequence/index.html" },
     { source: "/**",       destination: "/index.html" },
   ],
 };
