@@ -5975,10 +5975,24 @@ const gymPlusRouter = t.router({
 
       if (member) {
         if (!member.isActive) throw new TRPCError({ code: "FORBIDDEN", message: "비활성화된 계정입니다." });
-        // 비밀번호는 항상 전화번호 뒷자리 4자리
-        const phoneDigits = (member.phone ?? member.username).replace(/\D/g, "");
-        const last4 = phoneDigits.slice(-4);
-        if (input.password !== last4) throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다. 전화번호 뒷자리 4자리를 입력하세요." });
+
+        // bcrypt 해시면 bcrypt 비교, 아니면 평문 비교 (레거시 → 자동 업그레이드)
+        const isHashed = member.password.startsWith("$2b$") || member.password.startsWith("$2a$");
+        let authOk = false;
+        if (isHashed) {
+          authOk = await bcrypt.compare(input.password, member.password);
+        } else {
+          // 레거시 평문 (전화번호 뒷자리 4자리)
+          const phoneDigits = (member.phone ?? member.username).replace(/\D/g, "");
+          const last4 = phoneDigits.slice(-4);
+          authOk = input.password === last4 || input.password === member.password;
+          if (authOk) {
+            // 로그인 성공 시 bcrypt로 업그레이드
+            const upgraded = await bcrypt.hash(input.password, 10);
+            await db.update(gymPlusMembers).set({ password: upgraded }).where(eq(gymPlusMembers.id, member.id));
+          }
+        }
+        if (!authOk) throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다. 전화번호 뒷자리 4자리를 입력하세요." });
 
         // admin 계정이면 통합관리 세션도 설정
         const userRow = await db.select().from(users).where(eq(users.username, input.username)).limit(1);
