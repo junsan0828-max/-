@@ -4098,32 +4098,16 @@ function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreate
 }
 
 function DietProgramSection({ memberId, programs }: { memberId: number; programs: any[] }) {
-  const utils = trpc.useUtils();
   const [selectedProgramId, setSelectedProgramId] = useState<number>(programs[0]?.id);
-  const [checkDate, setCheckDate] = useState("");
-  const [checkWeight, setCheckWeight] = useState("");
-  const [checkNote, setCheckNote] = useState("");
 
-  const { data: status, refetch: refetchStatus } = trpc.gym.diet.getStatus.useQuery(
+  const { data: status } = trpc.gym.diet.getStatus.useQuery(
     { programId: selectedProgramId },
     { enabled: !!selectedProgramId }
   );
-  const { data: checks, refetch: refetchChecks } = trpc.gym.diet.getChecks.useQuery(
+  const { data: checks } = trpc.gym.diet.getChecks.useQuery(
     { programId: selectedProgramId },
     { enabled: !!selectedProgramId }
   );
-
-  const upsertMutation = trpc.gym.diet.upsertCheck.useMutation({
-    onSuccess: () => {
-      refetchStatus(); refetchChecks();
-      setCheckDate(""); setCheckWeight(""); setCheckNote("");
-      toast.success("체중 기록 저장됨");
-    },
-    onError: () => toast.error("저장 실패"),
-  });
-  const deleteMutation = trpc.gym.diet.deleteCheck.useMutation({
-    onSuccess: () => { refetchStatus(); refetchChecks(); },
-  });
 
   // 페이백 지급 내역 — 체중 판정은 자이언트짐+가 하고, 여기는 "몇 개월 늘렸는지"의 원장이다.
   const { data: grants } = trpc.gym.diet.getGrants.useQuery(
@@ -4206,51 +4190,20 @@ function DietProgramSection({ memberId, programs }: { memberId: number; programs
             )}
           </div>
 
-          {/* 체중 기록 목록 */}
+          {/* 체중 기록 목록 (읽기 전용 — 기록은 자이언트짐+ 앱에서) */}
           {checks && checks.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground font-medium">체중 기록</p>
+              <p className="text-xs text-muted-foreground font-medium">체중 기록 (짐+ 앱 기록)</p>
               {checks.map((c: any) => (
                 <div key={c.id} className="flex items-center justify-between text-xs bg-background/40 rounded-lg px-3 py-2">
                   <span className="text-muted-foreground">{c.checkDate}</span>
                   <span className="font-medium text-foreground">{parseFloat(c.weight).toFixed(1)}kg</span>
                   <span className="text-emerald-400">{c.bonusMonthsEarned > 0 ? `+${c.bonusMonthsEarned}개월` : "유지"}</span>
                   {c.note && <span className="text-muted-foreground truncate max-w-[80px]">{c.note}</span>}
-                  <button onClick={() => { if (confirm("삭제?")) deleteMutation.mutate({ id: c.id }); }}
-                    className="text-muted-foreground hover:text-red-400 ml-1">✕</button>
                 </div>
               ))}
             </div>
           )}
-
-          {/* 체중 기록 추가 */}
-          <div className="space-y-2 border-t border-purple-500/20 pt-3">
-            <p className="text-xs text-muted-foreground font-medium">체중 기록 추가</p>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="date" value={checkDate} max={today} onChange={e => setCheckDate(e.target.value)}
-                className="rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none" />
-              <input type="number" step="0.1" min="30" max="200" value={checkWeight} onChange={e => setCheckWeight(e.target.value)}
-                placeholder="체중 (kg)" className="rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none" />
-            </div>
-            <input value={checkNote} onChange={e => setCheckNote(e.target.value)} placeholder="메모 (선택)"
-              className="w-full rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none" />
-            <button
-              onClick={() => {
-                if (!checkDate || !checkWeight) return toast.error("날짜와 체중을 입력하세요");
-                upsertMutation.mutate({
-                  programId: selectedProgramId,
-                  memberId,
-                  checkDate,
-                  weight: parseFloat(checkWeight),
-                  note: checkNote || undefined,
-                });
-              }}
-              disabled={upsertMutation.isPending}
-              className="w-full py-2 rounded-lg text-sm font-medium bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-50"
-            >
-              {upsertMutation.isPending ? "저장 중..." : "기록 저장"}
-            </button>
-          </div>
         </>
       )}
     </div>

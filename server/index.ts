@@ -237,6 +237,43 @@ app.use(
   })
 );
 
+// 짐플러스 계정 → 연결된 회원 → 다이어트 프로그램 연결 상태 진단 (인증 불필요, 읽기 전용)
+// 사용법: /api/admin/debug/gym-plus-diet?gymPlusId=3
+app.get("/api/admin/debug/gym-plus-diet", async (req, res) => {
+  try {
+    const gymPlusId = Number(req.query.gymPlusId);
+    if (!gymPlusId) return res.status(400).json({ error: "gymPlusId 파라미터가 필요합니다" });
+
+    const gm = await pool.query(
+      `SELECT id, username, name, phone, "memberId" FROM gym_plus_members WHERE id = $1 LIMIT 1`,
+      [gymPlusId]
+    );
+    if (!gm.rows[0]) return res.json({ error: `gym_plus_members id=${gymPlusId} 없음` });
+
+    const gymPlusMember = gm.rows[0];
+    let member = null;
+    let dietPrograms: any[] = [];
+
+    if (gymPlusMember.memberId) {
+      const mem = await pool.query(
+        `SELECT id, name, phone, "membershipEnd" FROM members WHERE id = $1 LIMIT 1`,
+        [gymPlusMember.memberId]
+      );
+      member = mem.rows[0] ?? null;
+
+      const diets = await pool.query(
+        `SELECT id, "startDate", "startWeight", "baseWeeks", "appliedMonths" FROM diet_programs WHERE "memberId" = $1 ORDER BY "startDate" DESC`,
+        [gymPlusMember.memberId]
+      );
+      dietPrograms = diets.rows;
+    }
+
+    return res.json({ gymPlusMember, member, dietPrograms, memberId: gymPlusMember.memberId });
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
 // 배너 이미지 서빙 (ETag 기반 캐시 — 이미지 바뀌면 즉시 반영)
 app.get("/api/banner-image/:id", async (req, res) => {
   try {
