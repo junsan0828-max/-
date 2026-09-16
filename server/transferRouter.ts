@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { getDb, pool } from "./db";
 import { transferContracts, transferTerms, members } from "../drizzle/schema";
@@ -40,7 +40,192 @@ const DEFAULT_TERMS = `자이언트짐 양도양수 표준약관
 양도인 및 양수인은 본 계약과 관련하여 자이언트짐이 개인정보를 수집·이용하는 것에 동의합니다.
 
 제6조 (효력 발생)
-본 계약은 양도인과 양수인의 전자서명이 완료된 시점에 효력이 발생합니다.`;
+본 계약은 관리자가 완료 처리한 시점에 효력이 발생합니다.`;
+
+// ── 양도 실행 핵심 함수 ────────────────────────────────────────────────────────
+// 모든 활성 항목(PT 패키지·헬스기간·락커·운동복)을 양도자→양수자로 이전한다.
+// 순수 데이터 이전만 담당; 계약서 status 업데이트는 호출부에서 처리한다.
+async function doFullTransfer(
+  transferorMemberId: number,
+  transfereeMemberId: number,
+  transferorName: string,
+  transfereeName: string,
+  now: string
+): Promise<string[]> {
+  const transferred: string[] = [];
+
+  // 1. 활성 PT 패키지 전체 이전
+  const activePkgs = (await pool.query(
+    `SELECT * FROM pt_packages WHERE "memberId" = $1 AND status = 'active'`,
+    [transferorMemberId]
+  )).rows;
+
+  for (const pkg of activePkgs) {
+    const remaining = Math.max(0, (pkg.totalSessions ?? 0) - (pkg.usedSessions ?? 0));
+    const pricePerSess = pkg.pricePerSession
+      ?? (pkg.paymentAmount && pkg.totalSessions ? Math.round(pkg.paymentAmount / pkg.totalSessions) : null);
+
+    // 양수자에게 새 패키지 생성 (transferredFromMemberId로 출처 기록, 우선 사용을 위해 startDate=now)
+    await pool.query(
+      `INSERT INTO pt_packages
+         ("memberId", "trainerId", "packageName", "totalSessions", "usedSessions",
+          "paymentAmount", "pricePerSession", "startDate", "paymentMethod",
+          "serviceSessions", "serviceSessionPrice", "serviceSamePrice",
+          status, "transferredFromMemberId", "createdAt", "updatedAt")
+       VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,$11,'active',$12,$13,$13)`,
+      [
+        transfereeMemberId, pkg.trainerId,
+        `[양도수령] ${pkg.packageName ?? 'PT 패키지'}`,
+        remaining,
+        pricePerSess != null ? pricePerSess * remaining : null,
+        pricePerSess,
+        now.substring(0, 10),
+        pkg.paymentMethod ?? '계좌이체',
+        pkg.serviceSessions ?? 0,
+        pkg.serviceSessionPrice ?? 0,
+        pkg.serviceSamePrice ?? 0,
+        transferorMemberId,
+        now,
+      ]
+    );
+
+    // 원본 패키지 양도완료 표시 (기록 보존)
+    await pool.query(
+      `UPDATE pt_packages SET status = 'transferred', "packageName" = $1, "updatedAt" = $2 WHERE id = $3`,
+      [`[양도완료→${transfereeName}] ${pkg.packageName ?? 'PT 패키지'}`, now, pkg.id]
+    );
+
+    transferred.push(`PT: ${pkg.packageName ?? 'PT 패키지'} 잔여 ${remaining}회`);
+  }
+
+  // 2. 헬스 기간 이전 (양수자가 기존 헬스 기간이 없거나 더 늦게 끝나는 경우에만 덮어씀)
+  const transferorMemberRow = (await pool.query(
+    `SELECT "membershipStart", "membershipEnd" FROM members WHERE id = $1`,
+    [transferorMemberId]
+  )).rows[0];
+
+  if (transferorMemberRow?.membershipEnd) {
+    const transfereeRow = (await pool.query(
+      `SELECT "membershipEnd" FROM members WHERE id = $1`,
+      [transfereeMemberId]
+    )).rows[0];
+    const shouldCopy = !transfereeRow?.membershipEnd
+      || transferorMemberRow.membershipEnd > transfereeRow.membershipEnd;
+
+    if (shouldCopy) {
+      await pool.query(
+        `UPDATE members SET "membershipStart" = $1, "membershipEnd" = $2, "updatedAt" = $3 WHERE id = $4`,
+        [transferorMemberRow.membershipStart, transferorMemberRow.membershipEnd, now, transfereeMemberId]
+      );
+      transferred.push(`헬스권: ~${transferorMemberRow.membershipEnd}`);
+    }
+  }
+
+  // 3. 락커 이전
+  const lockerResult = await pool.query(
+    `UPDATE lockers SET "memberId" = $1, "memberName" = $2, "updatedAt" = $3
+     WHERE "memberId" = $4 RETURNING "lockerNumber"`,
+    [transfereeMemberId, transfereeName, now, transferorMemberId]
+  );
+  if ((lockerResult.rowCount ?? 0) > 0) {
+    transferred.push(`락커: ${lockerResult.rows.map((r: any) => r.lockerNumber).join(', ')}`);
+  }
+
+  // 4. 착용 중인 운동복 이전
+  const uniformResult = await pool.query(
+    `UPDATE uniforms SET "memberId" = $1, "memberName" = $2, "updatedAt" = $3
+     WHERE "memberId" = $4 AND "isActive" = 1 RETURNING id`,
+    [transfereeMemberId, transfereeName, now, transferorMemberId]
+  );
+  if ((uniformResult.rowCount ?? 0) > 0) {
+    transferred.push(`운동복 ${uniformResult.rowCount}벌`);
+  }
+
+  // 5. 양도자 → 양도마감 처리
+  await pool.query(
+    `UPDATE members SET status = '양도마감', "updatedAt" = $1 WHERE id = $2`,
+    [now, transferorMemberId]
+  );
+
+  return transferred;
+}
+
+// ── 양수자 확보 (기존 회원 조회 or 신규 생성) ──────────────────────────────────
+async function resolveTransferee(params: {
+  transfereeMemberId?: number | null;
+  transfereeName?: string | null;
+  transfereePhone?: string | null;
+  transfereeBirthDate?: string | null;
+  transferorMemberId: number;
+  contractId: number;
+  now: string;
+}): Promise<{ transfereeMemberId: number; transfereeName: string }> {
+  const { now, contractId } = params;
+
+  // 1. 이미 회원 ID가 있으면 바로 이름 조회
+  if (params.transfereeMemberId) {
+    const row = (await pool.query(`SELECT name FROM members WHERE id = $1`, [params.transfereeMemberId])).rows[0];
+    return {
+      transfereeMemberId: params.transfereeMemberId,
+      transfereeName: row?.name ?? params.transfereeName ?? "양수인",
+    };
+  }
+
+  // 2. 전화번호로 기존 회원 검색
+  if (params.transfereePhone) {
+    const digitsOnly = params.transfereePhone.replace(/\D/g, "");
+    const existing = (await pool.query(
+      `SELECT id, name FROM members WHERE regexp_replace(phone, '[^0-9]', '', 'g') = $1 LIMIT 1`,
+      [digitsOnly]
+    )).rows[0];
+    if (existing) {
+      await pool.query(
+        `UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE id = $2`,
+        [existing.id, contractId]
+      );
+      return { transfereeMemberId: existing.id, transfereeName: existing.name };
+    }
+  }
+
+  // 3. 신규 회원 생성
+  const transferorRow = (await pool.query(
+    `SELECT "branchId", "trainerId" FROM members WHERE id = $1`,
+    [params.transferorMemberId]
+  )).rows[0];
+
+  let branchId = transferorRow?.branchId ?? null;
+  if (!branchId && transferorRow?.trainerId) {
+    const tb = (await pool.query(
+      `SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1`,
+      [transferorRow.trainerId]
+    )).rows[0];
+    branchId = tb?.branchId ?? null;
+  }
+  if (!branchId) {
+    const fb = (await pool.query(`SELECT "branchId" FROM trainer_branches LIMIT 1`)).rows[0];
+    branchId = fb?.branchId ?? null;
+  }
+
+  const newName = params.transfereeName ?? "양수인";
+  const mr = (await pool.query(
+    `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
+     VALUES ($1,$2,$3,$4,$5,'active',$6,$7,$7) RETURNING id`,
+    [
+      branchId, transferorRow?.trainerId ?? null, newName,
+      params.transfereePhone ?? null, params.transfereeBirthDate ?? null,
+      `양도양수 계약으로 등록 (계약서 ID: ${contractId})`, now,
+    ]
+  )).rows[0];
+
+  if (!mr) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "양수인 회원 생성 실패" });
+
+  await pool.query(
+    `UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE id = $2`,
+    [mr.id, contractId]
+  );
+
+  return { transfereeMemberId: mr.id, transfereeName: newName };
+}
 
 export const transferRouter = t.router({
   // 약관 조회 (없으면 기본값 반환)
@@ -78,13 +263,13 @@ export const transferRouter = t.router({
       }
     }),
 
-  // 양도양수 계약서 생성
+  // 양도양수 계약 생성 → 즉시 전체 이전 완료 (서명 불필요)
   createTransfer: protectedProcedure
     .input(z.object({
       transferorMemberId: z.number(),
-      itemType: z.enum(["pt_package", "membership", "uniform", "locker"]),
+      itemType: z.enum(["pt_package", "membership", "uniform", "locker"]).optional(),
       itemId: z.number().optional(),
-      itemDescription: z.string().min(1),
+      itemDescription: z.string().optional(),
       transfereeMemberId: z.number().optional(),
       transfereeName: z.string().optional(),
       transfereePhone: z.string().optional(),
@@ -94,7 +279,6 @@ export const transferRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 양도인 정보 조회
       const transferorRows = await db
         .select({ name: members.name, phone: members.phone })
         .from(members)
@@ -104,40 +288,62 @@ export const transferRouter = t.router({
       if (!transferorRows[0]) {
         throw new TRPCError({ code: "NOT_FOUND", message: "양도인 회원을 찾을 수 없습니다." });
       }
-
       const transferor = transferorRows[0];
 
-      // 현재 약관 스냅샷
       const termsRows = await db.select({ content: transferTerms.content }).from(transferTerms).limit(1);
       const termsSnapshot = termsRows[0]?.content ?? DEFAULT_TERMS;
 
       const token = randomUUID();
       const now = new Date().toISOString();
 
+      // 양수자 확보
+      const { transfereeMemberId, transfereeName } = await resolveTransferee({
+        transfereeMemberId: input.transfereeMemberId,
+        transfereeName: input.transfereeName,
+        transfereePhone: input.transfereePhone,
+        transfereeBirthDate: input.transfereeBirthDate,
+        transferorMemberId: input.transferorMemberId,
+        contractId: 0, // 계약서 생성 전 임시; INSERT 후 업데이트
+        now,
+      });
+
+      // 계약서 기록 (완료 상태로 바로 저장)
       const [contract] = await db
         .insert(transferContracts)
         .values({
           token,
-          status: "pending_transferor",
+          status: "completed",
           transferorMemberId: input.transferorMemberId,
           transferorName: transferor.name,
           transferorPhone: transferor.phone ?? null,
-          transfereeMemberId: input.transfereeMemberId ?? null,
-          transfereeName: input.transfereeName ?? null,
+          transfereeMemberId,
+          transfereeName,
           transfereePhone: input.transfereePhone ?? null,
           transfereeBirthDate: input.transfereeBirthDate ?? null,
-          itemType: input.itemType,
+          itemType: input.itemType ?? "pt_package",
           itemId: input.itemId ?? null,
-          itemDescription: input.itemDescription,
+          itemDescription: input.itemDescription ?? "전체 항목 양도",
           termsSnapshot,
           createdAt: now,
+          completedAt: now,
         })
         .returning();
+
+      // 전체 항목 이전 실행
+      const transferred = await doFullTransfer(
+        input.transferorMemberId,
+        transfereeMemberId,
+        transferor.name,
+        transfereeName,
+        now
+      );
 
       return {
         id: contract.id,
         token: contract.token,
-        contractUrl: `/transfer/${contract.token}`,
+        transferred,
+        transfereeMemberId,
+        transfereeName,
       };
     }),
 
@@ -160,7 +366,7 @@ export const transferRouter = t.router({
       };
     }),
 
-  // 서명 제출
+  // 서명 제출 (하위 호환 유지 — 기존 pending 계약서용)
   signContract: publicProcedure
     .input(z.object({
       token: z.string(),
@@ -213,208 +419,77 @@ export const transferRouter = t.router({
           })
           .where(eq(transferContracts.token, input.token));
 
-        // Get transferor's branchId to assign to the new transferee member
-        const transferorResult = await pool.query(
-          'SELECT "branchId", "trainerId" FROM members WHERE id = $1',
-          [contract.transferorMemberId]
+        const { transfereeMemberId, transfereeName } = await resolveTransferee({
+          transfereeMemberId: contract.transfereeMemberId ?? null,
+          transfereeName: input.signerName,
+          transfereePhone: input.signerPhone ?? contract.transfereePhone,
+          transfereeBirthDate: contract.transfereeBirthDate,
+          transferorMemberId: contract.transferorMemberId,
+          contractId: contract.id,
+          now,
+        });
+
+        await doFullTransfer(
+          contract.transferorMemberId,
+          transfereeMemberId,
+          contract.transferorName ?? "양도인",
+          transfereeName,
+          now
         );
-        const transferorMember = transferorResult.rows[0];
-
-        if (transferorMember) {
-          let transfereeMemberId: number | null = contract.transfereeMemberId ?? null;
-
-          // Create a member record for the transferee if one doesn't exist yet
-          if (!transfereeMemberId) {
-            // branchId가 NULL이면 trainer_branches에서 조회
-            let branchId = transferorMember.branchId;
-            if (!branchId && transferorMember.trainerId) {
-              const tbResult = await pool.query(
-                'SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1',
-                [transferorMember.trainerId]
-              );
-              branchId = tbResult.rows[0]?.branchId ?? null;
-            }
-
-            const memberResult = await pool.query(
-              `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $7)
-               RETURNING id`,
-              [
-                branchId,
-                transferorMember.trainerId ?? null,
-                input.signerName,
-                contract.transfereePhone ?? null,
-                contract.transfereeBirthDate ?? null,
-                `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`,
-                now,
-              ]
-            );
-            if (memberResult.rows[0]) {
-              transfereeMemberId = memberResult.rows[0].id as number;
-              await pool.query(
-                'UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE token = $2',
-                [transfereeMemberId, input.token]
-              );
-            }
-          }
-
-          // Transfer the item to the new transferee member
-          if (transfereeMemberId && contract.itemId) {
-            if (contract.itemType === "pt_package") {
-              // PT 패키지 양도: 원본 패키지 정보 조회 → 잔여 세션/단가를 새 패키지로 복사 → 원본은 transferred 처리
-              const origPkg = await pool.query(
-                `SELECT "totalSessions", "usedSessions", "paymentAmount", "pricePerSession",
-                        "packageName", "trainerId", "startDate", "serviceSessions", "serviceSessionPrice", "paymentMethod"
-                 FROM pt_packages WHERE id = $1 LIMIT 1`,
-                [contract.itemId]
-              );
-              if (origPkg.rows[0]) {
-                const op = origPkg.rows[0];
-                const remaining = Math.max(0, (op.totalSessions ?? 0) - (op.usedSessions ?? 0));
-                const pricePerSess = op.pricePerSession
-                  ?? (op.paymentAmount && op.totalSessions ? Math.round(op.paymentAmount / op.totalSessions) : null);
-                // 양수인 새 패키지 생성
-                await pool.query(
-                  `INSERT INTO pt_packages
-                     ("memberId", "trainerId", "packageName", "totalSessions", "usedSessions",
-                      "paymentAmount", "pricePerSession", "startDate", "paymentMethod",
-                      "serviceSessions", "serviceSessionPrice", status, "createdAt", "updatedAt")
-                   VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,'active',$11,$11)`,
-                  [
-                    transfereeMemberId,
-                    op.trainerId,
-                    op.packageName ?? '웨이트피티',
-                    remaining,
-                    pricePerSess != null ? pricePerSess * remaining : null,
-                    pricePerSess,
-                    now,
-                    op.paymentMethod ?? '계좌이체',
-                    op.serviceSessions ?? 0,
-                    op.serviceSessionPrice ?? 0,
-                    now,
-                  ]
-                );
-                // 원본 패키지 → transferred 상태로 닫기
-                await pool.query(
-                  `UPDATE pt_packages SET status = 'transferred', "updatedAt" = $1 WHERE id = $2`,
-                  [now, contract.itemId]
-                );
-              } else {
-                // 원본 패키지 없으면 기존 방식(memberId 이전)으로 폴백
-                await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
-              }
-            } else if (contract.itemType === "membership") {
-              await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
-            } else if (contract.itemType === "locker") {
-              await pool.query(
-                'UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3',
-                [transfereeMemberId, input.signerName, contract.itemId]
-              );
-            } else if (contract.itemType === "uniform") {
-              await pool.query(
-                'UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3',
-                [transfereeMemberId, input.signerName, contract.itemId]
-              );
-            }
-          }
-
-          // 양도인 회원을 "ended(마감)" 상태로 변경
-          if (contract.transferorMemberId) {
-            await pool.query(
-              `UPDATE members SET status = 'ended', "updatedAt" = $1 WHERE id = $2`,
-              [now, contract.transferorMemberId]
-            );
-          }
-        }
       }
 
       return { success: true };
     }),
 
-  // 완료된 계약 중 양수인 회원 미생성 건 즉시 보정 (회원관리 페이지 로드 시 호출)
-  fixMissingTransferees: protectedProcedure.mutation(async () => {
-    const fixed: string[] = [];
-    const errors: string[] = [];
-    const completedContracts = await pool.query(
-      `SELECT id, "transferorMemberId", "transfereeMemberId", "transfereeName",
-              "transfereePhone", "transfereeBirthDate", "itemType", "itemId", "completedAt"
-       FROM transfer_contracts
-       WHERE status = 'completed' AND "transfereeMemberId" IS NULL AND "transfereeName" IS NOT NULL`
-    );
-    for (const contract of completedContracts.rows) {
-      try {
-        const transferorResult = await pool.query(
-          'SELECT "branchId", "trainerId" FROM members WHERE id = $1',
-          [contract.transferorMemberId]
-        );
-        const tm = transferorResult.rows[0];
+  // 관리자 강제 완료 (pending 상태 기존 계약서용)
+  adminCompleteTransfer: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const contract = (await pool.query(
+        `SELECT * FROM transfer_contracts WHERE id = $1`,
+        [input.id]
+      )).rows[0];
+      if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "계약서를 찾을 수 없습니다." });
+      if (contract.status === "completed") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 완료된 계약서입니다." });
+      if (contract.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "취소된 계약서입니다." });
 
-        // 양도인 회원 없으면 첫 번째 지점으로 폴백
-        let branchId = tm?.branchId ?? null;
-        let trainerId = tm?.trainerId ?? null;
-        if (!branchId) {
-          const tbr = await pool.query('SELECT "branchId" FROM trainer_branches LIMIT 1');
-          branchId = tbr.rows[0]?.branchId ?? null;
-        }
-        if (!trainerId && branchId) {
-          const trr = await pool.query('SELECT "trainerId" FROM trainer_branches WHERE "branchId" = $1 LIMIT 1', [branchId]);
-          trainerId = trr.rows[0]?.trainerId ?? null;
-        }
+      const now = new Date().toISOString();
 
-        const now = new Date().toISOString();
-        const mr = await pool.query(
-          `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
-           VALUES ($1,$2,$3,$4,$5,'active',$6,$7,$7) RETURNING id`,
-          [branchId, trainerId, contract.transfereeName, contract.transfereePhone ?? null,
-           contract.transfereeBirthDate ?? null,
-           `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`, now]
-        );
-        if (mr.rows[0]) {
-          const tid = mr.rows[0].id;
-          await pool.query('UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE id = $2', [tid, contract.id]);
-          if (contract.itemId) {
-            if (contract.itemType === "pt_package") await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [tid, contract.itemId]);
-            else if (contract.itemType === "membership") await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [tid, contract.itemId]);
-            else if (contract.itemType === "locker") await pool.query('UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [tid, contract.transfereeName, contract.itemId]);
-            else if (contract.itemType === "uniform") await pool.query('UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [tid, contract.transfereeName, contract.itemId]);
-          }
-          // 양도인 회원을 "ended(마감)" 상태로 변경
-          if (contract.transferorMemberId) {
-            await pool.query(
-              `UPDATE members SET status = 'ended', "updatedAt" = $1 WHERE id = $2`,
-              [now, contract.transferorMemberId]
-            );
-          }
-          fixed.push(contract.transfereeName);
-        } else {
-          errors.push(`${contract.transfereeName}: INSERT 결과 없음`);
-        }
-      } catch (e: any) {
-        errors.push(`${contract.transfereeName}: ${e.message}`);
-      }
-    }
-    // 이미 완료된 계약의 양도인들도 "ended" 상태로 일괄 업데이트
-    await pool.query(
-      `UPDATE members SET status = 'ended', "updatedAt" = NOW()::text
-       WHERE id IN (
-         SELECT DISTINCT "transferorMemberId" FROM transfer_contracts WHERE status = 'completed' AND "transferorMemberId" IS NOT NULL
-       ) AND status != 'ended'`
-    );
+      const { transfereeMemberId, transfereeName } = await resolveTransferee({
+        transfereeMemberId: contract.transfereeMemberId,
+        transfereeName: contract.transfereeName,
+        transfereePhone: contract.transfereePhone,
+        transfereeBirthDate: contract.transfereeBirthDate,
+        transferorMemberId: contract.transferorMemberId,
+        contractId: contract.id,
+        now,
+      });
 
-    return { fixed, errors };
-  }),
+      const transferred = await doFullTransfer(
+        contract.transferorMemberId,
+        transfereeMemberId,
+        contract.transferorName ?? "양도인",
+        transfereeName,
+        now
+      );
+
+      await pool.query(
+        `UPDATE transfer_contracts SET status = 'completed', "completedAt" = $1, "transfereeMemberId" = $2 WHERE id = $3`,
+        [now, transfereeMemberId, contract.id]
+      );
+
+      return { success: true, transferred, transfereeMemberId };
+    }),
 
   // 내 양도양수 목록 (회원별)
   getMyTransfers: protectedProcedure
     .input(z.object({ memberId: z.number() }))
     .query(async ({ input }) => {
-      // 전화번호로도 매칭 (transfereeMemberId 미설정 시)
-      const memberRow = await pool.query(
+      const memberRow = (await pool.query(
         `SELECT phone FROM members WHERE id = $1`,
         [input.memberId]
-      );
-      const rawPhone = memberRow.rows[0]?.phone ?? "";
-      const digitsOnly = rawPhone.replace(/\D/g, "");
+      )).rows[0];
+      const digitsOnly = (memberRow?.phone ?? "").replace(/\D/g, "");
 
       const rows = await pool.query(
         `SELECT id, token, status, "transferorMemberId", "transferorName", "transfereeMemberId",
@@ -429,127 +504,6 @@ export const transferRouter = t.router({
       );
 
       return rows.rows;
-    }),
-
-  // 관리자 강제 완료 (서명 없이 양도 처리)
-  adminCompleteTransfer: protectedProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const contract = (await pool.query(
-        `SELECT * FROM transfer_contracts WHERE id = $1`,
-        [input.id]
-      )).rows[0];
-      if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "계약서를 찾을 수 없습니다." });
-      if (contract.status === "completed") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 완료된 계약서입니다." });
-      if (contract.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "취소된 계약서입니다." });
-
-      const now = new Date().toISOString();
-
-      const transferorResult = await pool.query(
-        `SELECT "branchId", "trainerId" FROM members WHERE id = $1`,
-        [contract.transferorMemberId]
-      );
-      const transferorMember = transferorResult.rows[0];
-
-      let transfereeMemberId: number | null = contract.transfereeMemberId ?? null;
-
-      if (!transfereeMemberId) {
-        // 전화번호로 기존 회원 찾기
-        if (contract.transfereePhone) {
-          const digitsOnly = contract.transfereePhone.replace(/\D/g, "");
-          const existing = await pool.query(
-            `SELECT id FROM members WHERE regexp_replace(phone, '[^0-9]', '', 'g') = $1 LIMIT 1`,
-            [digitsOnly]
-          );
-          if (existing.rows[0]) {
-            transfereeMemberId = existing.rows[0].id;
-          }
-        }
-        // 그래도 없으면 신규 회원 생성
-        if (!transfereeMemberId) {
-          let branchId = transferorMember?.branchId ?? null;
-          if (!branchId && transferorMember?.trainerId) {
-            const tbResult = await pool.query(
-              `SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1`,
-              [transferorMember.trainerId]
-            );
-            branchId = tbResult.rows[0]?.branchId ?? null;
-          }
-          const memberResult = await pool.query(
-            `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
-             VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $7) RETURNING id`,
-            [
-              branchId,
-              transferorMember?.trainerId ?? null,
-              contract.transfereeName ?? "양수인",
-              contract.transfereePhone ?? null,
-              contract.transfereeBirthDate ?? null,
-              `양도양수 관리자 처리 (계약서 ID: ${contract.id})`,
-              now,
-            ]
-          );
-          if (memberResult.rows[0]) transfereeMemberId = memberResult.rows[0].id;
-        }
-      }
-
-      // 아이템 이전
-      if (transfereeMemberId && contract.itemId) {
-        if (contract.itemType === "pt_package") {
-          const origPkg = (await pool.query(
-            `SELECT "totalSessions", "usedSessions", "paymentAmount", "pricePerSession",
-                    "packageName", "trainerId", "startDate", "serviceSessions", "serviceSessionPrice", "paymentMethod"
-             FROM pt_packages WHERE id = $1 LIMIT 1`,
-            [contract.itemId]
-          )).rows[0];
-          if (origPkg) {
-            const remaining = Math.max(0, (origPkg.totalSessions ?? 0) - (origPkg.usedSessions ?? 0));
-            const pricePerSess = origPkg.pricePerSession
-              ?? (origPkg.paymentAmount && origPkg.totalSessions ? Math.round(origPkg.paymentAmount / origPkg.totalSessions) : null);
-            await pool.query(
-              `INSERT INTO pt_packages
-                 ("memberId", "trainerId", "packageName", "totalSessions", "usedSessions",
-                  "paymentAmount", "pricePerSession", "startDate", "paymentMethod",
-                  "serviceSessions", "serviceSessionPrice", status, "createdAt", "updatedAt")
-               VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,'active',$11,$11)`,
-              [
-                transfereeMemberId, origPkg.trainerId,
-                origPkg.packageName ?? '웨이트피티', remaining,
-                pricePerSess != null ? pricePerSess * remaining : null, pricePerSess,
-                now, origPkg.paymentMethod ?? '계좌이체',
-                origPkg.serviceSessions ?? 0, origPkg.serviceSessionPrice ?? 0, now,
-              ]
-            );
-            await pool.query(
-              `UPDATE pt_packages SET status = 'transferred', "updatedAt" = $1 WHERE id = $2`,
-              [now, contract.itemId]
-            );
-          } else {
-            await pool.query(`UPDATE pt_packages SET "memberId" = $1 WHERE id = $2`, [transfereeMemberId, contract.itemId]);
-          }
-        } else if (contract.itemType === "membership") {
-          await pool.query(`UPDATE memberships SET "memberId" = $1 WHERE id = $2`, [transfereeMemberId, contract.itemId]);
-        } else if (contract.itemType === "locker") {
-          await pool.query(`UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3`, [transfereeMemberId, contract.transfereeName ?? "양수인", contract.itemId]);
-        } else if (contract.itemType === "uniform") {
-          await pool.query(`UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3`, [transfereeMemberId, contract.transfereeName ?? "양수인", contract.itemId]);
-        }
-      }
-
-      // 양도인 → ended 처리
-      if (contract.transferorMemberId) {
-        await pool.query(
-          `UPDATE members SET status = 'ended', "updatedAt" = $1 WHERE id = $2`,
-          [now, contract.transferorMemberId]
-        );
-      }
-
-      // 계약서 완료 처리
-      await pool.query(
-        `UPDATE transfer_contracts SET status = 'completed', "completedAt" = $1, "transfereeMemberId" = $2 WHERE id = $3`,
-        [now, transfereeMemberId, contract.id]
-      );
-
-      return { success: true, transfereeMemberId };
     }),
 
   // 양도 취소
@@ -577,4 +531,42 @@ export const transferRouter = t.router({
 
       return { success: true };
     }),
+
+  // 완료된 계약 중 양수인 회원 미생성 건 즉시 보정 (하위 호환)
+  fixMissingTransferees: protectedProcedure.mutation(async () => {
+    const fixed: string[] = [];
+    const errors: string[] = [];
+    const completedContracts = await pool.query(
+      `SELECT id, "transferorMemberId", "transfereeMemberId", "transfereeName",
+              "transfereePhone", "transfereeBirthDate", "itemType", "itemId", "completedAt"
+       FROM transfer_contracts
+       WHERE status = 'completed' AND "transfereeMemberId" IS NULL AND "transfereeName" IS NOT NULL`
+    );
+    for (const contract of completedContracts.rows) {
+      try {
+        const now = new Date().toISOString();
+        const { transfereeMemberId } = await resolveTransferee({
+          transfereeMemberId: null,
+          transfereeName: contract.transfereeName,
+          transfereePhone: contract.transfereePhone,
+          transfereeBirthDate: contract.transfereeBirthDate,
+          transferorMemberId: contract.transferorMemberId,
+          contractId: contract.id,
+          now,
+        });
+        fixed.push(`${contract.transfereeName} → memberId ${transfereeMemberId}`);
+      } catch (e: any) {
+        errors.push(`${contract.transfereeName}: ${e.message}`);
+      }
+    }
+    // 이미 완료된 계약의 양도인들도 "양도마감" 처리
+    await pool.query(
+      `UPDATE members SET status = '양도마감', "updatedAt" = NOW()::text
+       WHERE id IN (
+         SELECT DISTINCT "transferorMemberId" FROM transfer_contracts WHERE status = 'completed' AND "transferorMemberId" IS NOT NULL
+       ) AND status NOT IN ('양도마감', 'ended')`
+    );
+
+    return { fixed, errors };
+  }),
 });

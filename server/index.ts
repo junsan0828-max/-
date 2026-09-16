@@ -1692,7 +1692,8 @@ async function initDatabase() {
   //   · 회원이 여러 상담 카드를 갖고 채널이 서로 다르면 건너뛴다 (추측 금지)
   //   · 삭제 없음. 패키지·수업일지·잔여 횟수·정산 금액은 쿼리에 등장조차 하지 않는다
   try {
-    await pool.query(`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "channelBackfilledAt" TEXT`);
+    await pool.query(`ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "transferredFromMemberId" INTEGER`);
+  await pool.query(`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "channelBackfilledAt" TEXT`);
 
     // ① 매출에 leadId가 직접 붙어 있는 건 — 그 상담 카드의 채널을 그대로 쓴다
     const byLead = await pool.query(`

@@ -134,6 +134,7 @@ const statusLabels: Record<string, string> = {
   paused: "정지",
   inactive: "종료",
   ended: "마감",
+  양도마감: "양도마감",
 };
 
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -986,7 +987,7 @@ export default function MemberDetail({ memberId }: Props) {
                 })()}
               </div>
               <p className="text-xs text-muted-foreground">
-                {membershipLabels[member.grade]} · {statusLabels[member.status]}
+                {membershipLabels[member.grade]} · <span className={member.status === "양도마감" ? "text-orange-400" : ""}>{statusLabels[member.status] ?? member.status}</span>
               </p>
             </div>
           </div>
@@ -1230,7 +1231,7 @@ export default function MemberDetail({ memberId }: Props) {
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">상태</p>
                     <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                      <p className="text-sm font-medium text-foreground">{statusLabels[member.status] ?? "-"}</p>
+                      <p className={`text-sm font-medium ${member.status === "양도마감" ? "text-orange-400" : "text-foreground"}`}>{statusLabels[member.status] ?? member.status}</p>
                       {member.status === "active" ? (<>
                         <button
                           onClick={() => { setMemberPauseForm({ pauseStart: today, pauseEnd: today, reason: "" }); setMemberPauseOpen(true); }}
@@ -1240,19 +1241,19 @@ export default function MemberDetail({ memberId }: Props) {
                           onClick={() => toggleStatusMutation.mutate({ id: memberId, status: "inactive" })}
                           className="text-xs px-2 py-0.5 rounded border border-gray-400/50 text-gray-400 hover:bg-gray-400/10 transition-colors"
                         >종료</button>
-                      </>) : (
+                        <button
+                          onClick={() => setTransferOpen(true)}
+                          className="text-xs px-2 py-0.5 rounded border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors flex items-center gap-1"
+                        >
+                          <ArrowRightLeft className="h-3 w-3" />
+                          양도
+                        </button>
+                      </>) : member.status !== "양도마감" ? (
                         <button
                           onClick={() => setMemberActivateOpen(true)}
                           className="text-xs px-2 py-0.5 rounded border border-emerald-400/50 text-emerald-400 hover:bg-emerald-400/10 transition-colors"
                         >활성화</button>
-                      )}
-                      <button
-                        onClick={() => setTransferOpen(true)}
-                        className="text-xs px-2 py-0.5 rounded border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors flex items-center gap-1"
-                      >
-                        <ArrowRightLeft className="h-3 w-3" />
-                        양도
-                      </button>
+                      ) : null}
                       <button
                         onClick={() => openRefundModal()}
                         className="text-xs px-2 py-0.5 rounded border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors flex items-center gap-1"
@@ -1432,7 +1433,13 @@ export default function MemberDetail({ memberId }: Props) {
                 <p className="text-muted-foreground text-sm text-center py-6">등록된 PT 프로그램이 없습니다.</p>
               ) : (
                 <div className="space-y-3">
-                  {ptPackages.map((pkg) => {
+                  {[...ptPackages].sort((a, b) => {
+                    // 양도수령 패키지 우선 (먼저 사용)
+                    const aT = (a as any).transferredFromMemberId ? 1 : 0;
+                    const bT = (b as any).transferredFromMemberId ? 1 : 0;
+                    if (bT !== aT) return bT - aT;
+                    return 0;
+                  }).map((pkg) => {
                     const remaining = pkg.totalSessions - pkg.usedSessions;
                     const isActive = pkg.status === "active" && remaining > 0;
                     const svcSessions = (pkg as any).serviceSessions ?? 0;
@@ -1449,6 +1456,11 @@ export default function MemberDetail({ memberId }: Props) {
                               <p className="font-medium text-foreground text-sm truncate">
                                 {pkg.packageName || "PT 프로그램"}
                               </p>
+                              {(pkg as any).transferredFromMemberId && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30 whitespace-nowrap shrink-0">
+                                  양도수령 · 먼저사용
+                                </span>
+                              )}
                               {isInPause ? (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
                                   정지
@@ -3548,15 +3560,12 @@ export default function MemberDetail({ memberId }: Props) {
         <TransferModal
           member={{ id: member.id, name: member.name, phone: member.phone ?? null }}
           allMembers={(allMembers ?? []).map((m) => ({ id: m.id, name: m.name, phone: m.phone ?? null }))}
-          ptPackages={
-            (ptPackages ?? []).map((p) => ({
-              id: p.id,
-              packageName: p.packageName,
-              totalSessions: p.totalSessions,
-              usedSessions: p.usedSessions,
-            }))
-          }
-          onClose={() => setTransferOpen(false)}
+          onClose={() => {
+            setTransferOpen(false);
+            utils.member.getById.invalidate({ id: memberId });
+            utils.member.getPtData.invalidate({ memberId });
+            utils.transfer.getMyTransfers.invalidate({ memberId });
+          }}
         />
       )}
 
@@ -4085,23 +4094,19 @@ export default function MemberDetail({ memberId }: Props) {
   );
 }
 
-// ─── 양도 강제 완료 버튼 (관리자용, 서명 없이 이전 처리) ────────────────────
+// ─── 양도 강제 완료 버튼 (관리자용, 기존 pending 계약서용) ────────────────────
 function AdminCompleteTransferButton({ contractId, onDone }: { contractId: number; onDone: () => void }) {
   const completeMutation = trpc.transfer.adminCompleteTransfer.useMutation({
     onSuccess: () => { onDone(); },
-    onError: (e) => { alert("강제 완료 실패: " + e.message); },
+    onError: (e) => { alert("완료 처리 실패: " + e.message); },
   });
   return (
     <button
       className="w-full text-xs py-1.5 px-3 rounded border border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
       disabled={completeMutation.isPending}
-      onClick={() => {
-        if (confirm("서명 없이 양도를 강제 완료하시겠습니까?\n· PT 패키지가 양수자에게 이전됩니다.\n· 양도자 회원은 종료 상태로 변경됩니다.")) {
-          completeMutation.mutate({ id: contractId });
-        }
-      }}
+      onClick={() => completeMutation.mutate({ id: contractId })}
     >
-      {completeMutation.isPending ? "처리 중..." : "서명 없이 양도 완료 처리"}
+      {completeMutation.isPending ? "처리 중..." : "양도 완료 처리"}
     </button>
   );
 }

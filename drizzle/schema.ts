@@ -97,6 +97,7 @@ export const ptPackages = pgTable("pt_packages", {
   paymentMemo: text("paymentMemo"),
   transferAmount: integer("transferAmount"),
   cardAmount: integer("cardAmount"),
+  transferredFromMemberId: integer("transferredFromMemberId"), // 양도수령 패키지: 원래 양도자의 memberId
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
