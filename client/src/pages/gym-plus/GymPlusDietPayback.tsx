@@ -149,10 +149,22 @@ const MISSION_DATE_LABEL: Record<string, string> = {
 };
 
 const MISSION_GUIDE = [
-  { icon: "🏃", period: "매월 1~7일", title: "출석 미션", desc: "이달 1~7일 수업에 4일 이상 출석하면 자동 달성됩니다." },
-  { icon: "💧", period: "매월 8~14일", title: "유산소 미션", desc: "운동탭에서 '유산소운동'으로 2회 이상 기록하면 자동 달성됩니다." },
-  { icon: "🥗", period: "매월 15~24일", title: "식단 미션", desc: "단백질 위주 식단 사진을 카카오채널로 전송하면 트레이너가 확인 후 승인합니다." },
-  { icon: "📊", period: "매월 25~말일", title: "인바디 미션", desc: "이달 체중을 입력하고 인바디 사진을 카카오채널로 보내주세요. 감량 기준 달성 시 헬스권 1개월 연장!" },
+  {
+    icon: "🏃", period: "매월 1~7일", title: "출석 미션",
+    desc: "매월 1~7일 사이에 수업을 4일 이상 참여하면 자동 달성됩니다.\n키오스크에서 [영상 운동]을 선택해 체크인·체크아웃하고, 30분 이상 수업에 참여해야 출석으로 인정됩니다.",
+  },
+  {
+    icon: "💧", period: "매월 8~14일", title: "유산소 미션",
+    desc: "매월 8~14일 사이에 유산소 운동을 2회 이상 완료하면 자동 달성됩니다.\n키오스크에서 [유산소 운동]을 선택해 체크인·체크아웃하고, 30분 이상 유산소 운동(러닝머신·자전거 등)에 참여해야 인정됩니다.",
+  },
+  {
+    icon: "🥗", period: "매월 15~24일", title: "식단 미션",
+    desc: "매월 15~24일 사이에 단백질 위주 식단 사진을 카카오채널로 전송하면 트레이너가 확인 후 승인합니다.\n닭가슴살·계란·두부 등 단백질 식품이 포함된 식사 사진을 찍어 전송해 주세요.",
+  },
+  {
+    icon: "📊", period: "매월 25~말일", title: "인바디 미션",
+    desc: "매월 25일~말일 사이에 현재 체중을 앱에 입력하고, 인바디 측정 사진을 카카오채널로 전송하세요.\n시작 체중 대비 감량 기준을 달성하면 헬스권이 1개월 자동 연장됩니다. (최대 9개월)",
+  },
 ];
 
 function MissionGuideCard() {
@@ -180,7 +192,9 @@ function MissionGuideCard() {
                   <p className="text-xs font-bold text-amber-900">{g.title}</p>
                   <span className="text-[10px] text-amber-600">{g.period}</span>
                 </div>
-                <p className="text-xs text-amber-700 leading-relaxed">{g.desc}</p>
+                {g.desc.split("\n").map((line, i) => (
+                  <p key={i} className={`text-xs text-amber-700 leading-relaxed ${i > 0 ? "mt-1" : ""}`}>{line}</p>
+                ))}
               </div>
             </div>
           ))}
@@ -314,14 +328,19 @@ function MissionTab() {
           {activePeriodKey === currentWindow.periodKey && !currentWindow.submission && (
             <div className="px-4 pb-4 space-y-2 border-t border-[#1D4ED8]/10">
               {currentWindow.type === "attendance" && (
-                <p className="text-xs text-gray-500 pt-3">이번 달 1~7일 수업 출석 기록을 자동 확인합니다. (4일 이상 출석 시 달성)</p>
+                <div className="pt-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700">📋 출석 미션 인증 방법</p>
+                  <p className="text-xs text-gray-600">① 매월 1~7일 사이에 헬스장에 방문해 키오스크에서 <strong>[영상 운동]</strong>을 선택하세요.</p>
+                  <p className="text-xs text-gray-600">② 체크인 후 수업이 끝나면 다시 체크인하여 종료해 주세요. <strong>30분 이상</strong>이어야 출석으로 인정됩니다.</p>
+                  <p className="text-xs text-gray-600">③ 아래 버튼을 누르면 이번 달 출석 횟수를 자동으로 확인합니다. (4일 이상 시 달성)</p>
+                </div>
               )}
               {currentWindow.type === "cardio" && (
                 <div className="pt-3 space-y-1.5">
                   <p className="text-xs font-semibold text-gray-700">📋 유산소 미션 인증 방법</p>
-                  <p className="text-xs text-gray-600">① 이번 달 8~14일 사이에 <strong>유산소운동</strong> 카테고리로 운동을 <strong>2회 이상</strong> 기록하세요.</p>
-                  <p className="text-xs text-gray-600">② 아래 버튼을 누르면 자동으로 기록을 확인하고 달성 여부를 알려드립니다.</p>
-                  <p className="text-[11px] text-blue-500">💡 운동 기록은 상단 운동탭 → 유산소운동에서 저장하세요.</p>
+                  <p className="text-xs text-gray-600">① 매월 8~14일 사이에 헬스장에서 키오스크에서 <strong>[유산소 운동]</strong>을 선택하세요.</p>
+                  <p className="text-xs text-gray-600">② 러닝머신·자전거 등 유산소 운동 후 다시 체크인하여 종료해 주세요. <strong>30분 이상</strong>이어야 인정됩니다.</p>
+                  <p className="text-xs text-gray-600">③ 아래 버튼을 누르면 이번 달 유산소 운동 횟수를 자동으로 확인합니다. (2회 이상 시 달성)</p>
                 </div>
               )}
               {currentWindow.type === "diet" && (
@@ -335,6 +354,9 @@ function MissionTab() {
               )}
               {currentWindow.type === "inbody" && (
                 <div className="pt-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-700">📋 인바디 미션 인증 방법</p>
+                  <p className="text-xs text-gray-600">① 데스크에서 인바디를 측정하고 결과지 사진을 찍어두세요.</p>
+                  <p className="text-xs text-gray-600">② 아래에 현재 체중을 입력하세요.</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="number" step="0.1" min="20" max="300"
@@ -345,7 +367,8 @@ function MissionTab() {
                     />
                     <span className="text-sm text-gray-500 font-medium">kg</span>
                   </div>
-                  <p className="text-[11px] text-gray-500">입력 후 카카오채널에 인바디 사진도 함께 보내주세요.</p>
+                  <p className="text-xs text-gray-600">③ 버튼을 누르면 체중이 저장되고 카카오채널로 이동합니다. 인바디 결과지 사진을 전송해 주세요.</p>
+                  <p className="text-[11px] text-amber-600">💡 시작 체중 대비 감량 기준 달성 시 헬스권 1개월이 자동 연장됩니다.</p>
                 </div>
               )}
               <button
