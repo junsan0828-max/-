@@ -148,6 +148,35 @@ const MISSION_DATE_LABEL: Record<string, string> = {
   inbody: "매월 25~말일",
 };
 
+// 미션 타입별 날짜 범위 (시작일, 종료일 반환)
+function getMissionDateRange(type: string, yearMonth: string): { start: Date; end: Date } {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const ranges: Record<string, [number, number]> = {
+    attendance: [1, 7],
+    cardio: [8, 14],
+    diet: [15, 24],
+    inbody: [25, lastDay],
+  };
+  const [s, e] = ranges[type] ?? [1, 7];
+  return { start: new Date(y, m - 1, s), end: new Date(y, m - 1, e, 23, 59, 59) };
+}
+
+// 오늘(KST) 기준 D-day 문자열 반환
+function getMissionDday(type: string, yearMonth: string, isPast: boolean, isCurrentWindow: boolean): string | null {
+  if (isPast) return null;
+  const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  todayKst.setUTCHours(0, 0, 0, 0);
+  const { start, end } = getMissionDateRange(type, yearMonth);
+  if (isCurrentWindow) {
+    const daysLeft = Math.ceil((end.getTime() - todayKst.getTime()) / 86400000);
+    return daysLeft <= 0 ? null : `D-${daysLeft}`;
+  }
+  // 미래 미션 → 시작까지 남은 일수
+  const daysToStart = Math.ceil((start.getTime() - todayKst.getTime()) / 86400000);
+  return daysToStart <= 0 ? null : `D-${daysToStart}`;
+}
+
 const MISSION_GUIDE = [
   {
     icon: "🏃", period: "매월 1~7일", title: "출석 미션",
@@ -443,6 +472,9 @@ function MissionTab() {
               else if (sub?.status === "pending") { statusColor = "#f59e0b"; statusLabel = "기록완료"; }
               else if (sub?.status === "rejected") { statusColor = "#ef4444"; statusLabel = "미달성"; }
 
+              // 미제출/예정 상태일 때만 D-day 표시
+              const dday = !sub && getMissionDday(mission.type, month.yearMonth, mission.isPast, mission.isCurrentWindow);
+
               return (
                 <div key={mission.periodKey} className="px-4 py-3 flex items-center gap-3 border-b border-gray-50 last:border-0">
                   <span className="text-lg">{MISSION_TYPE_ICON[mission.type]}</span>
@@ -450,7 +482,14 @@ function MissionTab() {
                     <p className="text-xs font-semibold text-gray-700">{mission.label}</p>
                     <p className="text-[10px] text-gray-400">{MISSION_DATE_LABEL[mission.type]}</p>
                   </div>
-                  <span className="text-xs font-semibold shrink-0" style={{ color: statusColor }}>{statusLabel}</span>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-semibold" style={{ color: statusColor }}>{statusLabel}</p>
+                    {dday && (
+                      <p className="text-[10px] font-bold mt-0.5" style={{ color: mission.isCurrentWindow ? "hsl(221 83% 44%)" : "#9ca3af" }}>
+                        {dday}
+                      </p>
+                    )}
+                  </div>
                 </div>
               );
             })}
