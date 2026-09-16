@@ -1230,6 +1230,28 @@ const trainersRouter = t.router({
       return { success: true };
     }),
 
+  getOnboarding: protectedProcedure.query(async ({ ctx }) => {
+    const db = getDb();
+    if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const row = await db.select({
+      onboardingSettlementVisitedAt: sql<string>`"onboardingSettlementVisitedAt"`,
+    }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId)).limit(1);
+    return { settlementVisited: !!row[0]?.onboardingSettlementVisitedAt };
+  }),
+
+  markSettlementVisited: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = getDb();
+    if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const at = new Date().toISOString();
+    const existing = await db.select({ id: trainerSettings.id }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId)).limit(1);
+    if (existing[0]) {
+      await db.update(trainerSettings).set({ onboardingSettlementVisitedAt: at }).where(eq(trainerSettings.trainerId, ctx.user.trainerId));
+    } else {
+      await db.insert(trainerSettings).values({ trainerId: ctx.user.trainerId, settlementRate: 50, onboardingSettlementVisitedAt: at });
+    }
+    return { success: true };
+  }),
+
   getContractTerms: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });

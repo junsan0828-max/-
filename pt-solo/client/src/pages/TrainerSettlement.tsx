@@ -556,8 +556,12 @@ function AnalysisTab() {
 export default function TrainerSettlement() {
   // 어떤 경로로 들어왔든(온보딩 버튼·하단 탭·사이드바) 이 화면에 도달하면
   // 대시보드 온보딩의 "매출 확인하기" 단계를 완료 처리한다.
+  const settlementUtils = trpc.useUtils();
+  const markVisited = trpc.trainers.markSettlementVisited.useMutation({
+    onSuccess: () => settlementUtils.trainers.getOnboarding.invalidate(),
+  });
   useEffect(() => {
-    try { localStorage.setItem("fitstep_settlement_visited", "1"); } catch { /* 저장소 차단 환경 */ }
+    markVisited.mutate();
   }, []);
 
   const search = useSearch();

@@ -1041,10 +1041,11 @@ function BannerAndNotices() {
 
 // ─── 온보딩 — FIT STEP 시작하기 ──────────────────────────────────────────────
 function GettingStarted({
-  step1Done, step2Done, step3Done, step4Done, onSkip, onNavigate, onRegisterMember,
+  step1Done, step2Done, step3Done, step4Done, onSkip, onNavigate, onRegisterMember, onViewSettlement,
 }: {
   step1Done: boolean; step2Done: boolean; step3Done: boolean; step4Done: boolean;
   onSkip: () => void; onNavigate: (path: string) => void; onRegisterMember: () => void;
+  onViewSettlement: () => void;
 }) {
   const completedCount = [step1Done, step2Done, step3Done, step4Done].filter(Boolean).length;
   const allDone = completedCount === 4;
@@ -1055,11 +1056,7 @@ function GettingStarted({
     { done: step2Done, num: 2, title: "회원·계약 등록", desc: "PT 회원과 계약 내역을 추가하세요", actionLabel: "회원 등록 →", action: onRegisterMember },
     { done: step3Done, num: 3, title: "수업 일지 작성", desc: "첫 PT 수업을 출석·일지로 기록하세요", actionLabel: "수업 기록 →", action: () => onNavigate("/attendance") },
     { done: step4Done, num: 4, title: "매출 확인하기", desc: "정산 화면에서 내 수입을 확인하세요", actionLabel: "매출 보기 →",
-      action: () => {
-        // 정산 화면에서도 기록하지만, 눌린 시점에 확실히 남겨둔다.
-        try { localStorage.setItem("fitstep_settlement_visited", "1"); } catch { /* 저장소 차단 환경 */ }
-        onNavigate("/settlement");
-      } },
+      action: onViewSettlement },
   ];
 
   return (
@@ -1121,6 +1118,7 @@ function GettingStarted({
 // ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const { data: user } = trpc.auth.me.useQuery();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
@@ -1166,9 +1164,11 @@ function TrainerDashboard() {
   const { data: parqMissing } = trpc.parQ.listMissing.useQuery();
   const { data: leadsData } = trpc.leads.list.useQuery();
   const [onboardingSkipped, setOnboardingSkipped] = useState(() => localStorage.getItem("fitstep_onboarding_skipped") === "1");
-  // 정산 화면 방문 여부는 TrainerSettlement에서 기록한다. 대시보드로 돌아올 때
-  // 이 컴포넌트가 다시 마운트되므로 여기서 읽으면 최신 값이 된다.
-  const settlementVisited = localStorage.getItem("fitstep_settlement_visited") === "1";
+  // 온보딩 진행 상태는 서버에 저장한다 — 1~3단계처럼 기기가 바뀌어도 유지되도록.
+  const { data: onboarding, isLoading: onboardingLoading } = trpc.trainers.getOnboarding.useQuery();
+  const markSettlementVisited = trpc.trainers.markSettlementVisited.useMutation({
+    onSuccess: () => utils.trainers.getOnboarding.invalidate(),
+  });
   const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
   const currentYearMonth = todayStr.slice(0, 7);
@@ -1210,8 +1210,9 @@ function TrainerDashboard() {
   const step1Done = (leadsData?.length ?? 0) >= 1;
   const step2Done = (stats?.totalMembers ?? 0) >= 1;
   const step3Done = (stats?.totalPtSessions ?? 0) >= 1;
-  const step4Done = settlementVisited;
-  const showOnboarding = !onboardingSkipped && (!step1Done || !step2Done || !step3Done || !step4Done);
+  const step4Done = onboarding?.settlementVisited ?? false;
+  // 서버 응답 전에는 카드를 띄우지 않는다 — 완료한 단계가 잠깐 미완료로 보이는 깜빡임 방지
+  const showOnboarding = !onboardingLoading && !onboardingSkipped && (!step1Done || !step2Done || !step3Done || !step4Done);
 
   return (
     <div className="space-y-5">
@@ -1237,6 +1238,7 @@ function TrainerDashboard() {
           onSkip={() => { localStorage.setItem("fitstep_onboarding_skipped", "1"); setOnboardingSkipped(true); }}
           onNavigate={setLocation}
           onRegisterMember={() => setRegisterTypeOpen(true)}
+          onViewSettlement={() => { markSettlementVisited.mutate(); setLocation("/settlement"); }}
         />
       )}
 

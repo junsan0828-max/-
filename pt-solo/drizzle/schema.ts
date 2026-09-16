@@ -38,6 +38,7 @@ export const trainerSettings = pgTable("trainer_settings", {
   privacyPolicy: text("privacyPolicy"),
   marketingConsent: text("marketingConsent"),
   workshopTrialStartedAt: text("workshopTrialStartedAt"),
+  onboardingSettlementVisitedAt: text("onboardingSettlementVisitedAt"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
