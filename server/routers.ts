@@ -6430,10 +6430,14 @@ const gymPlusRouter = t.router({
 
       // 기존 계정 탐색 — 표기(하이픈)가 달라도 숫자만 비교한다. 로그인도 같은 방식이라
       // 여기서 못 찾으면 로그인은 되는데 연결은 안 되는 엇갈림이 생긴다.
-      const found = await pool.query<{ id: number; memberId: number | null; username: string }>(
-        `SELECT id, "memberId", username FROM gym_plus_members
-         WHERE REGEXP_REPLACE(COALESCE(username,''),'[^0-9]','','g') = $1
-            OR REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = $1`,
+      // ownerExists: memberId가 실제 회원을 가리키는지. 회원이 삭제·병합되면 없는 번호를
+      // 가리키는 유령 참조가 남는데, 이건 "연결됨"이 아니라 "연결 끊김"으로 다뤄야 한다.
+      const found = await pool.query<{ id: number; memberId: number | null; username: string; ownerExists: boolean }>(
+        `SELECT g.id, g."memberId", g.username,
+                EXISTS (SELECT 1 FROM members m WHERE m.id = g."memberId") AS "ownerExists"
+         FROM gym_plus_members g
+         WHERE REGEXP_REPLACE(COALESCE(g.username,''),'[^0-9]','','g') = $1
+            OR REGEXP_REPLACE(COALESCE(g.phone,''),'[^0-9]','','g') = $1`,
         [digitsOnly]
       );
 
@@ -6442,7 +6446,8 @@ const gymPlusRouter = t.router({
         return { id: alreadyMine.id, username: alreadyMine.username, created: false, linked: false };
       }
 
-      const unlinked = found.rows.find(r => r.memberId == null);
+      // memberId가 NULL이거나, 있어도 그 회원이 존재하지 않으면 재연결 대상이다.
+      const unlinked = found.rows.find(r => r.memberId == null || !r.ownerExists);
       if (unlinked) {
         await pool.query(
           `UPDATE gym_plus_members
@@ -6490,9 +6495,14 @@ const gymPlusRouter = t.router({
 
   // 회원과 연결되지 않은 짐플러스 계정 목록 + 전화번호로 추정한 후보 회원.
   // admin_listMainMembers는 회원 기준이라 memberId가 NULL인 계정은 화면에 아예 안 나온다.
+  //
+  // "memberId가 있는데 그 회원이 존재하지 않는" 유령 참조도 함께 잡는다. 회원이 삭제·병합되면
+  // 계정만 남아 없는 번호를 가리키는데, memberId가 NULL이 아니라서 이 목록에도 안 나오고
+  // startup 자동연결(`memberId IS NULL` 조건)도 건너뛰어 영구히 막혔다(테스트 계정 #3 사례).
   admin_listUnlinkedAccounts: adminOnlyGymPlus.query(async () => {
     const rows = await pool.query(`
       SELECT g.id, g.username, g.name, g.phone, g."membershipEnd", g."createdAt",
+             g."memberId" AS "끊긴회원ID",
              cand.id AS "후보회원ID", cand.name AS "후보회원", cand.phone AS "후보연락처"
       FROM gym_plus_members g
       LEFT JOIN LATERAL (
@@ -6504,6 +6514,7 @@ const gymPlusRouter = t.router({
         LIMIT 1
       ) cand ON true
       WHERE g."memberId" IS NULL
+         OR NOT EXISTS (SELECT 1 FROM members m2 WHERE m2.id = g."memberId")
       ORDER BY g."createdAt" DESC
       LIMIT 200
     `);

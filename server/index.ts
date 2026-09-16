@@ -2881,8 +2881,14 @@ async function start() {
 
   // ── 테스트 계정(01011111111) 주 회원 연결 (memberId 없을 때만) ──
   try {
+    // memberId가 있어도 그 회원이 삭제됐으면(유령 참조) 다시 연결 대상이다.
+    // 이 조건이 `IS NULL`뿐이던 탓에, 없는 회원을 가리키는 계정이 영구히 막혀 있었다.
     const testGpm = await pool.query(
-      `SELECT id, "membershipEnd" FROM gym_plus_members WHERE username = '01011111111' AND "memberId" IS NULL LIMIT 1`
+      `SELECT g.id, g."membershipEnd" FROM gym_plus_members g
+       WHERE g.username = '01011111111'
+         AND (g."memberId" IS NULL
+              OR NOT EXISTS (SELECT 1 FROM members m WHERE m.id = g."memberId"))
+       LIMIT 1`
     );
     if (testGpm.rows[0]) {
       const gpmRow = testGpm.rows[0];

@@ -592,6 +592,35 @@ export const dataHealthRouter = t.router({
       rows: dietRevNoProgram.rows,
     });
 
+    // ④-3c2 짐플러스 계정이 "존재하지 않는 회원"을 가리키는 경우.
+    //       회원이 삭제·병합되면 계정만 남아 없는 번호를 가리킨다. memberId가 NULL이 아니라서
+    //       미연결 목록에도 안 나오고 startup 자동연결도 건너뛴다 → 다이어트 페이백·회원권이
+    //       앱에서 영구히 안 보인다(테스트 계정 #3 사례).
+    const gymPlusDangling = await pool.query(`
+      SELECT g.id AS "계정ID", g.username AS "아이디", g.name AS "계정이름",
+             g."memberId" AS "끊긴회원ID",
+             cand.name AS "후보회원", cand.id AS "후보회원ID"
+      FROM gym_plus_members g
+      LEFT JOIN LATERAL (
+        SELECT m.id, m.name FROM members m
+        WHERE REGEXP_REPLACE(COALESCE(m.phone,''),'[^0-9]','','g') <> ''
+          AND REGEXP_REPLACE(COALESCE(m.phone,''),'[^0-9]','','g')
+              = REGEXP_REPLACE(COALESCE(NULLIF(g.phone,''), g.username),'[^0-9]','','g')
+        ORDER BY m.id LIMIT 1
+      ) cand ON true
+      WHERE g."memberId" IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM members m2 WHERE m2.id = g."memberId")
+      ORDER BY g.id
+      LIMIT 50
+    `);
+    groups.push({
+      key: "gym_plus_dangling_member",
+      title: "짐플러스 계정이 없는 회원을 가리킴",
+      severity: "critical",
+      description: "이 계정이 연결된 회원 번호가 members 테이블에 없습니다(삭제·병합된 회원). 회원 앱에서 다이어트 페이백과 회원권이 전혀 안 보이고, 미연결 목록에도 안 떠서 다시 연결할 수도 없습니다. 짐플러스 관리 > 미연결 계정에서 후보 회원으로 다시 연결해주세요.",
+      rows: gymPlusDangling.rows,
+    });
+
     // ④-3d 매출이 아예 연결되지 않은 PT 패키지.
     //      "언제 등록한 건지" 알 수 있게 생성일을 함께 보여준다. 2026-04-23은 기존 회원
     //      일괄 임포트분이고(정수연 사례: 시트상 4/08 등록), 그 외 날짜는 앱에서 수동으로

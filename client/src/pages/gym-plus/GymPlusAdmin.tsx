@@ -76,13 +76,21 @@ export function GymPlusMembersAdmin() {
             <p className="text-sm font-semibold text-amber-400">회원과 연결 안 된 계정 {unlinked.length}건</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               연결 전까지 이 계정은 앱에서 다이어트 페이백·회원권이 보이지 않습니다.
+              "연결 끊김"은 연결된 회원이 삭제·병합돼 없어진 경우입니다.
             </p>
           </div>
           <div className="space-y-1.5">
             {unlinked.map((g: any) => (
               <div key={g.id} className="flex items-center justify-between gap-2 bg-card border border-border rounded-lg px-3 py-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{g.name || "(이름 없음)"}</p>
+                  <p className="text-sm font-medium truncate">
+                    {g.name || "(이름 없음)"}
+                    {g["끊긴회원ID"] != null && (
+                      <span className="ml-1.5 text-[10px] text-red-400 font-normal">
+                        연결 끊김 (#{g["끊긴회원ID"]} 없음)
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     @{g.username}
                     {g["후보회원"]
