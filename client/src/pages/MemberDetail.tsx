@@ -411,7 +411,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
   const { data: allMembers } = trpc.members.list.useQuery(undefined, { enabled: true });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
-  const { data: dietPrograms } = trpc.gym.diet.getByMember.useQuery({ memberId });
+  const { data: dietPrograms, refetch: refetchDietPrograms } = trpc.gym.diet.getByMember.useQuery({ memberId });
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
@@ -1377,6 +1377,9 @@ export default function MemberDetail({ memberId }: Props) {
         <TabsContent value="pt" className="mt-4 space-y-4">
 
           {/* 다이어트 프로그램 */}
+          {dietPrograms !== undefined && dietPrograms.length === 0 && (
+            <DietCreateSection memberId={memberId} onCreated={refetchDietPrograms} />
+          )}
           {dietPrograms && dietPrograms.length > 0 && (
             <DietProgramSection memberId={memberId} programs={dietPrograms} />
           )}
@@ -4060,6 +4063,40 @@ export default function MemberDetail({ memberId }: Props) {
 }
 
 // ─── 다이어트 프로그램 현황 섹션 ─────────────────────────────────────────────
+function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreated: () => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(today);
+  const createMutation = trpc.gym.diet.createProgram.useMutation({
+    onSuccess: () => { toast.success("다이어트 프로그램 등록 완료"); onCreated(); },
+    onError: (e) => toast.error(e.message ?? "등록 실패"),
+  });
+  return (
+    <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-purple-300">다이어트 프로그램</h3>
+      <p className="text-xs text-muted-foreground">등록된 프로그램이 없습니다. 아래에서 직접 등록하세요.</p>
+      <div className="flex gap-2 items-center">
+        <div className="space-y-1 flex-1">
+          <label className="text-xs text-muted-foreground">시작일</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="w-full rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none"
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">※ 시작 체중은 자이언트짐+ 앱에서 첫 체중 기록 시 자동 설정됩니다.</p>
+      <button
+        onClick={() => createMutation.mutate({ memberId, startDate, baseWeeks: 12 })}
+        disabled={createMutation.isPending || !startDate}
+        className="w-full py-2 rounded-lg text-sm font-medium bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-50"
+      >
+        {createMutation.isPending ? "등록 중..." : "다이어트 프로그램 등록"}
+      </button>
+    </div>
+  );
+}
+
 function DietProgramSection({ memberId, programs }: { memberId: number; programs: any[] }) {
   const utils = trpc.useUtils();
   const [selectedProgramId, setSelectedProgramId] = useState<number>(programs[0]?.id);

@@ -104,12 +104,36 @@ function calcPricePerSession(paymentAmount: number | undefined, sessions: number
   const base = (paymentMethod === "이체" || paymentMethod === "계좌이체") ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
+// 로그인 시도 횟수 제한 (메모리 기반, 서버 재시작 시 초기화)
+// IP 또는 username 기준으로 5회 실패 시 15분 잠금
+const loginAttempts = new Map<string, { count: number; until: number }>();
+function checkLoginThrottle(key: string) {
+  const now = Date.now();
+  const rec = loginAttempts.get(key);
+  if (rec && rec.until > now) {
+    const mins = Math.ceil((rec.until - now) / 60000);
+    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `로그인 시도 횟수를 초과했습니다. ${mins}분 후 다시 시도해주세요.` });
+  }
+}
+function recordLoginFail(key: string) {
+  const now = Date.now();
+  const rec = loginAttempts.get(key) ?? { count: 0, until: 0 };
+  if (rec.until > 0 && rec.until <= now) rec.count = 0; // 잠금 해제 후 초기화
+  rec.count += 1;
+  if (rec.count >= 5) rec.until = now + 15 * 60 * 1000;
+  loginAttempts.set(key, rec);
+}
+function clearLoginFail(key: string) { loginAttempts.delete(key); }
+
 const authRouter = t.router({
   login: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const throttleKey = `admin:${input.username}`;
+      checkLoginThrottle(throttleKey);
 
       const userResult = await db
         .select()
@@ -118,18 +142,23 @@ const authRouter = t.router({
         .limit(1);
 
       const user = userResult[0];
-      if (!user)
+      if (!user) {
+        recordLoginFail(throttleKey);
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "아이디 또는 비밀번호가 잘못되었습니다.",
         });
+      }
 
       const valid = await bcrypt.compare(input.password, user.password);
-      if (!valid)
+      if (!valid) {
+        recordLoginFail(throttleKey);
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "아이디 또는 비밀번호가 잘못되었습니다.",
         });
+      }
+      clearLoginFail(throttleKey);
 
       let trainerId: number | undefined;
       if (user.role === "trainer") {
@@ -5968,6 +5997,8 @@ const gymPlusRouter = t.router({
 
       // 입력 전화번호 숫자만 추출
       const inputDigits = input.username.replace(/\D/g, "");
+      const throttleKey = `gym:${inputDigits}`;
+      checkLoginThrottle(throttleKey);
 
       // 모든 짐플러스 회원 가져와서 JS에서 전화번호 숫자 비교
       const allMembers = await db.select().from(gymPlusMembers);
@@ -5992,7 +6023,11 @@ const gymPlusRouter = t.router({
             await db.update(gymPlusMembers).set({ password: upgraded }).where(eq(gymPlusMembers.id, member.id));
           }
         }
-        if (!authOk) throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다. 전화번호 뒷자리 4자리를 입력하세요." });
+        if (!authOk) {
+          recordLoginFail(throttleKey);
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다. 전화번호 뒷자리 4자리를 입력하세요." });
+        }
+        clearLoginFail(throttleKey);
 
         // admin 계정이면 통합관리 세션도 설정
         const userRow = await db.select().from(users).where(eq(users.username, input.username)).limit(1);
