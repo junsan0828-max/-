@@ -512,6 +512,15 @@ const revenueRouter = t.router({
         if (tr?.branchId) resolvedBranchId = tr.branchId;
       }
 
+      // 채널 미지정이면 상담 카드(leads)의 채널을 승계한다. 폼에서 고른 값이 있으면
+      // 그대로 둔다(사용자 입력 우선 — 원칙 3).
+      let effectiveChannelId = input.channelId;
+      if (effectiveChannelId == null && input.leadId) {
+        const [ld] = await db.select({ channelId: leads.channelId })
+          .from(leads).where(eq(leads.id, input.leadId)).limit(1);
+        if (ld?.channelId != null) effectiveChannelId = ld.channelId;
+      }
+
       // leadId가 있으면 이미 등록된 매출이 있는지 확인 → 중복 방지
       let row: typeof revenueEntries.$inferSelect;
       if (input.leadId) {
@@ -524,6 +533,7 @@ const revenueRouter = t.router({
           const [updated] = await db.update(revenueEntries).set({
             ...input,
             ...trainerAutoFields,
+            channelId: effectiveChannelId,
             branchId: resolvedBranchId ?? null,
             updatedAt: new Date().toISOString(),
           }).where(eq(revenueEntries.id, existing[0].id)).returning();
@@ -532,6 +542,7 @@ const revenueRouter = t.router({
           const [inserted] = await db.insert(revenueEntries).values({
             ...input,
             ...trainerAutoFields,
+            channelId: effectiveChannelId,
             branchId: resolvedBranchId ?? null,
             createdBy: ctx.user!.id,
             updatedAt: new Date().toISOString(),
@@ -542,6 +553,7 @@ const revenueRouter = t.router({
         const [inserted] = await db.insert(revenueEntries).values({
           ...input,
           ...trainerAutoFields,
+          channelId: effectiveChannelId,
           branchId: resolvedBranchId ?? null,
           createdBy: ctx.user!.id,
           updatedAt: new Date().toISOString(),
@@ -4109,6 +4121,16 @@ const registerMutation = protectedProcedure
       if (tr?.branchId) resolvedBranchId = tr.branchId;
     }
 
+    // 2-b. 유입 채널 해석 — 상담 카드(leads)의 채널을 매출로 승계한다.
+    // 이게 없으면 상담에는 채널이 있는데 등록 매출에는 비어 있어, 마케팅 채널별 매출이
+    // 구조적으로 누락된다(수기로 채널을 고른 건만 집계되던 원인).
+    let resolvedChannelId: number | null = null;
+    if (input.leadId) {
+      const [ld] = await db.select({ channelId: leads.channelId })
+        .from(leads).where(eq(leads.id, input.leadId)).limit(1);
+      resolvedChannelId = ld?.channelId ?? null;
+    }
+
     // 3. Find or create/update member
     let memberId = input.memberId ?? null;
     if (!memberId) {
@@ -4200,6 +4222,7 @@ const registerMutation = protectedProcedure
         if (!existingHealth) {
         const [healthRev] = await db.insert(revenueEntries).values({
           memberId,
+          channelId: resolvedChannelId,
           trainerId: resolvedTrainerId,
           consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
           branchId: resolvedBranchId,
@@ -4306,6 +4329,7 @@ const registerMutation = protectedProcedure
         if (existingPtRev) { /* 이미 존재 — 스킵 */ } else {
         const [ptRev] = await db.insert(revenueEntries).values({
           memberId,
+          channelId: resolvedChannelId,
           trainerId: resolvedTrainerId,
           consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
           branchId: resolvedBranchId,
@@ -4345,6 +4369,7 @@ const registerMutation = protectedProcedure
       if (hasDetail || input.serviceItems) {
         const [otherRev] = await db.insert(revenueEntries).values({
           memberId,
+          channelId: resolvedChannelId,
           trainerId: resolvedTrainerId,
           consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
           branchId: resolvedBranchId,
@@ -4392,6 +4417,7 @@ const registerMutation = protectedProcedure
       // 매출 기록
       const [dietRev] = await db.insert(revenueEntries).values({
         memberId,
+        channelId: resolvedChannelId,
         trainerId: resolvedTrainerId,
         consultantId: input.consultantId ?? (ctx.user.role === "trainer" ? ctx.user.id : null),
         branchId: resolvedBranchId,

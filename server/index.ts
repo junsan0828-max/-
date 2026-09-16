@@ -1682,6 +1682,55 @@ async function initDatabase() {
     console.error("다이어트 페이백 백필 오류:", e);
   }
 
+  // ── 매출 유입채널 백필 (비어 있는 칸만 채움, 1회) ────────────────────────────
+  // 등록 흐름(gym.register)이 채널을 매출에 안 써서, 상담에는 채널이 있는데 매출에는
+  // 비어 있었다. 마케팅 채널별 매출이 구조적으로 누락되던 원인.
+  //
+  // 안전장치 — 이 작업이 건드리는 것은 revenue_entries."channelId" 한 칸뿐이다:
+  //   · channelId가 이미 있는 행은 WHERE에서 제외되어 덮어쓰지 않는다 (원칙 3)
+  //   · channelBackfilledAt 도장으로 1회만 실행 — 나중에 사람이 채널을 비워도 되살리지 않는다
+  //   · 회원이 여러 상담 카드를 갖고 채널이 서로 다르면 건너뛴다 (추측 금지)
+  //   · 삭제 없음. 패키지·수업일지·잔여 횟수·정산 금액은 쿼리에 등장조차 하지 않는다
+  try {
+    await pool.query(`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "channelBackfilledAt" TEXT`);
+
+    // ① 매출에 leadId가 직접 붙어 있는 건 — 그 상담 카드의 채널을 그대로 쓴다
+    const byLead = await pool.query(`
+      UPDATE revenue_entries r
+      SET "channelId" = l."channelId", "channelBackfilledAt" = now()::text
+      FROM leads l
+      WHERE r."leadId" = l.id
+        AND r."channelId" IS NULL
+        AND r."channelBackfilledAt" IS NULL
+        AND l."channelId" IS NOT NULL
+    `);
+
+    // ② leadId가 없는 건(등록 폼으로 만든 매출) — 회원으로 연결된 상담 카드를 따라간다.
+    //    단, 그 회원의 상담 카드 채널이 하나로 모일 때만. 두 개 이상이면 어느 쪽인지
+    //    알 수 없으므로 비워 둔다.
+    const byMember = await pool.query(`
+      UPDATE revenue_entries r
+      SET "channelId" = src.channel_id, "channelBackfilledAt" = now()::text
+      FROM (
+        SELECT l."registeredMemberId" AS member_id, MIN(l."channelId") AS channel_id
+        FROM leads l
+        WHERE l."registeredMemberId" IS NOT NULL AND l."channelId" IS NOT NULL
+        GROUP BY l."registeredMemberId"
+        HAVING COUNT(DISTINCT l."channelId") = 1
+      ) src
+      WHERE r."memberId" = src.member_id
+        AND r."channelId" IS NULL
+        AND r."channelBackfilledAt" IS NULL
+    `);
+
+    const n = (byLead.rowCount ?? 0) + (byMember.rowCount ?? 0);
+    if (n > 0) {
+      console.log(`🔧 매출 유입채널 백필: ${n}건 (상담연결 ${byLead.rowCount ?? 0} / 회원경유 ${byMember.rowCount ?? 0})`);
+    }
+  } catch (e) {
+    console.error("매출 유입채널 백필 오류:", e);
+  }
+
   console.log("✅ 테이블 준비 완료");
 
   // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────
