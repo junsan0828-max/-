@@ -61,7 +61,7 @@ function MissionWeekBanner() {
   if (sub?.status === "approved") {
     statusBadge = <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">달성 완료 ✓</span>;
   } else if (sub?.status === "pending") {
-    statusBadge = <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">검토 중</span>;
+    statusBadge = <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">기록완료</span>;
   } else if (sub?.status === "rejected") {
     statusBadge = <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">미달성</span>;
   }
