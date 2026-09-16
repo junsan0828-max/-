@@ -6552,6 +6552,55 @@ const kioskRouter = t.router({
         };
       }
     }),
+
+  // ─── 유산소 운동 기록 (키오스크) ──────────────────────────────────────────────
+  cardioCheckIn: publicProcedure
+    .input(z.object({ phone: z.string().min(9) }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const digits = input.phone.replace(/\D/g, "");
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const today = kstNow.toISOString().slice(0, 10);
+
+      const memberRes = await pool.query(
+        `SELECT id, name, phone, username, "isActive"
+         FROM gym_plus_members
+         WHERE REGEXP_REPLACE(COALESCE(NULLIF(phone, ''), username, ''), '[^0-9]', '', 'g') = $1
+         ORDER BY "isActive" DESC, id DESC LIMIT 1`,
+        [digits]
+      );
+      const found = memberRes.rows[0];
+      if (!found) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원이 아닙니다. 데스크에 문의해 주세요." });
+      }
+      if (found.isActive !== 1) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "비활성 계정입니다. 데스크에 문의해 주세요." });
+      }
+
+      // 오늘 이미 유산소 기록이 있으면 중복 방지
+      const existing = await db.select({ id: gymPlusWorkoutLogs.id })
+        .from(gymPlusWorkoutLogs)
+        .where(and(
+          eq(gymPlusWorkoutLogs.gymPlusMemberId, found.id),
+          eq(gymPlusWorkoutLogs.logDate, today),
+          eq(gymPlusWorkoutLogs.title, "유산소운동"),
+        ))
+        .limit(1);
+
+      if (existing[0]) {
+        return { name: found.name as string, alreadyLogged: true };
+      }
+
+      await db.insert(gymPlusWorkoutLogs).values({
+        gymPlusMemberId: found.id as number,
+        logDate: today,
+        title: "유산소운동",
+      });
+
+      return { name: found.name as string, alreadyLogged: false };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

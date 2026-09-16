@@ -92,7 +92,7 @@ function AutoCloseBar({
   );
 }
 
-type Stage = "input" | "checkin" | "weight_input" | "checkout_ok" | "checkout_fail" | "error";
+type Stage = "input" | "type_select" | "checkin" | "weight_input" | "checkout_ok" | "checkout_fail" | "cardio_ok" | "error";
 
 function nowKstStr() {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -156,15 +156,32 @@ export default function DietKioskPage() {
     },
   });
 
+  const cardioMut = trpc.kiosk.cardioCheckIn.useMutation({
+    onSuccess: (data) => {
+      setMemberName(data.name);
+      setStage("cardio_ok");
+    },
+    onError: (err) => {
+      setMessage(err.message || "오류가 발생했습니다.");
+      setStage("error");
+    },
+  });
+
   const weightLogMut = trpc.gymPlus.logWeight.useMutation({
     onSuccess: () => setStage("checkout_ok"),
     onError: () => setStage("checkout_ok"), // 체중 로그 실패해도 수업 완료는 인정
   });
 
-  const handleCheckIn = () => {
-    const digits = phone.replace(/\D/g,"");
+  const handleTypeSelect = (type: "video" | "cardio") => {
+    const digits = phone.replace(/\D/g, "");
+    if (type === "video") checkInMut.mutate({ phone: digits });
+    else cardioMut.mutate({ phone: digits });
+  };
+
+  const handlePhoneConfirm = () => {
+    const digits = phone.replace(/\D/g, "");
     if (digits.length < 9) return;
-    checkInMut.mutate({ phone: digits });
+    setStage("type_select");
   };
 
   const handleWeightSubmit = () => {
@@ -174,11 +191,11 @@ export default function DietKioskPage() {
       weightLogMut.mutate({ weight: w });
     } else {
       setStage("checkout_ok");
-      scheduleReset();
     }
   };
 
   const handleWeightSkip = () => setStage("checkout_ok");
+  const isPending = checkInMut.isPending || cardioMut.isPending;
 
   return (
     <div
@@ -209,19 +226,58 @@ export default function DietKioskPage() {
               inputMode="numeric"
               value={phone}
               onChange={(e) => setPhone(formatPhone(e.target.value))}
-              onKeyDown={(e) => e.key === "Enter" && handleCheckIn()}
+              onKeyDown={(e) => e.key === "Enter" && handlePhoneConfirm()}
               placeholder="010-0000-0000"
               className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-xl tracking-widest placeholder:text-white/20 outline-none focus:border-blue-400"
             />
             <button
-              onClick={handleCheckIn}
-              disabled={checkInMut.isPending || phone.replace(/\D/g,"").length < 9}
+              onClick={handlePhoneConfirm}
+              disabled={phone.replace(/\D/g,"").length < 9}
               className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 text-white font-bold text-base transition-colors"
             >
-              {checkInMut.isPending ? "확인 중..." : "체크인 / 체크아웃"}
+              다음
             </button>
           </div>
           <p className="text-white/20 text-xs text-center">수업 시작·종료 모두 동일하게 체크인해 주세요</p>
+        </div>
+      )}
+
+      {/* 운동 타입 선택 */}
+      {stage === "type_select" && (
+        <div className="w-full max-w-sm space-y-4">
+          <p className="text-white text-center text-base font-medium">오늘 어떤 운동을 하시나요?</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleTypeSelect("video")}
+              disabled={isPending}
+              className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-blue-500/15 border border-blue-400/40 hover:bg-blue-500/25 disabled:opacity-50 transition-colors text-blue-300"
+            >
+              <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10">
+                <rect x="4" y="8" width="32" height="24" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+                <path d="M16 14 L28 20 L16 26 Z" fill="currentColor"/>
+              </svg>
+              <span className="text-sm font-semibold text-white">영상 운동</span>
+              <span className="text-[11px] text-white/40 text-center leading-tight">수업 체크인 / 아웃<br/>출석 미션 카운트</span>
+            </button>
+            <button
+              onClick={() => handleTypeSelect("cardio")}
+              disabled={isPending}
+              className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-green-500/15 border border-green-400/40 hover:bg-green-500/25 disabled:opacity-50 transition-colors text-green-300"
+            >
+              <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10">
+                <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+                <path d="M10 20 Q14 12 18 20 Q22 28 26 20 Q28 16 30 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+              </svg>
+              <span className="text-sm font-semibold text-white">유산소 운동</span>
+              <span className="text-[11px] text-white/40 text-center leading-tight">러닝 / 사이클 등<br/>유산소 미션 카운트</span>
+            </button>
+          </div>
+          <button
+            onClick={() => setStage("input")}
+            className="w-full py-2 text-white/30 text-sm hover:text-white/50 transition-colors"
+          >
+            뒤로
+          </button>
         </div>
       )}
 
@@ -316,6 +372,23 @@ export default function DietKioskPage() {
             <p className="text-yellow-200/90 text-sm leading-relaxed">{message}</p>
           </div>
           <AutoCloseBar durationMs={7000} active={stage === "checkout_fail"} color="#facc15" onClose={doReset} />
+        </div>
+      )}
+
+      {/* 유산소 운동 기록 완료 */}
+      {stage === "cardio_ok" && (
+        <div className="w-full max-w-sm text-center space-y-5">
+          <div className="w-20 h-20 rounded-full bg-green-500/15 border border-green-400/40 flex items-center justify-center mx-auto text-green-400">
+            <IconCheck />
+          </div>
+          <div>
+            <p className="text-white text-2xl font-bold">{memberName}님</p>
+            <p className="text-green-400 text-base mt-1">유산소 운동 기록 완료</p>
+          </div>
+          <div className="bg-green-500/10 border border-green-400/20 rounded-2xl p-4">
+            <p className="text-green-300 text-sm leading-relaxed">오늘 유산소 운동이 기록되었습니다.<br/>미션 기간(매월 8~14일)에 2회 이상 기록하면 유산소 미션이 달성됩니다.</p>
+          </div>
+          <AutoCloseBar durationMs={7000} active={stage === "cardio_ok"} color="#4ade80" onClose={doReset} />
         </div>
       )}
 
