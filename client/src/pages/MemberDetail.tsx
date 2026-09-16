@@ -952,6 +952,8 @@ export default function MemberDetail({ memberId }: Props) {
                 {(() => {
                   const completedTransfer = transferHistory?.find((tc: any) => tc.status === "completed" && tc.transferorMemberId === memberId);
                   const receivedTransfer = transferHistory?.find((tc: any) => tc.status === "completed" && tc.transfereeMemberId === memberId);
+                  const pendingTransfer = transferHistory?.find((tc: any) => (tc.status === "pending_transferor" || tc.status === "pending_transferee") && tc.transferorMemberId === memberId);
+                  const pendingReceive = transferHistory?.find((tc: any) => (tc.status === "pending_transferor" || tc.status === "pending_transferee") && tc.transferorMemberId !== memberId);
                   if (completedTransfer) {
                     return (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30 whitespace-nowrap">
@@ -962,7 +964,21 @@ export default function MemberDetail({ memberId }: Props) {
                   if (receivedTransfer) {
                     return (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/30 whitespace-nowrap">
-                        양수 ← {receivedTransfer.transferorName ?? "-"}
+                        양수완료 ← {receivedTransfer.transferorName ?? "-"}
+                      </span>
+                    );
+                  }
+                  if (pendingTransfer) {
+                    return (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/30 whitespace-nowrap">
+                        양도 진행중 → {pendingTransfer.transfereeName ?? "-"}
+                      </span>
+                    );
+                  }
+                  if (pendingReceive) {
+                    return (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/30 whitespace-nowrap">
+                        양수 진행중 ← {pendingReceive.transferorName ?? "-"}
                       </span>
                     );
                   }
@@ -2100,6 +2116,7 @@ export default function MemberDetail({ memberId }: Props) {
               <CardContent className="px-4 pb-4 space-y-3">
                 {transferHistory.map((tc: any) => {
                   const isTransferor = tc.transferorMemberId === memberId;
+                  const isPending = tc.status === "pending_transferor" || tc.status === "pending_transferee";
                   const statusLabel =
                     tc.status === "completed" ? "완료" :
                     tc.status === "pending_transferee" ? "양수인 서명 대기" :
@@ -2130,6 +2147,12 @@ export default function MemberDetail({ memberId }: Props) {
                           <p>완료일: {fmtDate(tc.completedAt, "yyyy.MM.dd")}</p>
                         )}
                       </div>
+                      {isPending && (
+                        <AdminCompleteTransferButton contractId={tc.id} onDone={() => {
+                          utils.transfer.getMyTransfers.invalidate({ memberId });
+                          utils.member.getById.invalidate({ memberId });
+                        }} />
+                      )}
                     </div>
                   );
                 })}
@@ -4059,6 +4082,27 @@ export default function MemberDetail({ memberId }: Props) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ─── 양도 강제 완료 버튼 (관리자용, 서명 없이 이전 처리) ────────────────────
+function AdminCompleteTransferButton({ contractId, onDone }: { contractId: number; onDone: () => void }) {
+  const completeMutation = trpc.transfer.adminCompleteTransfer.useMutation({
+    onSuccess: () => { onDone(); },
+    onError: (e) => { alert("강제 완료 실패: " + e.message); },
+  });
+  return (
+    <button
+      className="w-full text-xs py-1.5 px-3 rounded border border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+      disabled={completeMutation.isPending}
+      onClick={() => {
+        if (confirm("서명 없이 양도를 강제 완료하시겠습니까?\n· PT 패키지가 양수자에게 이전됩니다.\n· 양도자 회원은 종료 상태로 변경됩니다.")) {
+          completeMutation.mutate({ id: contractId });
+        }
+      }}
+    >
+      {completeMutation.isPending ? "처리 중..." : "서명 없이 양도 완료 처리"}
+    </button>
   );
 }
 

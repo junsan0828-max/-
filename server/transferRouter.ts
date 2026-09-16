@@ -408,20 +408,148 @@ export const transferRouter = t.router({
   getMyTransfers: protectedProcedure
     .input(z.object({ memberId: z.number() }))
     .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 전화번호로도 매칭 (transfereeMemberId 미설정 시)
+      const memberRow = await pool.query(
+        `SELECT phone FROM members WHERE id = $1`,
+        [input.memberId]
+      );
+      const rawPhone = memberRow.rows[0]?.phone ?? "";
+      const digitsOnly = rawPhone.replace(/\D/g, "");
 
       const rows = await pool.query(
         `SELECT id, token, status, "transferorMemberId", "transferorName", "transfereeMemberId",
                 "transfereeName", "itemType", "itemDescription", "createdAt", "completedAt",
                 "transferorSignedAt", "transfereeSignedAt"
          FROM transfer_contracts
-         WHERE "transferorMemberId" = $1 OR "transfereeMemberId" = $1
+         WHERE "transferorMemberId" = $1
+            OR "transfereeMemberId" = $1
+            OR ("transfereeMemberId" IS NULL AND $2 != '' AND regexp_replace("transfereePhone", '[^0-9]', '', 'g') = $2)
          ORDER BY "createdAt" DESC`,
-        [input.memberId]
+        [input.memberId, digitsOnly]
       );
 
       return rows.rows;
+    }),
+
+  // 관리자 강제 완료 (서명 없이 양도 처리)
+  adminCompleteTransfer: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const contract = (await pool.query(
+        `SELECT * FROM transfer_contracts WHERE id = $1`,
+        [input.id]
+      )).rows[0];
+      if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "계약서를 찾을 수 없습니다." });
+      if (contract.status === "completed") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 완료된 계약서입니다." });
+      if (contract.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "취소된 계약서입니다." });
+
+      const now = new Date().toISOString();
+
+      const transferorResult = await pool.query(
+        `SELECT "branchId", "trainerId" FROM members WHERE id = $1`,
+        [contract.transferorMemberId]
+      );
+      const transferorMember = transferorResult.rows[0];
+
+      let transfereeMemberId: number | null = contract.transfereeMemberId ?? null;
+
+      if (!transfereeMemberId) {
+        // 전화번호로 기존 회원 찾기
+        if (contract.transfereePhone) {
+          const digitsOnly = contract.transfereePhone.replace(/\D/g, "");
+          const existing = await pool.query(
+            `SELECT id FROM members WHERE regexp_replace(phone, '[^0-9]', '', 'g') = $1 LIMIT 1`,
+            [digitsOnly]
+          );
+          if (existing.rows[0]) {
+            transfereeMemberId = existing.rows[0].id;
+          }
+        }
+        // 그래도 없으면 신규 회원 생성
+        if (!transfereeMemberId) {
+          let branchId = transferorMember?.branchId ?? null;
+          if (!branchId && transferorMember?.trainerId) {
+            const tbResult = await pool.query(
+              `SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1`,
+              [transferorMember.trainerId]
+            );
+            branchId = tbResult.rows[0]?.branchId ?? null;
+          }
+          const memberResult = await pool.query(
+            `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $7) RETURNING id`,
+            [
+              branchId,
+              transferorMember?.trainerId ?? null,
+              contract.transfereeName ?? "양수인",
+              contract.transfereePhone ?? null,
+              contract.transfereeBirthDate ?? null,
+              `양도양수 관리자 처리 (계약서 ID: ${contract.id})`,
+              now,
+            ]
+          );
+          if (memberResult.rows[0]) transfereeMemberId = memberResult.rows[0].id;
+        }
+      }
+
+      // 아이템 이전
+      if (transfereeMemberId && contract.itemId) {
+        if (contract.itemType === "pt_package") {
+          const origPkg = (await pool.query(
+            `SELECT "totalSessions", "usedSessions", "paymentAmount", "pricePerSession",
+                    "packageName", "trainerId", "startDate", "serviceSessions", "serviceSessionPrice", "paymentMethod"
+             FROM pt_packages WHERE id = $1 LIMIT 1`,
+            [contract.itemId]
+          )).rows[0];
+          if (origPkg) {
+            const remaining = Math.max(0, (origPkg.totalSessions ?? 0) - (origPkg.usedSessions ?? 0));
+            const pricePerSess = origPkg.pricePerSession
+              ?? (origPkg.paymentAmount && origPkg.totalSessions ? Math.round(origPkg.paymentAmount / origPkg.totalSessions) : null);
+            await pool.query(
+              `INSERT INTO pt_packages
+                 ("memberId", "trainerId", "packageName", "totalSessions", "usedSessions",
+                  "paymentAmount", "pricePerSession", "startDate", "paymentMethod",
+                  "serviceSessions", "serviceSessionPrice", status, "createdAt", "updatedAt")
+               VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,'active',$11,$11)`,
+              [
+                transfereeMemberId, origPkg.trainerId,
+                origPkg.packageName ?? '웨이트피티', remaining,
+                pricePerSess != null ? pricePerSess * remaining : null, pricePerSess,
+                now, origPkg.paymentMethod ?? '계좌이체',
+                origPkg.serviceSessions ?? 0, origPkg.serviceSessionPrice ?? 0, now,
+              ]
+            );
+            await pool.query(
+              `UPDATE pt_packages SET status = 'transferred', "updatedAt" = $1 WHERE id = $2`,
+              [now, contract.itemId]
+            );
+          } else {
+            await pool.query(`UPDATE pt_packages SET "memberId" = $1 WHERE id = $2`, [transfereeMemberId, contract.itemId]);
+          }
+        } else if (contract.itemType === "membership") {
+          await pool.query(`UPDATE memberships SET "memberId" = $1 WHERE id = $2`, [transfereeMemberId, contract.itemId]);
+        } else if (contract.itemType === "locker") {
+          await pool.query(`UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3`, [transfereeMemberId, contract.transfereeName ?? "양수인", contract.itemId]);
+        } else if (contract.itemType === "uniform") {
+          await pool.query(`UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3`, [transfereeMemberId, contract.transfereeName ?? "양수인", contract.itemId]);
+        }
+      }
+
+      // 양도인 → ended 처리
+      if (contract.transferorMemberId) {
+        await pool.query(
+          `UPDATE members SET status = 'ended', "updatedAt" = $1 WHERE id = $2`,
+          [now, contract.transferorMemberId]
+        );
+      }
+
+      // 계약서 완료 처리
+      await pool.query(
+        `UPDATE transfer_contracts SET status = 'completed', "completedAt" = $1, "transfereeMemberId" = $2 WHERE id = $3`,
+        [now, transfereeMemberId, contract.id]
+      );
+
+      return { success: true, transfereeMemberId };
     }),
 
   // 양도 취소
