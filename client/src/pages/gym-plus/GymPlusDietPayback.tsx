@@ -96,7 +96,16 @@ function StatusTab() {
               <div key={i} className="px-4 py-3 flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.participated === 1 ? "bg-green-500" : "bg-gray-300"}`} />
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-gray-700">{s.sessionDate.replace(/-/g, ".")}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-medium text-gray-700">{s.sessionDate.replace(/-/g, ".")}</p>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                      (s as any).workoutType === "cardio"
+                        ? "bg-green-50 text-green-600"
+                        : "bg-blue-50 text-blue-600"
+                    }`}>
+                      {(s as any).workoutType === "cardio" ? "유산소" : "영상"}
+                    </span>
+                  </div>
                   <p className="text-[10px] text-gray-400">
                     {s.checkinTime}{s.checkoutTime ? ` → ${s.checkoutTime}` : " (미종료)"}
                   </p>
@@ -111,7 +120,7 @@ function StatusTab() {
                       {s.elapsedMin !== null ? `${s.elapsedMin}분 미인정` : "미인정"}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-yellow-500">수업 중</span>
+                    <span className="text-[10px] text-yellow-500">진행 중</span>
                   )}
                 </div>
               </div>

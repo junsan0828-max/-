@@ -92,7 +92,7 @@ function AutoCloseBar({
   );
 }
 
-type Stage = "input" | "type_select" | "checkin" | "weight_input" | "checkout_ok" | "checkout_fail" | "cardio_ok" | "error";
+type Stage = "input" | "type_select" | "checkin" | "weight_input" | "checkout_ok" | "checkout_fail" | "error";
 
 function nowKstStr() {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -156,17 +156,6 @@ export default function DietKioskPage() {
     },
   });
 
-  const cardioMut = trpc.kiosk.cardioCheckIn.useMutation({
-    onSuccess: (data) => {
-      setMemberName(data.name);
-      setStage("cardio_ok");
-    },
-    onError: (err) => {
-      setMessage(err.message || "오류가 발생했습니다.");
-      setStage("error");
-    },
-  });
-
   const weightLogMut = trpc.gymPlus.logWeight.useMutation({
     onSuccess: () => setStage("checkout_ok"),
     onError: () => setStage("checkout_ok"), // 체중 로그 실패해도 수업 완료는 인정
@@ -174,8 +163,7 @@ export default function DietKioskPage() {
 
   const handleTypeSelect = (type: "video" | "cardio") => {
     const digits = phone.replace(/\D/g, "");
-    if (type === "video") checkInMut.mutate({ phone: digits });
-    else cardioMut.mutate({ phone: digits });
+    checkInMut.mutate({ phone: digits, workoutType: type });
   };
 
   const handlePhoneConfirm = () => {
@@ -195,7 +183,7 @@ export default function DietKioskPage() {
   };
 
   const handleWeightSkip = () => setStage("checkout_ok");
-  const isPending = checkInMut.isPending || cardioMut.isPending;
+  const isPending = checkInMut.isPending;
 
   return (
     <div
@@ -372,23 +360,6 @@ export default function DietKioskPage() {
             <p className="text-yellow-200/90 text-sm leading-relaxed">{message}</p>
           </div>
           <AutoCloseBar durationMs={7000} active={stage === "checkout_fail"} color="#facc15" onClose={doReset} />
-        </div>
-      )}
-
-      {/* 유산소 운동 기록 완료 */}
-      {stage === "cardio_ok" && (
-        <div className="w-full max-w-sm text-center space-y-5">
-          <div className="w-20 h-20 rounded-full bg-green-500/15 border border-green-400/40 flex items-center justify-center mx-auto text-green-400">
-            <IconCheck />
-          </div>
-          <div>
-            <p className="text-white text-2xl font-bold">{memberName}님</p>
-            <p className="text-green-400 text-base mt-1">유산소 운동 기록 완료</p>
-          </div>
-          <div className="bg-green-500/10 border border-green-400/20 rounded-2xl p-4">
-            <p className="text-green-300 text-sm leading-relaxed">오늘 유산소 운동이 기록되었습니다.<br/>미션 기간(매월 8~14일)에 2회 이상 기록하면 유산소 미션이 달성됩니다.</p>
-          </div>
-          <AutoCloseBar durationMs={7000} active={stage === "cardio_ok"} color="#4ade80" onClose={doReset} />
         </div>
       )}
 

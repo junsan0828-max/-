@@ -724,6 +724,7 @@ async function initDatabase() {
        ON gym_plus_mission_submissions ("gymPlusMemberId", "weekNumber")`,
     `ALTER TABLE gym_plus_mission_submissions ADD COLUMN IF NOT EXISTS "periodKey" TEXT`,
     `ALTER TABLE gym_plus_mission_submissions ALTER COLUMN "weekNumber" DROP NOT NULL`,
+    `ALTER TABLE gym_plus_diet_sessions ADD COLUMN IF NOT EXISTS "workoutType" TEXT NOT NULL DEFAULT 'video'`,
     `CREATE UNIQUE INDEX IF NOT EXISTS gym_plus_mission_submissions_period_uniq
        ON gym_plus_mission_submissions ("gymPlusMemberId", "periodKey")
        WHERE "periodKey" IS NOT NULL`,

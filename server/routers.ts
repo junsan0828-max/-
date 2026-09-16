@@ -5713,14 +5713,14 @@ ${dataContext}
   getDietSessions: gymPlusProtected.query(async ({ ctx }) => {
     const memberId = ctx.gymPlusMemberId;
     const res = await pool.query(
-      `SELECT "sessionDate", "checkinTime", "checkoutTime", participated
+      `SELECT "sessionDate", "checkinTime", "checkoutTime", participated, COALESCE("workoutType", 'video') AS "workoutType"
        FROM gym_plus_diet_sessions
        WHERE "gymPlusMemberId" = $1
        ORDER BY "sessionDate" DESC, id DESC
        LIMIT 60`,
       [memberId]
     );
-    return (res.rows as { sessionDate: string; checkinTime: string; checkoutTime: string | null; participated: number }[]).map(r => {
+    return (res.rows as { sessionDate: string; checkinTime: string; checkoutTime: string | null; participated: number; workoutType: string }[]).map(r => {
       let elapsedMin: number | null = null;
       if (r.checkoutTime) {
         const [h1, m1] = r.checkinTime.split(":").map(Number);
@@ -5730,7 +5730,6 @@ ${dataContext}
       return { ...r, elapsedMin };
     });
   }),
-
 
   // ─── 12주 주차별 미션 ─────────────────────────────────────────────────────────
 
@@ -5867,12 +5866,14 @@ ${dataContext}
         autoVerified = true;
       } else if (input.missionType === "cardio") {
         // 이번 달 8~14일 유산소 운동 자동 검증 (2회 이상)
+        // 키오스크 체크인(workoutType='cardio', participated=1) 기준
         const rangeStart = `${todayYM}-08`;
         const rangeEnd   = `${todayYM}-14`;
         const cardioRes = await pool.query(
-          `SELECT COUNT(*)::int AS count FROM gym_plus_workout_logs
-           WHERE "gymPlusMemberId" = $1 AND title = '유산소운동'
-             AND "logDate" >= $2 AND "logDate" <= $3`,
+          `SELECT COUNT(*)::int AS count FROM gym_plus_diet_sessions
+           WHERE "gymPlusMemberId" = $1 AND COALESCE("workoutType", 'video') = 'cardio'
+             AND participated = 1
+             AND "sessionDate" >= $2 AND "sessionDate" <= $3`,
           [memberId, rangeStart, rangeEnd]
         );
         const count = (cardioRes.rows[0]?.count ?? 0) as number;
@@ -6437,9 +6438,9 @@ const kioskRouter = t.router({
       return { name: member.name, alreadyCheckedIn: false, pointsEarned, totalPoints, showPoints, uniformEnd };
     }),
 
-  // ─── 다이어트페이백 전용 체크인 ──────────────────────────────────────────────
+  // ─── 다이어트페이백 전용 체크인 (영상 운동 / 유산소 운동 통합) ─────────────────
   dietCheckIn: publicProcedure
-    .input(z.object({ phone: z.string().min(9) }))
+    .input(z.object({ phone: z.string().min(9), workoutType: z.enum(["video", "cardio"]).default("video") }))
     .mutation(async ({ input }) => {
       const digits = input.phone.replace(/\D/g, "");
       const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -6487,13 +6488,15 @@ const kioskRouter = t.router({
         });
       }
       const gm = found as { id: number; name: string; phone: string; programName: string; programStartDate: string };
+      const workoutType = input.workoutType;
 
-      // 오늘 열린 세션 확인 (체크아웃 안 된 세션)
+      // 오늘 같은 타입의 열린 세션 확인 (체크아웃 안 된 세션)
       const openSession = await pool.query(
         `SELECT id, "checkinTime" FROM gym_plus_diet_sessions
          WHERE "gymPlusMemberId" = $1 AND "sessionDate" = $2 AND "checkoutTime" IS NULL
+           AND COALESCE("workoutType", 'video') = $3
          ORDER BY id DESC LIMIT 1`,
-        [gm.id, today]
+        [gm.id, today, workoutType]
       );
 
       if (openSession.rows[0]) {
@@ -6531,15 +6534,17 @@ const kioskRouter = t.router({
             action: "checkout" as const,
             participated: true,
             elapsedMin,
-            message: `수업 완료! ${elapsedMin}분 참여 인정됩니다. 수고하셨습니다! 💪`,
+            message: workoutType === "cardio"
+              ? `유산소 운동 완료! ${elapsedMin}분 기록됩니다. 수고하셨습니다!`
+              : `영상 운동 완료! ${elapsedMin}분 참여 인정됩니다. 수고하셨습니다!`,
           };
         }
       } else {
         // 첫 번째 체크인 = 수업 시작
         await pool.query(
-          `INSERT INTO gym_plus_diet_sessions ("gymPlusMemberId", "sessionDate", "checkinTime", "createdAt")
-           VALUES ($1, $2, $3, now()::text)`,
-          [gm.id, today, nowTimeKst]
+          `INSERT INTO gym_plus_diet_sessions ("gymPlusMemberId", "sessionDate", "checkinTime", "workoutType", "createdAt")
+           VALUES ($1, $2, $3, $4, now()::text)`,
+          [gm.id, today, nowTimeKst, workoutType]
         );
         return {
           name: gm.name,
@@ -6548,59 +6553,13 @@ const kioskRouter = t.router({
           action: "checkin" as const,
           participated: false,
           elapsedMin: 0,
-          message: `수업을 시작합니다! 30분 후 다시 체크인하여 수업을 종료해 주세요.`,
+          message: workoutType === "cardio"
+            ? `유산소 운동을 시작합니다! 30분 후 다시 체크인하여 종료해 주세요.`
+            : `영상 운동을 시작합니다! 30분 후 다시 체크인하여 수업을 종료해 주세요.`,
         };
       }
     }),
 
-  // ─── 유산소 운동 기록 (키오스크) ──────────────────────────────────────────────
-  cardioCheckIn: publicProcedure
-    .input(z.object({ phone: z.string().min(9) }))
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const digits = input.phone.replace(/\D/g, "");
-      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-      const today = kstNow.toISOString().slice(0, 10);
-
-      const memberRes = await pool.query(
-        `SELECT id, name, phone, username, "isActive"
-         FROM gym_plus_members
-         WHERE REGEXP_REPLACE(COALESCE(NULLIF(phone, ''), username, ''), '[^0-9]', '', 'g') = $1
-         ORDER BY "isActive" DESC, id DESC LIMIT 1`,
-        [digits]
-      );
-      const found = memberRes.rows[0];
-      if (!found) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원이 아닙니다. 데스크에 문의해 주세요." });
-      }
-      if (found.isActive !== 1) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "비활성 계정입니다. 데스크에 문의해 주세요." });
-      }
-
-      // 오늘 이미 유산소 기록이 있으면 중복 방지
-      const existing = await db.select({ id: gymPlusWorkoutLogs.id })
-        .from(gymPlusWorkoutLogs)
-        .where(and(
-          eq(gymPlusWorkoutLogs.gymPlusMemberId, found.id),
-          eq(gymPlusWorkoutLogs.logDate, today),
-          eq(gymPlusWorkoutLogs.title, "유산소운동"),
-        ))
-        .limit(1);
-
-      if (existing[0]) {
-        return { name: found.name as string, alreadyLogged: true };
-      }
-
-      await db.insert(gymPlusWorkoutLogs).values({
-        gymPlusMemberId: found.id as number,
-        logDate: today,
-        title: "유산소운동",
-      });
-
-      return { name: found.name as string, alreadyLogged: false };
-    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
