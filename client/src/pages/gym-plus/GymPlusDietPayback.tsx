@@ -294,7 +294,7 @@ function MissionTab() {
                   "bg-red-100 text-red-700"
                 }`}>
                   {currentWindow.submission.status === "approved" ? "달성 완료 ✓" :
-                   currentWindow.submission.status === "pending" ? "검토 중" : "미달성"}
+                   currentWindow.submission.status === "pending" ? "기록완료" : "미달성"}
                 </span>
               ) : (
                 <span className="text-[10px] text-blue-500 font-medium">인증 대기 중</span>
@@ -417,7 +417,7 @@ function MissionTab() {
               if (mission.isCurrentWindow) { statusColor = "hsl(221 83% 44%)"; statusLabel = "진행 중"; }
               else if (!mission.isPast && !mission.isCurrentWindow) { statusColor = "#d1d5db"; statusLabel = "예정"; }
               if (sub?.status === "approved") { statusColor = "#22c55e"; statusLabel = "달성"; }
-              else if (sub?.status === "pending") { statusColor = "#f59e0b"; statusLabel = "검토 중"; }
+              else if (sub?.status === "pending") { statusColor = "#f59e0b"; statusLabel = "기록완료"; }
               else if (sub?.status === "rejected") { statusColor = "#ef4444"; statusLabel = "미달성"; }
 
               return (
