@@ -1117,7 +1117,9 @@ function GettingStarted({
 
 // ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
 function TrainerDashboard() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  // /features — 하단 "기능" 탭. 홈 요약 없이 전체 기능 목록만 펼쳐서 보여준다.
+  const featuresOnly = location === "/features";
   const utils = trpc.useUtils();
   const { data: user } = trpc.auth.me.useQuery();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
@@ -1170,6 +1172,7 @@ function TrainerDashboard() {
     onSuccess: () => utils.trainers.getOnboarding.invalidate(),
   });
   const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
+  const featureListOpen = featuresOnly || allFeaturesOpen;
   const todayStr = new Date().toISOString().split("T")[0];
   const currentYearMonth = todayStr.slice(0, 7);
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
@@ -1216,9 +1219,10 @@ function TrainerDashboard() {
 
   return (
     <div className="space-y-5">
-      <TabBanner tabKey="dashboard" />
-      <BannerAndNotices />
+      {!featuresOnly && <TabBanner tabKey="dashboard" />}
+      {!featuresOnly && <BannerAndNotices />}
 
+      {!featuresOnly && (<>
       {/* 인사말 */}
       <div className="pt-1">
         <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">안녕하세요</p>
@@ -1372,9 +1376,16 @@ function TrainerDashboard() {
           </div>
         );
       })()}
+      </>)}
 
       {/* 전체 기능 */}
-      <div className="rounded-2xl bg-card border border-border overflow-hidden">
+      <div className={featuresOnly ? "space-y-4" : "rounded-2xl bg-card border border-border overflow-hidden"}>
+        {featuresOnly ? (
+          <div className="pt-1">
+            <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">FIT STEP</p>
+            <h1 className="text-[22px] font-bold tracking-tight mt-0.5">전체 기능</h1>
+          </div>
+        ) : (
         <button onClick={() => setAllFeaturesOpen(v => !v)}
           className="w-full flex items-center gap-2 p-4">
           <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
@@ -1384,8 +1395,9 @@ function TrainerDashboard() {
           <span className="text-[11px] text-muted-foreground ml-1">모든 기능 목록</span>
           <ChevronRight className={`h-4 w-4 text-muted-foreground ml-auto transition-transform ${allFeaturesOpen ? "rotate-90" : ""}`} />
         </button>
-        {allFeaturesOpen && (
-          <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
+        )}
+        {featureListOpen && (
+          <div className={featuresOnly ? "space-y-4" : "px-4 pb-4 space-y-4 border-t border-border pt-4"}>
             {recentMembers.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">

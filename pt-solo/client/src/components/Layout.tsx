@@ -119,7 +119,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { path: "/pt", label: "회원", icon: Dumbbell },
         { path: "/leads", label: "상담", icon: UserPlus },
         { path: "/settlement", label: "매출", icon: TrendingUp },
-        { path: "/workshop", label: "기능", icon: Wrench },
+        { path: "/features", label: "기능", icon: Wrench },
         { label: "전체", icon: Menu },
       ];
 

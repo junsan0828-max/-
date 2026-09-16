@@ -201,6 +201,7 @@ function App() {
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
           <Route path="/sessions">{() => <Sessions />}</Route>
           <Route path="/workshop">{() => <Workshop />}</Route>
+          <Route path="/features">{() => <Dashboard />}</Route>
           <Route path="/sequences/library/:id">
             {(params) => <SequenceDetail sequenceId={parseInt(params.id!)} />}
           </Route>
