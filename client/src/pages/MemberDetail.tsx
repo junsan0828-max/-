@@ -441,6 +441,10 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: parQData } = trpc.parQ.get.useQuery({ memberId });
   const { data: memberPrograms } = trpc.access.getMemberPrograms.useQuery({ memberId });
   const { data: transferHistory } = trpc.transfer.getMyTransfers.useQuery({ memberId });
+  // 이 회원이 양수자인 완료된 양도 계약 — 양도 버튼 비표시·양도수령 배지 판단에 사용
+  const isTransferee = !!transferHistory?.find(
+    (tc: any) => tc.status === "completed" && tc.transfereeMemberId === memberId
+  );
 
   // 모달에서 접근할 수 있도록 component 레벨에서 파생
   const healthRevsForModal = useMemo(() =>
@@ -1241,13 +1245,15 @@ export default function MemberDetail({ memberId }: Props) {
                           onClick={() => toggleStatusMutation.mutate({ id: memberId, status: "inactive" })}
                           className="text-xs px-2 py-0.5 rounded border border-gray-400/50 text-gray-400 hover:bg-gray-400/10 transition-colors"
                         >종료</button>
-                        <button
-                          onClick={() => setTransferOpen(true)}
-                          className="text-xs px-2 py-0.5 rounded border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors flex items-center gap-1"
-                        >
-                          <ArrowRightLeft className="h-3 w-3" />
-                          양도
-                        </button>
+                        {!isTransferee && (
+                          <button
+                            onClick={() => setTransferOpen(true)}
+                            className="text-xs px-2 py-0.5 rounded border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors flex items-center gap-1"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" />
+                            양도
+                          </button>
+                        )}
                       </>) : member.status !== "양도마감" ? (
                         <button
                           onClick={() => setMemberActivateOpen(true)}
@@ -1413,18 +1419,20 @@ export default function MemberDetail({ memberId }: Props) {
                   >
                     <span>🔄</span> 환불
                   </button>
-                  <button
-                    onClick={() => {
-                      setYangdoServiceType("pt");
-                      setYangdoModalOpen(true);
-                      setYangdoContractUrl("");
-                      setYangdoSelectedPkgId(ptPackages?.[0]?.id ?? "");
-                      setYangdoForm({ transferDate: "", trainerMemo: "" });
-                    }}
-                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
-                  >
-                    <ArrowRightLeft className="h-3 w-3" /> 양도
-                  </button>
+                  {!isTransferee && (
+                    <button
+                      onClick={() => {
+                        setYangdoServiceType("pt");
+                        setYangdoModalOpen(true);
+                        setYangdoContractUrl("");
+                        setYangdoSelectedPkgId(ptPackages?.[0]?.id ?? "");
+                        setYangdoForm({ transferDate: "", trainerMemo: "" });
+                      }}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                    >
+                      <ArrowRightLeft className="h-3 w-3" /> 양도
+                    </button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -1787,8 +1795,13 @@ export default function MemberDetail({ memberId }: Props) {
                     {/* ── 헬스권 섹션 ── */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-muted-foreground">헬스권</h4>
-                        {hasHealth && (
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium text-muted-foreground">헬스권</h4>
+                          {isTransferee && hasHealth && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30">양도수령</span>
+                          )}
+                        </div>
+                        {hasHealth && !isTransferee && (
                           <button
                             onClick={() => {
                               setYangdoServiceType("health");
@@ -1812,6 +1825,9 @@ export default function MemberDetail({ memberId }: Props) {
                               <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className="font-medium text-sm text-foreground">헬스권</p>
+                                  {isTransferee && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30">양도수령</span>
+                                  )}
                                   {healthDaysLeft !== null && healthDaysLeft > 0 ? (
                                     <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
                                       healthDaysLeft <= 7
@@ -1944,8 +1960,13 @@ export default function MemberDetail({ memberId }: Props) {
                     <div className="border-t border-border" />
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-muted-foreground">락커</h4>
-                        {hasLocker && (
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium text-muted-foreground">락커</h4>
+                          {isTransferee && hasLocker && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30">양도수령</span>
+                          )}
+                        </div>
+                        {hasLocker && !isTransferee && (
                           <button
                             onClick={() => {
                               setYangdoServiceType("locker");
@@ -2022,6 +2043,9 @@ export default function MemberDetail({ memberId }: Props) {
                             <div key={locker.id} className="p-3 rounded-lg bg-accent/20 border border-border">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-sm text-foreground">락커 {locker.lockerNumber}</p>
+                                {isTransferee && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30">양도수령</span>
+                                )}
                                 {memberIsPaused ? (
                                   <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>
                                 ) : (
@@ -2047,8 +2071,13 @@ export default function MemberDetail({ memberId }: Props) {
                     <div className="border-t border-border" />
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-muted-foreground">운동복</h4>
-                        {hasUniform && (
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium text-muted-foreground">운동복</h4>
+                          {isTransferee && hasUniform && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30">양도수령</span>
+                          )}
+                        </div>
+                        {hasUniform && !isTransferee && (
                           <button
                             onClick={() => {
                               setYangdoServiceType("uniform");
@@ -2090,6 +2119,9 @@ export default function MemberDetail({ memberId }: Props) {
                             <div key={u.id} className="p-3 rounded-lg bg-accent/20 border border-border">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-sm text-foreground">운동복{u.size ? ` (${u.size})` : ""}</p>
+                                {isTransferee && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30">양도수령</span>
+                                )}
                                 {(u.quantity ?? 1) > 1 && (
                                   <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">×{u.quantity}</span>
                                 )}

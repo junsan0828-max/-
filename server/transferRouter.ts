@@ -54,9 +54,9 @@ async function doFullTransfer(
 ): Promise<string[]> {
   const transferred: string[] = [];
 
-  // 1. 활성 PT 패키지 전체 이전
+  // 1. 활성 PT 패키지 전체 이전 (양도수령 패키지는 재이전 불가)
   const activePkgs = (await pool.query(
-    `SELECT * FROM pt_packages WHERE "memberId" = $1 AND status = 'active'`,
+    `SELECT * FROM pt_packages WHERE "memberId" = $1 AND status = 'active' AND "transferredFromMemberId" IS NULL`,
     [transferorMemberId]
   )).rows;
 
