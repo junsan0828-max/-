@@ -1183,7 +1183,12 @@ export function GymPlusMissionsAdmin() {
   const { data: progress, isLoading } = trpc.gymPlus.admin_listMissionProgress.useQuery();
   const { data: members } = trpc.gymPlus.admin_listMembers.useQuery();
   const setProgram = trpc.gymPlus.admin_setMemberProgram.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMissionProgress.invalidate(); utils.gymPlus.admin_listMembers.invalidate(); },
+    onSuccess: () => {
+      utils.gymPlus.admin_listMissionProgress.invalidate();
+      utils.gymPlus.admin_listMembers.invalidate();
+      toast.success("프로그램이 배정되었습니다.");
+    },
+    onError: (err) => toast.error(`배정 실패: ${err.message}`),
   });
 
   const [assignMemberId, setAssignMemberId] = useState<string>("");
@@ -1218,7 +1223,7 @@ export function GymPlusMissionsAdmin() {
           >
             <option value="">회원 선택</option>
             {(members ?? []).map((m: any) => (
-              <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>
+              <option key={m.id} value={m.id}>{m.name} ({m.phone || m.username || "번호없음"})</option>
             ))}
           </select>
           <select
