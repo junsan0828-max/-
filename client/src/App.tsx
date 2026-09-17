@@ -124,10 +124,10 @@ function App() {
 
   // 키오스크 출입 페이지 (공개, 인증 불필요)
   if (location === "/kiosk") {
-    return <DietKioskPage />;
-  }
-  if (location === "/kiosk-general") {
     return <KioskPage />;
+  }
+  if (location === "/diet-kiosk" || location === "/kiosk-general") {
+    return <DietKioskPage />;
   }
 
   // 개인정보처리방침 (공개)
