@@ -1867,6 +1867,7 @@ export default function DietPlanner() {
           fetchKakaoProfile(token).then((user) => {
             if (user) {
               localStorage.setItem("dp_kakao_user", JSON.stringify(user));
+              localStorage.setItem("dp_kakao_at", token);
               setKakaoUser(user);
               setKakaoMsg("");
               setName((prev) => prev || user.name);
