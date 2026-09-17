@@ -1399,8 +1399,8 @@ export default function MemberDetail({ memberId }: Props) {
         {/* ── 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4 space-y-4">
 
-          {/* 다이어트 프로그램 */}
-          {dietPrograms !== undefined && dietPrograms.length === 0 && (
+          {/* 다이어트 프로그램 — PT 패키지가 있는 회원에게만 표시 */}
+          {ptPackages && ptPackages.length > 0 && dietPrograms !== undefined && dietPrograms.length === 0 && (
             <DietCreateSection memberId={memberId} onCreated={refetchDietPrograms} />
           )}
           {dietPrograms && dietPrograms.length > 0 && (
