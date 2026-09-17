@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle } from "lucide-react";
+import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -24,10 +24,15 @@ export default function BookingManagementPage() {
   const [tab, setTab] = useState<"schedule" | "list">("schedule");
 
   // ── 시간 관리 탭 ──
+  const today = new Date();
+  const [slotMonth, setSlotMonth] = useState(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`);
+  const { data: slots, refetch: refetchSlots } = trpc.booking.getSlots.useQuery({ month: slotMonth });
+  const deleteSlotMutation = trpc.booking.deleteSlot.useMutation({ onSuccess: () => refetchSlots() });
+
   const { data: recurring, refetch: refetchRecurring } = trpc.booking.getRecurring.useQuery();
   const saveRecurringMutation = trpc.booking.saveRecurring.useMutation({ onSuccess: () => refetchRecurring() });
   const generateMutation = trpc.booking.generateFromRecurring.useMutation({
-    onSuccess: (d: any) => { toast.success(`${d.created}개 슬롯 생성됨`); },
+    onSuccess: (d: any) => { toast.success(`${d.created}개 슬롯 생성됨`); refetchSlots(); },
   });
 
   const [workDays, setWorkDays] = useState<Set<number>>(new Set());
@@ -247,6 +252,77 @@ export default function BookingManagementPage() {
               예약 페이지 미리보기
             </button>
           )}
+
+          {/* ── 생성된 슬롯 목록 ── */}
+          <div className="rounded-2xl bg-card border border-border overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+              <p className="text-sm font-semibold">생성된 슬롯</p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => {
+                  const [y, m] = slotMonth.split("-").map(Number);
+                  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+                  setSlotMonth(prev);
+                }} className="p-1 rounded-lg hover:bg-muted transition-colors">
+                  <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                </button>
+                <span className="text-xs font-semibold w-16 text-center">{slotMonth}</span>
+                <button onClick={() => {
+                  const [y, m] = slotMonth.split("-").map(Number);
+                  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+                  setSlotMonth(next);
+                }} className="p-1 rounded-lg hover:bg-muted transition-colors">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+            </div>
+            {(() => {
+              if (!slots || slots.length === 0) return (
+                <p className="text-xs text-muted-foreground text-center py-6">이 달에 생성된 슬롯이 없습니다</p>
+              );
+              // 날짜별 그룹
+              const grouped: Record<string, any[]> = {};
+              for (const s of slots as any[]) {
+                if (!grouped[s.date]) grouped[s.date] = [];
+                grouped[s.date].push(s);
+              }
+              return (
+                <div className="divide-y divide-border/40">
+                  {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, daySlots]) => (
+                    <div key={date} className="px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold">
+                          {date} ({DAYS_KO[new Date(date + "T00:00:00").getDay()]})
+                        </p>
+                        <span className="text-[11px] text-muted-foreground">
+                          {(daySlots as any[]).filter(s => s.isBooked).length}/{(daySlots as any[]).length} 예약됨
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(daySlots as any[]).map((s: any) => (
+                          <div key={s.id}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-medium border ${
+                              s.isBooked
+                                ? "bg-primary/10 text-primary border-primary/30"
+                                : "bg-background text-muted-foreground border-border"
+                            }`}>
+                            {s.time}
+                            {!s.isBooked && (
+                              <button
+                                onClick={() => deleteSlotMutation.mutate({ id: s.id })}
+                                disabled={deleteSlotMutation.isPending}
+                                className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity">
+                                <Trash2 className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
 
