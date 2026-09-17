@@ -35,9 +35,9 @@ export default function FitStepPlusLogin({ trainerId }: { trainerId: number }) {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-1 mb-2">
-            <span className="font-black text-2xl tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-            <span className="font-black text-2xl tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
-            <span className="font-black text-2xl text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>+</span>
+            <span className="text-3xl" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+            <span className="text-3xl text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
+            <span className="text-3xl text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
           </div>
           <p className="text-muted-foreground text-sm mt-1">회원 전용 서비스</p>
         </div>
