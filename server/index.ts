@@ -7,6 +7,7 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
+import sequenceRoutes from "./sequenceRoutes";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches } from "../drizzle/schema";
@@ -51,6 +52,9 @@ app.use(
     }),
   })
 );
+
+// 시퀀스 커뮤니티 API
+app.use("/api/sequences", sequenceRoutes);
 
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
@@ -383,6 +387,43 @@ async function initDatabase() {
       notes TEXT,
       mood TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS sequence_authors (
+      id SERIAL PRIMARY KEY,
+      kakao_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      thumbnail TEXT,
+      bio TEXT,
+      created_at TEXT NOT NULL DEFAULT now()::text,
+      updated_at TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS sequences (
+      id SERIAL PRIMARY KEY,
+      author_id INTEGER NOT NULL REFERENCES sequence_authors(id),
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT,
+      body_parts TEXT,
+      target_audience TEXT,
+      difficulty TEXT,
+      estimated_minutes TEXT,
+      equipment TEXT,
+      class_goal TEXT,
+      coaching_notes TEXT,
+      exercises_json TEXT NOT NULL DEFAULT '[]',
+      is_public BOOLEAN NOT NULL DEFAULT false,
+      price INTEGER NOT NULL DEFAULT 0,
+      view_count INTEGER NOT NULL DEFAULT 0,
+      like_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT now()::text,
+      updated_at TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS sequence_likes (
+      id SERIAL PRIMARY KEY,
+      sequence_id INTEGER NOT NULL REFERENCES sequences(id),
+      author_id INTEGER NOT NULL REFERENCES sequence_authors(id),
+      created_at TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE(sequence_id, author_id)
     )`,
   ];
 

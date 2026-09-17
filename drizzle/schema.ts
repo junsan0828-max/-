@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 const now = sql`now()::text`;
@@ -445,4 +445,48 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   notes: text("notes"),
   mood: text("mood"),
   createdAt: text("createdAt").default(now).notNull(),
+});
+
+// ─── 시퀀스 커뮤니티 ──────────────────────────────────────────────────────────
+
+// 카카오 로그인 기반 시퀀스 작성자
+export const sequenceAuthors = pgTable("sequence_authors", {
+  id: serial("id").primaryKey(),
+  kakaoId: text("kakao_id").notNull().unique(),
+  name: text("name").notNull(),
+  thumbnail: text("thumbnail"),
+  bio: text("bio"),
+  createdAt: text("created_at").default(now).notNull(),
+  updatedAt: text("updated_at").default(now).notNull(),
+});
+
+// 시퀀스
+export const sequences = pgTable("sequences", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category"),
+  bodyParts: text("body_parts"),
+  targetAudience: text("target_audience"),
+  difficulty: text("difficulty"),
+  estimatedMinutes: text("estimated_minutes"),
+  equipment: text("equipment"),
+  classGoal: text("class_goal"),
+  coachingNotes: text("coaching_notes"),
+  exercisesJson: text("exercises_json").notNull().default("[]"),
+  isPublic: boolean("is_public").default(false).notNull(),
+  price: integer("price").default(0).notNull(),
+  viewCount: integer("view_count").default(0).notNull(),
+  likeCount: integer("like_count").default(0).notNull(),
+  createdAt: text("created_at").default(now).notNull(),
+  updatedAt: text("updated_at").default(now).notNull(),
+});
+
+// 좋아요
+export const sequenceLikes = pgTable("sequence_likes", {
+  id: serial("id").primaryKey(),
+  sequenceId: integer("sequence_id").notNull(),
+  authorId: integer("author_id").notNull(),
+  createdAt: text("created_at").default(now).notNull(),
 });
