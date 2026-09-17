@@ -13,10 +13,30 @@ import AdminRenewalRequestsModal from "./AdminRenewalRequestsModal";
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
+  const [dismissedAt, setDismissedAt] = useState<number>(0);
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => window.location.reload(),
     onError: () => toast.error("로그아웃 실패"),
   });
+
+  const isAdminOrConsultant = user?.role === "admin" || user?.role === "sub_admin" || user?.role === "consultant";
+  const { data: pointUsages } = trpc.kiosk.getRecentPointUsages.useQuery(undefined, {
+    enabled: isAdminOrConsultant,
+    refetchInterval: 30000,
+  });
+
+  const newPointUsages = (pointUsages ?? []).filter(u => {
+    try { return new Date(u.createdAt).getTime() > dismissedAt; } catch { return false; }
+  });
+  const showPointBanner = isAdminOrConsultant && newPointUsages.length > 0;
+
+  function formatKstTime(iso: string) {
+    try {
+      const d = new Date(iso);
+      const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+      return `${String(kst.getUTCHours()).padStart(2,"0")}:${String(kst.getUTCMinutes()).padStart(2,"0")}`;
+    } catch { return ""; }
+  }
 
   // PWA 설치 프롬프트
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -158,6 +178,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               설치
             </button>
             <button onClick={dismissBanner} className="text-muted-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* 포인트 사용 알림 (어드민/컨설턴트 전용) */}
+        {showPointBanner && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 flex items-start gap-3 shrink-0">
+            <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-amber-600 mb-1">키오스크 포인트 사용 ({newPointUsages.length}건)</p>
+              {newPointUsages.slice(0, 5).map((u, i) => (
+                <p key={i} className="text-xs text-amber-700/80">
+                  {formatKstTime(u.createdAt)} · {u.name}님 {u.amount.toLocaleString()}P 사용 → 잔여 {u.balanceAfter.toLocaleString()}P
+                </p>
+              ))}
+            </div>
+            <button
+              onClick={() => setDismissedAt(Date.now())}
+              className="text-amber-500/60 hover:text-amber-500 shrink-0"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>

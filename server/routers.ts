@@ -6438,6 +6438,72 @@ const kioskRouter = t.router({
       return { name: member.name, alreadyCheckedIn: false, pointsEarned, totalPoints, showPoints, uniformEnd };
     }),
 
+  // ─── 포인트 잔액 조회 ──────────────────────────────────────────────────────────
+  checkPointBalance: publicProcedure
+    .input(z.object({ phone: z.string().min(9) }))
+    .mutation(async ({ input }) => {
+      const digits = input.phone.replace(/\D/g, "");
+      const res = await pool.query(
+        `SELECT gm.id, gm.points, COALESCE(m.name, gm.name) AS name
+         FROM gym_plus_members gm
+         LEFT JOIN members m ON m.id = gm."memberId"
+         WHERE REGEXP_REPLACE(COALESCE(NULLIF(gm.phone,''), gm.username, ''), '[^0-9]', '', 'g') = $1
+           AND gm."isActive" = 1
+         ORDER BY gm.id DESC LIMIT 1`,
+        [digits]
+      );
+      if (!res.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
+      const row = res.rows[0] as { id: number; points: number; name: string };
+      return { name: row.name, points: row.points ?? 0, gymPlusMemberId: row.id };
+    }),
+
+  // ─── 포인트 사용 ──────────────────────────────────────────────────────────────
+  usePoints: publicProcedure
+    .input(z.object({ phone: z.string().min(9), amount: z.number().min(3000) }))
+    .mutation(async ({ input }) => {
+      const digits = input.phone.replace(/\D/g, "");
+      const res = await pool.query(
+        `SELECT gm.id, gm.points, COALESCE(m.name, gm.name) AS name
+         FROM gym_plus_members gm
+         LEFT JOIN members m ON m.id = gm."memberId"
+         WHERE REGEXP_REPLACE(COALESCE(NULLIF(gm.phone,''), gm.username, ''), '[^0-9]', '', 'g') = $1
+           AND gm."isActive" = 1
+         ORDER BY gm.id DESC LIMIT 1`,
+        [digits]
+      );
+      if (!res.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
+      const row = res.rows[0] as { id: number; points: number; name: string };
+      const currentPoints = row.points ?? 0;
+      if (currentPoints < input.amount) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `포인트가 부족합니다. 현재 ${currentPoints}P` });
+      }
+      const newBalance = currentPoints - input.amount;
+      await pool.query(`UPDATE gym_plus_members SET points = $1 WHERE id = $2`, [newBalance, row.id]);
+      await pool.query(
+        `INSERT INTO gym_plus_point_logs ("gymPlusMemberId", type, amount, "balanceAfter", reason, "createdAt")
+         VALUES ($1, 'use', $2, $3, $4, now()::text)`,
+        [row.id, input.amount, newBalance, `키오스크 포인트 사용 (${input.amount}원)`]
+      );
+      return { name: row.name, amount: input.amount, balanceAfter: newBalance };
+    }),
+
+  // ─── 최근 포인트 사용 내역 (어드민/컨설턴트 알림용) ──────────────────────────
+  getRecentPointUsages: protectedProcedure.query(async ({ ctx }) => {
+    const role = ctx.user.role;
+    if (!["admin", "sub_admin", "consultant"].includes(role)) return [];
+    const res = await pool.query(
+      `SELECT pl."createdAt", COALESCE(m.name, gm.name) AS name, pl.amount, pl."balanceAfter"
+       FROM gym_plus_point_logs pl
+       JOIN gym_plus_members gm ON gm.id = pl."gymPlusMemberId"
+       LEFT JOIN members m ON m.id = gm."memberId"
+       WHERE pl.type = 'use'
+         AND pl."createdAt"::timestamptz > NOW() - INTERVAL '3 hours'
+       ORDER BY pl."createdAt" DESC
+       LIMIT 20`
+    );
+    return res.rows as { createdAt: string; name: string; amount: number; balanceAfter: number }[];
+  }),
+
   // ─── 다이어트페이백 전용 체크인 (영상 운동 / 유산소 운동 통합) ─────────────────
   dietCheckIn: publicProcedure
     .input(z.object({ phone: z.string().min(9), workoutType: z.enum(["video", "cardio"]).default("video") }))
