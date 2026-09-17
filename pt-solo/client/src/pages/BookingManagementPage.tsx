@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle, Lock } from "lucide-react";
+import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -18,12 +18,10 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 
 export default function BookingManagementPage() {
-  const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery();
-  const isPro = me?.plan === "pro" || me?.plan === "elite";
-  const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery(undefined, { enabled: !isPro });
-  const { data: brand, isLoading: brandLoading } = trpc.brand.getMyBrand.useQuery(undefined, { enabled: isPro });
+  const { data: brand, isLoading: brandLoading } = trpc.brand.getMyBrand.useQuery();
 
-  const [tab, setTab] = useState<"schedule" | "list">("list");
+  // 기본 탭: 설정이 안 돼 있으면 시간 관리 먼저, 아니면 예약 목록
+  const [tab, setTab] = useState<"schedule" | "list">("schedule");
 
   // ── 시간 관리 탭 ──
   const { data: recurring, refetch: refetchRecurring } = trpc.booking.getRecurring.useQuery();
@@ -57,6 +55,8 @@ export default function BookingManagementPage() {
       setWorkDays(days);
       setStartTime(minTime || "09:00");
       setEndTime(maxTime || "18:00");
+      // 이미 설정돼 있으면 예약 목록 탭으로
+      setTab("list");
     }
   }, [recurring]);
 
@@ -89,44 +89,6 @@ export default function BookingManagementPage() {
     return statusFilter === "all" || b.status === statusFilter;
   });
 
-  if (meLoading) return (
-    <div className="flex items-center justify-center py-12">
-      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-
-  if (!isPro) {
-    return (
-      <div className="space-y-5 pb-8">
-        <TabBanner tabKey="booking" />
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-primary/10">
-            <CalendarCheck className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold">수업 예약 관리</h1>
-            <p className="text-xs text-muted-foreground">시간 관리 · 예약 확인</p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-dashed border-blue-300 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-6 text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/15 flex items-center justify-center mx-auto">
-            <Lock className="h-6 w-6 text-blue-600" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">예약 관리는 PRO 전용 기능입니다</p>
-            <p className="text-xs text-blue-600/80 dark:text-blue-400/80 leading-relaxed">
-              PRO로 업그레이드하면 근무 요일·시간 설정부터 예약 확인·노쇼 관리까지 사용할 수 있어요.
-            </p>
-          </div>
-          <a href="/profile"
-            className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors">
-            연 {(planInfo?.prices?.pro ?? 69000).toLocaleString()}원으로 업그레이드
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   if (brandLoading) return (
     <div className="flex items-center justify-center py-12">
       <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -158,10 +120,10 @@ export default function BookingManagementPage() {
 
       {/* 탭 */}
       <div className="flex gap-1 bg-muted rounded-xl p-1">
-        {(["list", "schedule"] as const).map(t => (
+        {(["schedule", "list"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>
-            {t === "list" ? "예약 목록" : "시간 관리"}
+            {t === "schedule" ? "시간 관리" : "예약 목록"}
           </button>
         ))}
       </div>
@@ -173,7 +135,7 @@ export default function BookingManagementPage() {
           <div>
             <p className="text-xs font-semibold text-amber-600">브랜드 페이지 공개 필요</p>
             <p className="text-[12px] text-amber-600/80 mt-0.5 leading-relaxed">
-              작업실 → 브랜드 페이지에서 <strong>공개 설정</strong>을 켜야 예약 링크가 활성화됩니다.
+              기능 → 브랜드 페이지에서 <strong>공개 설정</strong>을 켜야 예약 링크가 활성화됩니다.
             </p>
           </div>
         </div>
@@ -182,14 +144,11 @@ export default function BookingManagementPage() {
       {/* ── 예약 링크 공유 (모든 탭 공통) ── */}
       {brand?.username && brand?.brandIsPublic === 1 && (
         <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Link2 className="h-4 w-4 text-primary" />
-              <p className="text-sm font-semibold text-primary">예약 링크 공유하기</p>
-            </div>
+          <div className="flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold text-primary">예약 링크 공유하기</p>
           </div>
           <p className="text-xs text-muted-foreground">회원에게 아래 링크를 공유하면 바로 예약할 수 있습니다.</p>
-          <p className="text-[12px] text-muted-foreground/70">버튼 문구·안내 문구·프로그램 옵션 등 상세 설정은 <span className="font-semibold">작업실</span>에서 해주세요.</p>
           <div className="flex gap-2 items-center bg-background border border-border rounded-xl px-3 py-2">
             <span className="text-xs flex-1 truncate text-foreground/70 font-mono">
               {window.location.origin}/c/{encodeURIComponent(brand.username)}
@@ -225,66 +184,9 @@ export default function BookingManagementPage() {
         </div>
       )}
 
-      {/* ── 예약 목록 탭 ── */}
-      {tab === "list" && (
-        <div className="space-y-3">
-          <div className="flex gap-1 bg-muted rounded-xl p-1">
-            {(["class", "consultation"] as const).map(t => (
-              <button key={t} onClick={() => setBookingTypeFilter(t)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${bookingTypeFilter === t ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>
-                {t === "class" ? "수업 예약" : "상담 문의"}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1.5 flex-wrap">
-            <button onClick={() => setStatusFilter("all")}
-              className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
-              전체
-            </button>
-            {Object.entries(STATUS_META).map(([k, v]) => (
-              <button key={k} onClick={() => setStatusFilter(k)}
-                className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
-                {v.label}
-              </button>
-            ))}
-          </div>
-          {filteredBookings.length === 0
-            ? <p className="text-xs text-muted-foreground text-center py-8">예약 내역이 없습니다</p>
-            : filteredBookings.map((b: any) => (
-              <div key={b.id} className="bg-card border border-border rounded-xl p-3.5 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">{b.name}</p>
-                    <p className="text-xs text-muted-foreground">{b.phone}</p>
-                  </div>
-                  <span className={`text-[12px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_META[b.status]?.cls ?? "bg-muted text-muted-foreground"}`}>
-                    {STATUS_META[b.status]?.label ?? b.status}
-                  </span>
-                </div>
-                {(b.reservedDate || b.reservedTime) && (
-                  <p className="text-xs text-muted-foreground">{b.reservedDate} {b.reservedTime}</p>
-                )}
-                {b.interestType && <p className="text-xs text-muted-foreground">프로그램: {b.interestType}</p>}
-                {b.message && <p className="text-xs text-muted-foreground border-t border-border/60 pt-1.5 mt-1">문의: {b.message}</p>}
-                <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/40">
-                  {(["pending","confirmed","visited","cancelled","noshow"] as const).map(s => (
-                    <button key={s} disabled={b.status === s || updateStatusMutation.isPending}
-                      onClick={() => updateStatusMutation.mutate({ id: b.id, status: s })}
-                      className={`text-[12px] px-2.5 py-1 rounded-lg border font-medium transition-colors disabled:opacity-40 ${b.status === s ? "bg-primary/10 text-primary border-primary/30" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}>
-                      {STATUS_META[s].label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
       {/* ── 시간 관리 탭 ── */}
       {tab === "schedule" && (
         <div className="space-y-5">
-          {/* 근무 요일 · 시간 */}
           <div className="rounded-2xl bg-card border border-border p-4 space-y-4">
             <div>
               <p className="text-sm font-semibold">근무 요일</p>
@@ -345,6 +247,62 @@ export default function BookingManagementPage() {
               예약 페이지 미리보기
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── 예약 목록 탭 ── */}
+      {tab === "list" && (
+        <div className="space-y-3">
+          <div className="flex gap-1 bg-muted rounded-xl p-1">
+            {(["class", "consultation"] as const).map(t => (
+              <button key={t} onClick={() => setBookingTypeFilter(t)}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${bookingTypeFilter === t ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>
+                {t === "class" ? "수업 예약" : "상담 문의"}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            <button onClick={() => setStatusFilter("all")}
+              className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
+              전체
+            </button>
+            {Object.entries(STATUS_META).map(([k, v]) => (
+              <button key={k} onClick={() => setStatusFilter(k)}
+                className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+          {filteredBookings.length === 0
+            ? <p className="text-xs text-muted-foreground text-center py-8">예약 내역이 없습니다</p>
+            : filteredBookings.map((b: any) => (
+              <div key={b.id} className="bg-card border border-border rounded-xl p-3.5 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold">{b.name}</p>
+                    <p className="text-xs text-muted-foreground">{b.phone}</p>
+                  </div>
+                  <span className={`text-[12px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_META[b.status]?.cls ?? "bg-muted text-muted-foreground"}`}>
+                    {STATUS_META[b.status]?.label ?? b.status}
+                  </span>
+                </div>
+                {(b.reservedDate || b.reservedTime) && (
+                  <p className="text-xs text-muted-foreground">{b.reservedDate} {b.reservedTime}</p>
+                )}
+                {b.interestType && <p className="text-xs text-muted-foreground">프로그램: {b.interestType}</p>}
+                {b.message && <p className="text-xs text-muted-foreground border-t border-border/60 pt-1.5 mt-1">문의: {b.message}</p>}
+                <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/40">
+                  {(["pending","confirmed","visited","cancelled","noshow"] as const).map(s => (
+                    <button key={s} disabled={b.status === s || updateStatusMutation.isPending}
+                      onClick={() => updateStatusMutation.mutate({ id: b.id, status: s })}
+                      className={`text-[12px] px-2.5 py-1 rounded-lg border font-medium transition-colors disabled:opacity-40 ${b.status === s ? "bg-primary/10 text-primary border-primary/30" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}>
+                      {STATUS_META[s].label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          }
         </div>
       )}
     </div>
