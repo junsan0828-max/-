@@ -102,6 +102,91 @@ const channelsRouter = t.router({
       await db.delete(channels).where(eq(channels.id, input.id));
       return { success: true };
     }),
+
+  conversionStats: protectedProcedure
+    .input(z.object({ year: z.number().optional(), month: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const yr = input?.year ?? null;
+      const mo = input?.month ?? null;
+
+      const { rows: chRows } = await pool.query<{
+        id: string; name: string; type: string;
+        leads_count: string; converted_count: string;
+        revenue_new: string; revenue_rereg: string;
+      }>(`
+        WITH lead_stats AS (
+          SELECT "channelId",
+            COUNT(*) AS total_leads,
+            COUNT(CASE WHEN status = 'registered' THEN 1 END) AS converted
+          FROM leads
+          WHERE ($1::int IS NULL OR EXTRACT(YEAR FROM "createdAt"::date) = $1)
+            AND ($2::int IS NULL OR EXTRACT(MONTH FROM "createdAt"::date) = $2)
+          GROUP BY "channelId"
+        ),
+        rev_stats AS (
+          SELECT "channelId",
+            SUM(CASE WHEN "subType" = '신규'   THEN "paidAmount" ELSE 0 END) AS new_rev,
+            SUM(CASE WHEN "subType" = '재등록' THEN "paidAmount" ELSE 0 END) AS rereg_rev
+          FROM revenue_entries
+          WHERE "subType" NOT IN ('환불','미수금','이전')
+            AND ($1::int IS NULL OR EXTRACT(YEAR FROM "paymentDate"::date) = $1)
+            AND ($2::int IS NULL OR EXTRACT(MONTH FROM "paymentDate"::date) = $2)
+          GROUP BY "channelId"
+        )
+        SELECT ch.id, ch.name, ch.type,
+          COALESCE(ls.total_leads, 0)::text AS leads_count,
+          COALESCE(ls.converted, 0)::text    AS converted_count,
+          COALESCE(rs.new_rev, 0)::text      AS revenue_new,
+          COALESCE(rs.rereg_rev, 0)::text    AS revenue_rereg
+        FROM channels ch
+        LEFT JOIN lead_stats ls ON ls."channelId" = ch.id
+        LEFT JOIN rev_stats   rs ON rs."channelId" = ch.id
+        WHERE ch."isActive" = 1
+        ORDER BY ls.total_leads DESC NULLS LAST, rs.new_rev DESC NULLS LAST
+      `, [yr, mo]);
+
+      // 미귀속(채널 없음) 상담
+      const { rows: noChRows } = await pool.query<{ leads_count: string; converted_count: string }>(`
+        SELECT COUNT(*)::text AS leads_count,
+          COUNT(CASE WHEN status = 'registered' THEN 1 END)::text AS converted_count
+        FROM leads
+        WHERE "channelId" IS NULL
+          AND ($1::int IS NULL OR EXTRACT(YEAR FROM "createdAt"::date) = $1)
+          AND ($2::int IS NULL OR EXTRACT(MONTH FROM "createdAt"::date) = $2)
+      `, [yr, mo]);
+
+      // 재등록률: 만료 회원 수 vs 재등록 매출 건수
+      const { rows: reregRows } = await pool.query<{ total_rereg: string; unique_members: string }>(`
+        SELECT COUNT(*)::text AS total_rereg,
+          COUNT(DISTINCT "memberId")::text AS unique_members
+        FROM revenue_entries
+        WHERE "subType" = '재등록'
+          AND ($1::int IS NULL OR EXTRACT(YEAR FROM "paymentDate"::date) = $1)
+          AND ($2::int IS NULL OR EXTRACT(MONTH FROM "paymentDate"::date) = $2)
+      `, [yr, mo]);
+
+      return {
+        channels: chRows.map(r => ({
+          id: Number(r.id),
+          name: r.name,
+          type: r.type,
+          leadsCount: Number(r.leads_count),
+          convertedCount: Number(r.converted_count),
+          revenueNew: Number(r.revenue_new),
+          revenueRereg: Number(r.revenue_rereg),
+          conversionRate: Number(r.leads_count) > 0
+            ? Math.round((Number(r.converted_count) / Number(r.leads_count)) * 100) : 0,
+        })),
+        unattributed: {
+          leadsCount: Number(noChRows[0]?.leads_count ?? 0),
+          convertedCount: Number(noChRows[0]?.converted_count ?? 0),
+        },
+        reregStats: {
+          totalRereg: Number(reregRows[0]?.total_rereg ?? 0),
+          uniqueMembers: Number(reregRows[0]?.unique_members ?? 0),
+        },
+      };
+    }),
 });
 
 // ─── Leads (CRM) ─────────────────────────────────────────────────────────────
