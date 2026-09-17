@@ -674,6 +674,19 @@ async function initDatabase() {
   )`);
 
   // 휴무일
+  // 트레이너 직접 입력 스케쥴 (공개 예약과 별개)
+  await pool.query(`CREATE TABLE IF NOT EXISTS trainer_schedules (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    "memberId" INTEGER NOT NULL,
+    "scheduledDate" TEXT NOT NULL,
+    "scheduledTime" TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    memo TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS trainer_schedules_trainer_date ON trainer_schedules ("trainerId", "scheduledDate")`);
+
   await pool.query(`CREATE TABLE IF NOT EXISTS booking_blackouts (
     id SERIAL PRIMARY KEY,
     "trainerId" INTEGER NOT NULL,

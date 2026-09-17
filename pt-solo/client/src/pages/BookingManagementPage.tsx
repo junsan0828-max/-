@@ -1,385 +1,479 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Plus, Check, Pencil, Trash2, X, Clock, User,
+} from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
-const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 월~일 순서로 표시
-const ALL_HOURS = ["06:00","07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00","23:00"];
+
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getWeekDates(base: Date): Date[] {
+  const dow = base.getDay(); // 0=Sun
+  const mon = new Date(base);
+  mon.setDate(base.getDate() - ((dow + 6) % 7)); // Monday
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mon);
+    d.setDate(mon.getDate() + i);
+    return d;
+  });
+}
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  pending:   { label: "예약 대기",  cls: "bg-blue-500/15 text-blue-600" },
-  confirmed: { label: "예약 확정",  cls: "bg-green-500/15 text-green-600" },
-  visited:   { label: "방문 완료",  cls: "bg-violet-500/15 text-violet-600" },
-  cancelled: { label: "취소",       cls: "bg-red-500/15 text-red-500" },
-  noshow:    { label: "노쇼",       cls: "bg-amber-500/15 text-amber-600" },
+  pending:   { label: "예정",    cls: "bg-blue-500/15 text-blue-600" },
+  completed: { label: "완료",    cls: "bg-green-500/15 text-green-700" },
+  cancelled: { label: "취소",    cls: "bg-red-500/15 text-red-500" },
 };
 
-export default function BookingManagementPage() {
-  const { data: brand, isLoading: brandLoading } = trpc.brand.getMyBrand.useQuery();
+// ─── Add Schedule Modal ────────────────────────────────────────────────────────
+function AddModal({
+  defaultDate,
+  members,
+  onClose,
+  onSaved,
+}: {
+  defaultDate: string;
+  members: any[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [memberId, setMemberId] = useState<number | "">("");
+  const [date, setDate] = useState(defaultDate);
+  const [time, setTime] = useState("10:00");
+  const [memo, setMemo] = useState("");
+  const [query, setQuery] = useState("");
 
-  // 기본 탭: 설정이 안 돼 있으면 시간 관리 먼저, 아니면 예약 목록
-  const [tab, setTab] = useState<"schedule" | "list">("schedule");
-
-  // ── 시간 관리 탭 ──
-  const today = new Date();
-  const [slotMonth, setSlotMonth] = useState(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`);
-  const { data: slots, refetch: refetchSlots } = trpc.booking.getSlots.useQuery({ month: slotMonth });
-  const deleteSlotMutation = trpc.booking.deleteSlot.useMutation({ onSuccess: () => refetchSlots() });
-
-  const { data: recurring, refetch: refetchRecurring } = trpc.booking.getRecurring.useQuery();
-  const saveRecurringMutation = trpc.booking.saveRecurring.useMutation({ onSuccess: () => refetchRecurring() });
-  const generateMutation = trpc.booking.generateFromRecurring.useMutation({
-    onSuccess: (d: any) => { toast.success(`${d.created}개 슬롯 생성됨`); refetchSlots(); },
+  const createMutation = trpc.trainerSchedules.create.useMutation({
+    onSuccess: () => { toast.success("수업이 추가되었습니다"); onSaved(); onClose(); },
+    onError: (e) => toast.error(e.message),
   });
 
-  const [workDays, setWorkDays] = useState<Set<number>>(new Set());
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("18:00");
-  const [generateWeeks, setGenerateWeeks] = useState(4);
-  const hydratedRecurring = useRef(false);
-
-  useEffect(() => {
-    if (!recurring || hydratedRecurring.current) return;
-    hydratedRecurring.current = true;
-    const days = new Set<number>();
-    let minTime = "", maxTime = "";
-    for (const r of recurring as any[]) {
-      if (!r.times || r.times.length === 0) continue;
-      days.add(r.dayOfWeek);
-      const sorted = [...r.times].sort();
-      if (!minTime || sorted[0] < minTime) minTime = sorted[0];
-      const last = sorted[sorted.length - 1];
-      const lastIdx = ALL_HOURS.indexOf(last);
-      const rangeEnd = lastIdx >= 0 && lastIdx < ALL_HOURS.length - 1 ? ALL_HOURS[lastIdx + 1] : last;
-      if (!maxTime || rangeEnd > maxTime) maxTime = rangeEnd;
-    }
-    if (days.size > 0) {
-      setWorkDays(days);
-      setStartTime(minTime || "09:00");
-      setEndTime(maxTime || "18:00");
-      // 이미 설정돼 있으면 예약 목록 탭으로
-      setTab("list");
-    }
-  }, [recurring]);
-
-  function toggleWorkDay(dayOfWeek: number) {
-    setWorkDays(prev => {
-      const next = new Set(prev);
-      next.has(dayOfWeek) ? next.delete(dayOfWeek) : next.add(dayOfWeek);
-      return next;
-    });
-  }
-
-  function buildRecurringPayload() {
-    const times = ALL_HOURS.filter(t => t >= startTime && t < endTime);
-    return [0, 1, 2, 3, 4, 5, 6].map(dayOfWeek => ({
-      dayOfWeek,
-      times: workDays.has(dayOfWeek) ? times : [],
-    }));
-  }
-
-  // ── 예약 목록 탭 ──
-  const { data: bookingList, refetch: refetchBookings } = trpc.booking.listBookings.useQuery();
-  const updateStatusMutation = trpc.booking.updateStatus.useMutation({ onSuccess: () => refetchBookings() });
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [bookingTypeFilter, setBookingTypeFilter] = useState<"class" | "consultation">("class");
-
-  const filteredBookings = (bookingList ?? []).filter((b: any) => {
-    const isClass = b.slotId != null;
-    if (bookingTypeFilter === "class" && !isClass) return false;
-    if (bookingTypeFilter === "consultation" && isClass) return false;
-    return statusFilter === "all" || b.status === statusFilter;
-  });
-
-  if (brandLoading) return (
-    <div className="flex items-center justify-center py-12">
-      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
+  const filtered = members.filter((m) =>
+    !query || m.name.includes(query) || (m.phone && m.phone.includes(query))
   );
 
   return (
-    <div className="space-y-5 pb-8">
-      <TabBanner tabKey="booking" />
-      {/* 헤더 */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-primary/10">
-          <CalendarCheck className="h-5 w-5 text-primary" />
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-t-2xl bg-white p-6 pb-8 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-lg">수업 추가</span>
+          <button onClick={onClose}><X size={20} /></button>
         </div>
-        <div className="flex-1">
-          <h1 className="text-lg font-bold">수업 예약 관리</h1>
-          <p className="text-xs text-muted-foreground">시간 관리 · 예약 확인</p>
+
+        {/* Member search */}
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">회원 선택</label>
+          <input
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+            placeholder="이름·전화번호 검색"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setMemberId(""); }}
+          />
+          {query && (
+            <div className="border rounded-lg mt-1 max-h-40 overflow-y-auto">
+              {filtered.length === 0 && (
+                <p className="text-sm text-gray-400 p-3">검색 결과 없음</p>
+              )}
+              {filtered.map((m) => (
+                <button
+                  key={m.id}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${memberId === m.id ? "bg-indigo-50 font-medium" : ""}`}
+                  onClick={() => { setMemberId(m.id); setQuery(m.name); }}
+                >
+                  {m.name} {m.phone ? `· ${m.phone}` : ""}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        {brand?.username && brand?.brandIsPublic === 1 && (
+
+        {/* Date + Time */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">날짜</label>
+            <input
+              type="date"
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">시간</label>
+            <input
+              type="time"
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Memo */}
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">메모 (선택)</label>
+          <textarea
+            className="w-full border rounded-lg px-3 py-2 text-sm resize-none"
+            rows={2}
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="특이사항, 부위 등"
+          />
+        </div>
+
+        <Button
+          className="w-full"
+          disabled={!memberId || !date || !time || createMutation.isPending}
+          onClick={() =>
+            createMutation.mutate({
+              memberId: memberId as number,
+              scheduledDate: date,
+              scheduledTime: time,
+              memo: memo || undefined,
+            })
+          }
+        >
+          {createMutation.isPending ? "저장 중…" : "추가"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Time Modal ───────────────────────────────────────────────────────────
+function EditTimeModal({
+  schedule,
+  onClose,
+  onSaved,
+}: {
+  schedule: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [date, setDate] = useState(schedule.scheduledDate);
+  const [time, setTime] = useState(schedule.scheduledTime);
+
+  const updateMutation = trpc.trainerSchedules.update.useMutation({
+    onSuccess: () => { toast.success("수정되었습니다"); onSaved(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-t-2xl bg-white p-6 pb-8 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-lg">시간 변경</span>
+          <button onClick={onClose}><X size={20} /></button>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">날짜</label>
+            <input
+              type="date"
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">시간</label>
+            <input
+              type="time"
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+          </div>
+        </div>
+        <Button
+          className="w-full"
+          disabled={updateMutation.isPending}
+          onClick={() => updateMutation.mutate({ id: schedule.id, scheduledDate: date, scheduledTime: time })}
+        >
+          {updateMutation.isPending ? "저장 중…" : "저장"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Action Sheet ──────────────────────────────────────────────────────────────
+function ActionSheet({
+  schedule,
+  onClose,
+  onRefresh,
+}: {
+  schedule: any;
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  const [showEdit, setShowEdit] = useState(false);
+
+  const completeMutation = trpc.trainerSchedules.complete.useMutation({
+    onSuccess: () => { toast.success("수업 완료 처리되었습니다"); onRefresh(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteMutation = trpc.trainerSchedules.delete.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다"); onRefresh(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (showEdit) {
+    return <EditTimeModal schedule={schedule} onClose={() => setShowEdit(false)} onSaved={onRefresh} />;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-t-2xl bg-white pb-8 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b">
+          <p className="font-semibold">{schedule.memberName}</p>
+          <p className="text-sm text-gray-500">{schedule.scheduledDate} {schedule.scheduledTime}</p>
+        </div>
+
+        {/* Actions */}
+        <button
+          className="flex items-center gap-3 w-full px-6 py-4 hover:bg-gray-50 text-left"
+          onClick={() => setShowEdit(true)}
+        >
+          <Pencil size={18} className="text-gray-500" />
+          <span>시간 변경</span>
+        </button>
+
+        {schedule.status !== "completed" && (
           <button
-            onClick={() => window.open(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`, "_blank")}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 transition-colors shrink-0"
+            className="flex items-center gap-3 w-full px-6 py-4 hover:bg-gray-50 text-left"
+            disabled={completeMutation.isPending}
+            onClick={() =>
+              completeMutation.mutate({
+                id: schedule.id,
+                memberId: schedule.memberId,
+                scheduledDate: schedule.scheduledDate,
+                scheduledTime: schedule.scheduledTime,
+              })
+            }
           >
-            <ExternalLink className="h-3.5 w-3.5" />
-            미리보기
+            <Check size={18} className="text-green-600" />
+            <span className="text-green-700">수업 완료</span>
           </button>
+        )}
+
+        <button
+          className="flex items-center gap-3 w-full px-6 py-4 hover:bg-gray-50 text-left"
+          disabled={deleteMutation.isPending}
+          onClick={() => {
+            if (confirm("이 수업을 삭제할까요?")) deleteMutation.mutate({ id: schedule.id });
+          }}
+        >
+          <Trash2 size={18} className="text-red-500" />
+          <span className="text-red-500">삭제</span>
+        </button>
+
+        <button className="w-full px-6 py-3 text-sm text-gray-400" onClick={onClose}>
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function BookingManagementPage() {
+  const today = new Date();
+  const todayStr = toDateStr(today);
+
+  const [weekBase, setWeekBase] = useState(() => {
+    const d = new Date(today);
+    return d;
+  });
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [showAdd, setShowAdd] = useState(false);
+  const [activeSheet, setActiveSheet] = useState<any>(null);
+
+  const weekDates = getWeekDates(weekBase);
+  const startDate = toDateStr(weekDates[0]);
+  const endDate = toDateStr(weekDates[6]);
+
+  const { data: schedules = [], refetch } = trpc.trainerSchedules.getByDateRange.useQuery(
+    { startDate, endDate },
+    { refetchOnWindowFocus: false }
+  );
+
+  const { data: members = [] } = trpc.members.list.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  const daySchedules = (schedules as any[]).filter((s) => s.scheduledDate === selectedDate);
+  daySchedules.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+
+  // Count per day for badge
+  const countByDate: Record<string, number> = {};
+  for (const s of schedules as any[]) {
+    countByDate[s.scheduledDate] = (countByDate[s.scheduledDate] ?? 0) + 1;
+  }
+
+  function prevWeek() {
+    const d = new Date(weekBase);
+    d.setDate(d.getDate() - 7);
+    setWeekBase(d);
+  }
+  function nextWeek() {
+    const d = new Date(weekBase);
+    d.setDate(d.getDate() + 7);
+    setWeekBase(d);
+  }
+  function goToday() {
+    setWeekBase(new Date(today));
+    setSelectedDate(todayStr);
+  }
+
+  const weekLabel = (() => {
+    const y = weekDates[0].getFullYear();
+    const m = weekDates[0].getMonth() + 1;
+    return `${y}년 ${m}월`;
+  })();
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-28">
+      <TabBanner tabKey="schedule" />
+
+      {/* Week navigation */}
+      <div className="bg-white border-b px-4 pt-4 pb-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={prevWeek} className="p-1"><ChevronLeft size={20} /></button>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm">{weekLabel}</span>
+            <button
+              onClick={goToday}
+              className="text-xs border border-indigo-300 text-indigo-600 rounded-full px-2 py-0.5"
+            >
+              오늘
+            </button>
+          </div>
+          <button onClick={nextWeek} className="p-1"><ChevronRight size={20} /></button>
+        </div>
+
+        {/* Day chips */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          {weekDates.map((d) => {
+            const ds = toDateStr(d);
+            const isSelected = ds === selectedDate;
+            const isToday = ds === todayStr;
+            const cnt = countByDate[ds] ?? 0;
+            const dow = d.getDay();
+            return (
+              <button
+                key={ds}
+                onClick={() => setSelectedDate(ds)}
+                className={`flex-shrink-0 flex flex-col items-center rounded-xl px-3 py-2 min-w-[44px] transition-colors ${
+                  isSelected
+                    ? "bg-indigo-600 text-white"
+                    : isToday
+                    ? "bg-indigo-50 text-indigo-600"
+                    : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                <span className={`text-[10px] ${isSelected ? "text-indigo-200" : dow === 0 ? "text-red-400" : dow === 6 ? "text-blue-400" : "text-gray-400"}`}>
+                  {DAYS_KO[dow]}
+                </span>
+                <span className="text-sm font-semibold">{d.getDate()}</span>
+                {cnt > 0 && (
+                  <span className={`text-[10px] mt-0.5 font-medium ${isSelected ? "text-indigo-200" : "text-indigo-500"}`}>
+                    {cnt}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected day schedule */}
+      <div className="px-4 pt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-800">
+            {selectedDate.replace(/-/g, ".")} 수업
+          </h2>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1.5 bg-indigo-600 text-white text-sm rounded-full px-3 py-1.5"
+          >
+            <Plus size={15} />
+            수업 추가
+          </button>
+        </div>
+
+        {daySchedules.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <Clock size={36} className="mx-auto mb-3 opacity-30" />
+            <p className="text-sm">이 날 예정된 수업이 없습니다</p>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="mt-3 text-indigo-500 text-sm underline"
+            >
+              수업 추가하기
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {daySchedules.map((s: any) => {
+              const meta = STATUS_META[s.status] ?? STATUS_META.pending;
+              return (
+                <button
+                  key={s.id}
+                  className="w-full bg-white rounded-xl border p-4 flex items-center gap-4 text-left hover:border-indigo-300 transition-colors"
+                  onClick={() => setActiveSheet(s)}
+                >
+                  <div className="text-center min-w-[42px]">
+                    <p className="text-base font-bold text-gray-800">{s.scheduledTime.slice(0, 5)}</p>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <User size={14} className="text-gray-400 flex-shrink-0" />
+                      <p className="font-medium text-gray-900 truncate">{s.memberName}</p>
+                      <span className={`text-[11px] rounded-full px-2 py-0.5 flex-shrink-0 ${meta.cls}`}>
+                        {meta.label}
+                      </span>
+                    </div>
+                    {s.memo && <p className="text-xs text-gray-400 mt-0.5 truncate">{s.memo}</p>}
+                  </div>
+                  <ChevronRight size={16} className="text-gray-300 flex-shrink-0" />
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* 탭 */}
-      <div className="flex gap-1 bg-muted rounded-xl p-1">
-        {(["schedule", "list"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>
-            {t === "schedule" ? "시간 관리" : "예약 목록"}
-          </button>
-        ))}
-      </div>
-
-      {/* ── 브랜드 페이지 미공개 경고 ── */}
-      {brand && !brand.brandIsPublic && (
-        <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3.5 py-3">
-          <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-amber-600">브랜드 페이지 공개 필요</p>
-            <p className="text-[12px] text-amber-600/80 mt-0.5 leading-relaxed">
-              기능 → 브랜드 페이지에서 <strong>공개 설정</strong>을 켜야 예약 링크가 활성화됩니다.
-            </p>
-          </div>
-        </div>
+      {/* Modals */}
+      {showAdd && (
+        <AddModal
+          defaultDate={selectedDate}
+          members={members as any[]}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => refetch()}
+        />
       )}
-
-      {/* ── 예약 링크 공유 (모든 탭 공통) ── */}
-      {brand?.username && brand?.brandIsPublic === 1 && (
-        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-primary" />
-            <p className="text-sm font-semibold text-primary">예약 링크 공유하기</p>
-          </div>
-          <p className="text-xs text-muted-foreground">회원에게 아래 링크를 공유하면 바로 예약할 수 있습니다.</p>
-          <div className="flex gap-2 items-center bg-background border border-border rounded-xl px-3 py-2">
-            <span className="text-xs flex-1 truncate text-foreground/70 font-mono">
-              {window.location.origin}/c/{encodeURIComponent(brand.username)}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`);
-                toast.success("링크가 복사되었습니다");
-              }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              링크 복사
-            </button>
-            <button
-              onClick={async () => {
-                const url = `${window.location.origin}/c/${encodeURIComponent(brand.username)}`;
-                if (navigator.share) {
-                  try { await navigator.share({ title: "수업 예약하기", url }); } catch {}
-                } else {
-                  navigator.clipboard.writeText(url);
-                  toast.success("링크가 복사되었습니다");
-                }
-              }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 transition-colors"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-              공유하기
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── 시간 관리 탭 ── */}
-      {tab === "schedule" && (
-        <div className="space-y-5">
-          <div className="rounded-2xl bg-card border border-border p-4 space-y-4">
-            <div>
-              <p className="text-sm font-semibold">근무 요일</p>
-              <p className="text-xs text-muted-foreground mt-0.5">예약을 받을 요일을 선택하세요.</p>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {DAY_ORDER.map(d => {
-                const active = workDays.has(d);
-                const isWeekend = d === 0 || d === 6;
-                return (
-                  <button key={d} onClick={() => toggleWorkDay(d)}
-                    className={`w-10 h-10 rounded-full border text-sm font-semibold transition-colors ${
-                      active ? "bg-primary text-primary-foreground border-primary" :
-                      isWeekend ? "bg-background border-border text-red-400" : "bg-background border-border text-muted-foreground"
-                    }`}>
-                    {DAYS_KO[d]}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="border-t border-border/60 pt-4 space-y-1.5">
-              <p className="text-sm font-semibold">근무 시간</p>
-              <div className="flex items-center gap-2">
-                <select value={startTime} onChange={e => setStartTime(e.target.value)}
-                  className="flex-1 h-10 rounded-xl border border-border bg-background px-3 text-sm">
-                  {ALL_HOURS.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <span className="text-muted-foreground text-sm">~</span>
-                <select value={endTime} onChange={e => setEndTime(e.target.value)}
-                  className="flex-1 h-10 rounded-xl border border-border bg-background px-3 text-sm">
-                  {ALL_HOURS.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <p className="text-[12px] text-muted-foreground">선택한 요일에 1시간 간격으로 예약 슬롯이 생성됩니다.</p>
-            </div>
-          </div>
-
-          <div className="flex gap-2 items-center">
-            <select value={generateWeeks} onChange={e => setGenerateWeeks(Number(e.target.value))}
-              className="h-9 bg-background border border-border rounded-lg px-2 text-xs shrink-0">
-              {[1,2,4,8,12].map(w => <option key={w} value={w}>앞으로 {w}주</option>)}
-            </select>
-            <Button size="sm" className="flex-1 h-9 text-xs"
-              disabled={workDays.size === 0 || startTime >= endTime || saveRecurringMutation.isPending || generateMutation.isPending}
-              onClick={async () => {
-                await saveRecurringMutation.mutateAsync(buildRecurringPayload());
-                generateMutation.mutate({ weeks: generateWeeks });
-              }}>
-              {(saveRecurringMutation.isPending || generateMutation.isPending) ? "생성 중..." : "저장 후 슬롯 자동 생성"}
-            </Button>
-          </div>
-          {brand?.username && brand?.brandIsPublic === 1 && (
-            <button
-              onClick={() => window.open(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`, "_blank")}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors">
-              <ExternalLink className="h-3.5 w-3.5" />
-              예약 페이지 미리보기
-            </button>
-          )}
-
-          {/* ── 생성된 슬롯 목록 ── */}
-          <div className="rounded-2xl bg-card border border-border overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-              <p className="text-sm font-semibold">생성된 슬롯</p>
-              <div className="flex items-center gap-1">
-                <button onClick={() => {
-                  const [y, m] = slotMonth.split("-").map(Number);
-                  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-                  setSlotMonth(prev);
-                }} className="p-1 rounded-lg hover:bg-muted transition-colors">
-                  <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-                </button>
-                <span className="text-xs font-semibold w-16 text-center">{slotMonth}</span>
-                <button onClick={() => {
-                  const [y, m] = slotMonth.split("-").map(Number);
-                  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-                  setSlotMonth(next);
-                }} className="p-1 rounded-lg hover:bg-muted transition-colors">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </div>
-            </div>
-            {(() => {
-              if (!slots || slots.length === 0) return (
-                <p className="text-xs text-muted-foreground text-center py-6">이 달에 생성된 슬롯이 없습니다</p>
-              );
-              // 날짜별 그룹
-              const grouped: Record<string, any[]> = {};
-              for (const s of slots as any[]) {
-                if (!grouped[s.date]) grouped[s.date] = [];
-                grouped[s.date].push(s);
-              }
-              return (
-                <div className="divide-y divide-border/40">
-                  {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, daySlots]) => (
-                    <div key={date} className="px-4 py-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold">
-                          {date} ({DAYS_KO[new Date(date + "T00:00:00").getDay()]})
-                        </p>
-                        <span className="text-[11px] text-muted-foreground">
-                          {(daySlots as any[]).filter(s => s.isBooked).length}/{(daySlots as any[]).length} 예약됨
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(daySlots as any[]).map((s: any) => (
-                          <div key={s.id}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-medium border ${
-                              s.isBooked
-                                ? "bg-primary/10 text-primary border-primary/30"
-                                : "bg-background text-muted-foreground border-border"
-                            }`}>
-                            {s.time}
-                            {!s.isBooked && (
-                              <button
-                                onClick={() => deleteSlotMutation.mutate({ id: s.id })}
-                                disabled={deleteSlotMutation.isPending}
-                                className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity">
-                                <Trash2 className="h-2.5 w-2.5" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* ── 예약 목록 탭 ── */}
-      {tab === "list" && (
-        <div className="space-y-3">
-          <div className="flex gap-1 bg-muted rounded-xl p-1">
-            {(["class", "consultation"] as const).map(t => (
-              <button key={t} onClick={() => setBookingTypeFilter(t)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${bookingTypeFilter === t ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>
-                {t === "class" ? "수업 예약" : "상담 문의"}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1.5 flex-wrap">
-            <button onClick={() => setStatusFilter("all")}
-              className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === "all" ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
-              전체
-            </button>
-            {Object.entries(STATUS_META).map(([k, v]) => (
-              <button key={k} onClick={() => setStatusFilter(k)}
-                className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-background border-border text-muted-foreground font-normal"}`}>
-                {v.label}
-              </button>
-            ))}
-          </div>
-          {filteredBookings.length === 0
-            ? <p className="text-xs text-muted-foreground text-center py-8">예약 내역이 없습니다</p>
-            : filteredBookings.map((b: any) => (
-              <div key={b.id} className="bg-card border border-border rounded-xl p-3.5 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">{b.name}</p>
-                    <p className="text-xs text-muted-foreground">{b.phone}</p>
-                  </div>
-                  <span className={`text-[12px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_META[b.status]?.cls ?? "bg-muted text-muted-foreground"}`}>
-                    {STATUS_META[b.status]?.label ?? b.status}
-                  </span>
-                </div>
-                {(b.reservedDate || b.reservedTime) && (
-                  <p className="text-xs text-muted-foreground">{b.reservedDate} {b.reservedTime}</p>
-                )}
-                {b.interestType && <p className="text-xs text-muted-foreground">프로그램: {b.interestType}</p>}
-                {b.message && <p className="text-xs text-muted-foreground border-t border-border/60 pt-1.5 mt-1">문의: {b.message}</p>}
-                <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/40">
-                  {(["pending","confirmed","visited","cancelled","noshow"] as const).map(s => (
-                    <button key={s} disabled={b.status === s || updateStatusMutation.isPending}
-                      onClick={() => updateStatusMutation.mutate({ id: b.id, status: s })}
-                      className={`text-[12px] px-2.5 py-1 rounded-lg border font-medium transition-colors disabled:opacity-40 ${b.status === s ? "bg-primary/10 text-primary border-primary/30" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}>
-                      {STATUS_META[s].label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))
-          }
-        </div>
+      {activeSheet && (
+        <ActionSheet
+          schedule={activeSheet}
+          onClose={() => setActiveSheet(null)}
+          onRefresh={() => refetch()}
+        />
       )}
     </div>
   );

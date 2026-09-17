@@ -5913,6 +5913,103 @@ const academyRouter = t.router({
     }),
 });
 
+const trainerSchedulesRouter = t.router({
+  getByDateRange: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const rows = await pool.query<any>(
+        `SELECT ts.*, m.name AS "memberName"
+         FROM trainer_schedules ts
+         JOIN members m ON m.id = ts."memberId"
+         WHERE ts."trainerId" = $1 AND ts."scheduledDate" >= $2 AND ts."scheduledDate" <= $3
+         ORDER BY ts."scheduledDate", ts."scheduledTime"`,
+        [tid, input.startDate, input.endDate]
+      );
+      return rows.rows;
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      scheduledDate: z.string(),
+      scheduledTime: z.string(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const result = await pool.query<any>(
+        `INSERT INTO trainer_schedules ("trainerId", "memberId", "scheduledDate", "scheduledTime", memo)
+         VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+        [tid, input.memberId, input.scheduledDate, input.scheduledTime, input.memo ?? null]
+      );
+      return result.rows[0];
+    }),
+
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      scheduledDate: z.string().optional(),
+      scheduledTime: z.string().optional(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const sets: string[] = [];
+      const vals: any[] = [];
+      let idx = 1;
+      if (input.scheduledDate !== undefined) { sets.push(`"scheduledDate"=$${idx++}`); vals.push(input.scheduledDate); }
+      if (input.scheduledTime !== undefined) { sets.push(`"scheduledTime"=$${idx++}`); vals.push(input.scheduledTime); }
+      if (input.memo !== undefined) { sets.push(`memo=$${idx++}`); vals.push(input.memo); }
+      if (sets.length === 0) return { success: true };
+      vals.push(input.id, tid);
+      await pool.query(
+        `UPDATE trainer_schedules SET ${sets.join(",")} WHERE id=$${idx++} AND "trainerId"=$${idx}`,
+        vals
+      );
+      return { success: true };
+    }),
+
+  complete: protectedProcedure
+    .input(z.object({ id: z.number(), memberId: z.number(), scheduledDate: z.string(), scheduledTime: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      // 출석 기록
+      const existing = await db.select({ id: attendanceChecks.id })
+        .from(attendanceChecks)
+        .where(and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.scheduledDate)))
+        .limit(1);
+      if (existing[0]) {
+        await db.update(attendanceChecks).set({ status: "attended", checkTime: input.scheduledTime }).where(eq(attendanceChecks.id, existing[0].id));
+      } else {
+        await db.insert(attendanceChecks).values({ memberId: input.memberId, trainerId: tid, checkDate: input.scheduledDate, checkTime: input.scheduledTime, status: "attended" });
+      }
+      // 세션 차감
+      const activePkgs = await db.select({ id: ptPackages.id }).from(ptPackages)
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active"))).limit(1);
+      if (activePkgs[0]) {
+        await db.update(ptPackages).set({ usedSessions: sql`"usedSessions" + 1` }).where(eq(ptPackages.id, activePkgs[0].id));
+      }
+      // 스케쥴 완료 처리
+      await pool.query(`UPDATE trainer_schedules SET status='completed' WHERE id=$1 AND "trainerId"=$2`, [input.id, tid]);
+      return { success: true };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(`DELETE FROM trainer_schedules WHERE id=$1 AND "trainerId"=$2`, [input.id, tid]);
+      return { success: true };
+    }),
+});
+
 const trainerFeedbackRouter = t.router({
   submit: protectedProcedure
     .input(z.object({
@@ -6223,6 +6320,7 @@ export const appRouter = t.router({
   academy: academyRouter,
   eContract: eContractRouter,
   booking: bookingRouter,
+  trainerSchedules: trainerSchedulesRouter,
   trainerFeedback: trainerFeedbackRouter,
   dietPlans: dietPlansRouter,
   salesBook: salesBookRouter,
