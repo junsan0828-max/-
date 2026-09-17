@@ -2072,7 +2072,7 @@ const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
           "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion",
           "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
           "renewal_analysis", "ai_insights"],
-  pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"],
+  pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal"],
   elite: [],
 };
 

@@ -65,7 +65,7 @@ const FREE_IDS = new Set([
   "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
   "renewal_analysis", "ai_insights",
 ]);
-const PRO_IDS = new Set(["fitstep_plus", "fitstep_rec", "booking"]);
+const PRO_IDS = new Set(["fitstep_plus", "fitstep_rec"]);
 const ELITE_IDS = new Set<string>([]);
 // contract_kakao는 이미 편집 모달(EContractManager 재사용)로 연결돼 있어 "준비 중"이 아님
 const COMING_SOON_IDS = new Set(["activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
