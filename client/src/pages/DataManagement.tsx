@@ -196,6 +196,7 @@ function CustomerTab() {
   const { data: expiring } = trpc.access.getAdminExpiringMembers.useQuery({ days: 30 });
   const { data: unpaid } = trpc.pt.listUnpaid.useQuery();
   const { data: activePt } = trpc.access.getActivePtPackages.useQuery();
+  const { data: autoMsg } = trpc.access.getAutoMessageStats.useQuery();
 
   const totalUnpaid = (unpaid ?? []).reduce((s, p) => s + (p.unpaidAmount ?? 0), 0);
   const lowSession = (activePt ?? []).filter((p: any) => (p.totalSessions - p.usedSessions) <= 5);
@@ -312,6 +313,35 @@ function CustomerTab() {
             <div className="flex justify-between px-3 py-2 border-t border-border mt-1 pt-2">
               <span className="text-xs text-muted-foreground font-medium">총 미수금</span>
               <span className="text-sm font-bold text-red-400">{totalUnpaid.toLocaleString()}원</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* AI 자동문자 발송 현황 (이번달) */}
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <Target className="h-4 w-4 text-emerald-400" /> AI 자동문자 발송 현황 (이번달)
+        </h3>
+        {!autoMsg ? (
+          <p className="text-xs text-muted-foreground text-center py-4">불러오는 중...</p>
+        ) : autoMsg.totalSent === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">이번달 발송 내역이 없습니다</p>
+        ) : (
+          <div className="space-y-1.5">
+            {autoMsg.categories.map(c => (
+              <div key={c.category} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
+                <p className="text-sm text-foreground">{c.label}</p>
+                <span className="text-sm font-semibold text-foreground">{c.sent}건</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between px-3 py-2 border-t border-border mt-1 pt-2">
+              <span className="text-xs text-muted-foreground font-medium">
+                재등록 전환 ({autoMsg.convertedCount}/{autoMsg.reRegTargetSent}건 — 만료·재등록유도 대상 기준)
+              </span>
+              <span className="text-sm font-bold text-emerald-400">
+                {autoMsg.conversionRate !== null ? `${autoMsg.conversionRate}%` : "-"}
+              </span>
             </div>
           </div>
         )}

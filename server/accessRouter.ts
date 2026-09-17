@@ -992,4 +992,56 @@ export const accessRouter = t.router({
       );
       return result.rows as Array<{ hour: number; count: number }>;
     }),
+
+  // AI 자동문자(만료 D-10/D-5, 재등록 유도, 신규가입 안내, 상담 후속) 이번달 발송 현황 + 재등록 전환율.
+  // auto_message_log는 ai-team 자동화가 기록하는 테이블(같은 DB) — 별도 앱이 아니라 이 시스템
+  // 데이터 관리 화면에서도 정확한 발송 건수와 전환율을 바로 확인할 수 있도록 노출한다.
+  getAutoMessageStats: protectedProcedure
+    .query(async () => {
+      const byCategory = await pool.query(`
+        SELECT category, COUNT(*) FILTER (WHERE success)::int AS sent
+        FROM auto_message_log
+        WHERE sent_at >= date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'
+          AND sent_at < (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') + interval '1 month') AT TIME ZONE 'Asia/Seoul'
+        GROUP BY category
+      `);
+
+      // 전환 = 발송 성공 회원이 발송일 이후 '재등록' 매출을 남긴 경우 (만료/재등록유도 카테고리만 해당 —
+      // 상담후속·신규가입안내는 회원 재등록 개념이 아니라 전환 분모에서 제외).
+      const converted = await pool.query(`
+        SELECT COUNT(*)::int AS c
+        FROM auto_message_log aml
+        WHERE aml.category IN ('expiry_d10', 'expiry_d5', 'lapsed_recover')
+          AND aml.success = true
+          AND aml.member_id IS NOT NULL
+          AND aml.sent_at >= date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'
+          AND aml.sent_at < (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') + interval '1 month') AT TIME ZONE 'Asia/Seoul'
+          AND EXISTS (
+            SELECT 1 FROM revenue_entries re
+            WHERE re."memberId" = aml.member_id AND re."subType" = '재등록'
+              AND re."paymentDate" >= to_char(aml.sent_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD')
+          )
+      `);
+
+      const CATEGORY_LABEL: Record<string, string> = {
+        expiry_d10: "만료 D-10",
+        expiry_d5: "만료 D-5",
+        lapsed_recover: "재등록 유도",
+        consult_followup: "상담 후속",
+        signup_complete: "신규가입 안내",
+      };
+      const categories = byCategory.rows.map((r: any) => ({
+        category: r.category as string,
+        label: CATEGORY_LABEL[r.category] ?? r.category,
+        sent: r.sent as number,
+      }));
+      const reRegTargetSent = categories
+        .filter((c) => ["expiry_d10", "expiry_d5", "lapsed_recover"].includes(c.category))
+        .reduce((s, c) => s + c.sent, 0);
+      const totalSent = categories.reduce((s, c) => s + c.sent, 0);
+      const convertedCount = converted.rows[0]?.c ?? 0;
+      const conversionRate = reRegTargetSent > 0 ? Math.round((convertedCount / reRegTargetSent) * 1000) / 10 : null;
+
+      return { categories, totalSent, convertedCount, reRegTargetSent, conversionRate };
+    }),
 });
