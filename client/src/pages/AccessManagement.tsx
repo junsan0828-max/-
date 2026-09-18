@@ -20,6 +20,7 @@ import {
   EyeOff,
   Pencil,
   Shirt,
+  Star,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -142,7 +143,11 @@ function KioskFontSettings() {
 }
 
 export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } = {}) {
-  const [tab, setTab] = useState<"logs" | "lockers" | "uniforms" | "banners">("logs"); // lockers/uniforms → 등록관리로 이전
+  const [tab, setTab] = useState<"logs" | "lockers" | "uniforms" | "banners" | "shop">("logs");
+  // 포인트 상점 state
+  const [showShopForm, setShowShopForm] = useState(false);
+  const [editingShopItem, setEditingShopItem] = useState<any | null>(null);
+  const [shopForm, setShopForm] = useState({ name: "", description: "", pointCost: 100, stock: "" as string | "" });
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
@@ -449,27 +454,21 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
         />
       </div>
 
-      {/* 탭 (락커·운동복은 등록관리로 이전) */}
+      {/* 탭 */}
       <div className="flex gap-0 rounded-lg overflow-hidden border border-border">
-        {(["logs", "banners"] as const).map((t, i, arr) => (
+        {([
+          { key: "logs",    icon: <CalendarDays className="h-3.5 w-3.5" />, label: "출입 로그" },
+          { key: "banners", icon: <Image className="h-3.5 w-3.5" />,        label: "배너 관리" },
+          { key: "shop",    icon: <Star className="h-3.5 w-3.5" />,          label: "포인트 상점" },
+        ] as const).map(({ key, icon, label }, i, arr) => (
           <button
-            key={t}
-            onClick={() => setTab(t as any)}
+            key={key}
+            onClick={() => setTab(key as any)}
             className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-              tab === t
-                ? "bg-primary/20 text-primary"
-                : "text-muted-foreground hover:bg-accent"
+              tab === key ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-accent"
             } ${i < arr.length - 1 ? "border-r border-border" : ""}`}
           >
-            {t === "logs" ? (
-              <span className="flex items-center justify-center gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5" /> 출입 로그
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-1.5">
-                <Image className="h-3.5 w-3.5" /> 배너 관리
-              </span>
-            )}
+            <span className="flex items-center justify-center gap-1.5">{icon}{label}</span>
           </button>
         ))}
       </div>
@@ -1316,6 +1315,9 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
         </div>
       )}
 
+      {/* 포인트 상점 관리 */}
+      {tab === "shop" && <PointShopAdmin />}
+
       {/* 락커 추가 모달 */}
       {showAddLocker && (
         <AddLockerModal
@@ -1753,6 +1755,136 @@ function AssignLockerModal({
         </button>
       </div>
     </Modal>
+  );
+}
+
+function PointShopAdmin() {
+  const utils = trpc.useUtils();
+  const { data: items, isLoading } = trpc.access.shopAdmin.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [form, setForm] = useState({ name: "", description: "", pointCost: "100", stock: "" });
+
+  const createMutation = trpc.access.createShopItem.useMutation({
+    onSuccess: () => { toast.success("상품 추가 완료"); utils.access.shopAdmin.invalidate(); utils.access.getShopItems.invalidate(); setShowForm(false); resetForm(); },
+    onError: e => toast.error(e.message),
+  });
+  const updateMutation = trpc.access.updateShopItem.useMutation({
+    onSuccess: () => { toast.success("수정 완료"); utils.access.shopAdmin.invalidate(); utils.access.getShopItems.invalidate(); setEditing(null); },
+    onError: e => toast.error(e.message),
+  });
+  const deleteMutation = trpc.access.deleteShopItem.useMutation({
+    onSuccess: () => { toast.success("삭제 완료"); utils.access.shopAdmin.invalidate(); utils.access.getShopItems.invalidate(); },
+    onError: e => toast.error(e.message),
+  });
+
+  function resetForm() { setForm({ name: "", description: "", pointCost: "100", stock: "" }); }
+  function openEdit(item: any) {
+    setEditing(item);
+    setForm({ name: item.name, description: item.description ?? "", pointCost: String(item.pointCost), stock: item.stock !== null ? String(item.stock) : "" });
+  }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) { toast.error("상품명을 입력해주세요"); return; }
+    const cost = Number(form.pointCost);
+    if (!cost || cost < 1) { toast.error("포인트를 입력해주세요"); return; }
+    const stock = form.stock !== "" ? Number(form.stock) : undefined;
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, name: form.name.trim(), description: form.description || undefined, pointCost: cost, stock: stock ?? null });
+    } else {
+      createMutation.mutate({ name: form.name.trim(), description: form.description || undefined, pointCost: cost, stock });
+    }
+  }
+
+  const FormPanel = (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">{editing ? "상품 수정" : "새 상품 추가"}</p>
+        <button onClick={() => { setShowForm(false); setEditing(null); resetForm(); }} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label className="text-xs text-muted-foreground">상품명 *</label>
+          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="예: 아이스티, 단백질 바"
+            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">설명</label>
+          <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="간단한 설명 (선택)"
+            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground">필요 포인트 *</label>
+            <input type="number" min="1" value={form.pointCost} onChange={e => setForm(f => ({ ...f, pointCost: e.target.value }))}
+              className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground">재고 (비워두면 무제한)</label>
+            <input type="number" min="0" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} placeholder="무제한"
+              className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <button type="submit" disabled={createMutation.isPending || updateMutation.isPending}
+          className="w-full bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+          {createMutation.isPending || updateMutation.isPending ? "저장 중..." : editing ? "수정 저장" : "추가"}
+        </button>
+      </form>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">키오스크 우측 상단 ⭐ 포인트 사용 버튼에 표시되는 상품 목록입니다.</p>
+        {!showForm && !editing && (
+          <button onClick={() => { resetForm(); setEditing(null); setShowForm(true); }}
+            className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90">
+            <Plus className="h-3.5 w-3.5" /> 상품 추가
+          </button>
+        )}
+      </div>
+
+      {(showForm || editing) && FormPanel}
+
+      {isLoading ? (
+        <div className="text-center text-muted-foreground py-6 text-sm">로딩 중...</div>
+      ) : !items?.length ? (
+        <div className="text-center text-muted-foreground py-8 text-sm">
+          <Star className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          등록된 상품이 없습니다. 상품을 추가해주세요.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map(item => (
+            <div key={item.id} className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground text-sm">{item.name}</span>
+                  <span className="text-xs font-bold text-yellow-400">{item.pointCost}P</span>
+                  {item.isActive === 0 && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">비활성</span>}
+                </div>
+                {item.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{item.description}</p>}
+                <p className="text-xs text-muted-foreground mt-0.5">재고: {item.stock !== null ? `${item.stock}개` : "무제한"}</p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => openEdit(item)} className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/40">
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => updateMutation.mutate({ id: item.id, isActive: item.isActive === 1 ? 0 : 1 })}
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/40">
+                  {item.isActive === 1 ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+                <button onClick={() => { if (confirm(`"${item.name}" 상품을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: item.id }); }}
+                  className="p-1.5 text-red-400 hover:text-red-300 rounded-lg hover:bg-red-500/10">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

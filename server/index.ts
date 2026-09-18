@@ -1693,6 +1693,27 @@ async function initDatabase() {
   //   · 삭제 없음. 패키지·수업일지·잔여 횟수·정산 금액은 쿼리에 등장조차 하지 않는다
   try {
     await pool.query(`ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "transferredFromMemberId" INTEGER`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS kiosk_shop_items (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      "pointCost" INTEGER NOT NULL,
+      stock INTEGER,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS kiosk_shop_purchases (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "itemId" INTEGER NOT NULL,
+      "itemName" TEXT NOT NULL,
+      "pointsUsed" INTEGER NOT NULL,
+      "pointsAfter" INTEGER NOT NULL,
+      "memberId" INTEGER,
+      "customerName" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`);
   await pool.query(`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "channelBackfilledAt" TEXT`);
 
     // ① 매출에 leadId가 직접 붙어 있는 건 — 그 상담 카드의 채널을 그대로 쓴다

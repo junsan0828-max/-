@@ -551,6 +551,30 @@ export const kioskBanners = pgTable("kiosk_banners", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// ─── 키오스크 포인트 상점 ─────────────────────────────────────────────────────
+export const kioskShopItems = pgTable("kiosk_shop_items", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  pointCost: integer("pointCost").notNull(),
+  stock: integer("stock"),               // null = 무제한
+  isActive: integer("isActive").default(1).notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const kioskShopPurchases = pgTable("kiosk_shop_purchases", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  itemId: integer("itemId").notNull(),
+  itemName: text("itemName").notNull(),
+  pointsUsed: integer("pointsUsed").notNull(),
+  pointsAfter: integer("pointsAfter").notNull(),
+  memberId: integer("memberId"),
+  customerName: text("customerName"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // ZIANTGYM+ 회원앱 테이블
 export const gymPlusMembers = pgTable("gym_plus_members", {
   id: serial("id").primaryKey(),

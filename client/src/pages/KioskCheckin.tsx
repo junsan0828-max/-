@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
 import { trpc } from "../lib/trpc";
+import { toast } from "sonner";
 
 // ── 폰트 스케일 컨텍스트 ───────────────────────────────────────────────────
 const ScaleCtx = createContext(1);
@@ -107,6 +108,217 @@ function ZiantLogo({ size = 36, color = "white" }: { size?: number; color?: stri
 
 type KioskTab = "phone" | "number";
 type BottomNav = "home" | "locker" | "search" | "logs" | "more";
+type ShopStep = "phone" | "items" | "confirm" | "done";
+
+// ── 포인트 상점 모달 ────────────────────────────────────────────────────────
+function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) => number }) {
+  const [step, setStep] = useState<ShopStep>("phone");
+  const [digits, setDigits] = useState("");
+  const [member, setMember] = useState<{ id: number; name: string; points: number } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; pointCost: number } | null>(null);
+  const [result, setResult] = useState<{ itemName: string; pointsUsed: number; pointsAfter: number } | null>(null);
+
+  const { data: shopItems } = trpc.access.getShopItems.useQuery(undefined, { staleTime: 30000 });
+
+  const lookupMutation = trpc.access.lookupPoints.useQuery(
+    { phone: "010" + digits },
+    { enabled: false }
+  );
+
+  const purchaseMutation = trpc.access.purchaseShopItem.useMutation({
+    onSuccess: (data) => { setResult(data); setStep("done"); },
+    onError: (e) => { toast.error(e.message); },
+  });
+
+  function handlePhoneKey(k: string) {
+    if (k === "del") { setDigits(v => v.slice(0, -1)); return; }
+    if (k === "clear") { setDigits(""); return; }
+    if (digits.length >= 8) return;
+    setDigits(v => v + k);
+  }
+
+  async function handleLookup() {
+    if (digits.length !== 8) return;
+    try {
+      const res = await trpc.access.lookupPoints.fetch({ phone: "010" + digits });
+      setMember(res as any);
+      setStep("items");
+    } catch (e: any) {
+      toast.error(e.message ?? "회원을 찾을 수 없습니다");
+    }
+  }
+
+  function handleSelectItem(item: { id: number; name: string; pointCost: number }) {
+    if (!member || member.points < item.pointCost) { toast.error("포인트가 부족합니다"); return; }
+    setSelectedItem(item);
+    setStep("confirm");
+  }
+
+  function handlePurchase() {
+    if (!selectedItem) return;
+    purchaseMutation.mutate({ phone: "010" + digits, itemId: selectedItem.id });
+  }
+
+  const a = digits.slice(0, 4);
+  const b = digits.slice(4, 8);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.88)" }} onClick={onClose}>
+      <div className="relative flex flex-col overflow-hidden" style={{ width: "88%", maxHeight: "82vh", background: "#141414", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 28 }} onClick={e => e.stopPropagation()}>
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: "1px solid #1e1e1e" }}>
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: fs(24) }}>⭐</span>
+            <p style={{ fontSize: fs(18), fontWeight: 700, color: "white" }}>짐 포인트 사용</p>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "none", color: "#aaa", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* STEP 1: 전화번호 입력 */}
+          {step === "phone" && (
+            <div className="p-5 space-y-4">
+              <p style={{ fontSize: fs(14), color: "#666", textAlign: "center" }}>휴대폰 번호 뒤 8자리를 입력해주세요</p>
+              {/* 번호 표시 */}
+              <div className="flex items-center justify-center gap-3 py-2">
+                <span style={{ fontSize: fs(32), color: "white", fontWeight: 700 }}>010</span>
+                <div className="flex gap-1">
+                  {(a || "    ").split("").map((d, i) => (
+                    <span key={i} style={{ fontSize: fs(32), color: d === " " ? "#333" : "white", fontWeight: 700, fontFamily: "monospace", minWidth: "1ch" }}>{d === " " ? "·" : d}</span>
+                  ))}
+                </div>
+                <div className="flex gap-1">
+                  {(b || "    ").split("").map((d, i) => (
+                    <span key={i} style={{ fontSize: fs(32), color: d === " " ? "#333" : "white", fontWeight: 700, fontFamily: "monospace", minWidth: "1ch" }}>{d === " " ? "·" : d}</span>
+                  ))}
+                </div>
+              </div>
+              {/* 미니 키패드 */}
+              <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+                {["1","2","3","4","5","6","7","8","9","취소","0","del"].map(k => {
+                  const isAction = k === "취소" || k === "del";
+                  return (
+                    <button key={k} onClick={() => k === "취소" ? handlePhoneKey("clear") : handlePhoneKey(k)}
+                      style={{ height: 52, borderRadius: 12, background: isAction ? "#181818" : "#1c1c1c", border: "1px solid #2a2a2a", color: isAction ? "#555" : "white", fontSize: fs(k === "취소" ? 14 : 24), fontWeight: 600, cursor: "pointer" }}>
+                      {k === "del" ? "⌫" : k}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={handleLookup} disabled={digits.length !== 8}
+                style={{ width: "100%", height: 52, borderRadius: 14, background: digits.length === 8 ? "#FACC15" : "#1c1c1c", color: digits.length === 8 ? "#0d0d0d" : "#444", fontSize: fs(16), fontWeight: 700, border: "none", cursor: digits.length === 8 ? "pointer" : "default" }}>
+                포인트 조회
+              </button>
+            </div>
+          )}
+
+          {/* STEP 2: 상품 목록 */}
+          {step === "items" && member && (
+            <div className="p-5 space-y-4">
+              {/* 회원 포인트 */}
+              <div className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ background: "linear-gradient(135deg, #1a1a40, #2a1a50)", border: "1px solid rgba(139,92,246,0.3)" }}>
+                <div>
+                  <p style={{ color: "#a78bfa", fontSize: fs(13) }}>보유 포인트</p>
+                  <p style={{ color: "white", fontSize: fs(24), fontWeight: 800 }}>{member.name}님</p>
+                </div>
+                <p style={{ color: "#e0d4ff", fontSize: fs(32), fontWeight: 800 }}>{member.points.toLocaleString()}P</p>
+              </div>
+
+              {/* 상품 목록 */}
+              {!shopItems?.length ? (
+                <div style={{ textAlign: "center", color: "#555", padding: "32px 0", fontSize: fs(14) }}>등록된 상품이 없습니다</div>
+              ) : (
+                <div className="space-y-2">
+                  {shopItems.map(item => {
+                    const canBuy = member.points >= item.pointCost && (item.stock === null || item.stock > 0);
+                    return (
+                      <button key={item.id} onClick={() => canBuy && handleSelectItem({ id: item.id, name: item.name, pointCost: item.pointCost })}
+                        style={{ width: "100%", borderRadius: 14, background: canBuy ? "#1c1c1c" : "#141414", border: `1px solid ${canBuy ? "#2a2a2a" : "#1a1a1a"}`, padding: "14px 16px", cursor: canBuy ? "pointer" : "default", opacity: canBuy ? 1 : 0.4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ textAlign: "left" }}>
+                          <p style={{ color: "white", fontSize: fs(16), fontWeight: 700 }}>{item.name}</p>
+                          {item.description && <p style={{ color: "#666", fontSize: fs(12), marginTop: 2 }}>{item.description}</p>}
+                          {item.stock !== null && <p style={{ color: item.stock > 0 ? "#555" : "#ff4444", fontSize: fs(11), marginTop: 2 }}>{item.stock > 0 ? `재고 ${item.stock}개` : "품절"}</p>}
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <p style={{ color: "#FACC15", fontSize: fs(20), fontWeight: 800 }}>{item.pointCost}P</p>
+                          {!canBuy && member.points < item.pointCost && <p style={{ color: "#555", fontSize: fs(11) }}>포인트 부족</p>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP 3: 구매 확인 */}
+          {step === "confirm" && member && selectedItem && (
+            <div className="p-5 space-y-4">
+              <div style={{ textAlign: "center", paddingTop: 12 }}>
+                <p style={{ color: "#888", fontSize: fs(14) }}>아래 상품을 구매하시겠습니까?</p>
+              </div>
+              <div className="rounded-2xl p-5 space-y-3" style={{ background: "#1c1c1c", border: "1px solid #2a2a2a" }}>
+                <div className="flex justify-between">
+                  <span style={{ color: "#666", fontSize: fs(14) }}>상품</span>
+                  <span style={{ color: "white", fontSize: fs(16), fontWeight: 700 }}>{selectedItem.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: "#666", fontSize: fs(14) }}>차감 포인트</span>
+                  <span style={{ color: "#FACC15", fontSize: fs(16), fontWeight: 700 }}>-{selectedItem.pointCost}P</span>
+                </div>
+                <div style={{ height: 1, background: "#2a2a2a" }} />
+                <div className="flex justify-between">
+                  <span style={{ color: "#666", fontSize: fs(14) }}>잔여 포인트</span>
+                  <span style={{ color: "#c4b5fd", fontSize: fs(16), fontWeight: 700 }}>{(member.points - selectedItem.pointCost).toLocaleString()}P</span>
+                </div>
+              </div>
+              <button onClick={handlePurchase} disabled={purchaseMutation.isPending}
+                style={{ width: "100%", height: 56, borderRadius: 14, background: "#FACC15", color: "#0d0d0d", fontSize: fs(18), fontWeight: 800, border: "none", cursor: "pointer", opacity: purchaseMutation.isPending ? 0.6 : 1 }}>
+                {purchaseMutation.isPending ? "처리 중..." : "구매 확인"}
+              </button>
+              <button onClick={() => setStep("items")}
+                style={{ width: "100%", height: 44, borderRadius: 14, background: "transparent", border: "1px solid #2a2a2a", color: "#555", fontSize: fs(14), cursor: "pointer" }}>
+                취소
+              </button>
+            </div>
+          )}
+
+          {/* STEP 4: 완료 */}
+          {step === "done" && result && (
+            <div className="p-5 space-y-4">
+              <div style={{ textAlign: "center", paddingTop: 16, paddingBottom: 8 }}>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(250,204,21,0.15)", border: "1px solid rgba(250,204,21,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                  <span style={{ fontSize: 32 }}>⭐</span>
+                </div>
+                <p style={{ color: "white", fontSize: fs(20), fontWeight: 800 }}>구매 완료!</p>
+                <p style={{ color: "#888", fontSize: fs(13), marginTop: 4 }}>직원에게 화면을 보여주세요</p>
+              </div>
+              <div className="rounded-2xl p-5 space-y-3" style={{ background: "#1c1c1c", border: "1px solid #2a2a2a" }}>
+                <div className="flex justify-between">
+                  <span style={{ color: "#666", fontSize: fs(14) }}>구매 상품</span>
+                  <span style={{ color: "white", fontSize: fs(16), fontWeight: 700 }}>{result.itemName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: "#666", fontSize: fs(14) }}>사용 포인트</span>
+                  <span style={{ color: "#FACC15", fontSize: fs(16), fontWeight: 700 }}>-{result.pointsUsed}P</span>
+                </div>
+                <div style={{ height: 1, background: "#2a2a2a" }} />
+                <div className="flex justify-between">
+                  <span style={{ color: "#666", fontSize: fs(14) }}>잔여 포인트</span>
+                  <span style={{ color: "#c4b5fd", fontSize: fs(18), fontWeight: 800 }}>{result.pointsAfter.toLocaleString()}P</span>
+                </div>
+              </div>
+              <button onClick={onClose}
+                style={{ width: "100%", height: 52, borderRadius: 14, background: "white", color: "#0d0d0d", fontSize: fs(16), fontWeight: 700, border: "none", cursor: "pointer" }}>
+                닫기
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── 글씨 크기 설정 패널 ────────────────────────────────────────────────────
 function ScaleRow({ label, scale, onChange }: { label: string; scale: number; onChange: (v: number) => void }) {
@@ -218,6 +430,7 @@ export default function KioskCheckin() {
     try { const s = localStorage.getItem("kiosk_banner_scale"); return s ? parseFloat(s) : 1; } catch { return 1; }
   });
   const [showFontSettings, setShowFontSettings] = useState(false);
+  const [showPointShop, setShowPointShop] = useState(false);
   const fs = (n: number) => Math.round(n * fontScale);
   const bfs = (n: number) => Math.round(n * bannerScale);
   const updateUiScale = (v: number) => {
@@ -414,6 +627,11 @@ export default function KioskCheckin() {
           />
         )}
 
+        {/* 포인트 상점 모달 */}
+        {showPointShop && (
+          <PointShopModal onClose={() => setShowPointShop(false)} fs={fs} />
+        )}
+
         {/* ── 메인 컨텐츠 ── */}
         {bottomNav === "home" && (
           <div className="flex-1 flex flex-col overflow-hidden">
@@ -505,6 +723,15 @@ export default function KioskCheckin() {
                 </p>
                 <p style={{ fontSize: fs(11), color: "#374151", letterSpacing: "0.15em", marginTop: 4 }}>ACCESS SYSTEM</p>
               </div>
+              {/* 포인트 사용 버튼 */}
+              <button
+                onClick={() => setShowPointShop(true)}
+                className="absolute right-4 flex flex-col items-center gap-0.5"
+                style={{ background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.25)", borderRadius: 12, padding: "6px 10px", WebkitTapHighlightColor: "transparent" }}
+              >
+                <span style={{ fontSize: fs(18) }}>⭐</span>
+                <span style={{ fontSize: fs(10), color: "#FACC15", fontWeight: 600, letterSpacing: "0.03em", whiteSpace: "nowrap" }}>포인트 사용</span>
+              </button>
             </div>
 
             {/* 탭 */}

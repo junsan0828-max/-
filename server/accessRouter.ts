@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like, sql } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories, uniforms, revenueEntries, gymPlusMembers, pointTransactions } from "../drizzle/schema";
+import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories, uniforms, revenueEntries, gymPlusMembers, pointTransactions, kioskShopItems, kioskShopPurchases } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -1405,5 +1405,128 @@ export const accessRouter = t.router({
         );
         return result.rows as Array<{ id: number; name: string; phone: string | null; last_visit: string | null }>;
       }
+    }),
+
+  // ── 포인트 상점 (키오스크 공개 API) ───────────────────────────────────────
+  getShopItems: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(kioskShopItems)
+      .where(eq(kioskShopItems.isActive, 1))
+      .orderBy(kioskShopItems.sortOrder, kioskShopItems.id);
+  }),
+
+  lookupPoints: publicProcedure
+    .input(z.object({ phone: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const norm = normalizePhone(input.phone);
+      if (norm.length < 7) throw new TRPCError({ code: "BAD_REQUEST", message: "전화번호를 입력해주세요" });
+      const rows = await db.select({
+        id: gymPlusMembers.id,
+        name: gymPlusMembers.name,
+        points: gymPlusMembers.points,
+        memberId: gymPlusMembers.memberId,
+      }).from(gymPlusMembers)
+        .where(sql`REGEXP_REPLACE(COALESCE(${gymPlusMembers.phone},''),'[^0-9]','','g') = ${norm}`)
+        .limit(1);
+      if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "자이언트짐+ 앱 가입 회원만 이용할 수 있습니다" });
+      return rows[0];
+    }),
+
+  purchaseShopItem: publicProcedure
+    .input(z.object({ phone: z.string(), itemId: z.number() }))
+    .mutation(async ({ input }) => {
+      const norm = normalizePhone(input.phone);
+      // 트랜잭션: 포인트 확인 → 재고 확인 → 차감 → 기록
+      const { rows } = await pool.query<{
+        gp_id: string; gp_name: string; gp_points: string; gp_member_id: string | null;
+        item_name: string; item_cost: string; item_stock: string | null;
+      }>(`
+        SELECT
+          gp.id AS gp_id, gp.name AS gp_name, gp.points AS gp_points, gp."memberId" AS gp_member_id,
+          si.name AS item_name, si."pointCost" AS item_cost, si.stock AS item_stock
+        FROM gym_plus_members gp
+        CROSS JOIN kiosk_shop_items si
+        WHERE REGEXP_REPLACE(COALESCE(gp.phone,''),'[^0-9]','','g') = $1
+          AND si.id = $2 AND si."isActive" = 1
+        LIMIT 1
+      `, [norm, input.itemId]);
+
+      if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "회원 또는 상품을 찾을 수 없습니다" });
+      const r = rows[0];
+      const gpId = Number(r.gp_id);
+      const currentPoints = Number(r.gp_points);
+      const cost = Number(r.item_cost);
+      const stock = r.item_stock !== null ? Number(r.item_stock) : null;
+
+      if (currentPoints < cost) throw new TRPCError({ code: "BAD_REQUEST", message: `포인트가 부족합니다 (보유: ${currentPoints}P, 필요: ${cost}P)` });
+      if (stock !== null && stock <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "품절된 상품입니다" });
+
+      const newPoints = currentPoints - cost;
+
+      // 포인트 차감
+      await pool.query(`UPDATE gym_plus_members SET points = $1 WHERE id = $2`, [newPoints, gpId]);
+
+      // 재고 감소
+      if (stock !== null) {
+        await pool.query(`UPDATE kiosk_shop_items SET stock = stock - 1 WHERE id = $1 AND stock > 0`, [input.itemId]);
+      }
+
+      // 포인트 트랜잭션 기록
+      await pool.query(`
+        INSERT INTO point_transactions ("gymPlusMemberId", type, amount, description, "createdAt")
+        VALUES ($1, 'spend', $2, $3, now()::text)
+      `, [gpId, cost, `상점 구매: ${r.item_name}`]);
+
+      // 구매 내역 기록
+      await pool.query(`
+        INSERT INTO kiosk_shop_purchases ("gymPlusMemberId", "itemId", "itemName", "pointsUsed", "pointsAfter", "memberId", "customerName", "createdAt")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, now()::text)
+      `, [gpId, input.itemId, r.item_name, cost, newPoints, r.gp_member_id ?? null, r.gp_name]);
+
+      return { name: r.gp_name, itemName: r.item_name, pointsUsed: cost, pointsAfter: newPoints };
+    }),
+
+  // 포인트 상점 관리 (관리자)
+  shopAdmin: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(kioskShopItems).orderBy(kioskShopItems.sortOrder, kioskShopItems.id);
+  }),
+
+  createShopItem: adminProcedure
+    .input(z.object({ name: z.string().min(1), description: z.string().optional(), pointCost: z.number().min(1), stock: z.number().optional(), sortOrder: z.number().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.insert(kioskShopItems).values({
+        name: input.name,
+        description: input.description,
+        pointCost: input.pointCost,
+        stock: input.stock ?? null,
+        sortOrder: input.sortOrder ?? 0,
+      }).returning();
+      return row;
+    }),
+
+  updateShopItem: adminProcedure
+    .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), pointCost: z.number().optional(), stock: z.number().nullable().optional(), isActive: z.number().optional(), sortOrder: z.number().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { id, ...data } = input;
+      const [row] = await db.update(kioskShopItems).set(data as any).where(eq(kioskShopItems.id, id)).returning();
+      return row;
+    }),
+
+  deleteShopItem: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(kioskShopItems).where(eq(kioskShopItems.id, input.id));
+      return { success: true };
     }),
 });
