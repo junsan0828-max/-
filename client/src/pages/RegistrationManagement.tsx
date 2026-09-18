@@ -217,6 +217,7 @@ export default function RegistrationManagement() {
     startDate: "", amount: "", discountAmount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제" | "혼합",
     paymentDate: "", memo: "", transferAmount: "", cardAmount: "",
+    branchId: null as number | null,
   });
   const [editServiceItems, setEditServiceItems] = useState<string[]>([]);
   const [editServiceHealthDays, setEditServiceHealthDays] = useState<number | undefined>(undefined);
@@ -486,6 +487,7 @@ export default function RegistrationManagement() {
       memo: r.memo ?? "",
       transferAmount: r.transferAmount ? String(r.transferAmount) : "",
       cardAmount: r.cardAmount ? String(r.cardAmount) : "",
+      branchId: r.branchId ?? null,
     });
     const siParts = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
     const siCategories = siParts.map((s: string) =>
@@ -1037,6 +1039,26 @@ export default function RegistrationManagement() {
                           className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                     </div>
+                    {/* 지점 */}
+                    {branches.length > 0 && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">지점</label>
+                        <div className="flex gap-2 flex-wrap mt-1">
+                          <button type="button"
+                            onClick={() => setEditRevForm(f => ({ ...f, branchId: null }))}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${editRevForm.branchId === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                            미지정
+                          </button>
+                          {branches.map(b => (
+                            <button key={b.id} type="button"
+                              onClick={() => setEditRevForm(f => ({ ...f, branchId: b.id }))}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${editRevForm.branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                              {b.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {/* 금액 */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1295,6 +1317,7 @@ export default function RegistrationManagement() {
                             serviceItems: siStr,
                             transferAmount: editRevForm.paymentMethod === "혼합" && editRevForm.transferAmount !== "" ? Number(editRevForm.transferAmount) : null,
                             cardAmount: editRevForm.paymentMethod === "혼합" && editRevForm.cardAmount !== "" ? Number(editRevForm.cardAmount) : null,
+                            branchId: editRevForm.branchId ?? undefined,
                           });
                         }}
                         disabled={updateRevMutation.isPending}
