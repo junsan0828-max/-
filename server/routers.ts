@@ -6637,14 +6637,18 @@ const kioskRouter = t.router({
        FROM gym_plus_membership_requests
        WHERE "gymPlusMemberId" = $1
        ORDER BY "createdAt" DESC LIMIT 20`,
-      [ctx.gymPlusMember.id]
+      [ctx.gymPlusMemberId]
     );
     return res.rows;
   }),
 
   // 정지 신청 자격 조회
   getMembershipPauseEligibility: gymPlusProtected.query(async ({ ctx }) => {
-    const gm = ctx.gymPlusMember;
+    const gmRes = await pool.query(
+      `SELECT id, "memberId" FROM gym_plus_members WHERE id = $1`, [ctx.gymPlusMemberId]
+    );
+    const gm = gmRes.rows[0];
+    if (!gm) return { eligible: false, reason: "회원 정보를 찾을 수 없습니다." };
     const mRes = await pool.query(
       `SELECT "membershipStart", "membershipEnd" FROM members WHERE id = $1`,
       [gm.memberId]
@@ -6674,7 +6678,7 @@ const kioskRouter = t.router({
       `SELECT COUNT(*) as cnt, COALESCE(SUM("pauseDays"), 0) as total_days
        FROM gym_plus_membership_requests
        WHERE "gymPlusMemberId" = $1 AND type = 'pause' AND status = 'approved'`,
-      [gm.id]
+      [ctx.gymPlusMemberId]
     );
     const usedCount = parseInt(pauseRes.rows[0]?.cnt ?? "0");
     const usedDays = parseInt(pauseRes.rows[0]?.total_days ?? "0");
@@ -6682,7 +6686,7 @@ const kioskRouter = t.router({
     const pendingRes = await pool.query(
       `SELECT COUNT(*) as cnt FROM gym_plus_membership_requests
        WHERE "gymPlusMemberId" = $1 AND type = 'pause' AND status = 'pending'`,
-      [gm.id]
+      [ctx.gymPlusMemberId]
     );
     const pendingCount = parseInt(pendingRes.rows[0]?.cnt ?? "0");
 
@@ -6693,8 +6697,12 @@ const kioskRouter = t.router({
 
     const tomorrow = new Date(todayDate);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const maxEndDate = new Date(tomorrow);
-    maxEndDate.setDate(maxEndDate.getDate() + remainingDays - 1);
+    const maxEndDateByDays = new Date(tomorrow);
+    maxEndDateByDays.setDate(maxEndDateByDays.getDate() + remainingDays - 1);
+    // membershipEnd - 30일을 초과하지 않도록 캡
+    const membershipEndCap = new Date(endDate);
+    membershipEndCap.setDate(membershipEndCap.getDate() - 30);
+    const maxEndDate = maxEndDateByDays < membershipEndCap ? maxEndDateByDays : membershipEndCap;
 
     return {
       eligible: true,
@@ -6722,7 +6730,18 @@ const kioskRouter = t.router({
       note: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const gm = ctx.gymPlusMember;
+      const gmRes = await pool.query(
+        `SELECT id, "memberId" FROM gym_plus_members WHERE id = $1`, [ctx.gymPlusMemberId]
+      );
+      const gm = gmRes.rows[0];
+      if (!gm) throw new TRPCError({ code: "NOT_FOUND", message: "회원 정보를 찾을 수 없습니다." });
+
+      // 중복 신청 방지 (같은 타입 pending 건 존재 시 차단)
+      const dupRes = await pool.query(
+        `SELECT id FROM gym_plus_membership_requests WHERE "gymPlusMemberId" = $1 AND type = $2 AND status = 'pending'`,
+        [gm.id, input.type]
+      );
+      if (dupRes.rows.length > 0) throw new TRPCError({ code: "BAD_REQUEST", message: "이미 동일한 신청이 처리 대기 중입니다." });
 
       const mRes = await pool.query(`SELECT "membershipStart", "membershipEnd" FROM members WHERE id = $1`, [gm.memberId]);
       const membershipEnd = mRes.rows[0]?.membershipEnd;
