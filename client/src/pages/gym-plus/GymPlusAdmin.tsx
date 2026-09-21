@@ -1289,10 +1289,13 @@ export function GymPlusMissionsAdmin() {
 }
 
 // ─── 메인 어드민 짐+ 섹션 ─────────────────────────────────────────────────────
-type GymPlusTab = "members" | "videos" | "events" | "logs" | "registrations" | "missions";
+type GymPlusTab = "members" | "videos" | "events" | "logs" | "registrations" | "missions" | "membership_requests";
 
 export default function GymPlusAdminSection() {
   const [activeTab, setActiveTab] = useState<GymPlusTab>("members");
+
+  const { data: pendingMembershipRequests } = trpc.gymPlus.listMembershipRequests.useQuery(undefined, { refetchInterval: 30000 });
+  const pendingCount = pendingMembershipRequests?.length ?? 0;
 
   const tabs: { key: GymPlusTab; label: string }[] = [
     { key: "members", label: "회원" },
@@ -1301,11 +1304,12 @@ export default function GymPlusAdminSection() {
     { key: "logs", label: "운동기록" },
     { key: "registrations", label: "등록신청" },
     { key: "missions", label: "미션프로그램" },
+    { key: "membership_requests", label: `회원권신청${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 bg-muted p-1 rounded-xl">
+      <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-xl">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -1325,6 +1329,113 @@ export default function GymPlusAdminSection() {
       {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
       {activeTab === "registrations" && <GymPlusRegistrationsAdmin />}
       {activeTab === "missions" && <GymPlusMissionsAdmin />}
+      {activeTab === "membership_requests" && <GymPlusMembershipRequestsAdmin />}
+    </div>
+  );
+}
+
+// ─── 회원권 정지/해지/양도 신청 관리 ────────────────────────────────────────────
+export function GymPlusMembershipRequestsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: requests = [], isLoading } = trpc.gymPlus.listMembershipRequests.useQuery(undefined, { refetchInterval: 30000 });
+  const processMut = trpc.gymPlus.processMembershipRequest.useMutation({
+    onSuccess: () => utils.gymPlus.listMembershipRequests.invalidate(),
+    onError: (e: any) => alert(e.message || "처리 실패"),
+  });
+
+  const [adminNotes, setAdminNotes] = useState<Record<number, string>>({});
+
+  const typeLabel: Record<string, string> = { pause: "정지", cancel: "해지", transfer: "양도" };
+  const typeBadge: Record<string, string> = {
+    pause: "bg-blue-500/10 text-blue-600",
+    cancel: "bg-red-500/10 text-red-600",
+    transfer: "bg-purple-500/10 text-purple-600",
+  };
+
+  if (isLoading) return <div className="py-8 text-center text-sm text-muted-foreground">불러오는 중...</div>;
+
+  if (requests.length === 0) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-8 text-center">
+        <p className="text-2xl mb-2">✅</p>
+        <p className="text-sm text-muted-foreground">대기 중인 회원권 신청이 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm">회원권 신청 처리</h3>
+        <span className="text-xs text-muted-foreground">{requests.length}건 대기중</span>
+      </div>
+      {requests.map((req: any) => (
+        <div key={req.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${typeBadge[req.type] ?? ""}`}>
+                  {typeLabel[req.type] ?? req.type} 신청
+                </span>
+                <span className="text-xs text-muted-foreground">{req.createdAt?.slice(0, 16)}</span>
+              </div>
+              <p className="font-semibold text-sm mt-1">{req.name}</p>
+              <p className="text-xs text-muted-foreground">{req.phone}</p>
+            </div>
+          </div>
+
+          {req.type === "pause" && (
+            <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs space-y-1">
+              <div className="flex justify-between"><span className="text-muted-foreground">정지 기간</span><span className="font-medium">{req.pauseStartDate} ~ {req.pauseEndDate}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">정지 일수</span><span className="font-medium">{req.pauseDays}일</span></div>
+            </div>
+          )}
+
+          {req.type === "cancel" && (
+            <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs space-y-1">
+              <div className="flex justify-between"><span className="text-muted-foreground">해지 사유</span><span className="font-medium">{req.cancelReason}</span></div>
+              {req.estimatedRefund !== null && (
+                <div className="flex justify-between"><span className="text-muted-foreground">예상 환불액</span><span className="font-semibold text-green-600">{req.estimatedRefund?.toLocaleString()}원</span></div>
+              )}
+            </div>
+          )}
+
+          {req.type === "transfer" && (
+            <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs space-y-1">
+              <div className="flex justify-between"><span className="text-muted-foreground">양도받을 분</span><span className="font-medium">{req.transfereeName}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">연락처</span><span className="font-medium">{req.transfereePhone}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">직계가족</span><span className="font-medium">{req.isFamilyTransfer ? "예 (양도비 면제)" : "아니오"}</span></div>
+            </div>
+          )}
+
+          <div>
+            <input
+              type="text"
+              className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-background"
+              placeholder="관리자 메모 (선택)"
+              value={adminNotes[req.id] ?? ""}
+              onChange={(e) => setAdminNotes((prev) => ({ ...prev, [req.id]: e.target.value }))}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              disabled={processMut.isPending}
+              onClick={() => processMut.mutate({ id: req.id, action: "approved", adminNote: adminNotes[req.id] })}
+              className="flex-1 bg-green-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50"
+            >
+              승인
+            </button>
+            <button
+              disabled={processMut.isPending}
+              onClick={() => processMut.mutate({ id: req.id, action: "rejected", adminNote: adminNotes[req.id] })}
+              className="flex-1 bg-red-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50"
+            >
+              거절
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

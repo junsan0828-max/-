@@ -25,6 +25,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     refetchInterval: 30000,
   });
 
+  const { data: membershipRequests } = trpc.gymPlus.listMembershipRequests.useQuery(undefined, {
+    enabled: isAdminOrConsultant,
+    refetchInterval: 30000,
+  });
+  const [membershipBannerDismissedAt, setMembershipBannerDismissedAt] = useState<number>(0);
+  const pendingMembershipRequests = (membershipRequests ?? []).filter((r: any) => {
+    try { return new Date(r.createdAt).getTime() > membershipBannerDismissedAt; } catch { return false; }
+  });
+  const showMembershipBanner = isAdminOrConsultant && pendingMembershipRequests.length > 0;
+
   const newPointUsages = (pointUsages ?? []).filter(u => {
     try { return new Date(u.createdAt).getTime() > dismissedAt; } catch { return false; }
   });
@@ -178,6 +188,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               설치
             </button>
             <button onClick={dismissBanner} className="text-muted-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* 회원권 신청 알림 (어드민/컨설턴트 전용) */}
+        {showMembershipBanner && (
+          <div className="bg-purple-500/10 border-b border-purple-500/20 px-4 py-2.5 flex items-start gap-3 shrink-0">
+            <svg className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-purple-600 mb-1">회원권 신청 대기 ({pendingMembershipRequests.length}건)</p>
+              {pendingMembershipRequests.slice(0, 3).map((r: any, i: number) => (
+                <p key={i} className="text-xs text-purple-700/80">
+                  {r.name} · {r.type === "pause" ? "정지" : r.type === "cancel" ? "해지" : "양도"} 신청 대기중
+                </p>
+              ))}
+            </div>
+            <button
+              onClick={() => setMembershipBannerDismissedAt(Date.now())}
+              className="text-purple-500/60 hover:text-purple-500 shrink-0"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
