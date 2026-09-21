@@ -1763,7 +1763,7 @@ function PointShopAdmin() {
   const { data: items, isLoading } = trpc.access.shopAdmin.useQuery();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", pointCost: "100", stock: "" });
+  const [form, setForm] = useState({ name: "", description: "", price: "0", stock: "" });
 
   const createMutation = trpc.access.createShopItem.useMutation({
     onSuccess: () => { toast.success("상품 추가 완료"); utils.access.shopAdmin.invalidate(); utils.access.getShopItems.invalidate(); setShowForm(false); resetForm(); },
@@ -1778,21 +1778,21 @@ function PointShopAdmin() {
     onError: e => toast.error(e.message),
   });
 
-  function resetForm() { setForm({ name: "", description: "", pointCost: "100", stock: "" }); }
+  function resetForm() { setForm({ name: "", description: "", price: "0", stock: "" }); }
   function openEdit(item: any) {
     setEditing(item);
-    setForm({ name: item.name, description: item.description ?? "", pointCost: String(item.pointCost), stock: item.stock !== null ? String(item.stock) : "" });
+    setForm({ name: item.name, description: item.description ?? "", price: String(item.price ?? 0), stock: item.stock !== null ? String(item.stock) : "" });
   }
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) { toast.error("상품명을 입력해주세요"); return; }
-    const cost = Number(form.pointCost);
-    if (!cost || cost < 1) { toast.error("포인트를 입력해주세요"); return; }
+    const price = Number(form.price);
+    if (isNaN(price) || price < 0) { toast.error("판매가를 입력해주세요"); return; }
     const stock = form.stock !== "" ? Number(form.stock) : undefined;
     if (editing) {
-      updateMutation.mutate({ id: editing.id, name: form.name.trim(), description: form.description || undefined, pointCost: cost, stock: stock ?? null });
+      updateMutation.mutate({ id: editing.id, name: form.name.trim(), description: form.description || undefined, price, stock: stock ?? null });
     } else {
-      createMutation.mutate({ name: form.name.trim(), description: form.description || undefined, pointCost: cost, stock });
+      createMutation.mutate({ name: form.name.trim(), description: form.description || undefined, price, stock });
     }
   }
 
@@ -1815,9 +1815,10 @@ function PointShopAdmin() {
         </div>
         <div className="flex gap-2">
           <div className="flex-1">
-            <label className="text-xs text-muted-foreground">필요 포인트 *</label>
-            <input type="number" min="1" value={form.pointCost} onChange={e => setForm(f => ({ ...f, pointCost: e.target.value }))}
+            <label className="text-xs text-muted-foreground">판매가 (원) *</label>
+            <input type="number" min="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} placeholder="0"
               className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+            <p className="text-[10px] text-muted-foreground mt-1">3,000P 이상 보유 시 포인트로 할인, 차액 카드/이체</p>
           </div>
           <div className="flex-1">
             <label className="text-xs text-muted-foreground">재고 (비워두면 무제한)</label>
@@ -1861,7 +1862,7 @@ function PointShopAdmin() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-foreground text-sm">{item.name}</span>
-                  <span className="text-xs font-bold text-yellow-400">{item.pointCost}P</span>
+                  <span className="text-xs font-bold text-foreground">{(item.price ?? 0).toLocaleString()}원</span>
                   {item.isActive === 0 && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">비활성</span>}
                 </div>
                 {item.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{item.description}</p>}

@@ -556,7 +556,8 @@ export const kioskShopItems = pgTable("kiosk_shop_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
-  pointCost: integer("pointCost").notNull(),
+  pointCost: integer("pointCost").notNull().default(0),
+  price: integer("price").default(0).notNull(),  // KRW 판매가 (포인트로 할인, 차액 카드/이체)
   stock: integer("stock"),               // null = 무제한
   isActive: integer("isActive").default(1).notNull(),
   sortOrder: integer("sortOrder").default(0).notNull(),
@@ -570,6 +571,8 @@ export const kioskShopPurchases = pgTable("kiosk_shop_purchases", {
   itemName: text("itemName").notNull(),
   pointsUsed: integer("pointsUsed").notNull(),
   pointsAfter: integer("pointsAfter").notNull(),
+  cashAmount: integer("cashAmount").default(0).notNull(),   // 차액 현금/카드 결제액
+  paymentMethod: text("paymentMethod"),                     // 'card' | 'transfer' | 'points'
   memberId: integer("memberId"),
   customerName: text("customerName"),
   createdAt: text("createdAt").default(now).notNull(),

@@ -111,18 +111,21 @@ type BottomNav = "home" | "locker" | "search" | "logs" | "more";
 type ShopStep = "phone" | "items" | "confirm" | "done";
 
 // ── 포인트 상점 모달 ────────────────────────────────────────────────────────
+const MIN_POINTS_TO_USE = 3000;
+
 function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) => number }) {
   const [step, setStep] = useState<ShopStep>("phone");
   const [digits, setDigits] = useState("");
   const [member, setMember] = useState<{ id: number; name: string; points: number } | null>(null);
-  const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; pointCost: number } | null>(null);
-  const [result, setResult] = useState<{ itemName: string; pointsUsed: number; pointsAfter: number } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; price: number } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "transfer">("card");
+  const [result, setResult] = useState<{ itemName: string; pointsUsed: number; pointsAfter: number; cashAmount: number; paymentMethod: string } | null>(null);
 
   const utils = trpc.useUtils();
   const { data: shopItems } = trpc.access.getShopItems.useQuery(undefined, { staleTime: 30000 });
 
   const purchaseMutation = trpc.access.purchaseShopItem.useMutation({
-    onSuccess: (data) => { setResult(data); setStep("done"); },
+    onSuccess: (data) => { setResult(data as any); setStep("done"); },
     onError: (e) => { toast.error(e.message); },
   });
 
@@ -144,23 +147,28 @@ function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) 
     }
   }
 
-  function handleSelectItem(item: { id: number; name: string; pointCost: number }) {
-    if (!member || member.points < item.pointCost) { toast.error("포인트가 부족합니다"); return; }
+  function handleSelectItem(item: { id: number; name: string; price: number }) {
     setSelectedItem(item);
     setStep("confirm");
   }
 
   function handlePurchase() {
     if (!selectedItem) return;
-    purchaseMutation.mutate({ phone: "010" + digits, itemId: selectedItem.id });
+    purchaseMutation.mutate({ phone: "010" + digits, itemId: selectedItem.id, paymentMethod });
   }
+
+  // 포인트 적용 계산 (3000P 이상 보유 시 자동 적용)
+  const calcPoints = (memberPoints: number, itemPrice: number) => {
+    const toUse = memberPoints >= MIN_POINTS_TO_USE ? Math.min(memberPoints, itemPrice) : 0;
+    return { toUse, cashAmount: itemPrice - toUse };
+  };
 
   const a = digits.slice(0, 4);
   const b = digits.slice(4, 8);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.88)" }} onClick={onClose}>
-      <div className="relative flex flex-col overflow-hidden" style={{ width: "88%", maxHeight: "82vh", background: "#141414", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 28 }} onClick={e => e.stopPropagation()}>
+      <div className="relative flex flex-col overflow-hidden" style={{ width: "88%", maxHeight: "86vh", background: "#141414", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 28 }} onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: "1px solid #1e1e1e" }}>
           <div className="flex items-center gap-2">
@@ -208,36 +216,45 @@ function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) 
             </div>
           )}
 
-          {/* STEP 2: 상품 목록 */}
+          {/* STEP 2: 포인트 + 상품 목록 */}
           {step === "items" && member && (
-            <div className="p-5 space-y-4">
-              {/* 회원 포인트 */}
-              <div className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ background: "linear-gradient(135deg, #1a1a40, #2a1a50)", border: "1px solid rgba(139,92,246,0.3)" }}>
-                <div>
-                  <p style={{ color: "#a78bfa", fontSize: fs(13) }}>보유 포인트</p>
-                  <p style={{ color: "white", fontSize: fs(24), fontWeight: 800 }}>{member.name}님</p>
-                </div>
-                <p style={{ color: "#e0d4ff", fontSize: fs(32), fontWeight: 800 }}>{member.points.toLocaleString()}P</p>
+            <div className="p-5 space-y-3">
+              {/* 보유 포인트 (최상단 강조) */}
+              <div className="rounded-2xl px-5 py-4" style={{ background: "linear-gradient(135deg, #1a1a40, #2a1a50)", border: "1px solid rgba(139,92,246,0.35)" }}>
+                <p style={{ color: "#a78bfa", fontSize: fs(12), marginBottom: 2 }}>{member.name}님 보유 포인트</p>
+                <p style={{ color: "white", fontSize: fs(36), fontWeight: 900, lineHeight: 1.1 }}>{member.points.toLocaleString()}<span style={{ fontSize: fs(20), fontWeight: 700, marginLeft: 4 }}>P</span></p>
+                <p style={{ color: "#6d5a9e", fontSize: fs(11), marginTop: 6 }}>※ 3,000P 이상 보유 시 포인트가 자동 할인됩니다</p>
               </div>
 
               {/* 상품 목록 */}
+              <p style={{ color: "#555", fontSize: fs(12), paddingLeft: 2 }}>구매 가능한 상품</p>
               {!shopItems?.length ? (
                 <div style={{ textAlign: "center", color: "#555", padding: "32px 0", fontSize: fs(14) }}>등록된 상품이 없습니다</div>
               ) : (
                 <div className="space-y-2">
                   {shopItems.map(item => {
-                    const canBuy = member.points >= item.pointCost && (item.stock === null || item.stock > 0);
+                    const inStock = item.stock === null || item.stock > 0;
+                    const { toUse, cashAmount } = calcPoints(member.points, item.price);
                     return (
-                      <button key={item.id} onClick={() => canBuy && handleSelectItem({ id: item.id, name: item.name, pointCost: item.pointCost })}
-                        style={{ width: "100%", borderRadius: 14, background: canBuy ? "#1c1c1c" : "#141414", border: `1px solid ${canBuy ? "#2a2a2a" : "#1a1a1a"}`, padding: "14px 16px", cursor: canBuy ? "pointer" : "default", opacity: canBuy ? 1 : 0.4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div style={{ textAlign: "left" }}>
-                          <p style={{ color: "white", fontSize: fs(16), fontWeight: 700 }}>{item.name}</p>
-                          {item.description && <p style={{ color: "#666", fontSize: fs(12), marginTop: 2 }}>{item.description}</p>}
-                          {item.stock !== null && <p style={{ color: item.stock > 0 ? "#555" : "#ff4444", fontSize: fs(11), marginTop: 2 }}>{item.stock > 0 ? `재고 ${item.stock}개` : "품절"}</p>}
+                      <button key={item.id} onClick={() => inStock && handleSelectItem({ id: item.id, name: item.name, price: item.price })}
+                        style={{ width: "100%", borderRadius: 14, background: inStock ? "#1c1c1c" : "#141414", border: `1px solid ${inStock ? "#2a2a2a" : "#1a1a1a"}`, padding: "14px 16px", cursor: inStock ? "pointer" : "default", opacity: inStock ? 1 : 0.45, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ textAlign: "left", flex: 1 }}>
+                          <p style={{ color: "white", fontSize: fs(15), fontWeight: 700 }}>{item.name}</p>
+                          {item.description && <p style={{ color: "#666", fontSize: fs(11), marginTop: 2 }}>{item.description}</p>}
+                          {/* 포인트 할인 미리보기 */}
+                          {toUse > 0 ? (
+                            <p style={{ color: "#a78bfa", fontSize: fs(11), marginTop: 4 }}>
+                              ⭐ {toUse.toLocaleString()}P 사용
+                              {cashAmount > 0 && <span style={{ color: "#888" }}> → 차액 {cashAmount.toLocaleString()}원 결제</span>}
+                              {cashAmount === 0 && <span style={{ color: "#4ade80" }}> → 포인트 완전결제</span>}
+                            </p>
+                          ) : member.points < MIN_POINTS_TO_USE ? (
+                            <p style={{ color: "#554433", fontSize: fs(11), marginTop: 4 }}>포인트 3,000P 미만 — 전액 현금결제</p>
+                          ) : null}
+                          {item.stock !== null && <p style={{ color: item.stock > 0 ? "#444" : "#ff4444", fontSize: fs(11), marginTop: 2 }}>{item.stock > 0 ? `재고 ${item.stock}개` : "품절"}</p>}
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          <p style={{ color: "#FACC15", fontSize: fs(20), fontWeight: 800 }}>{item.pointCost}P</p>
-                          {!canBuy && member.points < item.pointCost && <p style={{ color: "#555", fontSize: fs(11) }}>포인트 부족</p>}
+                          <p style={{ color: "white", fontSize: fs(18), fontWeight: 800 }}>{item.price.toLocaleString()}원</p>
                         </div>
                       </button>
                     );
@@ -248,36 +265,68 @@ function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) 
           )}
 
           {/* STEP 3: 구매 확인 */}
-          {step === "confirm" && member && selectedItem && (
-            <div className="p-5 space-y-4">
-              <div style={{ textAlign: "center", paddingTop: 12 }}>
-                <p style={{ color: "#888", fontSize: fs(14) }}>아래 상품을 구매하시겠습니까?</p>
+          {step === "confirm" && member && selectedItem && (() => {
+            const { toUse, cashAmount } = calcPoints(member.points, selectedItem.price);
+            return (
+              <div className="p-5 space-y-4">
+                <div style={{ textAlign: "center", paddingTop: 8 }}>
+                  <p style={{ color: "#888", fontSize: fs(13) }}>아래 내용을 확인하고 구매해주세요</p>
+                </div>
+                {/* 결제 내역 */}
+                <div className="rounded-2xl p-5 space-y-3" style={{ background: "#1c1c1c", border: "1px solid #2a2a2a" }}>
+                  <div className="flex justify-between items-center">
+                    <span style={{ color: "#666", fontSize: fs(13) }}>상품</span>
+                    <span style={{ color: "white", fontSize: fs(15), fontWeight: 700 }}>{selectedItem.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span style={{ color: "#666", fontSize: fs(13) }}>판매가</span>
+                    <span style={{ color: "white", fontSize: fs(15) }}>{selectedItem.price.toLocaleString()}원</span>
+                  </div>
+                  {toUse > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span style={{ color: "#666", fontSize: fs(13) }}>포인트 할인</span>
+                      <span style={{ color: "#FACC15", fontSize: fs(15), fontWeight: 700 }}>-{toUse.toLocaleString()}P</span>
+                    </div>
+                  )}
+                  <div style={{ height: 1, background: "#2a2a2a" }} />
+                  <div className="flex justify-between items-center">
+                    <span style={{ color: "#666", fontSize: fs(13) }}>차액 결제</span>
+                    <span style={{ color: cashAmount === 0 ? "#4ade80" : "white", fontSize: fs(18), fontWeight: 800 }}>
+                      {cashAmount === 0 ? "없음 (포인트 완결)" : `${cashAmount.toLocaleString()}원`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span style={{ color: "#666", fontSize: fs(13) }}>포인트 잔여</span>
+                    <span style={{ color: "#c4b5fd", fontSize: fs(14) }}>{(member.points - toUse).toLocaleString()}P</span>
+                  </div>
+                </div>
+
+                {/* 차액 결제 수단 선택 */}
+                {cashAmount > 0 && (
+                  <div>
+                    <p style={{ color: "#888", fontSize: fs(12), marginBottom: 8 }}>차액 결제 수단 선택</p>
+                    <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                      {(["card", "transfer"] as const).map(m => (
+                        <button key={m} onClick={() => setPaymentMethod(m)}
+                          style={{ height: 52, borderRadius: 14, border: `2px solid ${paymentMethod === m ? "#FACC15" : "#2a2a2a"}`, background: paymentMethod === m ? "rgba(250,204,21,0.08)" : "#1c1c1c", color: paymentMethod === m ? "#FACC15" : "#888", fontSize: fs(15), fontWeight: 700, cursor: "pointer" }}>
+                          {m === "card" ? "💳 카드" : "🏦 이체"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={handlePurchase} disabled={purchaseMutation.isPending}
+                  style={{ width: "100%", height: 56, borderRadius: 14, background: "#FACC15", color: "#0d0d0d", fontSize: fs(18), fontWeight: 800, border: "none", cursor: "pointer", opacity: purchaseMutation.isPending ? 0.6 : 1 }}>
+                  {purchaseMutation.isPending ? "처리 중..." : "구매 확인"}
+                </button>
+                <button onClick={() => setStep("items")}
+                  style={{ width: "100%", height: 44, borderRadius: 14, background: "transparent", border: "1px solid #2a2a2a", color: "#555", fontSize: fs(14), cursor: "pointer" }}>
+                  취소
+                </button>
               </div>
-              <div className="rounded-2xl p-5 space-y-3" style={{ background: "#1c1c1c", border: "1px solid #2a2a2a" }}>
-                <div className="flex justify-between">
-                  <span style={{ color: "#666", fontSize: fs(14) }}>상품</span>
-                  <span style={{ color: "white", fontSize: fs(16), fontWeight: 700 }}>{selectedItem.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span style={{ color: "#666", fontSize: fs(14) }}>차감 포인트</span>
-                  <span style={{ color: "#FACC15", fontSize: fs(16), fontWeight: 700 }}>-{selectedItem.pointCost}P</span>
-                </div>
-                <div style={{ height: 1, background: "#2a2a2a" }} />
-                <div className="flex justify-between">
-                  <span style={{ color: "#666", fontSize: fs(14) }}>잔여 포인트</span>
-                  <span style={{ color: "#c4b5fd", fontSize: fs(16), fontWeight: 700 }}>{(member.points - selectedItem.pointCost).toLocaleString()}P</span>
-                </div>
-              </div>
-              <button onClick={handlePurchase} disabled={purchaseMutation.isPending}
-                style={{ width: "100%", height: 56, borderRadius: 14, background: "#FACC15", color: "#0d0d0d", fontSize: fs(18), fontWeight: 800, border: "none", cursor: "pointer", opacity: purchaseMutation.isPending ? 0.6 : 1 }}>
-                {purchaseMutation.isPending ? "처리 중..." : "구매 확인"}
-              </button>
-              <button onClick={() => setStep("items")}
-                style={{ width: "100%", height: 44, borderRadius: 14, background: "transparent", border: "1px solid #2a2a2a", color: "#555", fontSize: fs(14), cursor: "pointer" }}>
-                취소
-              </button>
-            </div>
-          )}
+            );
+          })()}
 
           {/* STEP 4: 완료 */}
           {step === "done" && result && (
@@ -291,16 +340,26 @@ function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) 
               </div>
               <div className="rounded-2xl p-5 space-y-3" style={{ background: "#1c1c1c", border: "1px solid #2a2a2a" }}>
                 <div className="flex justify-between">
-                  <span style={{ color: "#666", fontSize: fs(14) }}>구매 상품</span>
-                  <span style={{ color: "white", fontSize: fs(16), fontWeight: 700 }}>{result.itemName}</span>
+                  <span style={{ color: "#666", fontSize: fs(13) }}>구매 상품</span>
+                  <span style={{ color: "white", fontSize: fs(15), fontWeight: 700 }}>{result.itemName}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span style={{ color: "#666", fontSize: fs(14) }}>사용 포인트</span>
-                  <span style={{ color: "#FACC15", fontSize: fs(16), fontWeight: 700 }}>-{result.pointsUsed}P</span>
-                </div>
+                {result.pointsUsed > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: "#666", fontSize: fs(13) }}>포인트 사용</span>
+                    <span style={{ color: "#FACC15", fontSize: fs(15), fontWeight: 700 }}>-{result.pointsUsed.toLocaleString()}P</span>
+                  </div>
+                )}
+                {result.cashAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: "#666", fontSize: fs(13) }}>차액 결제</span>
+                    <span style={{ color: "white", fontSize: fs(15), fontWeight: 700 }}>
+                      {result.cashAmount.toLocaleString()}원 ({result.paymentMethod === "card" ? "카드" : "이체"})
+                    </span>
+                  </div>
+                )}
                 <div style={{ height: 1, background: "#2a2a2a" }} />
                 <div className="flex justify-between">
-                  <span style={{ color: "#666", fontSize: fs(14) }}>잔여 포인트</span>
+                  <span style={{ color: "#666", fontSize: fs(13) }}>잔여 포인트</span>
                   <span style={{ color: "#c4b5fd", fontSize: fs(18), fontWeight: 800 }}>{result.pointsAfter.toLocaleString()}P</span>
                 </div>
               </div>

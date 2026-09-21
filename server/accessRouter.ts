@@ -1436,17 +1436,20 @@ export const accessRouter = t.router({
     }),
 
   purchaseShopItem: publicProcedure
-    .input(z.object({ phone: z.string(), itemId: z.number() }))
+    .input(z.object({
+      phone: z.string(),
+      itemId: z.number(),
+      paymentMethod: z.enum(["card", "transfer", "points"]).default("card"),
+    }))
     .mutation(async ({ input }) => {
       const norm = normalizePhone(input.phone);
-      // 트랜잭션: 포인트 확인 → 재고 확인 → 차감 → 기록
       const { rows } = await pool.query<{
         gp_id: string; gp_name: string; gp_points: string; gp_member_id: string | null;
-        item_name: string; item_cost: string; item_stock: string | null;
+        item_name: string; item_price: string; item_stock: string | null;
       }>(`
         SELECT
           gp.id AS gp_id, gp.name AS gp_name, gp.points AS gp_points, gp."memberId" AS gp_member_id,
-          si.name AS item_name, si."pointCost" AS item_cost, si.stock AS item_stock
+          si.name AS item_name, si.price AS item_price, si.stock AS item_stock
         FROM gym_plus_members gp
         CROSS JOIN kiosk_shop_items si
         WHERE REGEXP_REPLACE(COALESCE(gp.phone,''),'[^0-9]','','g') = $1
@@ -1458,35 +1461,44 @@ export const accessRouter = t.router({
       const r = rows[0];
       const gpId = Number(r.gp_id);
       const currentPoints = Number(r.gp_points);
-      const cost = Number(r.item_cost);
+      const itemPrice = Number(r.item_price);
       const stock = r.item_stock !== null ? Number(r.item_stock) : null;
 
-      if (currentPoints < cost) throw new TRPCError({ code: "BAD_REQUEST", message: `포인트가 부족합니다 (보유: ${currentPoints}P, 필요: ${cost}P)` });
       if (stock !== null && stock <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "품절된 상품입니다" });
 
-      const newPoints = currentPoints - cost;
+      // 3000P 이상 보유 시 포인트 자동 적용 (최대 itemPrice만큼)
+      const MIN_POINTS = 3000;
+      const pointsToUse = currentPoints >= MIN_POINTS ? Math.min(currentPoints, itemPrice) : 0;
+      const cashAmount = itemPrice - pointsToUse;
+      const newPoints = currentPoints - pointsToUse;
+      const effectivePaymentMethod = cashAmount === 0 ? "points" : input.paymentMethod;
 
       // 포인트 차감
-      await pool.query(`UPDATE gym_plus_members SET points = $1 WHERE id = $2`, [newPoints, gpId]);
+      if (pointsToUse > 0) {
+        await pool.query(`UPDATE gym_plus_members SET points = $1 WHERE id = $2`, [newPoints, gpId]);
+      }
 
       // 재고 감소
       if (stock !== null) {
         await pool.query(`UPDATE kiosk_shop_items SET stock = stock - 1 WHERE id = $1 AND stock > 0`, [input.itemId]);
       }
 
-      // 포인트 트랜잭션 기록
-      await pool.query(`
-        INSERT INTO point_transactions ("gymPlusMemberId", type, amount, description, "createdAt")
-        VALUES ($1, 'spend', $2, $3, now()::text)
-      `, [gpId, cost, `상점 구매: ${r.item_name}`]);
+      // 포인트 트랜잭션 기록 (포인트 사용분만)
+      if (pointsToUse > 0) {
+        await pool.query(`
+          INSERT INTO point_transactions ("gymPlusMemberId", type, amount, description, "createdAt")
+          VALUES ($1, 'spend', $2, $3, now()::text)
+        `, [gpId, pointsToUse, `상점 구매: ${r.item_name}`]);
+      }
 
       // 구매 내역 기록
       await pool.query(`
-        INSERT INTO kiosk_shop_purchases ("gymPlusMemberId", "itemId", "itemName", "pointsUsed", "pointsAfter", "memberId", "customerName", "createdAt")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, now()::text)
-      `, [gpId, input.itemId, r.item_name, cost, newPoints, r.gp_member_id ?? null, r.gp_name]);
+        INSERT INTO kiosk_shop_purchases
+          ("gymPlusMemberId", "itemId", "itemName", "pointsUsed", "pointsAfter", "cashAmount", "paymentMethod", "memberId", "customerName", "createdAt")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now()::text)
+      `, [gpId, input.itemId, r.item_name, pointsToUse, newPoints, cashAmount, effectivePaymentMethod, r.gp_member_id ?? null, r.gp_name]);
 
-      return { name: r.gp_name, itemName: r.item_name, pointsUsed: cost, pointsAfter: newPoints };
+      return { name: r.gp_name, itemName: r.item_name, pointsUsed: pointsToUse, pointsAfter: newPoints, cashAmount, paymentMethod: effectivePaymentMethod };
     }),
 
   // 포인트 상점 관리 (관리자)
@@ -1497,14 +1509,15 @@ export const accessRouter = t.router({
   }),
 
   createShopItem: adminProcedure
-    .input(z.object({ name: z.string().min(1), description: z.string().optional(), pointCost: z.number().min(1), stock: z.number().optional(), sortOrder: z.number().optional() }))
+    .input(z.object({ name: z.string().min(1), description: z.string().optional(), price: z.number().min(0), stock: z.number().optional(), sortOrder: z.number().optional() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [row] = await db.insert(kioskShopItems).values({
         name: input.name,
         description: input.description,
-        pointCost: input.pointCost,
+        pointCost: 0,
+        price: input.price,
         stock: input.stock ?? null,
         sortOrder: input.sortOrder ?? 0,
       }).returning();
@@ -1512,7 +1525,7 @@ export const accessRouter = t.router({
     }),
 
   updateShopItem: adminProcedure
-    .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), pointCost: z.number().optional(), stock: z.number().nullable().optional(), isActive: z.number().optional(), sortOrder: z.number().optional() }))
+    .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), price: z.number().optional(), stock: z.number().nullable().optional(), isActive: z.number().optional(), sortOrder: z.number().optional() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

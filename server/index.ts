@@ -1714,6 +1714,9 @@ async function initDatabase() {
       "customerName" TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`);
+    await pool.query(`ALTER TABLE kiosk_shop_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE kiosk_shop_purchases ADD COLUMN IF NOT EXISTS "cashAmount" INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE kiosk_shop_purchases ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`);
   await pool.query(`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "channelBackfilledAt" TEXT`);
 
     // ① 매출에 leadId가 직접 붙어 있는 건 — 그 상담 카드의 채널을 그대로 쓴다
