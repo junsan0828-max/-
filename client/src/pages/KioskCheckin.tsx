@@ -118,12 +118,8 @@ function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) 
   const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; pointCost: number } | null>(null);
   const [result, setResult] = useState<{ itemName: string; pointsUsed: number; pointsAfter: number } | null>(null);
 
+  const utils = trpc.useUtils();
   const { data: shopItems } = trpc.access.getShopItems.useQuery(undefined, { staleTime: 30000 });
-
-  const lookupMutation = trpc.access.lookupPoints.useQuery(
-    { phone: "010" + digits },
-    { enabled: false }
-  );
 
   const purchaseMutation = trpc.access.purchaseShopItem.useMutation({
     onSuccess: (data) => { setResult(data); setStep("done"); },
@@ -140,7 +136,7 @@ function PointShopModal({ onClose, fs }: { onClose: () => void; fs: (n: number) 
   async function handleLookup() {
     if (digits.length !== 8) return;
     try {
-      const res = await trpc.access.lookupPoints.fetch({ phone: "010" + digits });
+      const res = await utils.access.lookupPoints.fetch({ phone: "010" + digits });
       setMember(res as any);
       setStep("items");
     } catch (e: any) {
