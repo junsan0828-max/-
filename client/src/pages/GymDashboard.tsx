@@ -277,7 +277,8 @@ export default function GymDashboard() {
   const { data: anomalyData } = trpc.admin.pricingAnomalies.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
-    { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }
+    { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) },
+    { staleTime: 3 * 60 * 1000 }
   );
   const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, {
     refetchInterval: 30000,
@@ -296,15 +297,15 @@ export default function GymDashboard() {
     { refetchInterval: 60000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
   );
   const [dismissedRegAlert, setDismissedRegAlert] = useState(false);
-  const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
-  const { data: staffSummary, refetch: refetchStaff } = trpc.gym.revenue.staffSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
-  const { data: trainerList } = trpc.trainers.list.useQuery();
+  const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
+  const { data: staffSummary, refetch: refetchStaff } = trpc.gym.revenue.staffSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
+  const { data: trainerList } = trpc.trainers.list.useQuery(undefined, { staleTime: 10 * 60 * 1000 });
   const assignTrainerMutation = trpc.admin.assignTrainerToRevenue.useMutation({
     onSuccess: () => { refetchStaff(); },
   });
-  const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
-  const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
-  const { data: memberTrend } = trpc.gym.kpi.memberTrend.useQuery({ months: 6, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
+  const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
+  const { data: memberTrend } = trpc.gym.kpi.memberTrend.useQuery({ months: 6, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 5 * 60 * 1000 });
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }

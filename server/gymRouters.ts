@@ -1488,34 +1488,35 @@ const revenueRouter = t.router({
   monthlySummary: protectedProcedure
     .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const rawEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${input.year}%`));
-      const allEntries = input.branchId
-        ? rawEntries.filter(r => r.branchId === input.branchId)
-        : rawEntries;
+      const { rows } = await pool.query<Record<string, string>>(`
+        SELECT
+          CAST(SUBSTRING("paymentDate", 6, 2) AS INTEGER) AS month,
+          COALESCE(SUM(amount), 0)                                                          AS total,
+          COALESCE(SUM("paidAmount"), 0)                                                    AS paid,
+          COALESCE(SUM("unpaidAmount"), 0)                                                  AS unpaid,
+          COALESCE(SUM(CASE WHEN type = 'PT'       THEN "paidAmount" ELSE 0 END), 0)       AS pt,
+          COALESCE(SUM(CASE WHEN type = '헬스'     THEN "paidAmount" ELSE 0 END), 0)       AS health,
+          COALESCE(SUM(CASE WHEN type = '다이어트' THEN "paidAmount" ELSE 0 END), 0)       AS diet,
+          COALESCE(SUM(CASE WHEN "subType" = '신규'   THEN "paidAmount" ELSE 0 END), 0)   AS new_sales,
+          COALESCE(SUM(CASE WHEN "subType" = '재등록' THEN "paidAmount" ELSE 0 END), 0)   AS renewal,
+          COUNT(*) AS count
+        FROM revenue_entries
+        WHERE "paymentDate" LIKE $1
+          AND "subType" NOT IN ('이전', '환불')
+          AND ($2::int IS NULL OR "branchId" = $2)
+        GROUP BY SUBSTRING("paymentDate", 6, 2)
+      `, [input.year + "%", input.branchId ?? null]);
 
       const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; diet: number; newSales: number; renewal: number; count: number }> = {};
       for (let m = 1; m <= 12; m++) {
         monthly[m] = { month: m, total: 0, paid: 0, unpaid: 0, pt: 0, health: 0, diet: 0, newSales: 0, renewal: 0, count: 0 };
       }
-
-      for (const entry of allEntries) {
-        const month = parseInt(entry.paymentDate.substring(5, 7));
-        if (!monthly[month]) continue;
-        if (entry.subType === "이전" || entry.subType === "환불") continue;
-        monthly[month].total += entry.amount;
-        monthly[month].paid += entry.paidAmount;
-        monthly[month].unpaid += entry.unpaidAmount;
-        monthly[month].count += 1;
-        if (entry.type === "PT") monthly[month].pt += entry.paidAmount;
-        if (entry.type === "헬스") monthly[month].health += entry.paidAmount;
-        if (entry.type === "다이어트") monthly[month].diet += entry.paidAmount;
-        if (entry.subType === "신규") monthly[month].newSales += entry.paidAmount;
-        if (entry.subType === "재등록") monthly[month].renewal += entry.paidAmount;
+      for (const r of rows) {
+        const m = Number(r.month);
+        if (monthly[m]) {
+          monthly[m] = { month: m, total: Number(r.total), paid: Number(r.paid), unpaid: Number(r.unpaid), pt: Number(r.pt), health: Number(r.health), diet: Number(r.diet), newSales: Number(r.new_sales), renewal: Number(r.renewal), count: Number(r.count) };
+        }
       }
-
       return Object.values(monthly);
     }),
 
@@ -2398,91 +2399,80 @@ const kpiRouter = t.router({
     .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const today = kstDate();
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-
-      // 지점 필터: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속 지점으로 판단
-      const [allRevenueRaw, allExpensesRaw, allLeads, allTargets] = await Promise.all([
-        db.select().from(revenueEntries),
-        db.select().from(expenseEntries),
-        db.select().from(leads),
-        db.select().from(revenueTargets),
-      ]);
-
-      const allRevenue = input.branchId
-        ? allRevenueRaw.filter(r => r.branchId === input.branchId)
-        : allRevenueRaw;
-
-      const allExpenses = input.branchId
-        ? allExpensesRaw.filter(e => e.branchId === input.branchId)
-        : allExpensesRaw;
-
-      // 오늘 매출 (이전 제외)
-      const todayRevenue = allRevenue.filter(r => r.paymentDate === today && r.subType !== "이전").reduce((s, r) => s + r.paidAmount, 0);
-
-      // 이번달 매출 (이전 제외)
-      const monthRevenue = allRevenue.filter(r => r.paymentDate.startsWith(prefix) && r.subType !== "이전");
-      const monthTotal = monthRevenue.reduce((s, r) => s + r.paidAmount, 0);
-      const monthNewSales = monthRevenue.filter(r => r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
-      const monthRenewal = monthRevenue.filter(r => r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
-      const monthPT = monthRevenue.filter(r => r.type === "PT").reduce((s, r) => s + r.paidAmount, 0);
-      const monthHealth = monthRevenue.filter(r => r.type === "헬스").reduce((s, r) => s + r.paidAmount, 0);
-      const monthDiet = monthRevenue.filter(r => r.type === "다이어트").reduce((s, r) => s + r.paidAmount, 0);
-
-      // 이번달 지출
-      const monthExpenses = allExpenses.filter(e => e.expenseDate.startsWith(prefix)).reduce((s, e) => s + e.amount, 0);
-
-      // 미수금 (전체)
-      const totalUnpaid = allRevenue.reduce((s, r) => s + r.unpaidAmount, 0);
-
-      // 환불
-      const monthRefund = monthRevenue.reduce((s, r) => s + r.refundAmount, 0);
-
-      // 목표
-      const target = allTargets.find(t => t.year === input.year && t.month === input.month);
-      const targetAmount = target?.targetAmount ?? 0;
-      const achieveRate = targetAmount > 0 ? Math.round((monthTotal / targetAmount) * 100) : 0;
-
-      // 리드 전환율 (이번달 등록 리드 / 전체 이번달 리드)
-      const monthLeads = allLeads.filter(l => l.createdAt.startsWith(prefix));
-      const conversionRate = monthLeads.length > 0
-        ? Math.round((monthLeads.filter(l => l.status === "registered").length / monthLeads.length) * 100)
-        : 0;
-
-      // 재등록률 (이번달 재등록 건수 / 전체 이번달 건수). 미수금 수납 기록은 신규 등록 이벤트가
-      // 아니므로 분모에서 제외 — 안 그러면 미수금 받을 때마다 재등록률이 희석되어 낮아진다.
-      const monthRegistrationEvents = monthRevenue.filter(r => r.subType !== "미수금");
-      const renewalRate = monthRegistrationEvents.length > 0
-        ? Math.round((monthRegistrationEvents.filter(r => r.subType === "재등록").length / monthRegistrationEvents.length) * 100)
-        : 0;
-
-      // 전월 대비
       const prevMonth = input.month === 1 ? 12 : input.month - 1;
       const prevYear = input.month === 1 ? input.year - 1 : input.year;
       const prevPrefix = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
-      const prevMonthTotal = allRevenue.filter(r => r.paymentDate.startsWith(prevPrefix) && r.subType !== "이전").reduce((s, r) => s + r.paidAmount, 0);
-      const momGrowth = prevMonthTotal > 0 ? Math.round(((monthTotal - prevMonthTotal) / prevMonthTotal) * 100) : 0;
+
+      // SQL 집계 — 전체 rows 전송 없이 DB에서 바로 계산
+      const [revRow, expRow, leadRow, targetRow] = await Promise.all([
+        pool.query<Record<string, string>>(`
+          SELECT
+            COALESCE(SUM(CASE WHEN "paymentDate" = $1 AND "subType" != '이전' THEN "paidAmount" ELSE 0 END), 0) AS today_revenue,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $2 AND "subType" != '이전' THEN "paidAmount" ELSE 0 END), 0) AS month_total,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $2 AND "subType" = '신규'    THEN "paidAmount" ELSE 0 END), 0) AS month_new,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $2 AND "subType" = '재등록'  THEN "paidAmount" ELSE 0 END), 0) AS month_renewal,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $2 AND "type"    = 'PT'      THEN "paidAmount" ELSE 0 END), 0) AS month_pt,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $2 AND "type"    = '헬스'    THEN "paidAmount" ELSE 0 END), 0) AS month_health,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $2 AND "type"    = '다이어트' THEN "paidAmount" ELSE 0 END), 0) AS month_diet,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $2                            THEN "refundAmount" ELSE 0 END), 0) AS month_refund,
+            COALESCE(SUM(CASE WHEN "paymentDate" LIKE $3 AND "subType" != '이전'   THEN "paidAmount" ELSE 0 END), 0) AS prev_month_total,
+            COALESCE(SUM("unpaidAmount"), 0) AS total_unpaid,
+            COUNT(CASE WHEN "paymentDate" LIKE $2 AND "subType" NOT IN ('미수금','이전') THEN 1 END) AS month_reg_count,
+            COUNT(CASE WHEN "paymentDate" LIKE $2 AND "subType" = '재등록'               THEN 1 END) AS month_renewal_count
+          FROM revenue_entries
+          WHERE ($4::int IS NULL OR "branchId" = $4)
+        `, [today, prefix + "%", prevPrefix + "%", input.branchId ?? null]),
+
+        pool.query<{ month_expenses: string }>(`
+          SELECT COALESCE(SUM(amount), 0) AS month_expenses
+          FROM expense_entries
+          WHERE "expenseDate" LIKE $1 AND ($2::int IS NULL OR "branchId" = $2)
+        `, [prefix + "%", input.branchId ?? null]),
+
+        pool.query<{ month_leads: string; registered: string }>(`
+          SELECT
+            COUNT(*) AS month_leads,
+            COUNT(CASE WHEN status = 'registered' THEN 1 END) AS registered
+          FROM leads
+          WHERE "createdAt" LIKE $1
+        `, [prefix + "%"]),
+
+        pool.query<{ targetAmount: string }>(`
+          SELECT "targetAmount" FROM revenue_targets
+          WHERE year = $1 AND month = $2 LIMIT 1
+        `, [input.year, input.month]),
+      ]);
+
+      const r = revRow.rows[0];
+      const monthTotal = Number(r.month_total);
+      const prevMonthTotal = Number(r.prev_month_total);
+      const monthRegCount = Number(r.month_reg_count);
+      const monthRenewalCount = Number(r.month_renewal_count);
+      const monthExpenses = Number(expRow.rows[0].month_expenses);
+      const monthLeadsTotal = Number(leadRow.rows[0].month_leads);
+      const registeredLeads = Number(leadRow.rows[0].registered);
+      const targetAmount = Number(targetRow.rows[0]?.targetAmount ?? 0);
 
       return {
-        todayRevenue,
+        todayRevenue: Number(r.today_revenue),
         monthTotal,
-        monthNewSales,
-        monthRenewal,
-        monthPT,
-        monthHealth,
-        monthDiet,
+        monthNewSales: Number(r.month_new),
+        monthRenewal: Number(r.month_renewal),
+        monthPT: Number(r.month_pt),
+        monthHealth: Number(r.month_health),
+        monthDiet: Number(r.month_diet),
         monthExpenses,
         monthProfit: monthTotal - monthExpenses,
-        totalUnpaid,
-        monthRefund,
+        totalUnpaid: Number(r.total_unpaid),
+        monthRefund: Number(r.month_refund),
         targetAmount,
-        achieveRate,
-        conversionRate,
-        renewalRate,
-        momGrowth,
+        achieveRate: targetAmount > 0 ? Math.round((monthTotal / targetAmount) * 100) : 0,
+        conversionRate: monthLeadsTotal > 0 ? Math.round((registeredLeads / monthLeadsTotal) * 100) : 0,
+        renewalRate: monthRegCount > 0 ? Math.round((monthRenewalCount / monthRegCount) * 100) : 0,
+        momGrowth: prevMonthTotal > 0 ? Math.round(((monthTotal - prevMonthTotal) / prevMonthTotal) * 100) : 0,
         prevMonthTotal,
       };
     }),
