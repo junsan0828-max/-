@@ -213,6 +213,7 @@ export default function RegistrationManagement() {
   const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
   const [editRev, setEditRev] = useState<any | null>(null);
   const [editRevForm, setEditRevForm] = useState({
+    customerName: "",
     programDetail: "", sessions: "", duration: "",
     startDate: "", amount: "", discountAmount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제" | "혼합",
@@ -475,6 +476,7 @@ export default function RegistrationManagement() {
   function openEditRev(r: any) {
     setEditRev(r);
     setEditRevForm({
+      customerName: r.customerName ?? "",
       programDetail: r.programDetail ?? "",
       sessions: r.sessions ? String(r.sessions) : "",
       duration: r.duration ? String(r.duration) : "",
@@ -965,6 +967,12 @@ export default function RegistrationManagement() {
                     <button onClick={() => setEditRev(null)} className="text-muted-foreground hover:text-foreground">✕</button>
                   </div>
                   <div className="px-5 py-4 space-y-4">
+                    {/* 이름 */}
+                    <div>
+                      <label className="text-xs text-muted-foreground">이름</label>
+                      <input value={editRevForm.customerName} onChange={e => setEditRevForm(f => ({ ...f, customerName: e.target.value }))}
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
                     {/* PT 프로그램 */}
                     {editRev.type === "PT" && (
                       <div>
@@ -1303,6 +1311,7 @@ export default function RegistrationManagement() {
                           }
                           updateRevMutation.mutate({
                             id: editRev.id,
+                            customerName: editRevForm.customerName || undefined,
                             programDetail: editRevForm.programDetail || undefined,
                             sessions: editRevForm.sessions !== "" ? Number(editRevForm.sessions) : undefined,
                             duration: editRevForm.duration !== "" ? Number(editRevForm.duration) : undefined,
