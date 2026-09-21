@@ -586,6 +586,42 @@ export default function GymPlusProfile() {
     onError: (e) => setPwMsg(e.message || "변경 실패"),
   });
 
+  // ─── 회원권 정지/해지/양도 신청 ──────────────────────────────────────────────
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+
+  const { data: membershipRequests, refetch: refetchMembershipRequests } = trpc.gymPlus.getMembershipRequests.useQuery();
+  const { data: pauseEligibility } = trpc.gymPlus.getMembershipPauseEligibility.useQuery();
+
+  const [pauseStartDate, setPauseStartDate] = useState("");
+  const [pauseEndDate, setPauseEndDate] = useState("");
+  const [cancelStep, setCancelStep] = useState<1 | 2>(1);
+  const [cancelReason, setCancelReason] = useState("");
+  const [transferStep, setTransferStep] = useState<1 | 2 | 3>(1);
+  const [transfereeName, setTransfereeName] = useState("");
+  const [transfereePhone, setTransfereePhone] = useState("");
+  const [isFamilyTransfer, setIsFamilyTransfer] = useState(false);
+
+  const submitMembershipRequest = trpc.gymPlus.submitMembershipRequest.useMutation({
+    onSuccess: () => {
+      refetchMembershipRequests();
+      setShowPauseModal(false);
+      setShowCancelModal(false);
+      setShowTransferModal(false);
+      setCancelStep(1);
+      setCancelReason("");
+      setTransferStep(1);
+      setTransfereeName("");
+      setTransfereePhone("");
+      setIsFamilyTransfer(false);
+      setPauseStartDate("");
+      setPauseEndDate("");
+      toast.success("신청이 완료되었습니다. 영업일 내 처리됩니다.");
+    },
+    onError: (e) => toast.error(e.message || "신청 실패"),
+  });
+
   const startEdit = () => {
     setProfileForm({ name: member?.name ?? "", phone: member?.phone ?? "", email: member?.email ?? "" });
     setProfileEditing(true);
@@ -1385,6 +1421,52 @@ export default function GymPlusProfile() {
         })()}
       </div>
 
+      {/* 회원권 관리 */}
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <h3 className="font-semibold text-sm mb-3">회원권 관리</h3>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => setShowPauseModal(true)}
+            className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-center hover:bg-blue-500/20 transition-colors"
+          >
+            <p className="text-lg">⏸</p>
+            <p className="text-xs font-medium mt-1">정지 신청</p>
+          </button>
+          <button
+            onClick={() => setShowCancelModal(true)}
+            className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center hover:bg-red-500/20 transition-colors"
+          >
+            <p className="text-lg">🚫</p>
+            <p className="text-xs font-medium mt-1">해지 신청</p>
+          </button>
+          <button
+            onClick={() => setShowTransferModal(true)}
+            className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 text-center hover:bg-purple-500/20 transition-colors"
+          >
+            <p className="text-lg">🔄</p>
+            <p className="text-xs font-medium mt-1">양도 신청</p>
+          </button>
+        </div>
+        {membershipRequests && membershipRequests.filter((r: any) => r.status === "pending").length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">처리 대기 중인 신청</p>
+            {membershipRequests.filter((r: any) => r.status === "pending").map((r: any) => (
+              <div key={r.id} className="bg-muted/50 rounded-lg px-3 py-2 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-medium">
+                    {r.type === "pause" ? "정지" : r.type === "cancel" ? "해지" : "양도"} 신청
+                  </span>
+                  {r.type === "pause" && r.pauseStartDate && (
+                    <span className="text-xs text-muted-foreground ml-2">{r.pauseStartDate} ~ {r.pauseEndDate}</span>
+                  )}
+                </div>
+                <span className="text-xs bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded-full">대기중</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 추천 운동 활성화 미션 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -1503,6 +1585,278 @@ export default function GymPlusProfile() {
       </>)}
 
       </div>{/* /p-4 */}
+
+      {/* ── 정지 신청 모달 ── */}
+      {showPauseModal && (
+        <Dialog open onOpenChange={(o) => { if (!o) setShowPauseModal(false); }}>
+          <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <h2 className="font-bold text-base">회원권 정지 신청</h2>
+            </DialogHeader>
+            {!pauseEligibility?.eligible ? (
+              <div className="py-4 text-center">
+                <p className="text-3xl mb-3">⚠️</p>
+                <p className="text-sm font-medium text-red-400">{pauseEligibility?.reason ?? "정지 신청이 불가합니다."}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-muted/50 rounded-xl p-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">잔여 정지 가능 일수</span>
+                    <span className="font-semibold">{pauseEligibility.remainingDays}일</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">사용 횟수</span>
+                    <span className="font-semibold">{pauseEligibility.usedCount}/{pauseEligibility.maxCount}회</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">최대 정지 종료일</span>
+                    <span className="font-semibold">{pauseEligibility.maxEndDate}</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">정지 시작일 (최소 내일부터)</label>
+                    <input
+                      type="date"
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                      min={pauseEligibility.minStartDate}
+                      max={pauseEligibility.maxEndDate}
+                      value={pauseStartDate}
+                      onChange={(e) => setPauseStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">정지 종료일</label>
+                    <input
+                      type="date"
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                      min={pauseStartDate || pauseEligibility.minStartDate}
+                      max={pauseEligibility.maxEndDate}
+                      value={pauseEndDate}
+                      onChange={(e) => setPauseEndDate(e.target.value)}
+                    />
+                  </div>
+                  {pauseStartDate && pauseEndDate && pauseStartDate <= pauseEndDate && (
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 text-xs text-center">
+                      총 {Math.ceil((new Date(pauseEndDate).getTime() - new Date(pauseStartDate).getTime()) / 86400000) + 1}일 정지
+                    </div>
+                  )}
+                </div>
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 text-xs text-yellow-600 space-y-1">
+                  <p className="font-medium">주의사항</p>
+                  <p>승인 후 처리되며, 정지 기간만큼 만료일이 자동 연장됩니다.</p>
+                  <p>당일 신청은 불가하며 최소 내일부터 시작됩니다.</p>
+                </div>
+                <button
+                  disabled={!pauseStartDate || !pauseEndDate || pauseStartDate > pauseEndDate || submitMembershipRequest.isPending}
+                  onClick={() => submitMembershipRequest.mutate({ type: "pause", pauseStartDate, pauseEndDate })}
+                  className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
+                >
+                  {submitMembershipRequest.isPending ? "신청 중..." : "정지 신청하기"}
+                </button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── 해지 신청 모달 ── */}
+      {showCancelModal && (
+        <Dialog open onOpenChange={(o) => { if (!o) { setShowCancelModal(false); setCancelStep(1); setCancelReason(""); } }}>
+          <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <h2 className="font-bold text-base">회원권 해지 신청</h2>
+            </DialogHeader>
+            {cancelStep === 1 ? (
+              <div className="space-y-4">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 space-y-2 text-xs">
+                  <p className="font-semibold text-red-400">해지 전 반드시 확인하세요</p>
+                  <p>위약금: 계약금액의 10% 공제</p>
+                  <p>환불액: 잔여 비례금액 - 위약금 (최소 0원)</p>
+                  <p>환불 처리: 영업일 3~5일 소요</p>
+                </div>
+                {membershipRequests !== undefined && (() => {
+                  const req = membershipRequests.find((r: any) => r.type === "cancel" && r.status === "pending");
+                  if (req) return (
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 text-xs text-yellow-600">
+                      이미 해지 신청이 대기 중입니다.
+                    </div>
+                  );
+                  return null;
+                })()}
+                <div className="bg-muted/50 rounded-xl p-3 text-xs space-y-1">
+                  <p className="text-muted-foreground">예상 환불액은 신청 후 확인 가능하며, 실제 금액은 관리자 확인 후 안내됩니다.</p>
+                </div>
+                <button
+                  onClick={() => setCancelStep(2)}
+                  className="w-full bg-red-500 text-white rounded-xl py-3 text-sm font-semibold"
+                >
+                  다음 단계
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm font-medium">해지 사유를 선택해 주세요</p>
+                <div className="space-y-2">
+                  {["건강 문제", "이사·직장이전", "개인 사정", "기타"].map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => setCancelReason(reason)}
+                      className={`w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors ${
+                        cancelReason === reason
+                          ? "border-red-500 bg-red-500/10 font-semibold"
+                          : "border-border bg-muted/30 hover:bg-muted/60"
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  disabled={!cancelReason || submitMembershipRequest.isPending}
+                  onClick={() => submitMembershipRequest.mutate({ type: "cancel", cancelReason })}
+                  className="w-full bg-red-500 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
+                >
+                  {submitMembershipRequest.isPending ? "신청 중..." : "해지 신청하기"}
+                </button>
+                <button onClick={() => setCancelStep(1)} className="w-full text-xs text-muted-foreground py-2">
+                  이전으로
+                </button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── 양도 신청 모달 ── */}
+      {showTransferModal && (
+        <Dialog open onOpenChange={(o) => { if (!o) { setShowTransferModal(false); setTransferStep(1); setTransfereeName(""); setTransfereePhone(""); setIsFamilyTransfer(false); } }}>
+          <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <h2 className="font-bold text-base">회원권 양도 신청</h2>
+              <p className="text-xs text-muted-foreground mt-1">단계 {transferStep}/3</p>
+            </DialogHeader>
+
+            {transferStep === 1 && (
+              <div className="space-y-4">
+                <p className="text-sm font-medium">양도 가능 여부 확인</p>
+                <div className="space-y-2 text-sm">
+                  {[
+                    { icon: "✅", label: "헬스 회원권 (유료)", ok: true },
+                    { icon: "✅", label: "유료 부가서비스 (운동복/락커 등)", ok: true },
+                    { icon: "⚠️", label: "PT: 담당 트레이너 상담 후 가능", ok: null },
+                    { icon: "❌", label: "무료 제공 서비스 양도 불가", ok: false },
+                    { icon: "❌", label: "다이어트페이백 양도 불가", ok: false },
+                    { icon: "❌", label: "회원권 만료 30일 이내 불가", ok: false },
+                  ].map((item, i) => (
+                    <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+                      item.ok === true ? "bg-green-500/10" : item.ok === false ? "bg-red-500/10" : "bg-yellow-500/10"
+                    }`}>
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setTransferStep(2)}
+                  className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold"
+                >
+                  확인 후 다음 단계
+                </button>
+              </div>
+            )}
+
+            {transferStep === 2 && (
+              <div className="space-y-4">
+                <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-semibold">양도비 안내</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">양도비 (직계가족 제외)</span>
+                    <span className="font-bold text-base">40,000원</span>
+                  </div>
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs text-muted-foreground mb-1">입금 계좌</p>
+                    <div className="flex items-center justify-between bg-background rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-xs font-medium">카카오뱅크 3333-05-2664409</p>
+                        <p className="text-xs text-muted-foreground">이준산</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText("3333-05-2664409").then(() => toast.success("계좌번호가 복사되었습니다."));
+                        }}
+                        className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-lg"
+                      >
+                        복사
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 text-xs text-yellow-600">
+                  입금 기한: 신청 후 1일 이내 미입금 시 자동 취소됩니다.
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setTransferStep(1)} className="flex-1 border border-border rounded-xl py-3 text-sm">이전</button>
+                  <button onClick={() => setTransferStep(3)} className="flex-1 bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold">다음 단계</button>
+                </div>
+              </div>
+            )}
+
+            {transferStep === 3 && (
+              <div className="space-y-4">
+                <p className="text-sm font-medium">양도받을 분의 정보를 입력해 주세요</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">이름</label>
+                    <input
+                      type="text"
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                      placeholder="홍길동"
+                      value={transfereeName}
+                      onChange={(e) => setTransfereeName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">연락처</label>
+                    <input
+                      type="tel"
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                      placeholder="010-0000-0000"
+                      value={transfereePhone}
+                      onChange={(e) => setTransfereePhone(e.target.value)}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isFamilyTransfer}
+                      onChange={(e) => setIsFamilyTransfer(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">직계가족 (양도비 면제)</span>
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setTransferStep(2)} className="flex-1 border border-border rounded-xl py-3 text-sm">이전</button>
+                  <button
+                    disabled={!transfereeName || !transfereePhone || submitMembershipRequest.isPending}
+                    onClick={() => submitMembershipRequest.mutate({
+                      type: "transfer",
+                      transfereeName,
+                      transfereePhone,
+                      isFamilyTransfer: isFamilyTransfer ? 1 : 0,
+                    })}
+                    className="flex-1 bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
+                  >
+                    {submitMembershipRequest.isPending ? "신청 중..." : "양도 신청하기"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* 센터 이용규정 모달 */}
       {showGymRules && (

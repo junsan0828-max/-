@@ -6626,6 +6626,206 @@ const kioskRouter = t.router({
       }
     }),
 
+  // ─── 회원권 정지/해지/양도 신청 ──────────────────────────────────────────────
+
+  // 회원권 신청 현황 조회 (내 신청 목록)
+  getMembershipRequests: gymPlusProtected.query(async ({ ctx }) => {
+    const res = await pool.query(
+      `SELECT id, type, status, "pauseStartDate", "pauseEndDate", "pauseDays",
+              "transfereeName", "transfereePhone", "isFamilyTransfer",
+              "cancelReason", "estimatedRefund", note, "adminNote", "createdAt"
+       FROM gym_plus_membership_requests
+       WHERE "gymPlusMemberId" = $1
+       ORDER BY "createdAt" DESC LIMIT 20`,
+      [ctx.gymPlusMember.id]
+    );
+    return res.rows;
+  }),
+
+  // 정지 신청 자격 조회
+  getMembershipPauseEligibility: gymPlusProtected.query(async ({ ctx }) => {
+    const gm = ctx.gymPlusMember;
+    const mRes = await pool.query(
+      `SELECT "membershipStart", "membershipEnd" FROM members WHERE id = $1`,
+      [gm.memberId]
+    );
+    const m = mRes.rows[0];
+    if (!m || !m.membershipEnd) return { eligible: false, reason: "회원권 정보가 없습니다." };
+
+    const today = new Date().toISOString().slice(0, 10);
+    const endDate = new Date(m.membershipEnd);
+    const todayDate = new Date(today);
+    const daysLeft = Math.ceil((endDate.getTime() - todayDate.getTime()) / 86400000);
+
+    if (daysLeft <= 30) return { eligible: false, reason: "회원권 만료 30일 이내는 신청할 수 없습니다." };
+
+    const startDate = m.membershipStart ? new Date(m.membershipStart) : null;
+    let periodMonths = 0;
+    if (startDate) {
+      const diffMs = endDate.getTime() - startDate.getTime();
+      periodMonths = Math.round(diffMs / (30 * 86400000));
+    }
+
+    if (periodMonths < 6) return { eligible: false, reason: "3개월 회원권은 정지 신청이 불가합니다." };
+
+    const maxPauseDays = periodMonths >= 12 ? 365 : 180;
+
+    const pauseRes = await pool.query(
+      `SELECT COUNT(*) as cnt, COALESCE(SUM("pauseDays"), 0) as total_days
+       FROM gym_plus_membership_requests
+       WHERE "gymPlusMemberId" = $1 AND type = 'pause' AND status = 'approved'`,
+      [gm.id]
+    );
+    const usedCount = parseInt(pauseRes.rows[0]?.cnt ?? "0");
+    const usedDays = parseInt(pauseRes.rows[0]?.total_days ?? "0");
+
+    const pendingRes = await pool.query(
+      `SELECT COUNT(*) as cnt FROM gym_plus_membership_requests
+       WHERE "gymPlusMemberId" = $1 AND type = 'pause' AND status = 'pending'`,
+      [gm.id]
+    );
+    const pendingCount = parseInt(pendingRes.rows[0]?.cnt ?? "0");
+
+    if (usedCount + pendingCount >= 2) return { eligible: false, reason: "정지 신청은 최대 2회까지 가능합니다." };
+
+    const remainingDays = maxPauseDays - usedDays;
+    if (remainingDays <= 0) return { eligible: false, reason: "정지 가능 일수를 모두 사용했습니다." };
+
+    const tomorrow = new Date(todayDate);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const maxEndDate = new Date(tomorrow);
+    maxEndDate.setDate(maxEndDate.getDate() + remainingDays - 1);
+
+    return {
+      eligible: true,
+      membershipEnd: m.membershipEnd,
+      maxPauseDays,
+      usedDays,
+      remainingDays,
+      usedCount,
+      maxCount: 2,
+      minStartDate: tomorrow.toISOString().slice(0, 10),
+      maxEndDate: maxEndDate.toISOString().slice(0, 10),
+    };
+  }),
+
+  // 회원권 신청 제출 (정지/해지/양도)
+  submitMembershipRequest: gymPlusProtected
+    .input(z.object({
+      type: z.enum(["pause", "cancel", "transfer"]),
+      pauseStartDate: z.string().optional(),
+      pauseEndDate: z.string().optional(),
+      transfereeName: z.string().optional(),
+      transfereePhone: z.string().optional(),
+      isFamilyTransfer: z.number().optional(),
+      cancelReason: z.string().optional(),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const gm = ctx.gymPlusMember;
+
+      const mRes = await pool.query(`SELECT "membershipStart", "membershipEnd" FROM members WHERE id = $1`, [gm.memberId]);
+      const membershipEnd = mRes.rows[0]?.membershipEnd;
+      if (membershipEnd) {
+        const today = new Date().toISOString().slice(0, 10);
+        const endDate = new Date(membershipEnd);
+        const todayDate = new Date(today);
+        const daysLeft = Math.ceil((endDate.getTime() - todayDate.getTime()) / 86400000);
+        if (daysLeft <= 30) throw new TRPCError({ code: "BAD_REQUEST", message: "회원권 만료 30일 이내는 신청할 수 없습니다." });
+      }
+
+      let pauseDays: number | null = null;
+      let estimatedRefund: number | null = null;
+
+      if (input.type === "pause" && input.pauseStartDate && input.pauseEndDate) {
+        const start = new Date(input.pauseStartDate);
+        const end = new Date(input.pauseEndDate);
+        pauseDays = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+      }
+
+      if (input.type === "cancel" && membershipEnd) {
+        const md = mRes.rows[0];
+        if (md?.membershipStart && md?.membershipEnd) {
+          const today = new Date().toISOString().slice(0, 10);
+          const totalDays = Math.max(1, Math.ceil((new Date(md.membershipEnd).getTime() - new Date(md.membershipStart).getTime()) / 86400000));
+          const remainDays = Math.max(0, Math.ceil((new Date(md.membershipEnd).getTime() - new Date(today).getTime()) / 86400000));
+
+          const payRes = await pool.query(
+            `SELECT amount FROM revenue_entries WHERE "memberId" = $1 AND type = '헬스' ORDER BY "paymentDate" DESC LIMIT 1`,
+            [gm.memberId]
+          );
+          const contractAmount = payRes.rows[0]?.amount ?? 0;
+          const refundBase = Math.floor(contractAmount * (remainDays / totalDays));
+          const penalty = Math.floor(contractAmount * 0.1);
+          estimatedRefund = Math.max(0, refundBase - penalty);
+        }
+      }
+
+      await pool.query(
+        `INSERT INTO gym_plus_membership_requests
+         ("gymPlusMemberId", type, status, "pauseStartDate", "pauseEndDate", "pauseDays",
+          "transfereeName", "transfereePhone", "isFamilyTransfer",
+          "cancelReason", "estimatedRefund", note, "createdAt")
+         VALUES ($1,$2,'pending',$3,$4,$5,$6,$7,$8,$9,$10,$11,now()::text)`,
+        [
+          gm.id, input.type,
+          input.pauseStartDate ?? null, input.pauseEndDate ?? null, pauseDays,
+          input.transfereeName ?? null, input.transfereePhone ?? null, input.isFamilyTransfer ?? 0,
+          input.cancelReason ?? null, estimatedRefund,
+          input.note ?? null,
+        ]
+      );
+
+      return { ok: true };
+    }),
+
+  // 어드민용: 회원권 신청 목록 조회
+  listMembershipRequests: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(
+      `SELECT mr.*, gm.name, gm.phone
+       FROM gym_plus_membership_requests mr
+       JOIN gym_plus_members gm ON gm.id = mr."gymPlusMemberId"
+       WHERE mr.status = 'pending'
+       ORDER BY mr."createdAt" DESC LIMIT 50`
+    );
+    return res.rows;
+  }),
+
+  // 어드민용: 회원권 신청 처리
+  processMembershipRequest: adminOnlyGymPlus
+    .input(z.object({
+      id: z.number(),
+      action: z.enum(["approved", "rejected"]),
+      adminNote: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const reqRes = await pool.query(
+        `SELECT * FROM gym_plus_membership_requests WHERE id = $1`, [input.id]
+      );
+      const req = reqRes.rows[0];
+      if (!req) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await pool.query(
+        `UPDATE gym_plus_membership_requests SET status = $1, "adminNote" = $2, "processedAt" = now()::text WHERE id = $3`,
+        [input.action, input.adminNote ?? null, input.id]
+      );
+
+      if (input.action === "approved") {
+        if (req.type === "pause" && req.pauseEndDate && req.pauseDays) {
+          const gmRes = await pool.query(`SELECT "memberId" FROM gym_plus_members WHERE id = $1`, [req.gymPlusMemberId]);
+          const memberId = gmRes.rows[0]?.memberId;
+          if (memberId) {
+            await pool.query(
+              `UPDATE members SET "membershipEnd" = ("membershipEnd"::date + $1 * INTERVAL '1 day')::date::text WHERE id = $2`,
+              [req.pauseDays, memberId]
+            );
+          }
+        }
+      }
+
+      return { ok: true };
+    }),
+
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

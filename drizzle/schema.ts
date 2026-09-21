@@ -613,3 +613,26 @@ export const gymPlusPointChargeRequests = pgTable("gym_plus_point_charge_request
   status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected"
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+export const gymPlusMembershipRequests = pgTable("gym_plus_membership_requests", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  type: text("type").notNull(), // "pause" | "cancel" | "transfer"
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected" | "cancelled"
+  // Pause
+  pauseStartDate: text("pauseStartDate"),
+  pauseEndDate: text("pauseEndDate"),
+  pauseDays: integer("pauseDays"),
+  // Transfer
+  transfereeName: text("transfereeName"),
+  transfereePhone: text("transfereePhone"),
+  isFamilyTransfer: integer("isFamilyTransfer").default(0),
+  // Cancel
+  cancelReason: text("cancelReason"),
+  estimatedRefund: integer("estimatedRefund"),
+  // Common
+  note: text("note"),
+  adminNote: text("adminNote"),
+  createdAt: text("createdAt").default(now).notNull(),
+  processedAt: text("processedAt"),
+});

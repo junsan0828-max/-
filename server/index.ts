@@ -728,6 +728,26 @@ async function initDatabase() {
     `CREATE UNIQUE INDEX IF NOT EXISTS gym_plus_mission_submissions_period_uniq
        ON gym_plus_mission_submissions ("gymPlusMemberId", "periodKey")
        WHERE "periodKey" IS NOT NULL`,
+    // ─── 회원권 정지/해지/양도 신청 ────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS gym_plus_membership_requests (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "pauseStartDate" TEXT,
+      "pauseEndDate" TEXT,
+      "pauseDays" INTEGER,
+      "transfereeName" TEXT,
+      "transfereePhone" TEXT,
+      "isFamilyTransfer" INTEGER DEFAULT 0,
+      "cancelReason" TEXT,
+      "estimatedRefund" INTEGER,
+      note TEXT,
+      "adminNote" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "processedAt" TEXT
+    )`,
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "membershipPeriodMonths" INTEGER`,
   ];
   for (const stmt of alterStatements) {
     try {
