@@ -279,6 +279,11 @@ export default function GymDashboard() {
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) },
     { staleTime: 3 * 60 * 1000 }
   );
+  // 접힌 배너용이라 첫 페인트를 막을 필요가 없다 — KPI가 온 뒤에 뒤따라 받는다.
+  const { data: anomalyData } = trpc.admin.pricingAnomalies.useQuery(undefined, {
+    enabled: !isLoading,
+    staleTime: 5 * 60 * 1000,
+  });
   const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, {
     refetchInterval: 30000,
   });

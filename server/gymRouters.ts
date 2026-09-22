@@ -4894,6 +4894,8 @@ const dietRouter = t.router({
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 등록할 수 있습니다." });
       }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [mem] = await db.select({ id: members.id, membershipEnd: members.membershipEnd })
         .from(members).where(eq(members.id, input.memberId)).limit(1);
       if (!mem) throw new TRPCError({ code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." });

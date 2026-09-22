@@ -6296,6 +6296,8 @@ const gymPlusRouter = t.router({
       note: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const gm = await pool.query<{ memberId: number | null }>(
         `SELECT "memberId" FROM gym_plus_members WHERE id = $1 LIMIT 1`,
         [ctx.gymPlusMemberId]
