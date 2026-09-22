@@ -220,6 +220,15 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+// 회원 단건을 memberId로 다루는 procedure는 반드시 이걸 먼저 통과시킨다.
+// memberId는 클라이언트가 보내는 값이라, 소유 검증이 없으면 값만 바꿔
+// 다른 트레이너의 회원 데이터를 읽거나 덮어쓸 수 있다.
+async function assertOwnsMember(trainerId: number | null | undefined, memberId: number) {
+  if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+  const r = await pool.query(`SELECT 1 FROM members WHERE id=$1 AND "trainerId"=$2`, [memberId, trainerId]);
+  if (r.rowCount === 0) throw new TRPCError({ code: "FORBIDDEN" });
+}
+
 // 카드/현금/지역화폐는 부가세 10% 제외, 계좌이체는 그대로
 function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
@@ -390,7 +399,10 @@ const membersRouter = t.router({
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       const db = getDb();
-      const result = await db.select().from(members).where(eq(members.id, input.id)).limit(1);
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const result = await db.select().from(members)
+        .where(and(eq(members.id, input.id), eq(members.trainerId, trainerId))).limit(1);
       if (!result[0]) throw new TRPCError({ code: "NOT_FOUND" });
       return result[0];
     }),
@@ -875,7 +887,7 @@ const ptRouter = t.router({
 
       // 원자적 UPDATE: 잔여 세션이 있을 때만 차감 (레이스 컨디션 방지)
       const updated = await pool.query<{ id: number; usedSessions: number; totalSessions: number }>(
-        `UPDATE "ptPackages" SET "usedSessions" = "usedSessions" + 1,
+        `UPDATE pt_packages SET "usedSessions" = "usedSessions" + 1,
           status = CASE WHEN "usedSessions" + 1 >= "totalSessions" THEN 'completed' ELSE 'active' END
          WHERE id = $1 AND "usedSessions" < "totalSessions"
          RETURNING id, "usedSessions", "totalSessions"`,
@@ -1791,8 +1803,9 @@ const parQSchema = z.object({
 const parQRouter = t.router({
   get: protectedProcedure
     .input(z.object({ memberId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = getDb();
+      await assertOwnsMember(ctx.user.trainerId, input.memberId);
       const rows = await db.select().from(parQ).where(eq(parQ.memberId, input.memberId)).limit(1);
       return rows[0] ?? null;
     }),
@@ -1802,6 +1815,7 @@ const parQRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const { memberId, ...fields } = input;
+      await assertOwnsMember(ctx.user.trainerId, memberId);
       const existing = await db.select({ id: parQ.id }).from(parQ).where(eq(parQ.memberId, memberId)).limit(1);
       const isNew = !existing[0];
       if (existing[0]) {
@@ -4075,6 +4089,23 @@ const fitStepPlusProtected = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, fitStepPlusMemberId: memberId ?? 0 } });
 });
 
+// 회원앱 콘텐츠는 "로그인한 회원이 속한 트레이너" 것만 보여준다.
+// 클라이언트가 보내는 trainerId를 그대로 믿으면 값만 바꿔 다른 트레이너의
+// 유료 콘텐츠를 통째로 볼 수 있으므로, 비관리자는 세션에서 다시 유도한다.
+async function fspScopeTrainerId(ctx: any, requested?: number): Promise<number> {
+  if (ctx.user?.role === "admin") {
+    if (!requested) throw new TRPCError({ code: "BAD_REQUEST" });
+    return requested;
+  }
+  const memberId = ctx.fitStepPlusMemberId as number;
+  const r = await pool.query<{ trainerId: number }>(
+    `SELECT "trainerId" FROM members WHERE id=$1`, [memberId]
+  );
+  const tid = r.rows[0]?.trainerId;
+  if (!tid) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return tid;
+}
+
 // 관리자가 설정한 plan_settings를 기준으로 최종 결제가를 서버에서 직접 계산.
 // 클라이언트가 보낸 금액은 절대 신뢰하지 않는다 — 결제 검증은 항상 여기서.
 async function getPlanFinalPrice(plan: string): Promise<number> {
@@ -4099,9 +4130,20 @@ const fitStepPlusRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const normalizePhone = (p: string) => p.replace(/\D/g, "");
       const inputPhone = normalizePhone(input.username);
-      const result = await getDb().select().from(members)
-        .where(eq(members.trainerId, input.trainerId)).limit(200);
-      const member = result.find(m => m.phone && normalizePhone(m.phone) === inputPhone);
+      // 숫자가 하나도 없으면 phone이 비어 있는 회원과 매칭돼 버리므로 먼저 막는다.
+      if (inputPhone.length < 8) throw new TRPCError({ code: "UNAUTHORIZED", message: "등록된 휴대폰 번호가 아닙니다." });
+      // 번호는 DB에 하이픈 등 표기가 섞여 저장돼 있어 SQL에서 숫자만 남겨 비교한다.
+      // (이전에는 앞 200명만 읽어와 매칭해서 201번째 이후 회원이 로그인하지 못했다)
+      const matched = await pool.query<{ id: number }>(
+        `SELECT id FROM members
+         WHERE "trainerId"=$1 AND regexp_replace(COALESCE(phone,''), '\\D', '', 'g') = $2
+         LIMIT 1`,
+        [input.trainerId, inputPhone]
+      );
+      const result = matched.rows[0]
+        ? await getDb().select().from(members).where(eq(members.id, matched.rows[0].id)).limit(1)
+        : [];
+      const member = result[0];
       if (!member) throw new TRPCError({ code: "UNAUTHORIZED", message: "등록된 휴대폰 번호가 아닙니다." });
       const digits = normalizePhone(member.phone ?? "");
       const last4 = digits.slice(-4);
@@ -4138,39 +4180,45 @@ const fitStepPlusRouter = t.router({
         .orderBy(fitStepPlusVideoCategories.sortOrder);
     }),
 
-  listVideos: publicProcedure
+  listVideos: fitStepPlusProtected
     .input(z.object({ trainerId: z.number(), categoryId: z.number().optional(), level: z.string().optional() }))
-    .query(async ({ input }) => {
-      const conditions: any[] = [eq(fitStepPlusVideos.trainerId, input.trainerId), eq(fitStepPlusVideos.isPublished, 1)];
+    .query(async ({ ctx, input }) => {
+      const tid = await fspScopeTrainerId(ctx, input.trainerId);
+      const conditions: any[] = [eq(fitStepPlusVideos.trainerId, tid), eq(fitStepPlusVideos.isPublished, 1)];
       if (input.categoryId) conditions.push(eq(fitStepPlusVideos.categoryId, input.categoryId));
       if (input.level) conditions.push(eq(fitStepPlusVideos.level, input.level));
       return getDb().select().from(fitStepPlusVideos).where(and(...conditions))
         .orderBy(fitStepPlusVideos.sortOrder, desc(fitStepPlusVideos.createdAt));
     }),
 
-  getVideo: publicProcedure
+  getVideo: fitStepPlusProtected
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      const result = await getDb().select().from(fitStepPlusVideos)
-        .where(and(eq(fitStepPlusVideos.id, input.id), eq(fitStepPlusVideos.isPublished, 1))).limit(1);
+    .query(async ({ ctx, input }) => {
+      const tid = ctx.user?.role === "admin" ? null : await fspScopeTrainerId(ctx);
+      const conditions: any[] = [eq(fitStepPlusVideos.id, input.id), eq(fitStepPlusVideos.isPublished, 1)];
+      if (tid !== null) conditions.push(eq(fitStepPlusVideos.trainerId, tid));
+      const result = await getDb().select().from(fitStepPlusVideos).where(and(...conditions)).limit(1);
       if (!result[0]) throw new TRPCError({ code: "NOT_FOUND" });
       return result[0];
     }),
 
-  listEvents: publicProcedure
+  listEvents: fitStepPlusProtected
     .input(z.object({ trainerId: z.number(), eventType: z.string().optional() }))
-    .query(async ({ input }) => {
-      const conditions: any[] = [eq(fitStepPlusEvents.trainerId, input.trainerId), eq(fitStepPlusEvents.isPublished, 1)];
+    .query(async ({ ctx, input }) => {
+      const tid = await fspScopeTrainerId(ctx, input.trainerId);
+      const conditions: any[] = [eq(fitStepPlusEvents.trainerId, tid), eq(fitStepPlusEvents.isPublished, 1)];
       if (input.eventType) conditions.push(eq(fitStepPlusEvents.eventType, input.eventType));
       return getDb().select().from(fitStepPlusEvents).where(and(...conditions))
         .orderBy(desc(fitStepPlusEvents.isPinned), desc(fitStepPlusEvents.createdAt));
     }),
 
-  getEvent: publicProcedure
+  getEvent: fitStepPlusProtected
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      const result = await getDb().select().from(fitStepPlusEvents)
-        .where(and(eq(fitStepPlusEvents.id, input.id), eq(fitStepPlusEvents.isPublished, 1))).limit(1);
+    .query(async ({ ctx, input }) => {
+      const tid = ctx.user?.role === "admin" ? null : await fspScopeTrainerId(ctx);
+      const conditions: any[] = [eq(fitStepPlusEvents.id, input.id), eq(fitStepPlusEvents.isPublished, 1)];
+      if (tid !== null) conditions.push(eq(fitStepPlusEvents.trainerId, tid));
+      const result = await getDb().select().from(fitStepPlusEvents).where(and(...conditions)).limit(1);
       if (!result[0]) throw new TRPCError({ code: "NOT_FOUND" });
       return result[0];
     }),
@@ -5973,31 +6021,93 @@ const trainerSchedulesRouter = t.router({
       return { success: true };
     }),
 
+  // 수업 완료 = 출석 기록 + 세션 1회 차감. 세 가지를 한 트랜잭션으로 묶는다.
+  //  - 스케쥴 status 전이를 멱등성 잠금으로 삼아 재호출(다른 탭·재시도) 시 중복 차감을 막는다.
+  //  - 차감은 pt.useSession과 동일하게 잔여 세션이 있을 때만 이뤄지는 원자적 UPDATE.
+  //  - ptSessionLogs를 반드시 남긴다. 출석 화면의 중복 차감 판정이 이 로그를 기준으로 하므로
+  //    (AttendanceCheck.tsx의 alreadyDeducted) 빠뜨리면 같은 수업이 두 번 차감된다.
   complete: protectedProcedure
     .input(z.object({ id: z.number(), memberId: z.number(), scheduledDate: z.string(), scheduledTime: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const tid = ctx.user.trainerId;
       if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
-      const db = getDb();
-      // 출석 기록
-      const existing = await db.select({ id: attendanceChecks.id })
-        .from(attendanceChecks)
-        .where(and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.scheduledDate)))
-        .limit(1);
-      if (existing[0]) {
-        await db.update(attendanceChecks).set({ status: "attended", checkTime: input.scheduledTime }).where(eq(attendanceChecks.id, existing[0].id));
-      } else {
-        await db.insert(attendanceChecks).values({ memberId: input.memberId, trainerId: tid, checkDate: input.scheduledDate, checkTime: input.scheduledTime, status: "attended" });
+
+      await assertOwnsMember(tid, input.memberId);
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        // 아직 완료되지 않은 스케쥴만 통과 — 이 UPDATE가 중복 실행의 방어선이다.
+        const claimed = await client.query(
+          `UPDATE trainer_schedules SET status='completed'
+           WHERE id=$1 AND "trainerId"=$2 AND status <> 'completed'`,
+          [input.id, tid]
+        );
+        if (claimed.rowCount === 0) {
+          await client.query("ROLLBACK");
+          return { success: true, alreadyCompleted: true, remaining: null };
+        }
+
+        // 같은 날짜에 이미 출석행이 있으면 갱신, 없으면 생성
+        const att = await client.query<{ id: number }>(
+          `SELECT id FROM attendance_checks WHERE "memberId"=$1 AND "checkDate"=$2 LIMIT 1`,
+          [input.memberId, input.scheduledDate]
+        );
+        if (att.rows[0]) {
+          await client.query(
+            `UPDATE attendance_checks SET status='attended', "checkTime"=$1 WHERE id=$2`,
+            [input.scheduledTime, att.rows[0].id]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO attendance_checks ("memberId","trainerId","checkDate","checkTime",status)
+             VALUES ($1,$2,$3,$4,'attended')`,
+            [input.memberId, tid, input.scheduledDate, input.scheduledTime]
+          );
+        }
+
+        // 패키지가 여러 개일 수 있으므로 만료가 임박한(먼저 시작한) 것부터 차감
+        const pkgs = await client.query<{ id: number }>(
+          `SELECT id FROM pt_packages
+           WHERE "memberId"=$1 AND status='active'
+           ORDER BY "startDate" NULLS LAST, id
+           LIMIT 1`,
+          [input.memberId]
+        );
+        if (pkgs.rows.length === 0) {
+          await client.query("ROLLBACK");
+          throw new TRPCError({ code: "BAD_REQUEST", message: "활성 PT 패키지가 없습니다." });
+        }
+        const packageId = pkgs.rows[0].id;
+
+        const updated = await client.query<{ usedSessions: number; totalSessions: number }>(
+          `UPDATE pt_packages SET "usedSessions" = "usedSessions" + 1,
+             status = CASE WHEN "usedSessions" + 1 >= "totalSessions" THEN 'completed' ELSE 'active' END
+           WHERE id=$1 AND "usedSessions" < "totalSessions"
+           RETURNING "usedSessions", "totalSessions"`,
+          [packageId]
+        );
+        if (updated.rowCount === 0) {
+          await client.query("ROLLBACK");
+          throw new TRPCError({ code: "BAD_REQUEST", message: "잔여 세션이 없습니다." });
+        }
+
+        await client.query(
+          `INSERT INTO pt_session_logs ("memberId","trainerId","packageId","sessionDate","notes")
+           VALUES ($1,$2,$3,$4,$5)`,
+          [input.memberId, tid, packageId, input.scheduledDate, "수업 스케쥴 완료"]
+        );
+
+        await client.query("COMMIT");
+        const pkg = updated.rows[0];
+        return { success: true, alreadyCompleted: false, remaining: pkg.totalSessions - pkg.usedSessions };
+      } catch (e) {
+        try { await client.query("ROLLBACK"); } catch {}
+        throw e;
+      } finally {
+        client.release();
       }
-      // 세션 차감
-      const activePkgs = await db.select({ id: ptPackages.id }).from(ptPackages)
-        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active"))).limit(1);
-      if (activePkgs[0]) {
-        await db.update(ptPackages).set({ usedSessions: sql`"usedSessions" + 1` }).where(eq(ptPackages.id, activePkgs[0].id));
-      }
-      // 스케쥴 완료 처리
-      await pool.query(`UPDATE trainer_schedules SET status='completed' WHERE id=$1 AND "trainerId"=$2`, [input.id, tid]);
-      return { success: true };
     }),
 
   delete: protectedProcedure
