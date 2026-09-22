@@ -2165,6 +2165,8 @@ const ptRouter = t.router({
         ...fields,
         ...(recalcPrice !== undefined ? { pricePerSession: recalcPrice } : {}),
         ...(pkg ? { status: autoStatus } : {}),
+        // 관리자가 usedSessions를 직접 수정한 패키지는 startup 동기화에서 제외
+        ...(fields.usedSessions !== undefined ? { sessionsLocked: 1 } : {}),
       }).where(eq(ptPackages.id, packageId));
 
       // ── revenue_entries 전체 필드 동기화 ─────────────────────────────────────

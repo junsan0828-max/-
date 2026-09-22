@@ -1287,6 +1287,7 @@ async function initDatabase() {
       WHERE p.id = l.pid
         AND p.status IN ('active', 'completed')
         AND l.cnt > COALESCE(p."usedSessions", 0)
+        AND COALESCE(p."sessionsLocked", 0) = 0
     `);
     if ((upSync.rowCount ?? 0) > 0)
       console.log(`🔼 세션 로그 기준 usedSessions 상향 동기화: ${upSync.rowCount}건`);
@@ -1718,6 +1719,7 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE kiosk_shop_purchases ADD COLUMN IF NOT EXISTS "cashAmount" INTEGER NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE kiosk_shop_purchases ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`);
   await pool.query(`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "channelBackfilledAt" TEXT`);
+  await pool.query(`ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "sessionsLocked" INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`CREATE TABLE IF NOT EXISTS revenue_adjustments (
     id SERIAL PRIMARY KEY,
     "branchId" INTEGER,

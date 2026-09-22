@@ -98,6 +98,7 @@ export const ptPackages = pgTable("pt_packages", {
   transferAmount: integer("transferAmount"),
   cardAmount: integer("cardAmount"),
   transferredFromMemberId: integer("transferredFromMemberId"), // 양도수령 패키지: 원래 양도자의 memberId
+  sessionsLocked: integer("sessionsLocked").default(0).notNull(), // 1이면 관리자가 수동 수정 → startup 동기화 제외
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
