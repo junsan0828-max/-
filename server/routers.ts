@@ -388,7 +388,7 @@ const membersRouter = t.router({
         .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`)),
       db.select({ memberId: lockers.memberId, lockerNumber: lockers.lockerNumber }).from(lockers)
         .where(sql`${lockers.memberId} IS NOT NULL`),
-      db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail, serviceItems: revenueEntries.serviceItems }).from(revenueEntries)
+      db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail, serviceItems: revenueEntries.serviceItems, type: revenueEntries.type }).from(revenueEntries)
         .where(sql`${revenueEntries.memberId} IS NOT NULL`),
     ]);
 
@@ -408,8 +408,10 @@ const membersRouter = t.router({
     }
     // 운동복 대여 여부 (programDetail + serviceItems 모두 체크)
     const uniformSet = new Set<number>();
+    const dietRevSet = new Set<number>();
     for (const e of etcRevs) {
       if (!e.memberId) continue;
+      if (e.type === "다이어트") dietRevSet.add(e.memberId);
       const d = (e.programDetail ?? "").toLowerCase();
       const si = (e.serviceItems ?? "").toLowerCase();
       if (d.includes("운동복") || d.includes("유니폼") || d.includes("uniform") || si.includes("운동복")) {
@@ -439,6 +441,7 @@ const membersRouter = t.router({
         trainerName: ptTrainerName ?? r.trainerName,
         packages: pkgMap.get(r.id) ?? [],
         hasPtRevenue: ptRevSet.has(r.id),
+        hasDietRevenue: dietRevSet.has(r.id),
         lockerNumber: lockerMap.get(r.id) ?? null,
         hasUniform: uniformSet.has(r.id),
       };

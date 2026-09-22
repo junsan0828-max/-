@@ -5,10 +5,17 @@ import { toast } from "sonner";
 import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus, X, Wrench } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-type TypeFilter = "all" | "PT" | "헬스" | "종료";
+type TypeFilter = "all" | "PT" | "헬스" | "다이어트" | "종료";
 
-function memberType(packages: { packageName: string; totalSessions: number }[], status: string, hasPtRevenue?: boolean): "PT" | "헬스" | "기타" {
+// 다이어트 페이백은 PT 패키지가 없어 예전엔 전부 "헬스"로 묶였다. 매출 종류로 구분한다.
+function memberType(
+  packages: { packageName: string; totalSessions: number }[],
+  status: string,
+  hasPtRevenue?: boolean,
+  hasDietRevenue?: boolean,
+): "PT" | "헬스" | "다이어트" | "기타" {
   if (packages.length > 0 || hasPtRevenue) return "PT";
+  if (hasDietRevenue) return "다이어트";
   if (status === "active") return "헬스";
   return "기타";
 }
@@ -55,7 +62,7 @@ function loadFilter() {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { search: string; typeFilter: TypeFilter; branchFilter: number | null };
-    if (!["all", "PT", "헬스", "종료"].includes(parsed.typeFilter)) parsed.typeFilter = "all";
+    if (!["all", "PT", "헬스", "다이어트", "종료"].includes(parsed.typeFilter)) parsed.typeFilter = "all";
     return parsed;
   } catch {
     return null;
@@ -154,8 +161,8 @@ export default function AdminMembers() {
 
   const activeMembers = allMembers?.filter((m) => m.status !== "ended") ?? [];
   const endedMembers = allMembers?.filter((m) => m.status === "ended") ?? [];
-  const ptMembers = activeMembers.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "PT");
-  const healthMembers = activeMembers.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "헬스");
+  const ptMembers = activeMembers.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue, m.hasDietRevenue) === "PT");
+  const healthMembers = activeMembers.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue, m.hasDietRevenue) === "헬스");
 
   // PT 횟수별 통계
   const sessionStats = (() => {
@@ -229,7 +236,7 @@ export default function AdminMembers() {
         (qDigits.length > 0 && group.some(g => (g.phone ?? "").replace(/\D/g, "").includes(qDigits))) ||
         group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
         group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
-      const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));
+      const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue, g.hasDietRevenue));
       let matchType: boolean;
       if (typeFilter === "종료") {
         matchType = isEnded;
@@ -501,7 +508,7 @@ export default function AdminMembers() {
 
       {/* 타입 필터 탭 */}
       <div className="flex gap-1 bg-card border border-border rounded-xl p-1">
-        {(["all", "PT", "헬스", "종료"] as TypeFilter[]).map((t) => (
+        {(["all", "PT", "헬스", "다이어트", "종료"] as TypeFilter[]).map((t) => (
           <button
             key={t}
             onClick={() => setTypeFilter(t)}
@@ -602,8 +609,8 @@ export default function AdminMembers() {
           <p className="text-center text-muted-foreground py-8 text-sm">검색 결과가 없습니다</p>
         )}
         {(showDuplicatesOnly ? duplicateGroups : filtered)?.map((group) => {
-          const primary = group.find(g => memberType(g.packages, g.status, g.hasPtRevenue) === "PT") ?? group[0];
-          const types = Array.from(new Set(group.map(g => memberType(g.packages, g.status, g.hasPtRevenue))));
+          const primary = group.find(g => memberType(g.packages, g.status, g.hasPtRevenue, g.hasDietRevenue) === "PT") ?? group[0];
+          const types = Array.from(new Set(group.map(g => memberType(g.packages, g.status, g.hasPtRevenue, g.hasDietRevenue))));
           const pkgLabel = group
             .flatMap(g => g.packages.map(p => p.packageName).filter(Boolean))
             .filter((v, i, a) => a.indexOf(v) === i)
@@ -618,6 +625,7 @@ export default function AdminMembers() {
           const isEnded = group.every(g => g.status === "ended");
           const typeStyle = (t: string) =>
             t === "PT" ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+            : t === "다이어트" ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
             : "bg-green-500/20 text-green-400 border-green-500/30";
 
           // D-Day 계산
@@ -745,7 +753,7 @@ export default function AdminMembers() {
                   <p className="text-center text-muted-foreground py-8 text-sm">해당 회원이 없습니다</p>
                 )}
                 {modalMembers.map(m => {
-                  const mType = memberType(m.packages, m.status, m.hasPtRevenue);
+                  const mType = memberType(m.packages, m.status, m.hasPtRevenue, m.hasDietRevenue);
                   const dDay = (() => {
                     if (!m.membershipEnd) return null;
                     const end = new Date(m.membershipEnd); end.setHours(0, 0, 0, 0);
@@ -766,6 +774,7 @@ export default function AdminMembers() {
                           {m.status === "paused" && <span className="text-[10px] px-1 py-0.5 rounded border font-medium bg-orange-500/20 text-orange-400 border-orange-500/30">정지</span>}
                           {mType === "PT" && <span className="text-[10px] px-1 py-0.5 rounded border font-medium bg-blue-500/20 text-blue-400 border-blue-500/30">PT</span>}
                           {mType === "헬스" && <span className="text-[10px] px-1 py-0.5 rounded border font-medium bg-green-500/20 text-green-400 border-green-500/30">헬스</span>}
+                          {mType === "다이어트" && <span className="text-[10px] px-1 py-0.5 rounded border font-medium bg-purple-500/20 text-purple-400 border-purple-500/30">다이어트</span>}
                         </div>
                         {m.trainerName && <p className="text-xs text-muted-foreground mt-0.5">{m.trainerName}</p>}
                       </div>
