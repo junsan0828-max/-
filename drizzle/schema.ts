@@ -814,6 +814,18 @@ export const consultantRecords = pgTable("consultant_records", {
   updatedAt: text("updatedAt").default(now).notNull(),
 });
 
+// ─── 매출 보정 (구글시트 기준 누락분 등 수동 보정) ──────────────────────────────
+export const revenueAdjustments = pgTable("revenue_adjustments", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  amount: integer("amount").notNull().default(0),
+  note: text("note"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
 // ─── 무료 체형분석 예약 ────────────────────────────────────────────────────────
 export const bodyAnalysisReservations = pgTable("body_analysis_reservations", {
   id: serial("id").primaryKey(),

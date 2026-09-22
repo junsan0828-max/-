@@ -1718,6 +1718,16 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE kiosk_shop_purchases ADD COLUMN IF NOT EXISTS "cashAmount" INTEGER NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE kiosk_shop_purchases ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`);
   await pool.query(`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "channelBackfilledAt" TEXT`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS revenue_adjustments (
+    id SERIAL PRIMARY KEY,
+    "branchId" INTEGER,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    amount INTEGER NOT NULL DEFAULT 0,
+    note TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
 
     // ① 매출에 leadId가 직접 붙어 있는 건 — 그 상담 카드의 채널을 그대로 쓴다
     const byLead = await pool.query(`

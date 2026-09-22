@@ -1488,36 +1488,65 @@ const revenueRouter = t.router({
   monthlySummary: protectedProcedure
     .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
-      const { rows } = await pool.query<Record<string, string>>(`
-        SELECT
-          CAST(SUBSTRING("paymentDate", 6, 2) AS INTEGER) AS month,
-          COALESCE(SUM(amount), 0)                                                          AS total,
-          COALESCE(SUM("paidAmount"), 0)                                                    AS paid,
-          COALESCE(SUM("unpaidAmount"), 0)                                                  AS unpaid,
-          COALESCE(SUM(CASE WHEN type = 'PT'       THEN "paidAmount" ELSE 0 END), 0)       AS pt,
-          COALESCE(SUM(CASE WHEN type = '헬스'     THEN "paidAmount" ELSE 0 END), 0)       AS health,
-          COALESCE(SUM(CASE WHEN type = '다이어트' THEN "paidAmount" ELSE 0 END), 0)       AS diet,
-          COALESCE(SUM(CASE WHEN "subType" = '신규'   THEN "paidAmount" ELSE 0 END), 0)   AS new_sales,
-          COALESCE(SUM(CASE WHEN "subType" = '재등록' THEN "paidAmount" ELSE 0 END), 0)   AS renewal,
-          COUNT(*) AS count
-        FROM revenue_entries
-        WHERE "paymentDate" LIKE $1
-          AND "subType" NOT IN ('이전', '환불')
-          AND ($2::int IS NULL OR "branchId" = $2)
-        GROUP BY SUBSTRING("paymentDate", 6, 2)
-      `, [input.year + "%", input.branchId ?? null]);
+      const [{ rows }, { rows: adjRows }] = await Promise.all([
+        pool.query<Record<string, string>>(`
+          SELECT
+            CAST(SUBSTRING("paymentDate", 6, 2) AS INTEGER) AS month,
+            COALESCE(SUM(amount), 0)                                                          AS total,
+            COALESCE(SUM("paidAmount"), 0)                                                    AS paid,
+            COALESCE(SUM("unpaidAmount"), 0)                                                  AS unpaid,
+            COALESCE(SUM(CASE WHEN type = 'PT'       THEN "paidAmount" ELSE 0 END), 0)       AS pt,
+            COALESCE(SUM(CASE WHEN type = '헬스'     THEN "paidAmount" ELSE 0 END), 0)       AS health,
+            COALESCE(SUM(CASE WHEN type = '다이어트' THEN "paidAmount" ELSE 0 END), 0)       AS diet,
+            COALESCE(SUM(CASE WHEN "subType" = '신규'   THEN "paidAmount" ELSE 0 END), 0)   AS new_sales,
+            COALESCE(SUM(CASE WHEN "subType" = '재등록' THEN "paidAmount" ELSE 0 END), 0)   AS renewal,
+            COUNT(*) AS count
+          FROM revenue_entries
+          WHERE "paymentDate" LIKE $1
+            AND "subType" NOT IN ('이전', '환불')
+            AND ($2::int IS NULL OR "branchId" = $2)
+          GROUP BY SUBSTRING("paymentDate", 6, 2)
+        `, [input.year + "%", input.branchId ?? null]),
+        pool.query<{ month: string; amount: string; note: string | null }>(
+          `SELECT month, amount, note FROM revenue_adjustments WHERE year = $1 AND ($2::int IS NULL OR "branchId" = $2)`,
+          [input.year, input.branchId ?? null]
+        ),
+      ]);
 
-      const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; diet: number; newSales: number; renewal: number; count: number }> = {};
+      const adjMap: Record<number, { amount: number; note: string | null }> = {};
+      for (const r of adjRows) {
+        adjMap[Number(r.month)] = { amount: Number(r.amount), note: r.note };
+      }
+
+      const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; diet: number; newSales: number; renewal: number; count: number; adjustment: number; adjustmentNote: string | null }> = {};
       for (let m = 1; m <= 12; m++) {
-        monthly[m] = { month: m, total: 0, paid: 0, unpaid: 0, pt: 0, health: 0, diet: 0, newSales: 0, renewal: 0, count: 0 };
+        monthly[m] = { month: m, total: 0, paid: 0, unpaid: 0, pt: 0, health: 0, diet: 0, newSales: 0, renewal: 0, count: 0, adjustment: adjMap[m]?.amount ?? 0, adjustmentNote: adjMap[m]?.note ?? null };
       }
       for (const r of rows) {
         const m = Number(r.month);
         if (monthly[m]) {
-          monthly[m] = { month: m, total: Number(r.total), paid: Number(r.paid), unpaid: Number(r.unpaid), pt: Number(r.pt), health: Number(r.health), diet: Number(r.diet), newSales: Number(r.new_sales), renewal: Number(r.renewal), count: Number(r.count) };
+          monthly[m] = { ...monthly[m], month: m, total: Number(r.total), paid: Number(r.paid), unpaid: Number(r.unpaid), pt: Number(r.pt), health: Number(r.health), diet: Number(r.diet), newSales: Number(r.new_sales), renewal: Number(r.renewal), count: Number(r.count) };
         }
       }
       return Object.values(monthly);
+    }),
+
+  setRevenueAdjustment: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional(), amount: z.number(), note: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const bId = input.branchId ?? null;
+      await pool.query(
+        `DELETE FROM revenue_adjustments WHERE year = $1 AND month = $2 AND (($3::int IS NULL AND "branchId" IS NULL) OR "branchId" = $3)`,
+        [input.year, input.month, bId]
+      );
+      await pool.query(
+        `INSERT INTO revenue_adjustments (year, month, "branchId", amount, note) VALUES ($1, $2, $3, $4, $5)`,
+        [input.year, input.month, bId, input.amount, input.note ?? null]
+      );
+      return { ok: true };
     }),
 
   trainerSummary: protectedProcedure

@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import ExpensesPage from "./Expenses";
 import {
   ChevronLeft, ChevronRight, Search, AlertCircle,
-  TrendingUp, TrendingDown, DollarSign, RefreshCw,
+  TrendingUp, TrendingDown, DollarSign, RefreshCw, Pencil, X,
 } from "lucide-react";
 import { parseServiceItems, SERVICE_COLORS, type ServiceType } from "@/lib/memberServices";
 
@@ -473,9 +473,17 @@ function StatsTab() {
 function MonthlyReportTab() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
+  const [editingAdj, setEditingAdj] = useState<{ month: number; amount: number; note: string } | null>(null);
 
-  const { data: monthlySummary } = trpc.gym.revenue.monthlySummary.useQuery({ year });
+  const { data: me } = trpc.auth.me.useQuery();
+  const isAdmin = me?.role === "admin" || me?.role === "sub_admin";
+
+  const { data: monthlySummary, refetch: refetchSummary } = trpc.gym.revenue.monthlySummary.useQuery({ year });
   const { data: allExpenses }    = trpc.gym.expenses.list.useQuery({ year } as any);
+  const setAdjMutation = trpc.gym.revenue.setRevenueAdjustment.useMutation({
+    onSuccess: () => { refetchSummary(); setEditingAdj(null); toast.success("보정값이 저장되었습니다"); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const monthlyExpense: Record<number, number> = {};
   for (let m = 1; m <= 12; m++) monthlyExpense[m] = 0;
@@ -485,7 +493,7 @@ function MonthlyReportTab() {
   }
 
   const summary     = monthlySummary ?? [];
-  const totalRevAll = summary.reduce((s, m) => s + m.paid, 0);
+  const totalRevAll = summary.reduce((s, m) => s + m.paid + (m.adjustment ?? 0), 0);
   const totalExpAll = Object.values(monthlyExpense).reduce((a, b) => a + b, 0);
   const totalProfit = totalRevAll - totalExpAll;
 
@@ -535,13 +543,28 @@ function MonthlyReportTab() {
             </thead>
             <tbody>
               {summary.map(m => {
+                const adj    = m.adjustment ?? 0;
+                const adjNote = (m as any).adjustmentNote as string | null;
+                const totalPaid = m.paid + adj;
                 const exp    = monthlyExpense[m.month] ?? 0;
-                const profit = m.paid - exp;
-                const hasData = m.paid > 0 || exp > 0;
+                const profit = totalPaid - exp;
+                const hasData = totalPaid > 0 || exp > 0;
                 const isCurrent = m.month === now.getMonth() + 1 && year === now.getFullYear();
                 return (
                   <tr key={m.month} className={`border-b border-border/50 ${isCurrent ? "bg-primary/5" : ""}`}>
-                    <td className="px-3 py-2.5 font-medium">{m.month}월</td>
+                    <td className="px-3 py-2.5 font-medium">
+                      <div className="flex items-center gap-1">
+                        {m.month}월
+                        {isAdmin && (
+                          <button
+                            onClick={() => setEditingAdj({ month: m.month, amount: adj, note: adjNote ?? "" })}
+                            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                          >
+                            <Pencil className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td className={`px-3 py-2.5 text-right ${hasData ? "text-blue-400" : "text-muted-foreground/30"}`}>
                       {m.newSales > 0 ? fmt(m.newSales) : "—"}
                     </td>
@@ -549,7 +572,16 @@ function MonthlyReportTab() {
                       {m.renewal > 0 ? fmt(m.renewal) : "—"}
                     </td>
                     <td className={`px-3 py-2.5 text-right font-medium ${hasData ? "text-emerald-400" : "text-muted-foreground/30"}`}>
-                      {m.paid > 0 ? fmt(m.paid) : "—"}
+                      {totalPaid > 0 ? (
+                        <div>
+                          {fmt(totalPaid)}
+                          {adj !== 0 && (
+                            <div className="text-[10px] text-amber-400/80 font-normal" title={adjNote ?? "수동 보정"}>
+                              {adj > 0 ? "+" : ""}{fmt(adj)} 보정
+                            </div>
+                          )}
+                        </div>
+                      ) : "—"}
                     </td>
                     <td className={`px-3 py-2.5 text-right ${exp > 0 ? "text-red-400" : "text-muted-foreground/30"}`}>
                       {exp > 0 ? fmt(exp) : "—"}
@@ -574,6 +606,54 @@ function MonthlyReportTab() {
           </table>
         </div>
       </div>
+
+      {/* 보정값 편집 모달 */}
+      {editingAdj && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">{year}년 {editingAdj.month}월 매출 보정</h3>
+              <button onClick={() => setEditingAdj(null)}><X className="h-4 w-4 text-muted-foreground" /></button>
+            </div>
+            <p className="text-xs text-muted-foreground">구글시트 기준 누락분 등 수동 보정값을 입력합니다. 실제 매출 데이터는 변경되지 않습니다.</p>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">보정 금액 (원)</label>
+              <input
+                type="number"
+                value={editingAdj.amount}
+                onChange={e => setEditingAdj(a => a ? { ...a, amount: Number(e.target.value) } : null)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
+                placeholder="예: 8923000"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">메모 (선택)</label>
+              <input
+                type="text"
+                value={editingAdj.note}
+                onChange={e => setEditingAdj(a => a ? { ...a, note: e.target.value } : null)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
+                placeholder="예: 구글시트 기준 누락분"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setEditingAdj(null)}
+                className="flex-1 py-2 rounded-lg border border-border text-sm text-muted-foreground"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => setAdjMutation.mutate({ year, month: editingAdj.month, amount: editingAdj.amount, note: editingAdj.note || undefined })}
+                disabled={setAdjMutation.isPending}
+                className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+              >
+                {setAdjMutation.isPending ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PT / 헬스 월별 */}
       {summary.some(m => m.pt > 0 || m.health > 0) && (
