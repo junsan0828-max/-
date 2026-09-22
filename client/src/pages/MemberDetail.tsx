@@ -4148,6 +4148,7 @@ function AdminCompleteTransferButton({ contractId, onDone }: { contractId: numbe
 function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreated: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
   const [startDate, setStartDate] = useState(today);
+  const [startWeight, setStartWeight] = useState("");
   const createMutation = trpc.gym.diet.createProgram.useMutation({
     onSuccess: () => { toast.success("다이어트 프로그램 등록 완료"); onCreated(); },
     onError: (e) => toast.error(e.message ?? "등록 실패"),
@@ -4156,7 +4157,7 @@ function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreate
     <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4 space-y-3">
       <h3 className="text-sm font-semibold text-purple-300">다이어트 프로그램</h3>
       <p className="text-xs text-muted-foreground">등록된 프로그램이 없습니다. 아래에서 직접 등록하세요.</p>
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2">
         <div className="space-y-1 flex-1">
           <label className="text-xs text-muted-foreground">시작일</label>
           <input
@@ -4166,10 +4167,28 @@ function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreate
             className="w-full rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none"
           />
         </div>
+        <div className="space-y-1 flex-1">
+          <label className="text-xs text-muted-foreground">최초 체중 (kg)</label>
+          <input
+            type="number"
+            step="0.1"
+            min="20"
+            max="300"
+            value={startWeight}
+            onChange={e => setStartWeight(e.target.value)}
+            placeholder="예: 72.5"
+            className="w-full rounded-lg px-3 py-2 text-sm bg-input border border-border text-foreground focus:outline-none"
+          />
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground">※ 시작 체중은 자이언트짐+ 앱에서 첫 체중 기록 시 자동 설정됩니다.</p>
+      <p className="text-xs text-muted-foreground">※ 최초 체중 미입력 시 자이언트짐+ 앱 첫 기록 시 자동 설정됩니다.</p>
       <button
-        onClick={() => createMutation.mutate({ memberId, startDate, baseWeeks: 12 })}
+        onClick={() => createMutation.mutate({
+          memberId,
+          startDate,
+          baseWeeks: 12,
+          ...(startWeight ? { startWeight: parseFloat(startWeight) } : {}),
+        })}
         disabled={createMutation.isPending || !startDate}
         className="w-full py-2 rounded-lg text-sm font-medium bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-50"
       >
@@ -4181,8 +4200,10 @@ function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreate
 
 function DietProgramSection({ memberId, programs, onAddNew }: { memberId: number; programs: any[]; onAddNew?: () => void }) {
   const [selectedProgramId, setSelectedProgramId] = useState<number>(programs[0]?.id);
+  const [weightInput, setWeightInput] = useState("");
 
-  const { data: status } = trpc.gym.diet.getStatus.useQuery(
+  const utils = trpc.useUtils();
+  const { data: status, refetch: refetchStatus } = trpc.gym.diet.getStatus.useQuery(
     { programId: selectedProgramId },
     { enabled: !!selectedProgramId }
   );
@@ -4190,6 +4211,11 @@ function DietProgramSection({ memberId, programs, onAddNew }: { memberId: number
     { programId: selectedProgramId },
     { enabled: !!selectedProgramId }
   );
+
+  const setWeightMutation = trpc.gym.diet.setStartWeight.useMutation({
+    onSuccess: () => { toast.success("시작 체중이 저장되었습니다"); setWeightInput(""); refetchStatus(); },
+    onError: e => toast.error(e.message),
+  });
 
   // 페이백 지급 내역 — 체중 판정은 자이언트짐+가 하고, 여기는 "몇 개월 늘렸는지"의 원장이다.
   const { data: grants } = trpc.gym.diet.getGrants.useQuery(
@@ -4224,11 +4250,33 @@ function DietProgramSection({ memberId, programs, onAddNew }: { memberId: number
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-background/50 rounded-lg px-2 py-2">
               <p className="text-xs text-muted-foreground">시작 체중</p>
-              <p className="text-sm font-bold text-foreground">
-                {status.startWeight != null
-                  ? `${status.startWeight}kg`
-                  : <span className="text-muted-foreground font-normal">앱 첫 기록 대기</span>}
-              </p>
+              {status.startWeight != null ? (
+                <p className="text-sm font-bold text-foreground">{status.startWeight}kg</p>
+              ) : (
+                <div className="flex items-center gap-1 mt-1">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="20"
+                    max="300"
+                    value={weightInput}
+                    onChange={e => setWeightInput(e.target.value)}
+                    placeholder="kg"
+                    className="w-14 rounded px-1.5 py-1 text-xs bg-input border border-border text-foreground focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      const w = parseFloat(weightInput);
+                      if (!w || w < 20 || w > 300) { toast.error("올바른 체중을 입력하세요"); return; }
+                      setWeightMutation.mutate({ programId: selectedProgramId, startWeight: w });
+                    }}
+                    disabled={setWeightMutation.isPending || !weightInput}
+                    className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-1 rounded disabled:opacity-50"
+                  >
+                    저장
+                  </button>
+                </div>
+              )}
             </div>
             <div className="bg-background/50 rounded-lg px-2 py-2">
               <p className="text-xs text-muted-foreground">총 감량</p>

@@ -4908,6 +4908,20 @@ const dietRouter = t.router({
       return result.rows;
     }),
 
+  // 관리자가 시작 체중을 직접 입력 (앱 기록 전 수동 설정)
+  setStartWeight: protectedProcedure
+    .input(z.object({ programId: z.number(), startWeight: z.number().min(20).max(300) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await pool.query(
+        `UPDATE diet_programs SET "startWeight" = $1, "updatedAt" = now()::text WHERE id = $2`,
+        [input.startWeight, input.programId]
+      );
+      return { ok: true };
+    }),
+
   // 해당 회원의 다이어트 매출 여부 (신규/재등록 구매 여부 판단)
   hasDietRevenue: protectedProcedure
     .input(z.object({ memberId: z.number() }))
