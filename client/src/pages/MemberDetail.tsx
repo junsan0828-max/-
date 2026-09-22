@@ -1399,12 +1399,13 @@ export default function MemberDetail({ memberId }: Props) {
         {/* ── 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4 space-y-4">
 
-          {/* 다이어트 프로그램 — PT 패키지가 있는 회원에게만 표시 */}
-          {ptPackages && ptPackages.length > 0 && dietPrograms !== undefined && dietPrograms.length === 0 && (
-            <DietCreateSection memberId={memberId} onCreated={refetchDietPrograms} />
-          )}
+          {/* 다이어트 프로그램 — 이미 등록된 경우만 표시 */}
           {dietPrograms && dietPrograms.length > 0 && (
-            <DietProgramSection memberId={memberId} programs={dietPrograms} />
+            <DietProgramSection memberId={memberId} programs={dietPrograms} onAddNew={refetchDietPrograms} />
+          )}
+          {/* 관리자: 미등록 상태에서만 수동 등록 버튼 노출 */}
+          {dietPrograms !== undefined && dietPrograms.length === 0 && (currentUser?.role === "admin" || currentUser?.role === "sub_admin") && (
+            <DietCreateToggle memberId={memberId} onCreated={refetchDietPrograms} />
           )}
 
           {/* PT 패키지 */}
@@ -4143,6 +4144,22 @@ function AdminCompleteTransferButton({ contractId, onDone }: { contractId: numbe
   );
 }
 
+// ─── 다이어트 프로그램 등록 토글 (관리자 전용, 기본 숨김) ────────────────────────
+function DietCreateToggle({ memberId, onCreated }: { memberId: number; onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="text-xs text-purple-400/60 hover:text-purple-400 transition-colors"
+      >
+        + 다이어트 페이백 프로그램 등록
+      </button>
+    );
+  }
+  return <DietCreateSection memberId={memberId} onCreated={onCreated} />;
+}
+
 // ─── 다이어트 프로그램 현황 섹션 ─────────────────────────────────────────────
 function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreated: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -4178,7 +4195,7 @@ function DietCreateSection({ memberId, onCreated }: { memberId: number; onCreate
   );
 }
 
-function DietProgramSection({ memberId, programs }: { memberId: number; programs: any[] }) {
+function DietProgramSection({ memberId, programs, onAddNew }: { memberId: number; programs: any[]; onAddNew?: () => void }) {
   const [selectedProgramId, setSelectedProgramId] = useState<number>(programs[0]?.id);
 
   const { data: status } = trpc.gym.diet.getStatus.useQuery(
