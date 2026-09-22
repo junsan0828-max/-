@@ -274,8 +274,7 @@ export default function GymDashboard() {
 
   const [dismissedBookingAlert, setDismissedBookingAlert] = useState(false);
   const [showAnomalies, setShowAnomalies] = useState(false);
-  const { data: anomalyData } = trpc.admin.pricingAnomalies.useQuery();
-  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery(undefined, { staleTime: 10 * 60 * 1000 });
   const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) },
     { staleTime: 3 * 60 * 1000 }
@@ -297,15 +296,18 @@ export default function GymDashboard() {
     { refetchInterval: 60000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
   );
   const [dismissedRegAlert, setDismissedRegAlert] = useState(false);
-  const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
-  const { data: staffSummary, refetch: refetchStaff } = trpc.gym.revenue.staffSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
+  // 차트류는 전부 화면 아래쪽이다. 첫 페인트를 막는 kpi.overview와 Neon 커넥션을 두고
+  // 경쟁하지 않도록, KPI가 도착한 뒤에 뒤따라 받는다.
+  const chartsReady = !isLoading;
+  const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000, enabled: chartsReady });
+  const { data: staffSummary, refetch: refetchStaff } = trpc.gym.revenue.staffSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000, enabled: chartsReady });
   const { data: trainerList } = trpc.trainers.list.useQuery(undefined, { staleTime: 10 * 60 * 1000 });
   const assignTrainerMutation = trpc.admin.assignTrainerToRevenue.useMutation({
     onSuccess: () => { refetchStaff(); },
   });
-  const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
-  const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000 });
-  const { data: memberTrend } = trpc.gym.kpi.memberTrend.useQuery({ months: 6, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 5 * 60 * 1000 });
+  const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000, enabled: chartsReady });
+  const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 3 * 60 * 1000, enabled: chartsReady });
+  const { data: memberTrend } = trpc.gym.kpi.memberTrend.useQuery({ months: 6, ...(branchFilter ? { branchId: branchFilter } : {}) }, { staleTime: 5 * 60 * 1000, enabled: chartsReady });
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }

@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, sql, like, gte, lte, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, or, desc, sql, like, gte, lte, inArray, isNotNull } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { getDb, pool, recalcDietPayback } from "./db";
@@ -208,7 +208,29 @@ const leadsRouter = t.router({
         .set({ status: "consulted", updatedAt: new Date().toISOString() })
         .where(and(eq(leads.status, "followup"), lte(leads.consultationDate, cutoff)));
 
-      const rows = await db.select({
+      // 필터는 전부 SQL로 내린다 — 예전엔 상담 카드 전체를 상관 서브쿼리와 함께 긁어온 뒤
+      // JS에서 걸러서, 한 달치 목록 하나에 테이블 전체를 읽었다.
+      const conds = [];
+
+      // 트레이너: 본인이 담당하거나 상담담당인 리드만 조회
+      if (ctx.user?.role === "trainer") {
+        const mine = [];
+        if (ctx.user.trainerId != null) mine.push(eq(leads.assignedTrainerId, ctx.user.trainerId));
+        if (ctx.user.id != null) mine.push(eq(leads.assignedConsultantId, ctx.user.id));
+        // 담당도 상담담당도 식별되지 않으면 아무것도 보여주지 않는다(전체 노출 방지).
+        conds.push(mine.length ? or(...mine)! : sql`false`);
+      }
+      // 월 판정 기준은 상담일, 없으면 등록일 — JS의 `consultationDate ?? createdAt`과 같다.
+      if (input?.year && input?.month) {
+        const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+        conds.push(sql`COALESCE(${leads.consultationDate}, ${leads.createdAt}) LIKE ${prefix + "%"}`);
+      } else if (input?.year) {
+        conds.push(sql`COALESCE(${leads.consultationDate}, ${leads.createdAt}) LIKE ${input.year + "%"}`);
+      }
+      if (input?.status) conds.push(eq(leads.status, input.status));
+      if (input?.channelId) conds.push(eq(leads.channelId, input.channelId));
+
+      const base = db.select({
         lead: leads,
         channelName: channels.name,
         trainerName: trainers.trainerName,
@@ -217,28 +239,11 @@ const leadsRouter = t.router({
       })
         .from(leads)
         .leftJoin(channels, eq(leads.channelId, channels.id))
-        .leftJoin(trainers, eq(leads.assignedTrainerId, trainers.id))
-        .orderBy(desc(leads.createdAt));
+        .leftJoin(trainers, eq(leads.assignedTrainerId, trainers.id));
 
-      let result = rows;
-
-      // 트레이너: 본인이 담당하거나 상담담당인 리드만 조회
-      if (ctx.user?.role === "trainer") {
-        result = result.filter(r =>
-          r.lead.assignedTrainerId === ctx.user!.trainerId ||
-          r.lead.assignedConsultantId === ctx.user!.id
-        );
-      }
-      if (input?.year && input?.month) {
-        const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-        result = result.filter(r => (r.lead.consultationDate ?? r.lead.createdAt).startsWith(prefix));
-      } else if (input?.year) {
-        result = result.filter(r => (r.lead.consultationDate ?? r.lead.createdAt).startsWith(String(input.year)));
-      }
-      if (input?.status) result = result.filter(r => r.lead.status === input.status);
-      if (input?.channelId) result = result.filter(r => r.lead.channelId === input.channelId);
-
-      return result;
+      return conds.length
+        ? await base.where(and(...conds)).orderBy(desc(leads.createdAt))
+        : await base.orderBy(desc(leads.createdAt));
     }),
 
   create: protectedProcedure
@@ -514,7 +519,20 @@ const revenueRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const rows = await db.select({
+      // 필터는 전부 SQL로 내린다. 예전엔 전체 매출을 4-way 조인 + 행마다 상관 서브쿼리 3개로
+      // 긁어온 뒤 JS에서 걸렀는데, 한 달치를 보려고 테이블 전체를 읽느라 대시보드가 멈췄다.
+      const conds = [];
+      if (input?.year && input?.month) {
+        conds.push(like(revenueEntries.paymentDate, `${input.year}-${String(input.month).padStart(2, "0")}%`));
+      } else if (input?.year) {
+        conds.push(like(revenueEntries.paymentDate, `${input.year}%`));
+      }
+      if (input?.trainerId) conds.push(eq(revenueEntries.trainerId, input.trainerId));
+      if (input?.branchId) conds.push(eq(revenueEntries.branchId, input.branchId));
+      if (input?.type) conds.push(eq(revenueEntries.type, input.type));
+      if (input?.subType) conds.push(eq(revenueEntries.subType, input.subType));
+
+      const base = db.select({
         entry: revenueEntries,
         trainerName: trainers.trainerName,
         memberName: members.name,
@@ -530,23 +548,11 @@ const revenueRouter = t.router({
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
-        .leftJoin(branches, eq(revenueEntries.branchId, branches.id))
-        .orderBy(desc(revenueEntries.paymentDate));
+        .leftJoin(branches, eq(revenueEntries.branchId, branches.id));
 
-      let result = rows;
-
-      if (input?.year && input?.month) {
-        const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-        result = result.filter(r => r.entry.paymentDate.startsWith(prefix));
-      } else if (input?.year) {
-        result = result.filter(r => r.entry.paymentDate.startsWith(String(input.year)));
-      }
-      if (input?.trainerId) result = result.filter(r => r.entry.trainerId === input.trainerId);
-      if (input?.branchId) result = result.filter(r => r.entry.branchId === input.branchId);
-      if (input?.type) result = result.filter(r => r.entry.type === input.type);
-      if (input?.subType) result = result.filter(r => r.entry.subType === input.subType);
-
-      return result;
+      return conds.length
+        ? await base.where(and(...conds)).orderBy(desc(revenueEntries.paymentDate))
+        : await base.orderBy(desc(revenueEntries.paymentDate));
     }),
 
   create: protectedProcedure
@@ -1800,7 +1806,7 @@ const revenueRouter = t.router({
         return toUserId.get(rawId) ?? rawId;
       };
 
-      const allRows = await db.select({
+      const rows = await db.select({
         entry: revenueEntries,
         memberConsultantId: members.consultantId,
         memberTrainerId: members.trainerId,
@@ -1808,21 +1814,26 @@ const revenueRouter = t.router({
       })
         .from(revenueEntries)
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
-        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+        .where(and(
+          like(revenueEntries.paymentDate, `${prefix}%`),
+          ...(input.branchId ? [eq(revenueEntries.branchId, input.branchId)] : []),
+        ));
 
-      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
+      // 아래에서 실제로 쓰는 컬럼만, 상담담당이 배정된 행만 읽는다.
+      // (예전엔 전 컬럼 전체 스캔이었다. 아래 사용처가 모두 assignedConsultantId를 요구하므로 결과는 같다.)
+      const allLeads = await db.select({
+        assignedConsultantId: leads.assignedConsultantId,
+        consultationDate: leads.consultationDate,
+        status: leads.status,
+      })
+        .from(leads)
+        .where(isNotNull(leads.assignedConsultantId));
 
-      // leads 폴백 (consultant용)
-      const allLeads = await db.select().from(leads);
+      // 주의: 이 폴백 맵은 원래부터 항상 비어 있다. 채우던 코드가 존재하지 않는 컬럼
+      // leads.memberId를 읽어서(실제 컬럼명은 registeredMemberId) 조건이 늘 거짓이었다.
+      // 컬럼명을 고치면 상담 귀속 매출이 실제로 이동하므로(원칙 6·7) 성능 수정과 함께
+      // 바꾸지 않는다. 고칠지 여부는 정산 영향을 확인한 뒤 따로 결정한다.
       const memberLeadMap = new Map<number, number>();
-      for (const l of allLeads.filter(x => x.status === "registered")) {
-        if (l.memberId && l.assignedConsultantId && !memberLeadMap.has(l.memberId))
-          memberLeadMap.set(l.memberId, l.assignedConsultantId);
-      }
-      for (const l of allLeads) {
-        if (l.memberId && l.assignedConsultantId && !memberLeadMap.has(l.memberId))
-          memberLeadMap.set(l.memberId, l.assignedConsultantId);
-      }
 
       type StaffEntry = {
         uid: number; name: string;
@@ -2614,49 +2625,71 @@ const kpiRouter = t.router({
         });
       }
 
+      // 지표 4종을 월별로 한 번에 집계한다. 예전엔 기간마다 4개씩 = 6개월이면 24개 쿼리를
+      // 동시에 던져서, Neon 서버리스 커넥션 풀이 포화되고 대시보드 전체가 같이 느려졌다.
       const bM = branchId != null;
-      const rows = await Promise.all(periods.map(async (p) => {
-        const [newRes, expiredRes, activeRes, reregRes] = await Promise.all([
-          // 신규 가입 (그 달에 createdAt)
-          pool.query<{ c: number }>(
-            `SELECT COUNT(*)::int AS c FROM members WHERE "createdAt" >= $1 AND "createdAt" < $2${bM ? ` AND "branchId" = $3` : ``}`,
-            bM ? [p.start, p.end, branchId] : [p.start, p.end]
-          ),
-          // 만료 (그 달에 membershipEnd 도래)
-          pool.query<{ c: number }>(
-            `SELECT COUNT(*)::int AS c FROM members WHERE "membershipEnd" >= $1 AND "membershipEnd" < $2${bM ? ` AND "branchId" = $3` : ``}`,
-            bM ? [p.start, p.end, branchId] : [p.start, p.end]
-          ),
-          // 활성 (월말 시점: 그 전까지 가입했고 회원권이 아직 유효). 회원권 기간(membershipEnd)이
-          // 정의된 회원 기준의 근사치.
-          pool.query<{ c: number }>(
-            `SELECT COUNT(*)::int AS c FROM members WHERE "createdAt" < $1 AND "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1${bM ? ` AND "branchId" = $2` : ``}`,
-            bM ? [p.end, branchId] : [p.end]
-          ),
-          // 재등록률용: 그 달 결제 건 중 subType 분포 (이전/환불 제외)
-          pool.query<{ st: string; c: number }>(
-            `SELECT COALESCE("subType",'') AS st, COUNT(*)::int AS c FROM revenue_entries
-             WHERE "paymentDate" >= $1 AND "paymentDate" < $2
-               AND COALESCE("subType",'') NOT IN ('이전','환불')${bM ? ` AND "branchId" = $3` : ``}
-             GROUP BY st`,
-            bM ? [p.start, p.end, branchId] : [p.start, p.end]
-          ),
-        ]);
-        let reg = 0, rereg = 0;
-        for (const r of reregRes.rows) {
-          reg += r.c;
-          if (r.st === "재등록") rereg += r.c;
-        }
+      const rangeStart = periods[0].start;
+      const rangeEnd = periods[periods.length - 1].end;
+      const ymOf = (p: { start: string }) => p.start.substring(0, 7);
+
+      // 활성 회원은 "월말 시점" 기준이라 달마다 조건이 달라 GROUP BY가 안 된다.
+      // 대신 한 번 스캔하면서 기간별 조건부 합계를 낸다(별칭 p0..pN은 인덱스로 생성 — 입력값 아님).
+      const activeSel = periods.map((_, i) =>
+        `SUM(CASE WHEN "createdAt" < $${i + 1} AND "membershipEnd" >= $${i + 1} THEN 1 ELSE 0 END)::int AS p${i}`
+      ).join(", ");
+      const activeParams: any[] = periods.map(p => p.end);
+      if (bM) activeParams.push(branchId);
+
+      const [newRes, expiredRes, activeRes, reregRes] = await Promise.all([
+        pool.query<{ ym: string; c: number }>(
+          `SELECT substring("createdAt", 1, 7) AS ym, COUNT(*)::int AS c FROM members
+           WHERE "createdAt" >= $1 AND "createdAt" < $2${bM ? ` AND "branchId" = $3` : ``}
+           GROUP BY 1`,
+          bM ? [rangeStart, rangeEnd, branchId] : [rangeStart, rangeEnd]
+        ),
+        pool.query<{ ym: string; c: number }>(
+          `SELECT substring("membershipEnd", 1, 7) AS ym, COUNT(*)::int AS c FROM members
+           WHERE "membershipEnd" >= $1 AND "membershipEnd" < $2${bM ? ` AND "branchId" = $3` : ``}
+           GROUP BY 1`,
+          bM ? [rangeStart, rangeEnd, branchId] : [rangeStart, rangeEnd]
+        ),
+        pool.query<Record<string, number>>(
+          `SELECT ${activeSel} FROM members
+           WHERE "membershipEnd" IS NOT NULL${bM ? ` AND "branchId" = $${periods.length + 1}` : ``}`,
+          activeParams
+        ),
+        pool.query<{ ym: string; st: string; c: number }>(
+          `SELECT substring("paymentDate", 1, 7) AS ym, COALESCE("subType",'') AS st, COUNT(*)::int AS c
+           FROM revenue_entries
+           WHERE "paymentDate" >= $1 AND "paymentDate" < $2
+             AND COALESCE("subType",'') NOT IN ('이전','환불')${bM ? ` AND "branchId" = $3` : ``}
+           GROUP BY 1, 2`,
+          bM ? [rangeStart, rangeEnd, branchId] : [rangeStart, rangeEnd]
+        ),
+      ]);
+
+      const newByYm = new Map(newRes.rows.map(r => [r.ym, r.c]));
+      const expiredByYm = new Map(expiredRes.rows.map(r => [r.ym, r.c]));
+      const activeRow = activeRes.rows[0] ?? {};
+      const regByYm = new Map<string, { reg: number; rereg: number }>();
+      for (const r of reregRes.rows) {
+        const acc = regByYm.get(r.ym) ?? { reg: 0, rereg: 0 };
+        acc.reg += r.c;
+        if (r.st === "재등록") acc.rereg += r.c;
+        regByYm.set(r.ym, acc);
+      }
+
+      return periods.map((p, i) => {
+        const ym = ymOf(p);
+        const { reg = 0, rereg = 0 } = regByYm.get(ym) ?? {};
         return {
           label: p.label,
-          active: activeRes.rows[0]?.c ?? 0,
-          new: newRes.rows[0]?.c ?? 0,
-          expired: expiredRes.rows[0]?.c ?? 0,
+          active: activeRow[`p${i}`] ?? 0,
+          new: newByYm.get(ym) ?? 0,
+          expired: expiredByYm.get(ym) ?? 0,
           renewalRate: reg > 0 ? Math.round((rereg / reg) * 100) : 0,
         };
-      }));
-
-      return rows;
+      });
     }),
 });
 
