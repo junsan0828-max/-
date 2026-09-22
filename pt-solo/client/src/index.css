@@ -112,4 +112,16 @@
   /* modal max-height: viewport minus top safe area minus a little breathing room */
   .max-h-modal        { max-height: calc(92dvh - env(safe-area-inset-top)); }
   .max-h-modal-sm     { max-height: calc(80dvh - env(safe-area-inset-top)); }
+
+  /* hide the scrollbar on horizontal chip/tab strips (desktop shows one otherwise) */
+  .scrollbar-hide,
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
+  /* iOS Safari zooms the page when a focused input's font-size is under 16px */
+  .no-ios-zoom { font-size: 16px; }
 }

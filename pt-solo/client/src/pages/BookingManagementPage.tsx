@@ -97,9 +97,9 @@ function SettingsSheet({
   const weekOptions: WeekCount[] = [1, 2, 3, 4];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 pt-safe" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-t-2xl bg-white pb-8 overflow-hidden"
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-white pb-safe-6 sm:pb-4 sm:mx-4 overflow-y-auto max-h-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -219,9 +219,9 @@ function AddModal({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 pt-safe" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-t-2xl bg-white p-6 pb-8 space-y-4"
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-white p-6 pb-safe-6 sm:pb-6 sm:mx-4 space-y-4 overflow-y-auto max-h-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -232,7 +232,7 @@ function AddModal({
         <div>
           <label className="text-xs text-gray-500 mb-1 block">회원 선택</label>
           <input
-            className="w-full border rounded-lg px-3 py-2 text-sm"
+            className="w-full border rounded-lg px-3 py-2.5 text-base no-ios-zoom"
             placeholder="이름·전화번호 검색"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setMemberId(""); }}
@@ -260,7 +260,7 @@ function AddModal({
             <label className="text-xs text-gray-500 mb-1 block">날짜</label>
             <input
               type="date"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full border rounded-lg px-3 py-2.5 text-base no-ios-zoom"
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />
@@ -269,7 +269,7 @@ function AddModal({
             <label className="text-xs text-gray-500 mb-1 block">시간</label>
             <input
               type="time"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full border rounded-lg px-3 py-2.5 text-base no-ios-zoom"
               value={time}
               onChange={(e) => setTime(e.target.value)}
             />
@@ -279,7 +279,7 @@ function AddModal({
         <div>
           <label className="text-xs text-gray-500 mb-1 block">메모 (선택)</label>
           <textarea
-            className="w-full border rounded-lg px-3 py-2 text-sm resize-none"
+            className="w-full border rounded-lg px-3 py-2.5 text-base no-ios-zoom resize-none"
             rows={2}
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
@@ -325,9 +325,9 @@ function EditTimeModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 pt-safe" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-t-2xl bg-white p-6 pb-8 space-y-4"
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-white p-6 pb-safe-6 sm:pb-6 sm:mx-4 space-y-4 overflow-y-auto max-h-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -339,7 +339,7 @@ function EditTimeModal({
             <label className="text-xs text-gray-500 mb-1 block">날짜</label>
             <input
               type="date"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full border rounded-lg px-3 py-2.5 text-base no-ios-zoom"
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />
@@ -348,7 +348,7 @@ function EditTimeModal({
             <label className="text-xs text-gray-500 mb-1 block">시간</label>
             <input
               type="time"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full border rounded-lg px-3 py-2.5 text-base no-ios-zoom"
               value={time}
               onChange={(e) => setTime(e.target.value)}
             />
@@ -392,9 +392,9 @@ function ActionSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 pt-safe" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-t-2xl bg-white pb-8 overflow-hidden"
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-white pb-safe-6 sm:pb-4 sm:mx-4 overflow-y-auto max-h-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b">
@@ -527,8 +527,12 @@ export default function BookingManagementPage() {
   const firstMonth = visibleDates[0].getMonth();
   const multiMonth = visibleDates.some((d) => d.getMonth() !== firstMonth);
 
+  // A single week fits any viewport, so let those chips share the full width
+  // instead of bunching up on the left of a wide desktop container.
+  const chipFlex = visibleDates.length <= 7 ? "flex-1" : "flex-shrink-0";
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
+    <div className="min-h-dvh pb-28">
       <TabBanner tabKey="schedule" />
 
       {/* Calendar header */}
@@ -560,7 +564,7 @@ export default function BookingManagementPage() {
           </div>
         </div>
 
-        {/* Day chips — horizontal scroll */}
+        {/* Day chips — spread to full width when a single week fits, else scroll */}
         <div
           ref={chipRef}
           className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide"
@@ -576,7 +580,7 @@ export default function BookingManagementPage() {
                 key={ds}
                 data-selected={isSelected}
                 onClick={() => setSelectedDate(ds)}
-                className={`flex-shrink-0 flex flex-col items-center rounded-xl px-3 py-2 min-w-[44px] transition-colors ${
+                className={`${chipFlex} flex flex-col items-center rounded-xl px-3 py-2 min-w-[44px] transition-colors ${
                   isSelected
                     ? "bg-indigo-600 text-white"
                     : isToday
