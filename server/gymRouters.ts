@@ -4908,6 +4908,17 @@ const dietRouter = t.router({
       return result.rows;
     }),
 
+  // 해당 회원의 다이어트 매출 여부 (신규/재등록 구매 여부 판단)
+  hasDietRevenue: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const { rows } = await pool.query(
+        `SELECT 1 FROM revenue_entries WHERE "memberId" = $1 AND type = '다이어트' AND "subType" NOT IN ('이전','환불') LIMIT 1`,
+        [input.memberId]
+      );
+      return rows.length > 0;
+    }),
+
   // 체중 기록 목록
   getChecks: protectedProcedure
     .input(z.object({ programId: z.number() }))

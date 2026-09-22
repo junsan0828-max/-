@@ -413,6 +413,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: allMembers } = trpc.members.list.useQuery(undefined, { enabled: true });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
   const { data: dietPrograms, refetch: refetchDietPrograms } = trpc.gym.diet.getByMember.useQuery({ memberId });
+  const { data: hasDietRevenue } = trpc.gym.diet.hasDietRevenue.useQuery({ memberId });
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
@@ -1399,13 +1400,12 @@ export default function MemberDetail({ memberId }: Props) {
         {/* ── 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4 space-y-4">
 
-          {/* 다이어트 프로그램 — 이미 등록된 경우만 표시 */}
-          {dietPrograms && dietPrograms.length > 0 && (
+          {/* 다이어트 프로그램 — 다이어트 매출이 있는 회원에게만 표시 */}
+          {hasDietRevenue && dietPrograms && dietPrograms.length > 0 && (
             <DietProgramSection memberId={memberId} programs={dietPrograms} onAddNew={refetchDietPrograms} />
           )}
-          {/* 관리자: 미등록 상태에서만 수동 등록 버튼 노출 */}
-          {dietPrograms !== undefined && dietPrograms.length === 0 && (currentUser?.role === "admin" || currentUser?.role === "sub_admin") && (
-            <DietCreateToggle memberId={memberId} onCreated={refetchDietPrograms} />
+          {hasDietRevenue && dietPrograms !== undefined && dietPrograms.length === 0 && (
+            <DietCreateSection memberId={memberId} onCreated={refetchDietPrograms} />
           )}
 
           {/* PT 패키지 */}
@@ -4142,22 +4142,6 @@ function AdminCompleteTransferButton({ contractId, onDone }: { contractId: numbe
       {completeMutation.isPending ? "처리 중..." : "양도 완료 처리"}
     </button>
   );
-}
-
-// ─── 다이어트 프로그램 등록 토글 (관리자 전용, 기본 숨김) ────────────────────────
-function DietCreateToggle({ memberId, onCreated }: { memberId: number; onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="text-xs text-purple-400/60 hover:text-purple-400 transition-colors"
-      >
-        + 다이어트 페이백 프로그램 등록
-      </button>
-    );
-  }
-  return <DietCreateSection memberId={memberId} onCreated={onCreated} />;
 }
 
 // ─── 다이어트 프로그램 현황 섹션 ─────────────────────────────────────────────
