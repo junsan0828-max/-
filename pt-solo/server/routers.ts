@@ -489,16 +489,7 @@ const membersRouter = t.router({
               paymentAmount: legacyPaymentAmount, unpaidAmount: legacyUnpaidAmount,
               paymentMethod, paymentDate, paymentMemo, ...memberData } = input;
 
-      const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
-      const memberPlan = planRow?.plan ?? "free";
-      const limitRows = await pool.query<{ key: string; value: string }>(
-        `SELECT key, value FROM plan_settings WHERE key IN ('member_limit_free','member_limit_pro','member_limit_elite')`
-      );
-      const limitMap: Record<string, number> = { free: 7, pro: 15, elite: 35 };
-      for (const r of limitRows.rows) { limitMap[r.key.replace("member_limit_", "")] = parseInt(r.value); }
-      const memberLimit = limitMap[memberPlan] ?? 7;
-      const [cnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
-      if (Number(cnt?.count ?? 0) >= memberLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${memberPlan.toUpperCase()} 플랜은 유효회원을 최대 ${memberLimit}명까지 등록할 수 있습니다.` });
+      // 회원 수 제한 없음 — 플랜과 무관하게 등록할 수 있다.
 
       const [insertResult] = await db.insert(members).values({ ...memberData, trainerId }).returning({ id: members.id });
       const memberId = insertResult.id;
@@ -3269,16 +3260,7 @@ const leadsRouter = t.router({
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const db = getDb();
 
-      const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
-      const plan = planRow?.plan ?? "free";
-      const cLimitRows = await pool.query<{ key: string; value: string }>(
-        `SELECT key, value FROM plan_settings WHERE key IN ('member_limit_free','member_limit_pro','member_limit_elite')`
-      );
-      const cLimitMap: Record<string, number> = { free: 7, pro: 15, elite: 35 };
-      for (const r of cLimitRows.rows) { cLimitMap[r.key.replace("member_limit_", "")] = parseInt(r.value); }
-      const contractLimit = cLimitMap[plan] ?? 7;
-      const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
-      if (Number(totalCnt?.count ?? 0) >= contractLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${plan.toUpperCase()} 플랜은 유효회원을 최대 ${contractLimit}명까지 등록할 수 있습니다.` });
+      // 회원 수 제한 없음 — 상담에서 등록으로 전환할 때도 상한을 두지 않는다.
 
       const [member] = await db.insert(members).values({
         trainerId, name: input.name, phone: input.phone, gender: input.gender,
@@ -4357,22 +4339,7 @@ const fitStepPlusRouter = t.router({
       const existing = await getDb().select({ id: fitStepPlusMembers.id }).from(fitStepPlusMembers)
         .where(and(eq(fitStepPlusMembers.trainerId, trainerId), eq(fitStepPlusMembers.username, input.username))).limit(1);
       if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
-      // 플랜별 FIT STEP+ 회원 수 제한
-      const trainerPlanRow = await pool.query<{ plan: string }>(
-        `SELECT COALESCE(u."plan",'free') AS plan FROM users u JOIN trainers t ON t."userId"=u.id WHERE t.id=$1`, [trainerId]
-      );
-      const trainerPlan = trainerPlanRow.rows[0]?.plan ?? "free";
-      const planKey = `fsp_limit_${trainerPlan}`;
-      const limitRow = await pool.query<{ value: string }>(
-        `SELECT value FROM plan_settings WHERE key=$1`, [planKey]
-      );
-      const fspLimit = parseInt(limitRow.rows[0]?.value ?? (trainerPlan === "elite" ? "30" : trainerPlan === "pro" ? "15" : "5"));
-      const countRow = await pool.query<{ cnt: string }>(
-        `SELECT COUNT(*)::text AS cnt FROM fit_step_plus_members WHERE "trainerId"=$1`, [trainerId]
-      );
-      if (parseInt(countRow.rows[0].cnt) >= fspLimit) {
-        throw new TRPCError({ code: "FORBIDDEN", message: `FIT STEP+ 회원은 최대 ${fspLimit}명까지 등록할 수 있습니다. (${trainerPlan.toUpperCase()} 플랜)` });
-      }
+      // FIT STEP+ 회원 수 제한 없음
       const hashed = await bcrypt.hash(input.password, 10);
       const [row] = await getDb().insert(fitStepPlusMembers).values({ ...input, trainerId, password: hashed }).returning();
       const { password: _, ...safe } = row;

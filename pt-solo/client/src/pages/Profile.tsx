@@ -16,9 +16,9 @@ const KAKAO_ACCOUNT = "3333-37-4826334";
 const KAKAO_HOLDER  = "피트니스텝";
 
 const PLAN_INFO = {
-  free:  { label: "FREE",  color: "text-gray-500",   border: "border-gray-500/30",   bg: "bg-gray-500/10",   features: ["회원 최대 7명", "기본 PT 관리"] },
-  pro:   { label: "PRO",   color: "text-blue-500",   border: "border-blue-500/30",   bg: "bg-blue-500/10",   features: ["회원 최대 50명", "전체 기능 개방", "브랜딩·예약·분석·AI"] },
-  elite: { label: "ELITE", color: "text-purple-500", border: "border-purple-500/30", bg: "bg-purple-500/10", features: ["회원 최대 35명", "모든 기능 포함", "FIT STEP+"] },
+  free:  { label: "FREE",  color: "text-gray-500",   border: "border-gray-500/30",   bg: "bg-gray-500/10",   features: ["회원 수 무제한", "기본 PT 관리"] },
+  pro:   { label: "PRO",   color: "text-blue-500",   border: "border-blue-500/30",   bg: "bg-blue-500/10",   features: ["회원 수 무제한", "전체 기능 개방", "브랜딩·예약·분석·AI"] },
+  elite: { label: "ELITE", color: "text-purple-500", border: "border-purple-500/30", bg: "bg-purple-500/10", features: ["회원 수 무제한", "모든 기능 포함", "FIT STEP+"] },
 } as const;
 
 function calcDiscounted(price: number, discount: number) {

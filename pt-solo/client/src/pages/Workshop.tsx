@@ -2078,21 +2078,21 @@ const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
 
 const TIER_META = {
   free: {
-    label: "FREE", limit: "최대 15명",
+    label: "FREE", limit: "회원 수 무제한",
     desc: "무료로 시작하는 기본 관리 도구",
     headerCls: "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20",
     badgeCls: "bg-emerald-500 text-white",
     baseFeatures: ["회원관리", "출석 체크", "수업 관리", "상담실", "건강보고서"],
   },
   pro: {
-    label: "PRO", limit: "최대 30명",
+    label: "PRO", limit: "회원 수 무제한",
     desc: "전문가 이미지 + 회원 경험 강화",
     headerCls: "bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20",
     badgeCls: "bg-blue-500 text-white",
     baseFeatures: null,
   },
   elite: {
-    label: "ELITE", limit: "최대 50명",
+    label: "ELITE", limit: "회원 수 무제한",
     desc: "사업 성장을 위한 분석 & 자동화",
     headerCls: "bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20",
     badgeCls: "bg-amber-500 text-white",
