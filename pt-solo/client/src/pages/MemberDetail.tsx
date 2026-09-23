@@ -502,7 +502,7 @@ export default function MemberDetail({ memberId }: Props) {
     return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
   };
 
-  // 작업실 기능 활성 여부
+  // 기능 활성 여부 (관리자가 전역으로 켜고 끈다)
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
   const isFeatureActive = (featureId: string) => {
     const removed = wsStatus?.removedFeatures ?? [];

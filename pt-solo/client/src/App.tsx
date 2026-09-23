@@ -200,7 +200,11 @@ function App() {
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
           <Route path="/sessions">{() => <Sessions />}</Route>
-          <Route path="/workshop">{() => <Workshop />}</Route>
+          {/* 관리자가 STEPER에게 노출할 기능을 켜고 끄는 콘솔.
+              STEPER는 /features(전체 기능)에서 기능을 연다. */}
+          <Route path="/workshop">
+            {() => (user?.role === "admin" ? <Workshop /> : <Redirect to="/features" />)}
+          </Route>
           <Route path="/features">{() => <Dashboard />}</Route>
           <Route path="/sequences/library/:id">
             {(params) => <SequenceDetail sequenceId={parseInt(params.id!)} />}

@@ -26,10 +26,11 @@ import EContractManager from "@/components/editors/EContractManager";
 import RefundContractManager from "@/components/editors/RefundContractManager";
 import TransferContractManager from "@/components/editors/TransferContractManager";
 import { WorkoutLogSection, TrainerDietManager, VideoSection, WS_CATALOG } from "@/pages/Workshop";
+import { SalesBookEditor } from "@/pages/SalesBook";
 import MemberRegisterWizard, { readDraft, clearDraft } from "@/components/MemberRegisterWizard";
 
-// 작업실을 거치지 않고 대시보드 모달로 바로 여는 기능 — 하나씩 여기 추가하며 이전 중
-const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet", "fitstep_videos", "member_overview"]);
+// 기능은 전부 이 대시보드(전체 기능)에서 연다. /workshop은 관리자 콘솔이라 STEPER는 들어가지 않는다.
+const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet", "fitstep_videos", "member_overview", "sales_book"]);
 const MODAL_FEATURE_META: Record<string, { title: string; Component: React.ComponentType }> = {
   report_branding: { title: "보고서 브랜딩", Component: ReportBrandingEditor },
   contract_terms: { title: "약관 브랜딩", Component: ContractTermsEditor },
@@ -43,6 +44,7 @@ const MODAL_FEATURE_META: Record<string, { title: string; Component: React.Compo
   fitstep_diet: { title: "맞춤 식단 관리", Component: TrainerDietManager },
   fitstep_videos: { title: "운동 영상 관리", Component: VideoSection },
   member_overview: { title: "회원 운영 현황", Component: MemberOverview },
+  sales_book: { title: "트레이너 세일즈북", Component: SalesBookEditor },
 };
 
 // ─── 아바타 색상 ──────────────────────────────────────────────────────────────
@@ -55,7 +57,7 @@ const AVATAR_GRADIENTS = [
   "from-cyan-400 to-blue-500",
 ];
 
-// ─── 작업실 기능 카탈로그 ──────────────────────────────────────────────────────
+// ─── 기능 카탈로그 ────────────────────────────────────────────────────────────
 // PRO 전용: FIT STEP+(회원 전용 앱)와 그 부가기능(FIT STEP+ 안에서만 동작), 수업 예약뿐.
 // 나머지는 전부 FREE에서도 이용 가능.
 const FREE_IDS = new Set([
@@ -174,7 +176,7 @@ function ToolGrid({ items }: { items: ToolItem[] }) {
   );
 }
 
-// ─── 작업실 기능 아이템 ────────────────────────────────────────────────────────
+// ─── 기능 아이템 ──────────────────────────────────────────────────────────────
 function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDashCat; lock: FeatureLock; onClick: (id: string) => void; }) {
   const unavailable = lock !== "available";
   return (
@@ -204,7 +206,7 @@ function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDas
   );
 }
 
-// ─── 작업실 카테고리 그룹 ─────────────────────────────────────────────────────
+// ─── 기능 카테고리 그룹 ───────────────────────────────────────────────────────
 const INLINE_LIMIT = 8; // 2행
 
 function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { cat: WsDashCat; plan: string; onNavigate: WsNavFn; featureConfigs?: Record<string, string>; addonUnlocks?: string[]; }) {
@@ -1185,7 +1187,7 @@ function TrainerDashboard() {
   if (isLoading) return <LoadingSkeleton />;
 
   const userPlan = (user as any)?.plan ?? "free";
-  // 작업실(/workshop)을 거치지 않고 대시보드에서 바로 여는 기능 — 모달/전용페이지/정보 안내로 분기
+  // 기능 진입 — 모달 / 전용 페이지 / 정보 안내로 분기
   const PAGE_FEATURE_ROUTES: Record<string, string> = {
     brand_page: "/brand-page",
     booking: "/booking",
@@ -1782,7 +1784,7 @@ function TrainerDashboard() {
         onClose={() => { setRegisterTypeOpen(false); setResumeDraft(false); setDraft(readDraft()); }}
       />
 
-      {/* 기능 편집 모달 (작업실 경유 없이 대시보드에서 바로) */}
+      {/* 기능 편집 모달 */}
       <Dialog open={!!editorModalId} onOpenChange={(o) => { if (!o) setEditorModalId(null); }}>
         <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -1795,7 +1797,7 @@ function TrainerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* 준비 중/안내성 기능 정보 모달 (작업실 경유 없이) */}
+      {/* 준비 중/안내성 기능 정보 모달 */}
       <Dialog open={!!infoFeatureId} onOpenChange={(o) => { if (!o) setInfoFeatureId(null); }}>
         <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
           {infoFeatureId && (() => {

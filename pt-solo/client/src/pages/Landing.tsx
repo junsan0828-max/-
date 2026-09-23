@@ -44,7 +44,7 @@ const FEATURES = [
   {
     key: "studio",
     icon: Sparkles,
-    label: "작업실",
+    label: "브랜딩",
     color: "amber",
     items: ["개인 브랜딩", "STEPER 페이지", "SNS 관리", "콘텐츠"],
     desc: "STEPER로서의 브랜드를 만들고 잠재 회원에게 나를 알립니다.",
@@ -535,14 +535,14 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* 성장분석 목업 + 작업실 */}
+            {/* 성장분석 목업 + 브랜딩 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
               <div className="flex justify-center lg:justify-start order-2 lg:order-1">
                 <div className="w-full max-w-[220px]"><AnalyticsMockup /></div>
               </div>
               <div className={`order-1 lg:order-2 rounded-2xl border ${COLOR_MAP.amber.border} bg-gradient-to-br ${COLOR_MAP.amber.bg} p-7`}>
                 <div className="w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center mb-4"><Sparkles className="h-4 w-4 text-white/50" /></div>
-                <div className={`text-xs font-bold ${COLOR_MAP.amber.text} mb-2 tracking-widest uppercase`}>작업실</div>
+                <div className={`text-xs font-bold ${COLOR_MAP.amber.text} mb-2 tracking-widest uppercase`}>브랜딩</div>
                 <h3 className="text-xl font-bold mb-3 leading-snug">나만의 STEPER<br />브랜드를 만드세요</h3>
                 <p className="text-sm text-white/40 leading-relaxed mb-5">개인 페이지, SNS 관리, 콘텐츠 제작으로 잠재 회원에게 나를 알립니다.</p>
                 <div className="flex flex-wrap gap-2">

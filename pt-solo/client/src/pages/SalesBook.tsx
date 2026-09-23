@@ -85,7 +85,7 @@ function Section({ title, desc, children, defaultOpen }: {
   );
 }
 
-// ── 트레이너용 에디터 (작업실 안에서 열림) ──────────────────────────────────────
+// ── 트레이너용 에디터 (전체 기능에서 모달로 열림) ─────────────────────────────
 export function SalesBookEditor() {
   const { data: book, isLoading } = trpc.salesBook.getMine.useQuery();
   const utils = trpc.useUtils();

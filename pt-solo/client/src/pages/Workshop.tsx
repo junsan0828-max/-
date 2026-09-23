@@ -2100,7 +2100,7 @@ const TIER_META = {
   },
 } as const;
 
-// ── 작업실 기능 카탈로그 ───────────────────────────────────────────────────────
+// ── 기능 카탈로그 ─────────────────────────────────────────────────────────────
 
 export type WsItemStatus = "active" | "coming_soon" | "addon_fsp" | "addon_premium";
 export interface WsItem { id: string; icon: React.ElementType; name: string; shortDesc: string; description: string; tags: string[]; useCases: string[]; status: WsItemStatus; }
@@ -2406,7 +2406,7 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
   );
 }
 
-// ── 어드민 전용 작업실 관리 뷰 ──────────────────────────────────────────────
+// ── 어드민 전용 — STEPER에게 노출할 기능을 켜고 끄는 콘솔 ─────────────────────
 
 type WsCategory = "fsp" | "brand" | "booking" | "branding" | "templates" | "survey" | "contract";
 
@@ -2561,7 +2561,7 @@ function TrainerDetailPanel({ trainerId, category }: { trainerId: number; catego
   );
 }
 
-// ── 작업실 관리 콘솔 서브컴포넌트 ────────────────────────────────────────────
+// ── STEPER 기능 관리 콘솔 서브컴포넌트 ───────────────────────────────────────
 
 interface WsItemEnriched extends WsItem {
   catKey: string;
@@ -3340,7 +3340,7 @@ function AdminPreviewNotice({ name }: { name: string }) {
       </div>
       <p className="text-sm font-semibold text-foreground">{name}</p>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        이 기능은 STEPER 계정의 회원 데이터를 사용합니다.<br />실제 사용은 STEPER 작업실에서 확인하세요.
+        이 기능은 STEPER 계정의 회원 데이터를 사용합니다.<br />실제 사용은 STEPER 계정의 전체 기능에서 확인하세요.
       </p>
     </div>
   );
@@ -3361,12 +3361,12 @@ function ComingSoonPreview({ title, desc }: { title: string; desc: string }) {
 function WsAdminPointLog() {
   const { data: logs, isLoading } = trpc.admin.getWorkshopPointLog.useQuery();
   const TYPE_META: Record<string, { label: string; cls: string }> = {
-    workshop_unlock: { label: "작업실 활성화", cls: "text-red-500" },
+    workshop_unlock: { label: "기능 활성화", cls: "text-red-500" },
     admin_grant: { label: "관리자 지급", cls: "text-green-600" },
     admin_adjust: { label: "관리자 조정", cls: "text-amber-600" },
   };
   if (isLoading) return <p className="text-center text-sm text-muted-foreground py-8">로딩 중...</p>;
-  if (!logs || logs.length === 0) return <p className="text-center text-sm text-muted-foreground py-8">작업실 관련 포인트 내역이 없습니다</p>;
+  if (!logs || logs.length === 0) return <p className="text-center text-sm text-muted-foreground py-8">기능 관련 포인트 내역이 없습니다</p>;
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">{logs.length}건</p>
@@ -3395,7 +3395,7 @@ function WsAdminPointLog() {
   );
 }
 
-// ── 작업실 관리 콘솔 메인 ─────────────────────────────────────────────────────
+// ── STEPER 기능 관리 콘솔 메인 ────────────────────────────────────────────────
 function AdminWorkshopView() {
   const [tab, setTab] = useState<"stepers" | "features" | "pointlog">("stepers");
   const [selectedFeature, setSelectedFeature] = useState<WsItemEnriched | null>(null);
@@ -3411,11 +3411,11 @@ function AdminWorkshopView() {
   const utils = trpc.useUtils();
 
   const grantMutation = trpc.admin.grantWorkshopAccess.useMutation({
-    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("작업실 접근이 부여되었습니다"); },
+    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("기능 접근이 부여되었습니다"); },
     onError: (e) => toast.error(e.message),
   });
   const revokeMutation = trpc.admin.revokeWorkshopAccess.useMutation({
-    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("작업실 접근이 회수되었습니다"); },
+    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("기능 접근이 회수되었습니다"); },
     onError: (e) => toast.error(e.message),
   });
   const bulkUpdateMutation = trpc.admin.bulkUpdateWorkshopFeatureConfig.useMutation({
@@ -3503,10 +3503,10 @@ function AdminWorkshopView() {
       {/* 헤더 */}
       <div>
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">작업실 관리</h1>
+          <h1 className="text-xl font-bold">STEPER 기능 관리</h1>
           <span className="text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-semibold">관리자</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">STEPER 작업실 기능의 이용자·포인트 매출 성과를 관리합니다.</p>
+        <p className="text-xs text-muted-foreground mt-0.5">STEPER에게 노출되는 기능의 이용 현황과 포인트 매출을 관리합니다.</p>
       </div>
 
       {/* 요약 카드 */}
@@ -3626,7 +3626,7 @@ function AdminWorkshopView() {
                           {t.wsStatus !== "active" ? (
                             <button onClick={() => grantMutation.mutate({ trainerId: t.id })} disabled={grantMutation.isPending}
                               className="flex-1 bg-primary text-primary-foreground text-xs font-semibold py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
-                              작업실 접근 부여
+                              기능 접근 부여
                             </button>
                           ) : (
                             <button onClick={() => revokeMutation.mutate({ trainerId: t.id })} disabled={revokeMutation.isPending}
@@ -3799,7 +3799,7 @@ function LockedFeatureRow({ item, planLabel, planColor }: { item: WsItem; planLa
   );
 }
 
-// ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
+// ── 기능 행 ───────────────────────────────────────────────────────────────────
 function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: string }; onClick: () => void }) {
   const Icon = item.icon;
   const hasEditor = FORM_IDS.has(item.id);
@@ -3831,7 +3831,7 @@ function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: str
   );
 }
 
-// ── 작업실 메인 (트레이너용, 상태 기반) ─────────────────────────────────────
+// ── 기능 카탈로그 본문 (관리자 미리보기용) ───────────────────────────────────
 function WorkshopContent() {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
@@ -3877,7 +3877,7 @@ function WorkshopContent() {
   });
 
   const unlockMutation = trpc.workshop.unlock.useMutation({
-    onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("작업실이 활성화되었습니다!"); },
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("기능이 활성화되었습니다!"); },
     onError: (e) => toast.error(e.message),
   });
   const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery();
@@ -3923,7 +3923,7 @@ function WorkshopContent() {
           {/* 뱃지 */}
           <div className="relative inline-flex items-center gap-1.5 bg-primary/20 border border-primary/30 rounded-full px-3 py-1 mb-4">
             <Zap className="h-3 w-3 text-primary" />
-            <span className="text-[12px] font-semibold text-primary tracking-wide">FIT STEP 작업실</span>
+            <span className="text-[12px] font-semibold text-primary tracking-wide">FIT STEP 기능</span>
           </div>
 
           {/* 헤드라인 */}
@@ -3988,7 +3988,7 @@ function WorkshopContent() {
     return (
       <div className="space-y-4 pb-6">
         
-        <h1 className="text-xl font-bold">작업실</h1>
+        <h1 className="text-xl font-bold">STEPER 기능</h1>
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 space-y-4">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-amber-600" />
@@ -4003,11 +4003,11 @@ function WorkshopContent() {
               </div>
             ))}
           </div>
-          <p className="text-sm font-semibold text-amber-800">작업실을 활성화하면 모든 데이터와 기능이 복구됩니다.</p>
+          <p className="text-sm font-semibold text-amber-800">활성화하면 모든 데이터와 기능이 복구됩니다.</p>
           <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white"
             onClick={() => unlockMutation.mutate({ feature: "workshop_access" })}
             disabled={unlockMutation.isPending}>
-            {unlockMutation.isPending ? "처리 중..." : "작업실 활성화"}
+            {unlockMutation.isPending ? "처리 중..." : "기능 활성화"}
           </Button>
         </div>
 
@@ -4086,7 +4086,7 @@ function WorkshopContent() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">작업실</h1>
+          <h1 className="text-xl font-bold">STEPER 기능</h1>
           <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 기능 공간</p>
         </div>
         {status === "active" && (
@@ -4099,7 +4099,7 @@ function WorkshopContent() {
         )}
       </div>
 
-      {/* ── 내 작업실 ────────────────────────────────────────── */}
+      {/* ── 기능 목록 ────────────────────────────────────────── */}
       {(() => {
         const allItems = WS_CATALOG.flatMap(c => c.items);
 
@@ -4178,7 +4178,7 @@ export default function Workshop() {
   const [adminTab, setAdminTab] = useState<"manage" | "workshop">("manage");
   const isAdmin = (user as any)?.role === "admin";
 
-  // 작업실은 관리자 전용 — 트레이너 계정은 대시보드로 리다이렉트
+  // 관리자 전용 콘솔 — 라우터에서 이미 막지만 직접 진입도 대비한다
   if (!isLoading && !isAdmin) {
     return <Redirect to="/" />;
   }
@@ -4193,7 +4193,7 @@ export default function Workshop() {
           </button>
           <button onClick={() => setAdminTab("workshop")}
             className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "workshop" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            내 작업실
+            STEPER 화면 미리보기
           </button>
         </div>
         {adminTab === "manage" ? <AdminWorkshopView /> : <WorkshopContent />}

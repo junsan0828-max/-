@@ -13,7 +13,7 @@ type Notice = { id: number; title: string; content: string; isPinned: boolean; i
 const TAB_OPTIONS = [
   { key: "all",          label: "전체 (공통)" },
   { key: "dashboard",    label: "대시보드" },
-  { key: "workshop",     label: "작업실" },
+  { key: "workshop",     label: "기능" },
   { key: "booking",      label: "수업 예약 관리" },
   { key: "settlement",   label: "성장분석실" },
   { key: "attendance",   label: "출석 체크" },

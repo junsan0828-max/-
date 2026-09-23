@@ -6431,7 +6431,7 @@ const salesBookRouter = t.router({
       sendPushToTrainer(r.trainerId, {
         title: "세일즈북을 열람했습니다",
         body: `보낸 제안서를 방금 확인했습니다. (누적 ${counted.rows[0]?.viewCount ?? 1}회) 지금이 연락하기 좋은 타이밍입니다.`,
-        url: "/workshop",
+        url: "/features",
       }).catch(() => {});
     }
 

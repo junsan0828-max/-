@@ -68,7 +68,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
     { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
     { path: "/academy", label: "성장아카데미 관리", icon: GraduationCap },
-    { path: "/workshop", label: "작업실 관리", icon: Wrench },
+    { path: "/workshop", label: "STEPER 기능 관리", icon: Wrench },
     { path: "/admin/sequence-review", label: "시퀀스 검토 관리", icon: Layers },
     { path: "/admin/feedback", label: "작업/오류 데이터", icon: ClipboardList },
   ];
@@ -104,7 +104,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navGroups = (isAdmin ? [{ items: adminNavItems }] : trainerNavGroups).filter(g => g.items.length > 0);
 
   // 모바일 하단 탭. 수업은 회원 안의 동작이라 따로 두지 않는다.
-  // 작업실(기능)이 FIT STEP의 차별점이자 나머지 메뉴 진입점 역할을 겸한다.
+  // "기능"(전체 기능)이 FIT STEP의 차별점이자 나머지 메뉴 진입점 역할을 겸한다.
   // path가 없는 탭은 사이드바 오버레이를 여는 용도.
   const bottomTabs: { path?: string; label: string; icon: typeof LayoutDashboard }[] = isAdmin
     ? [

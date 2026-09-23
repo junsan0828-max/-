@@ -89,12 +89,23 @@ const GUIDES: Record<string, PageGuide> = {
   "/workshop": {
     icon: Wrench,
     color: "bg-orange-500/15 text-orange-500",
-    title: "작업실",
-    desc: "브랜드 페이지, 계약서, 설문 등 업무 도구를 관리합니다.",
+    title: "STEPER 기능 관리",
+    desc: "STEPER에게 어떤 기능을 열어줄지 관리자가 정하는 콘솔입니다.",
+    tips: [
+      "기능을 활성화하면 STEPER의 전체 기능 목록과 메뉴에 나타납니다.",
+      "준비 중으로 두면 목록에는 보이되 사용할 수 없습니다.",
+      "숨김 처리하면 STEPER에게 아예 노출되지 않습니다.",
+    ],
+  },
+  "/features": {
+    icon: Wrench,
+    color: "bg-orange-500/15 text-orange-500",
+    title: "전체 기능",
+    desc: "브랜드 페이지, 계약서, 설문 등 사용할 수 있는 기능을 한곳에서 엽니다.",
     tips: [
       "브랜드 페이지를 설정하면 회원에게 전문적인 페이지를 공유할 수 있습니다.",
       "전자계약서와 설문지를 회원에게 온라인으로 발송하세요.",
-      "도구를 활성화/비활성화하여 내 업무에 맞게 커스텀하세요.",
+      "자주 쓰는 기능은 홈 화면에서도 바로 열 수 있습니다.",
     ],
   },
   "/profile": {
