@@ -621,6 +621,60 @@ export const dataHealthRouter = t.router({
       rows: gymPlusDangling.rows,
     });
 
+    // 상담 귀속 3단 폴백의 마지막 단계(상담카드 경유)가 동작하지 않는다.
+    // staffSummary가 leads.memberId를 읽는데 실제 컬럼명은 registeredMemberId라서,
+    // 조건이 늘 거짓이 되어 이 폴백은 한 번도 적용된 적이 없다.
+    // 이 폴백은 ①매출.consultantId ②회원.consultantId가 모두 빈 건에만 적용되므로,
+    // 고쳐도 기존 상담자의 실적을 빼앗지 않는다 — 지금 "아무에게도 안 잡힌" 금액이 붙을 뿐이다.
+    // 고치기 전에 얼마가 움직이는지 먼저 보여준다(원칙 3: 확인 후 처리).
+    const consultFallbackImpact = await pool.query(`
+      WITH affected AS (
+        SELECT r."paidAmount", r.type, r."subType", lead_c."assignedConsultantId" AS cid,
+               r."paymentDate"
+        FROM revenue_entries r
+        LEFT JOIN members m ON m.id = r."memberId"
+        LEFT JOIN LATERAL (
+          SELECT l."assignedConsultantId"
+          FROM leads l
+          WHERE l."registeredMemberId" = r."memberId"
+            AND l."assignedConsultantId" IS NOT NULL
+          ORDER BY (l.status = 'registered') DESC, l.id
+          LIMIT 1
+        ) lead_c ON true
+        WHERE r."memberId" IS NOT NULL
+          AND COALESCE(r."subType",'') <> '이전'
+          AND r."consultantId" IS NULL
+          AND m."consultantId" IS NULL
+          AND lead_c."assignedConsultantId" IS NOT NULL
+      )
+      SELECT COALESCE(t."trainerName", '(이름없음 #' || a.cid || ')') AS "새로 귀속될 상담자",
+             COUNT(*)::int AS "건수",
+             SUM(a."paidAmount")::int AS "총액",
+             SUM(CASE WHEN a."subType" = '재등록' THEN a."paidAmount" ELSE 0 END)::int AS "재등록",
+             SUM(CASE WHEN a."subType" <> '재등록' AND a.type = 'PT'       THEN a."paidAmount" ELSE 0 END)::int AS "신규PT",
+             SUM(CASE WHEN a."subType" <> '재등록' AND a.type = '헬스'     THEN a."paidAmount" ELSE 0 END)::int AS "헬스",
+             SUM(CASE WHEN a."subType" <> '재등록' AND a.type = '다이어트' THEN a."paidAmount" ELSE 0 END)::int AS "다이어트",
+             SUM(CASE WHEN a."paymentDate" >= to_char(now() - interval '6 months', 'YYYY-MM-DD')
+                      THEN a."paidAmount" ELSE 0 END)::int AS "최근6개월",
+             MIN(a."paymentDate") AS "가장 오래된 건",
+             MAX(a."paymentDate") AS "가장 최근 건"
+      FROM affected a
+      LEFT JOIN trainers t ON t."userId" = a.cid
+      GROUP BY a.cid, t."trainerName"
+      ORDER BY SUM(a."paidAmount") DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "consultant_lead_fallback_impact",
+      title: "상담 귀속 폴백이 끊겨 미귀속된 매출",
+      severity: "warning",
+      description:
+        "상담 담당을 찾는 마지막 단계(상담카드 경유)가 코드 버그로 동작하지 않아, 아래 금액이 지금 어느 상담자에게도 잡히지 않고 있습니다. " +
+        "매출·회원 양쪽에 상담자가 지정된 건은 영향이 없어, 고쳐도 기존 상담 실적이 줄어들지는 않고 아래 금액만 새로 붙습니다. " +
+        "표가 비어 있으면 고쳐도 정산이 전혀 바뀌지 않는다는 뜻입니다. 금액을 확인한 뒤 적용 여부를 결정해주세요.",
+      rows: consultFallbackImpact.rows,
+    });
+
     // ④-3d 매출이 아예 연결되지 않은 PT 패키지.
     //      "언제 등록한 건지" 알 수 있게 생성일을 함께 보여준다. 2026-04-23은 기존 회원
     //      일괄 임포트분이고(정수연 사례: 시트상 4/08 등록), 그 외 날짜는 앱에서 수동으로
