@@ -1111,7 +1111,9 @@ const membersRouter = t.router({
 
   // 재등록 의향 설정
   setRenewalIntent: protectedProcedure
-    .input(z.object({ memberId: z.number(), intent: z.enum(["재등록예정", "이탈예정"]).nullable() }))
+    // 이월은 읽는 쪽(carryOver 집계)에 이미 있는데 여기 enum에만 빠져 있어서,
+    // 트레이너가 이월 버튼을 눌러도 저장되지 않고 관리자 이월 집계는 늘 0이었다.
+    .input(z.object({ memberId: z.number(), intent: z.enum(["재등록예정", "이월", "이탈예정"]).nullable() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
