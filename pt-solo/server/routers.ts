@@ -2015,6 +2015,18 @@ const tabBannerRouter = t.router({
 
 // ─── E-Contract ───────────────────────────────────────────────────────────────
 
+// 계약 수정 UPDATE는 모두 status='pending' 조건을 달고 실행한다. 서명이 끝난 뒤
+// 금액·회차를 바꾸면 서명 이미지는 그대로 남은 채 내용만 달라져 분쟁 시
+// 계약서의 증거력을 잃기 때문이다. 조건에 걸려 0건이면 여기서 거절한다.
+function assertContractWasEditable(rowCount: number | null) {
+  if (!rowCount) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "이미 서명이 완료되었거나 수정할 수 없는 계약서입니다.",
+    });
+  }
+}
+
 const eContractRouter = t.router({
   create: protectedProcedure
     .input(z.object({
@@ -2036,7 +2048,7 @@ const eContractRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = (ctx.user as any).trainerId;
       if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
-      const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      const token = randomUUID().replace(/-/g, "");
       await pool.query(
         `INSERT INTO e_contracts ("trainerId", token, "memberName", "memberPhone", "memberBirth",
           "programName", "programFormat", "programSessions", "listPrice", "discountAmount",
@@ -2070,7 +2082,7 @@ const eContractRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = (ctx.user as any).trainerId;
       if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
-      const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      const token = randomUUID().replace(/-/g, "");
       const extra = JSON.stringify({
         usedSessions: input.usedSessions ?? null,
         refundAmount: input.refundAmount ?? null,
@@ -2115,13 +2127,14 @@ const eContractRouter = t.router({
         vatAmount: extraFields.vatAmount ?? null,
         penaltyAmount: extraFields.penaltyAmount ?? null,
       });
-      await pool.query(
+      const res = await pool.query(
         `UPDATE e_contracts SET "memberName"=$1, "memberPhone"=$2, "programName"=$3,
           "programPrice"=$4, "programSessions"=$5, "extraData"=$6
-         WHERE id=$7 AND "trainerId"=$8`,
+         WHERE id=$7 AND "trainerId"=$8 AND status='pending'`,
         [memberName ?? null, memberPhone ?? null, programName ?? null,
          programPrice ?? null, programSessions ?? null, extra, id, trainerId]
       );
+      assertContractWasEditable(res.rowCount);
       return { success: true };
     }),
 
@@ -2139,7 +2152,7 @@ const eContractRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = (ctx.user as any).trainerId;
       if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
-      const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      const token = randomUUID().replace(/-/g, "");
       const extra = JSON.stringify({
         transferorName: input.transferorName ?? null,
         transferorPhone: input.transferorPhone ?? null,
@@ -2180,11 +2193,14 @@ const eContractRouter = t.router({
         remainingSessions: extraFields.remainingSessions ?? null,
         transferDate: extraFields.transferDate ?? null,
       });
-      await pool.query(
+      // 양도양수는 양도인이 서명한 시점(transferor_signed)부터 이미 서명본이 존재하므로
+      // pending일 때만 수정할 수 있다.
+      const res = await pool.query(
         `UPDATE e_contracts SET "programName"=$1, "trainerMemo"=$2, "extraData"=$3
-         WHERE id=$4 AND "trainerId"=$5`,
+         WHERE id=$4 AND "trainerId"=$5 AND status='pending'`,
         [programName ?? null, trainerMemo ?? null, extra, id, trainerId]
       );
+      assertContractWasEditable(res.rowCount);
       return { success: true };
     }),
 
@@ -2383,13 +2399,13 @@ const eContractRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = (ctx.user as any).trainerId;
       const { id, ...fields } = input;
-      await pool.query(
+      const res = await pool.query(
         `UPDATE e_contracts SET
           "memberName"=$1, "memberPhone"=$2, "memberBirth"=$3,
           "programName"=$4, "programFormat"=$5, "programSessions"=$6,
           "listPrice"=$7, "discountAmount"=$8, "programPrice"=$9, "unpaidAmount"=$10,
           "paymentDate"=$11, "programStartDate"=$12, "programEndDate"=$13, "trainerMemo"=$14
-         WHERE id=$15 AND "trainerId"=$16`,
+         WHERE id=$15 AND "trainerId"=$16 AND status='pending'`,
         [
           fields.memberName ?? null, fields.memberPhone ?? null, fields.memberBirth ?? null,
           fields.programName ?? null, fields.programFormat ?? null,
@@ -2401,6 +2417,7 @@ const eContractRouter = t.router({
           id, trainerId,
         ]
       );
+      assertContractWasEditable(res.rowCount);
       return { success: true };
     }),
 });
