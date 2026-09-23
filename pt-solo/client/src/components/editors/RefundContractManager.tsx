@@ -1,18 +1,26 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Edit2, X, Copy } from "lucide-react";
+import { Plus, Edit2, X, Copy , PenLine } from "lucide-react";
+import ContractSignFlow from "@/components/ContractSignFlow";
 
 export default function RefundContractManager() {
   const utils = trpc.useUtils();
   const { data: list } = trpc.eContract.list.useQuery();
   const invalidate = () => utils.eContract.list.invalidate();
-  const createMutation = trpc.eContract.createRefund.useMutation({ onSuccess: () => { invalidate(); setShowForm(false); resetForm(); } });
+  const createMutation = trpc.eContract.createRefund.useMutation({
+    onSuccess: (r: any) => {
+      invalidate(); setShowForm(false); resetForm();
+      // 현장에서 바로 서명받는 흐름 — 생성 직후 계약 내용 확인 모달을 띄운다.
+      if (r?.token) setSignToken(r.token);
+    },
+  });
   const updateRefundMutation = trpc.eContract.updateRefund.useMutation({ onSuccess: () => { invalidate(); setEditId(null); setShowForm(false); resetForm(); toast.success("수정되었습니다"); } });
   const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => invalidate() });
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [signToken, setSignToken] = useState<string | null>(null);
   const { data: detail } = trpc.eContract.getDetail.useQuery({ id: detailId! }, { enabled: !!detailId });
 
   const emptyForm = { memberName: "", memberPhone: "", programName: "", programPrice: "", programSessions: "", usedSessions: "", refundAmount: "", refundReason: "", paymentMethod: "", vatAmount: "", penaltyAmount: "" };
@@ -247,6 +255,12 @@ export default function RefundContractManager() {
                     className="flex-1 flex items-center justify-center gap-1 text-[12px] font-semibold bg-[#FEE500] text-[#3A1D1D] rounded-lg py-1.5 hover:opacity-90">
                     카카오톡 공유
                   </button>
+                  {c.status !== "signed" && (
+                    <button onClick={() => setSignToken(c.token)}
+                      className="flex-1 flex items-center justify-center gap-1 text-[12px] font-semibold bg-gray-900 text-white rounded-lg py-1.5 hover:bg-gray-800 transition-colors">
+                      <PenLine className="h-3 w-3" /> 현장 서명
+                    </button>
+                  )}
                   {c.status === "signed" && (
                     <button onClick={() => setDetailId(c.id)}
                       className="flex-1 flex items-center justify-center gap-1 text-[12px] font-semibold bg-primary/10 text-primary rounded-lg py-1.5 hover:bg-primary/20">
@@ -287,6 +301,14 @@ export default function RefundContractManager() {
             )}
           </div>
         </div>
+      )}
+
+      {signToken && (
+        <ContractSignFlow
+          token={signToken}
+          onClose={() => setSignToken(null)}
+          onSigned={() => { setSignToken(null); invalidate(); toast.success("서명이 완료되었습니다"); }}
+        />
       )}
     </div>
   );
