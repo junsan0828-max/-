@@ -17,6 +17,7 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined) || "";
 const CATEGORY_OPTIONS   = ["웨이트 트레이닝", "필라테스", "요가", "크로스핏/기능성", "재활운동", "체형교정", "유산소", "기타"];
 const DIFFICULTY_OPTIONS = ["입문", "초급", "중급", "고급"];
 const AUDIENCE_OPTIONS   = ["일반", "시니어", "산전산후", "재활", "선수/경기력", "체중감량", "근력강화"];
+const BODY_PART_OPTIONS  = ["전신", "목·어깨", "등", "가슴", "팔", "코어·복부", "둔근", "하체", "척추·자세"];
 
 interface KakaoUser { id?: number; name: string; thumbnail?: string | null }
 interface Exercise { name: string; sets: string; reps: string; videoUrl: string; note: string }
@@ -130,6 +131,32 @@ function Tag({ children }: { children: React.ReactNode }) {
   return <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: 6, padding: "3px 8px" }}>{children}</span>;
 }
 
+/* ── 다중선택 칩 ── */
+function ChipSelect({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+  const selected = value.split(",").map(s => s.trim()).filter(Boolean);
+  const toggle = (opt: string) => {
+    const next = selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt];
+    onChange(next.join(", "));
+  };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {options.map(opt => {
+        const on = selected.includes(opt);
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => toggle(opt)}
+            style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 999, cursor: "pointer", background: on ? "#eff6ff" : "#fff", border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, color: on ? "#2563eb" : "#64748b" }}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function iconBtn(disabled: boolean): React.CSSProperties {
   return { display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, color: disabled ? "#cbd5e1" : "#64748b", cursor: disabled ? "not-allowed" : "pointer", flexShrink: 0 };
 }
@@ -154,7 +181,7 @@ function SharedView({ seq }: { seq: Sequence }) {
             {seq.difficulty && <Tag>{seq.difficulty}</Tag>}
             {seq.targetAudience && <Tag>{seq.targetAudience}</Tag>}
             {seq.estimatedMinutes && <Tag><Clock size={10} /> {seq.estimatedMinutes}분</Tag>}
-            {seq.bodyParts && <Tag>{seq.bodyParts}</Tag>}
+            {seq.bodyParts.split(",").map(s => s.trim()).filter(Boolean).map(p => <Tag key={p}>{p}</Tag>)}
             {seq.equipment && <Tag>{seq.equipment}</Tag>}
           </div>
           {seq.classGoal && (
@@ -464,12 +491,13 @@ export default function SequenceMaker() {
               <div><label style={LB}>예상 시간(분)</label>
                 <input style={IS} type="number" value={draft.estimatedMinutes} onChange={e => updateDraft({ estimatedMinutes: e.target.value })} placeholder="40" />
               </div>
-              <div><label style={LB}>운동 부위</label>
-                <input style={IS} value={draft.bodyParts} onChange={e => updateDraft({ bodyParts: e.target.value })} placeholder="하체, 코어" />
-              </div>
               <div><label style={LB}>필요 장비</label>
                 <input style={IS} value={draft.equipment} onChange={e => updateDraft({ equipment: e.target.value })} placeholder="덤벨, 밴드" />
               </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label style={LB}>운동 부위 (복수 선택)</label>
+              <ChipSelect options={BODY_PART_OPTIONS} value={draft.bodyParts} onChange={v => updateDraft({ bodyParts: v })} />
             </div>
           </div>
 
