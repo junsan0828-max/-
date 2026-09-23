@@ -232,10 +232,12 @@ export default function EContractManager() {
                         <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
                     )}
-                    <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
-                      className="p-1 rounded-lg hover:bg-muted">
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
+                    {c.status === "pending" && (
+                      <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
+                        className="p-1 rounded-lg hover:bg-muted">
+                        <X className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1.5">
@@ -288,6 +290,31 @@ export default function EContractManager() {
                 <div className="border border-border rounded-xl p-3 bg-white">
                   <img src={detail.signaturePng} className="w-full h-24 object-contain" />
                 </div>
+              </div>
+            )}
+            {(detail.signerIp || detail.signerUserAgent) && (
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">서명 기록</p>
+                <div className="border border-border rounded-xl px-3 py-2 space-y-1">
+                  {detail.signedAt && (
+                    <p className="text-[11px]">
+                      <span className="text-muted-foreground">일시 </span>{detail.signedAt.slice(0, 19)}
+                    </p>
+                  )}
+                  {detail.signerIp && (
+                    <p className="text-[11px]">
+                      <span className="text-muted-foreground">IP </span>{detail.signerIp}
+                    </p>
+                  )}
+                  {detail.signerUserAgent && (
+                    <p className="text-[11px] break-all">
+                      <span className="text-muted-foreground">기기 </span>{detail.signerUserAgent}
+                    </p>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  분쟁 시 서명 시점을 입증하는 기록입니다.
+                </p>
               </div>
             )}
           </div>

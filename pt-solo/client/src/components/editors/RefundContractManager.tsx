@@ -230,10 +230,12 @@ export default function RefundContractManager() {
                         <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
                     )}
-                    <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
-                      className="p-1 rounded-lg hover:bg-muted">
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
+                    {c.status === "pending" && (
+                      <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
+                        className="p-1 rounded-lg hover:bg-muted">
+                        <X className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1.5">

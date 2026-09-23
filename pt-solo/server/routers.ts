@@ -2218,11 +2218,22 @@ const eContractRouter = t.router({
     return rows.rows;
   }),
 
+  // 서명이 들어간 계약서는 삭제하지 않는다. 서명본은 분쟁 시 증거이고,
+  // 한 번 지우면 복구할 방법이 없다. 미서명(pending) 건만 정리할 수 있다.
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const trainerId = (ctx.user as any).trainerId;
-      await pool.query(`DELETE FROM e_contracts WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]);
+      const res = await pool.query(
+        `DELETE FROM e_contracts WHERE id=$1 AND "trainerId"=$2 AND status='pending'`,
+        [input.id, trainerId]
+      );
+      if (!res.rowCount) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "서명이 완료된 계약서는 삭제할 수 없습니다.",
+        });
+      }
       return { success: true };
     }),
 
@@ -2294,7 +2305,11 @@ const eContractRouter = t.router({
       accountNumber: z.string().optional(),
       accountHolder: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // 서명 감사추적. 서명 이미지만으로는 "본인이 언제 어디서 서명했다"를
+      // 입증할 수 없으므로 접속 정보를 함께 남긴다.
+      const signerIp = (ctx.req.ip ?? "").slice(0, 64) || null;
+      const signerUa = (ctx.req.headers["user-agent"] ?? "").toString().slice(0, 512) || null;
       const check = await pool.query(
         `SELECT id, status, "contractType" FROM e_contracts WHERE token=$1`, [input.token]
       );
@@ -2308,9 +2323,10 @@ const eContractRouter = t.router({
           // 1단계: 양도인 서명
           await pool.query(
             `UPDATE e_contracts SET status='transferor_signed',
-              "transferorSignerName"=$2, "transferorSignaturePng"=$3, "transferorSignedAt"=now()::text
-             WHERE token=$1`,
-            [input.token, input.signerName, input.signaturePng]
+              "transferorSignerName"=$2, "transferorSignaturePng"=$3, "transferorSignedAt"=now()::text,
+              "transferorIp"=$4, "transferorUserAgent"=$5
+             WHERE token=$1 AND status='pending'`,
+            [input.token, input.signerName, input.signaturePng, signerIp, signerUa]
           );
           return { success: true, step: 'transferor_signed' };
         } else if (status === 'transferor_signed') {
@@ -2318,10 +2334,11 @@ const eContractRouter = t.router({
           await pool.query(
             `UPDATE e_contracts SET status='signed',
               "memberName"=$2, "memberPhone"=$3,
-              "signerName"=$4, "signaturePng"=$5, "signedAt"=now()::text
-             WHERE token=$1`,
+              "signerName"=$4, "signaturePng"=$5, "signedAt"=now()::text,
+              "signerIp"=$6, "signerUserAgent"=$7
+             WHERE token=$1 AND status='transferor_signed'`,
             [input.token, input.memberName ?? null, input.memberPhone ?? null,
-             input.signerName, input.signaturePng]
+             input.signerName, input.signaturePng, signerIp, signerUa]
           );
           return { success: true, step: 'signed' };
         } else {
@@ -2348,8 +2365,11 @@ const eContractRouter = t.router({
         });
         await pool.query(
           `UPDATE e_contracts SET status='signed', "memberName"=$2, "memberPhone"=$3,
-            "signerName"=$4, "signaturePng"=$5, "signedAt"=now()::text, "extraData"=$6 WHERE token=$1`,
-          [input.token, input.memberName ?? null, input.memberPhone ?? null, input.signerName, input.signaturePng, mergedExtra]
+            "signerName"=$4, "signaturePng"=$5, "signedAt"=now()::text, "extraData"=$6,
+            "signerIp"=$7, "signerUserAgent"=$8
+           WHERE token=$1 AND status <> 'signed'`,
+          [input.token, input.memberName ?? null, input.memberPhone ?? null, input.signerName, input.signaturePng, mergedExtra,
+           signerIp, signerUa]
         );
         return { success: true, step: 'signed' };
       }
@@ -2357,10 +2377,12 @@ const eContractRouter = t.router({
       await pool.query(
         `UPDATE e_contracts SET status='signed', "memberName"=$2, "memberPhone"=$3, "memberBirth"=$4,
           "agreedTerms"=$5, "agreedPrivacy"=$6, "agreedMarketing"=$7,
-          "signerName"=$8, "signaturePng"=$9, "signedAt"=now()::text WHERE token=$1`,
+          "signerName"=$8, "signaturePng"=$9, "signedAt"=now()::text,
+          "signerIp"=$10, "signerUserAgent"=$11
+         WHERE token=$1 AND status <> 'signed'`,
         [input.token, input.memberName ?? null, input.memberPhone ?? null, input.memberBirth ?? null,
          input.agreedTerms ? 1 : 0, input.agreedPrivacy ? 1 : 0, input.agreedMarketing ? 1 : 0,
-         input.signerName, input.signaturePng]
+         input.signerName, input.signaturePng, signerIp, signerUa]
       );
       return { success: true, step: 'signed' };
     }),

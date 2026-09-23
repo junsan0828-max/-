@@ -727,6 +727,12 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "unpaidAmount" INTEGER`);
   await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "paymentDate" TEXT`);
   await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "programEndDate" TEXT`);
+  // 서명 감사추적 — 누가·언제·어디서 서명했는지. 전자서명의 증거력은
+  // 서명 이미지 자체가 아니라 이 기록으로 뒷받침된다.
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "signerIp" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "signerUserAgent" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorIp" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorUserAgent" TEXT`);
 
   // 작업실 기능 잠금해제
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_unlocks (
