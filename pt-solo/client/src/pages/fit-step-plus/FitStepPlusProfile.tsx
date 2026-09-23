@@ -1,8 +1,102 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Bell, BellOff } from "lucide-react";
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+function PushNotificationCard() {
+  const utils = trpc.useUtils();
+  const { data: vapid } = trpc.fitStepPlus.member_getVapidPublicKey.useQuery();
+  const { data: status } = trpc.fitStepPlus.member_getPushStatus.useQuery();
+  const [busy, setBusy] = useState(false);
+  const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
+
+  const subscribeMutation = trpc.fitStepPlus.member_pushSubscribe.useMutation({
+    onSuccess: () => { utils.fitStepPlus.member_getPushStatus.invalidate(); toast.success("알림이 켜졌습니다!"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const unsubscribeMutation = trpc.fitStepPlus.member_pushUnsubscribe.useMutation({
+    onSuccess: () => { utils.fitStepPlus.member_getPushStatus.invalidate(); toast.success("알림이 꺼졌습니다."); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  async function handleEnable() {
+    if (!supported) { toast.error("이 브라우저/기기는 푸시 알림을 지원하지 않습니다."); return; }
+    if (!vapid?.publicKey) { toast.error("알림 설정이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요."); return; }
+    if (Notification.permission === "denied") {
+      toast.error("이 사이트의 알림이 브라우저에서 차단되어 있습니다. 주소창 왼쪽 사이트 정보 → 권한 → 알림을 '허용'으로 바꾼 뒤 다시 시도해주세요.", { duration: 8000 });
+      return;
+    }
+    setBusy(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") { toast.error("알림 권한을 허용해야 안내를 받을 수 있어요."); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid.publicKey),
+      });
+      const json = sub.toJSON();
+      subscribeMutation.mutate({
+        endpoint: json.endpoint!,
+        keys: { p256dh: json.keys!.p256dh!, auth: json.keys!.auth! },
+      });
+    } catch (e: any) {
+      toast.error("알림 설정 중 오류가 발생했습니다: " + (e?.message ?? ""));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisable() {
+    setBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        unsubscribeMutation.mutate({ endpoint: sub.endpoint });
+        await sub.unsubscribe();
+      } else {
+        unsubscribeMutation.mutate({ endpoint: "" });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${status?.subscribed ? "bg-primary/15" : "bg-muted"}`}>
+          {status?.subscribed ? <Bell className="w-5 h-5 text-primary" /> : <BellOff className="w-5 h-5 text-muted-foreground" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">트레이너 알림</p>
+          <p className="text-[12px] text-muted-foreground mt-0.5">재등록 안내 등 트레이너가 보내는 소식을 받아요</p>
+        </div>
+        <Button
+          size="sm"
+          variant={status?.subscribed ? "outline" : "default"}
+          disabled={busy}
+          onClick={status?.subscribed ? handleDisable : handleEnable}
+        >
+          {status?.subscribed ? "끄기" : "받기"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const membershipTypeLabel: Record<string, string> = {
   general: "일반회원",
@@ -12,7 +106,7 @@ const membershipTypeLabel: Record<string, string> = {
 
 const membershipTypeBadge: Record<string, string> = {
   general: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  premium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  premium: "bg-amber-500/10 text-amber-600 border-amber-500/30",
   vip: "bg-purple-500/10 text-purple-400 border-purple-500/30",
 };
 
@@ -90,7 +184,7 @@ export default function FitStepPlusProfile() {
             "bg-green-500/10 border border-green-500/20"
           }`}>
             <p className="text-xs text-muted-foreground">회원권 남은 기간</p>
-            <p className={`font-black text-2xl mt-0.5 ${
+            <p className={`font-bold text-2xl mt-0.5 ${
               daysLeft <= 0 ? "text-red-400" : daysLeft <= 7 ? "text-orange-400" : "text-green-400"
             }`}>
               {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
@@ -150,6 +244,8 @@ export default function FitStepPlusProfile() {
           <p className={`text-xs mt-2 ${profileMsg.includes("저장") ? "text-green-400" : "text-red-400"}`}>{profileMsg}</p>
         )}
       </div>
+
+      <PushNotificationCard />
 
       <div className="bg-card border border-border rounded-xl p-4">
         <p className="text-xs text-muted-foreground">비밀번호: 휴대폰 번호 뒷자리 4자리</p>

@@ -1,24 +1,66 @@
 {
-  "name": "FIT STEP",
-  "short_name": "FIT STEP",
-  "description": "트레이너 회원 관리 시스템",
+  "name": "핏스텝 회원관리 프로그램",
+  "short_name": "핏스텝 회원관리",
+  "description": "성장하는 운동전문가 플랫폼 · PT/필라테스 회원관리 프로그램",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a00ff",
   "theme_color": "#1a00ff",
   "orientation": "portrait",
+  "scope": "/",
+  "lang": "ko",
   "icons": [
     {
-      "src": "/icon-192.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png"
     },
     {
-      "src": "/icon-512.svg",
+      "src": "/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "대시보드",
+      "url": "/",
+      "description": "메인 대시보드"
     }
   ]
 }

@@ -3,7 +3,44 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const Dialog = DialogPrimitive.Root;
+// 모달이 열릴 때 브라우저 히스토리에 항목을 추가해, 스마트폰 뒤로가기 버튼으로
+// 페이지 이탈 대신 모달만 닫히도록 한다 (앱 전체 Dialog에 공통 적용).
+const Dialog = ({
+  open,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) => {
+  const pushedRef = React.useRef(false);
+  const onOpenChangeRef = React.useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+
+  React.useEffect(() => {
+    if (open && !pushedRef.current) {
+      window.history.pushState({ __dialogOpen: true }, "");
+      pushedRef.current = true;
+    } else if (!open && pushedRef.current) {
+      // 모달이 X버튼·항목 선택 등 "뒤로가기가 아닌" 방식으로 닫힌 경우.
+      // 여기서 history.back()을 호출하면, 같은 클릭 핸들러 안에서 곧바로
+      // 실행되는 페이지 이동(setLocation)과 경합해 엉뚱한 화면으로 튀는
+      // 버그가 생기므로 히스토리는 건드리지 않는다. 남은 마커 항목은
+      // 이후 실제 뒤로가기 1회로 자연스럽게 소비된다(빈 걸음 1회, 무해함).
+      pushedRef.current = false;
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    function handlePopState() {
+      if (pushedRef.current) {
+        pushedRef.current = false;
+        onOpenChangeRef.current?.(false);
+      }
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />;
+};
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
