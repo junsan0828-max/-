@@ -478,7 +478,8 @@ export default function ContractSignFlow({
 
 function Shell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 pt-safe"
+    // 회원 등록 마법사(z-60) 위에서도 열리므로 그보다 높게 둔다
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50 pt-safe"
       onClick={onClose}>
       <div onClick={e => e.stopPropagation()}
         className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl sm:mx-4 overflow-hidden flex flex-col max-h-modal shadow-2xl">

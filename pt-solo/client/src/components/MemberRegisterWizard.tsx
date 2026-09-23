@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { UserPlus, RefreshCw, ChevronDown, ChevronLeft, X, Check, Search, MessageSquare } from "lucide-react";
+import { UserPlus, RefreshCw, ChevronDown, ChevronLeft, X, Check, Search, MessageSquare, PenLine } from "lucide-react";
+import ContractSignFlow from "@/components/ContractSignFlow";
 
 const DRAFT_KEY = "fitstep_member_draft";
 
@@ -55,6 +56,7 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
   const [d, setD] = useState<Draft>(EMPTY);
   const [detailOpen, setDetailOpen] = useState(false);
   const [done, setDone] = useState<{ id: number; name: string } | null>(null);
+  const [signToken, setSignToken] = useState<string | null>(null);
   const [renewSearch, setRenewSearch] = useState("");
   const [renewTarget, setRenewTarget] = useState<{ id: number; name: string } | null>(null);
 
@@ -62,6 +64,7 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
   const createMutation = trpc.members.create.useMutation();
   const addPackageMutation = trpc.pt.addPackage.useMutation();
   const createLeadMutation = trpc.leads.create.useMutation();
+  const createContractMutation = trpc.eContract.create.useMutation();
   const { data: lowSessions = [] } = trpc.members.getLowSessions.useQuery({ threshold: 6 }, { enabled: open && d.mode === "renew" });
   const { data: allMembers = [] } = trpc.members.list.useQuery(undefined, { enabled: open && d.mode === "renew" });
 
@@ -88,6 +91,28 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
   }
 
   const sessions = d.sessions ?? (parseInt(d.customSessions) || 0);
+
+  // 방금 등록한 프로그램 내용 그대로 계약서를 만들고 서명 모달을 띄운다.
+  // 회원 등록과 전자계약이 따로 놀던 것을 한 흐름으로 잇는다.
+  async function startContractSigning() {
+    const paid = d.paidAmount ? Number(d.paidAmount.replace(/[^0-9]/g, "")) : undefined;
+    try {
+      const r: any = await createContractMutation.mutateAsync({
+        memberName: d.name.trim() || done?.name,
+        memberPhone: d.phone.trim() || undefined,
+        memberBirth: d.birthDate || undefined,
+        programName: d.programName.trim() || undefined,
+        programSessions: sessions || undefined,
+        programPrice: paid,
+        paymentDate: paid ? new Date().toISOString().slice(0, 10) : undefined,
+        programStartDate: d.membershipStart || undefined,
+        programEndDate: d.membershipEnd || undefined,
+      });
+      if (r?.token) setSignToken(r.token);
+    } catch (err: any) {
+      toast.error(err.message || "계약서를 만들지 못했어요.");
+    }
+  }
 
   async function submitNew() {
     if (!d.name.trim()) return;
@@ -203,12 +228,23 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90">
                     상담 목록 보기
                   </button>
-                ) : (
+                ) : (<>
+                  {sessions > 0 && (
+                    <button onClick={startContractSigning} disabled={createContractMutation.isPending}
+                      className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+                      <PenLine className="h-4 w-4" />
+                      {createContractMutation.isPending ? "계약서 준비 중..." : "계약서 작성하고 서명받기"}
+                    </button>
+                  )}
                   <button onClick={() => { navigate(`/members/${done.id}`); onClose(); }}
-                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90">
+                    className={`w-full py-3 rounded-xl text-sm font-semibold hover:opacity-90 ${
+                      sessions > 0
+                        ? "border border-border text-foreground hover:bg-accent/50"
+                        : "bg-primary text-primary-foreground"
+                    }`}>
                     {d.mode === "renew" ? "입금 처리하기" : "첫 수업 기록하기"}
                   </button>
-                )}
+                </>)}
                 <button onClick={onClose}
                   className="w-full py-3 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-accent/50">
                   나중에
@@ -422,6 +458,18 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
           )}
         </div>
       </div>
+
+      {signToken && (
+        <ContractSignFlow
+          token={signToken}
+          onClose={() => setSignToken(null)}
+          onSigned={() => {
+            setSignToken(null);
+            toast.success("계약서 서명이 완료됐어요.");
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 }
