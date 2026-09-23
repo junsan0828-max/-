@@ -6,11 +6,8 @@ import { UserPlus, RefreshCw, ChevronDown, ChevronLeft, X, Check, Search, Messag
 
 const DRAFT_KEY = "fitstep_member_draft";
 
-const PRESET_PACKAGES = [
-  { label: "PT 10회", sessions: 10 },
-  { label: "PT 20회", sessions: 20 },
-  { label: "PT 30회", sessions: 30 },
-];
+const PRESET_PROGRAMS = ["PT", "필라테스", "그룹"];
+const PRESET_SESSIONS = [10, 20, 30];
 
 type Draft = {
   mode: "new" | "renew" | "consultation" | null;
@@ -20,6 +17,7 @@ type Draft = {
   birthDate: string;
   visitRoute: string;
   consultMemo: string;
+  programName: string;
   sessions: number | null;
   customSessions: string;
   paidAmount: string;
@@ -31,7 +29,7 @@ type Draft = {
 
 const EMPTY: Draft = {
   mode: null, name: "", phone: "", gender: "", birthDate: "", visitRoute: "", consultMemo: "",
-  sessions: null, customSessions: "", paidAmount: "", membershipStart: "", membershipEnd: "",
+  programName: "", sessions: null, customSessions: "", paidAmount: "", membershipStart: "", membershipEnd: "",
   paymentMethod: "", step: 1,
 };
 
@@ -39,7 +37,7 @@ export function readDraft(): Draft | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
-    const d = JSON.parse(raw) as Draft;
+    const d = { ...EMPTY, ...(JSON.parse(raw) as Partial<Draft>) } as Draft;
     return d.name?.trim() ? d : null;
   } catch { return null; }
 }
@@ -103,6 +101,7 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
     if (sessions > 0) {
       payload.hasContract = true;
       payload.ptSessions = String(sessions);
+      if (d.programName.trim()) payload.ptProgram = d.programName.trim();
       if (d.paidAmount) payload.paidAmount = Number(d.paidAmount.replace(/[^0-9]/g, ""));
       if (d.paymentMethod) payload.paymentMethod = d.paymentMethod;
     }
@@ -123,6 +122,7 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
       await addPackageMutation.mutateAsync({
         memberId: renewTarget.id,
         totalSessions: sessions,
+        ...(d.programName.trim() ? { ptProgram: d.programName.trim() } : {}),
         ...(d.paidAmount ? { paymentAmount: Number(d.paidAmount.replace(/[^0-9]/g, "")) } : {}),
         ...(d.paymentMethod ? { paymentMethod: d.paymentMethod as any } : {}),
         ...(d.membershipStart ? { startDate: d.membershipStart } : {}),
@@ -193,7 +193,7 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
               </div>
               <div>
                 <p className="text-sm font-semibold">{done.name} {d.mode === "consultation" ? "상담" : d.mode === "renew" ? "재등록" : "등록"} 완료</p>
-                {d.mode !== "consultation" && sessions > 0 && <p className="text-xs text-muted-foreground mt-1">PT {sessions}회가 함께 등록됐어요.</p>}
+                {d.mode !== "consultation" && sessions > 0 && <p className="text-xs text-muted-foreground mt-1">{d.programName.trim() || "프로그램"} {sessions}회가 함께 등록됐어요.</p>}
                 {d.mode === "consultation" && <p className="text-xs text-muted-foreground mt-1">상담 목록에 추가됐어요.</p>}
               </div>
               <div className="space-y-2 pt-2">
@@ -346,19 +346,39 @@ export default function MemberRegisterWizard({ open, onClose, resumeDraft }: {
               {/* ───── 3단계: 프로그램 ───── */}
               {d.step === 3 && (
                 <div className="space-y-4">
-                  <p className="text-sm font-semibold">프로그램</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {PRESET_PACKAGES.map(p => (
-                      <button key={p.sessions}
-                        onClick={() => setD(prev => ({ ...prev, sessions: prev.sessions === p.sessions ? null : p.sessions, customSessions: "" }))}
-                        className={`py-3 rounded-xl text-sm font-semibold border transition-colors ${
-                          d.sessions === p.sessions ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-accent/40"
-                        }`}>{p.label}</button>
-                    ))}
-                    <input value={d.customSessions}
-                      onChange={e => setD(prev => ({ ...prev, customSessions: e.target.value.replace(/[^0-9]/g, ""), sessions: null }))}
-                      placeholder="직접 입력" inputMode="numeric"
-                      className="py-3 px-3 rounded-xl text-sm text-center border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  {/* 프로그램명 — 칩은 빠른 입력, 그 외엔 직접 적는다 */}
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">프로그램명</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {PRESET_PROGRAMS.map(name => (
+                        <button key={name}
+                          onClick={() => set("programName", d.programName === name ? "" : name)}
+                          className={`py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                            d.programName === name ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-accent/40"
+                          }`}>{name}</button>
+                      ))}
+                    </div>
+                    <input value={d.programName} onChange={e => set("programName", e.target.value)}
+                      placeholder="직접 입력 (예: 재활 PT, 듀엣 필라테스)"
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  </div>
+
+                  {/* 횟수 */}
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">횟수</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {PRESET_SESSIONS.map(n => (
+                        <button key={n}
+                          onClick={() => setD(prev => ({ ...prev, sessions: prev.sessions === n ? null : n, customSessions: "" }))}
+                          className={`py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                            d.sessions === n ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-accent/40"
+                          }`}>{n}회</button>
+                      ))}
+                      <input value={d.customSessions}
+                        onChange={e => setD(prev => ({ ...prev, customSessions: e.target.value.replace(/[^0-9]/g, ""), sessions: null }))}
+                        placeholder="직접" inputMode="numeric"
+                        className="py-2.5 px-2 rounded-xl text-sm text-center border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                    </div>
                   </div>
 
                   <button onClick={() => setDetailOpen(v => !v)}
