@@ -495,6 +495,13 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
+        <button
+          onClick={() => setLocation("/schedule")}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors text-sm font-medium"
+        >
+          <Calendar className="h-4 w-4" />
+          스케줄
+        </button>
       </div>
 
       {/* 알림 뱃지 */}
