@@ -253,13 +253,14 @@ function SignaturePad({ onSign, onClear, hasSignature }: {
 }
 
 // ─── 서명 + 완료 모달 ─────────────────────────────────────────────────────────
-type Slot = { id: number; memberName: string | null; scheduledTime: string | null; notes: string | null };
-type ModalStep = "checkin" | "signature" | "done";
+type Slot = { id: number; memberName: string | null; scheduledTime: string | null; notes: string | null; eventType: string | null };
+type ModalStep = "checkin" | "signature" | "confirm" | "done";
 
 function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void }) {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const [step, setStep] = useState<ModalStep>("checkin");
+  const isPt = !slot.eventType || slot.eventType === "pt";
+  const [step, setStep] = useState<ModalStep>(isPt ? "checkin" : "confirm");
   const [checkin, setCheckin] = useState<Checkin | null>(null);
   const [sigDataUrl, setSigDataUrl] = useState<string | null>(null);
   const [doneData, setDoneData] = useState<{ remaining: number | null } | null>(null);
@@ -280,10 +281,10 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
   };
 
   const handleSubmit = () => {
-    if (!sigDataUrl) return;
+    if (isPt && !sigDataUrl) return;
     completeMutation.mutate({
       scheduleId: slot.id,
-      signature: sigDataUrl,
+      ...(sigDataUrl ? { signature: sigDataUrl } : {}),
       checkin: checkin ?? undefined,
     });
   };
@@ -299,6 +300,33 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
       >
         {step === "checkin" && (
           <CheckinStep memberName={slot.memberName} onNext={handleCheckinNext} />
+        )}
+
+        {/* 상담/체험/회의 등 — 서명 없이 바로 완료 */}
+        {step === "confirm" && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-base font-semibold">완료 처리</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {slot.scheduledTime}{slot.memberName ? ` · ${slot.memberName}` : ""}
+                {slot.notes ? ` · ${slot.notes}` : ""}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl bg-accent text-foreground text-sm hover:bg-accent/80 transition-colors">
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={completeMutation.isPending}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 transition-colors disabled:opacity-40"
+              >
+                <CheckCircle className="h-4 w-4" />
+                {completeMutation.isPending ? "처리 중..." : "완료 처리"}
+              </button>
+            </div>
+          </div>
         )}
 
         {step === "signature" && (

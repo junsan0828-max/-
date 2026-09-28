@@ -2660,11 +2660,11 @@ const schedulesRouter = t.router({
       return { success: true };
     }),
 
-  // 수업 완료 + 전자서명 저장 + PT 세션 차감 (memberId 있는 경우)
+  // 수업 완료 + 전자서명 저장 + PT 세션 차감 (PT 수업인 경우만)
   completeWithSignature: protectedProcedure
     .input(z.object({
       scheduleId: z.number(),
-      signature: z.string(),
+      signature: z.string().optional(), // PT 수업이 아닐 때는 서명 없이 완료 가능
       sessionDate: z.string().optional(),
       checkin: z.object({
         condition: z.number().int().min(1).max(5),
@@ -2679,7 +2679,7 @@ const schedulesRouter = t.router({
 
       // 스케줄 정보 조회
       const [row] = await db
-        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status })
+        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType })
         .from(schedules)
         .where(eq(schedules.id, input.scheduleId))
         .limit(1);
@@ -2688,14 +2688,15 @@ const schedulesRouter = t.router({
       if (row.status === "done")
         throw new TRPCError({ code: "BAD_REQUEST", message: "이미 완료 처리된 수업입니다." });
 
-      // 서명 저장 + 완료 처리
+      // 서명 저장(있을 때만) + 완료 처리
       await db.update(schedules)
-        .set({ status: "done", signature: input.signature })
+        .set({ status: "done", ...(input.signature ? { signature: input.signature } : {}) })
         .where(eq(schedules.id, input.scheduleId));
 
-      // PT 세션 차감 — memberId가 있는 경우만 시도, 패키지 없으면 조용히 넘어감
+      // PT 세션 차감 — PT 수업이고 memberId가 있는 경우만. 상담/체험/회의는 차감 안 함.
+      const isPt = !row.eventType || row.eventType === "pt";
       let sessionResult: { remaining: number } | null = null;
-      if (row.memberId) {
+      if (isPt && row.memberId) {
         const targetDate = input.sessionDate ?? kstDate();
         const activePkgs = await db
           .select({ id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName })
@@ -2784,6 +2785,7 @@ const schedulesRouter = t.router({
         scheduledTime: schedules.scheduledTime,
         notes: schedules.notes,
         isRecurring: schedules.isRecurring,
+        eventType: schedules.eventType,
       })
       .from(schedules)
       .leftJoin(members, eq(schedules.memberId, members.id))
