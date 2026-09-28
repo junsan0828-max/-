@@ -1,12 +1,22 @@
 import { useState, useMemo } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
+import { holidayName } from "../lib/holidays";
 import { ChevronLeft, ChevronRight, Plus, X, Repeat, Trash2 } from "lucide-react";
 
-const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
+// 일요일 휴무 — 월~토만 운영한다.
+const WEEKDAYS = ["월", "화", "수", "목", "금", "토"];
+const SATURDAY = 5;          // WEEKDAYS 인덱스
+const SATURDAY_CLOSE = 17;   // 토요일은 오후 5시까지
 
 // 시간표에 깔 시간대. 06~23시.
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6);
+
+/** 그 요일·시간이 영업시간인가 */
+function isOpen(weekday: number, hour: number) {
+  if (weekday === SATURDAY) return hour < SATURDAY_CLOSE;
+  return true;
+}
 
 function toYmd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -45,7 +55,7 @@ export default function SchedulePage() {
   const [editing, setEditing] = useState<{ weekday: number; hour: number } | null>(null);
 
   const weekDates = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => {
+    () => Array.from({ length: 6 }, (_, i) => {   // 월~토
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
       return d;
@@ -53,7 +63,12 @@ export default function SchedulePage() {
     [weekStart]
   );
   const weekStartYmd = toYmd(weekDates[0]);
-  const weekEndYmd = toYmd(weekDates[6]);
+  // 조회 범위는 일요일까지 잡아둔다(일요일에 남아있던 예전 일정도 집계에서 빠지지 않도록).
+  const weekEndYmd = useMemo(() => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + 6);
+    return toYmd(d);
+  }, [weekStart]);
 
   const utils = trpc.useUtils();
   const { data: slots, isLoading } = trpc.schedules.listByWeek.useQuery({
@@ -118,25 +133,33 @@ export default function SchedulePage() {
 
       <p className="text-xs text-muted-foreground">
         빈 칸을 누르면 수업을 넣고, 칸을 누르면 수정·삭제합니다. <Repeat className="h-3 w-3 inline" /> 표시는 매주 반복되는 고정 수업입니다.
+        일요일은 휴무라 빠져 있고, 토요일은 {SATURDAY_CLOSE}시까지만 열립니다.
       </p>
 
       {isLoading ? (
         <div className="text-center text-sm text-muted-foreground py-10">불러오는 중...</div>
       ) : (
         <div className="overflow-x-auto -mx-4 px-4">
-          <div className="min-w-[560px]">
+          <div className="min-w-[480px]">
             {/* 요일 헤더 */}
-            <div className="grid grid-cols-[44px_repeat(7,1fr)] gap-1 mb-1">
+            <div className="grid grid-cols-[44px_repeat(6,1fr)] gap-1 mb-1">
               <div />
               {weekDates.map((d, i) => {
-                const isToday = toYmd(d) === todayYmd;
+                const ymd = toYmd(d);
+                const isToday = ymd === todayYmd;
+                const hol = holidayName(ymd);
                 return (
                   <div
                     key={i}
-                    className={`text-center text-xs py-1 rounded-lg ${isToday ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground"}`}
+                    className={`text-center text-xs py-1 rounded-lg ${
+                      hol ? "bg-red-500/15 text-red-300 font-semibold"
+                        : isToday ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground"
+                    }`}
                   >
                     {WEEKDAYS[i]}
                     <span className="block text-[10px] opacity-70">{d.getDate()}</span>
+                    {hol && <span className="block text-[9px] leading-tight truncate px-0.5">{hol}</span>}
                   </div>
                 );
               })}
@@ -144,13 +167,21 @@ export default function SchedulePage() {
 
             {/* 시간 행 */}
             {visibleHours.map(h => (
-              <div key={h} className="grid grid-cols-[44px_repeat(7,1fr)] gap-1 mb-1">
+              <div key={h} className="grid grid-cols-[44px_repeat(6,1fr)] gap-1 mb-1">
                 <div className="text-[11px] text-muted-foreground text-right pr-1 pt-2 tabular-nums">
                   {String(h).padStart(2, "0")}시
                 </div>
-                {weekDates.map((_, wd) => {
+                {weekDates.map((d, wd) => {
                   const cell = grid[`${wd}-${h}`] ?? [];
                   const top = cell[0];
+                  const open = isOpen(wd, h);
+                  const hol = holidayName(toYmd(d));
+
+                  // 영업시간이 아니면 잠근다. 단 이미 잡힌 수업이 있으면 볼 수 있게 남겨둔다.
+                  if (!open && !top) {
+                    return <div key={wd} className="min-h-[44px] rounded-lg bg-muted/20 border border-border/30" />;
+                  }
+
                   return (
                     <button
                       key={wd}
@@ -160,7 +191,9 @@ export default function SchedulePage() {
                           ? top.isRecurring
                             ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
                             : "bg-primary/15 border-primary/40 hover:bg-primary/25"
-                          : "border-border/60 border-dashed hover:border-primary/50 hover:bg-primary/5"
+                          : hol
+                            ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
+                            : "border-border/60 border-dashed hover:border-primary/50 hover:bg-primary/5"
                       }`}
                     >
                       {top ? (
@@ -243,6 +276,14 @@ function SlotEditor({ cell, date, hour, onClose, onSaved }: {
   const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
   const save = () => {
+    // 시간을 직접 고쳐서 영업시간 밖으로 나가는 것도 막는다(칸 잠금만으론 못 막힘).
+    const d = new Date(date + "T00:00:00");
+    const wd = (d.getDay() + 6) % 7;
+    if (wd > SATURDAY) { toast.error("일요일은 휴무입니다."); return; }
+    if (!isOpen(wd, parseInt(time.slice(0, 2), 10))) {
+      toast.error(`토요일은 ${SATURDAY_CLOSE}시까지만 운영합니다.`);
+      return;
+    }
     if (isNew) {
       // 고정 칸에 배정하는 경우엔 반복이 아니라 그 날짜 1회로 만든다.
       createMutation.mutate({
@@ -258,6 +299,8 @@ function SlotEditor({ cell, date, hour, onClose, onSaved }: {
     }
   };
 
+  const holiday = holidayName(date);
+
   const title = assigningToFixed ? "이 주 수업 배정" : isNew ? "수업 추가" : "수업 수정";
 
   return (
@@ -269,6 +312,12 @@ function SlotEditor({ cell, date, hour, onClose, onSaved }: {
         </div>
 
         <p className="text-xs text-muted-foreground">{date}</p>
+
+        {holiday && (
+          <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-300">
+            {holiday} — 공휴일입니다. 수업을 잡을 수는 있지만 휴관 여부를 확인하세요.
+          </div>
+        )}
 
         {assigningToFixed && (
           <div className="rounded-lg bg-violet-500/10 border border-violet-500/30 px-3 py-2 text-xs text-violet-300">
