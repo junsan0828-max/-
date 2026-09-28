@@ -175,9 +175,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <LogOut className="h-4 w-4 shrink-0" />
             로그아웃
           </button>
-          {!isAdmin && (user as any)?.plan === "free" && (
-            <p className="text-center text-[10px] text-muted-foreground/50 pt-1">Powered by FIT STEP</p>
-          )}
         </div>
       </aside>
 
@@ -232,9 +229,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <LogOut className="h-4 w-4 shrink-0" />
                 로그아웃
               </button>
-              {!isAdmin && (user as any)?.plan === "free" && (
-                <p className="text-center text-[10px] text-muted-foreground/50 pt-1">Powered by FIT STEP</p>
-              )}
             </div>
           </aside>
         </div>

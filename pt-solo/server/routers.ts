@@ -3060,7 +3060,7 @@ const adminRouter = t.router({
   updateWorkshopFeatureConfig: adminProcedure
     .input(z.object({
       featureId: z.string(),
-      status: z.enum(["active", "coming_soon", "addon_fsp", "addon_premium", "hidden"]),
+      status: z.enum(["active", "coming_soon", "addon_fsp", "hidden"]),
       adminNote: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -5319,52 +5319,6 @@ const workshopRouter = t.router({
       [trainerId, input.feature, meta.points]
     );
     return { success: true };
-  }),
-
-  // ── 핵심(유료) 기능 개별 구매 — 1개당 addon_price, 포인트 차감, 일회성 영구 해제 ──
-  purchaseAddon: protectedProcedure.input(z.object({ featureId: z.string() })).mutation(async ({ ctx, input }) => {
-    const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-
-    // 관리자가 '핵심 기능(addon_premium)'으로 지정한 기능만 구매 대상
-    const cfg = await pool.query<{ status: string }>(
-      `SELECT status FROM workshop_feature_config WHERE "featureId"=$1`, [input.featureId]
-    );
-    if (cfg.rows[0]?.status !== "addon_premium") {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "개별 구매 대상 기능이 아닙니다." });
-    }
-
-    // 이미 구매(해제)했는지 확인
-    const existing = await pool.query(
-      `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature=$2`, [trainerId, input.featureId]
-    );
-    if (existing.rows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "이미 이용 중인 기능입니다." });
-
-    // 가격 조회
-    const priceRow = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='addon_price'`);
-    const price = parseInt(priceRow.rows[0]?.value ?? "10000");
-
-    // 포인트 잔액 확인
-    const balRow = await pool.query<{ balance: string }>(
-      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs
-       WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE)`, [trainerId]
-    );
-    const balance = Number(balRow.rows[0]?.balance ?? 0);
-    if (balance < price) {
-      throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${price.toLocaleString()}P, 보유: ${balance.toLocaleString()}P)` });
-    }
-
-    // 포인트 차감 + 잠금해제 기록
-    await pool.query(
-      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'workshop_unlock',$3,'completed')`,
-      [trainerId, -price, `핵심 기능 구매: ${input.featureId}`]
-    );
-    await pool.query(
-      `INSERT INTO workshop_unlocks ("trainerId", feature, "pointsSpent") VALUES ($1,$2,$3)
-       ON CONFLICT ("trainerId", feature) DO NOTHING`,
-      [trainerId, input.featureId, price]
-    );
-    return { success: true, remaining: balance - price };
   }),
 
   remove: protectedProcedure

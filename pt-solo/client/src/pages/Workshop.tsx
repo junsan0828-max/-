@@ -2102,7 +2102,7 @@ const TIER_META = {
 
 // ── 기능 카탈로그 ─────────────────────────────────────────────────────────────
 
-export type WsItemStatus = "active" | "coming_soon" | "addon_fsp" | "addon_premium";
+export type WsItemStatus = "active" | "coming_soon" | "addon_fsp";
 export interface WsItem { id: string; icon: React.ElementType; name: string; shortDesc: string; description: string; tags: string[]; useCases: string[]; status: WsItemStatus; }
 interface WsCatDef { key: string; label: string; icon: React.ElementType; iconCls: string; bgCls: string; items: WsItem[]; }
 
@@ -2248,7 +2248,6 @@ function WorkshopItemCard({ item, onClick }: { item: WsItem; onClick: () => void
     active: null,
     coming_soon: { label: "준비 중", cls: "bg-muted text-muted-foreground" },
     addon_fsp: { label: "ADD-ON", cls: "bg-blue-100 text-blue-600" },
-    addon_premium: { label: "PREMIUM", cls: "bg-amber-100 text-amber-600" },
   };
   const badge = statusBadge[item.status];
 
@@ -2294,7 +2293,6 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
     active: { label: "사용 가능", cls: "bg-green-100 text-green-700" },
     coming_soon: { label: "출시 예정", cls: "bg-muted text-muted-foreground" },
     addon_fsp: { label: "FITSTEP+ ADD-ON", cls: "bg-blue-100 text-blue-600" },
-    addon_premium: { label: "PREMIUM ADD-ON", cls: "bg-amber-100 text-amber-600" },
   };
   const sm = statusMeta[item.status];
 
@@ -2390,8 +2388,7 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
           {item.status !== "active" && (
             <div className="bg-muted/40 border border-border/60 rounded-2xl p-5 text-center space-y-1.5">
               <p className="text-sm font-semibold text-muted-foreground">
-                {item.status === "addon_fsp" ? "FITSTEP+ 확장 기능" :
-                 item.status === "addon_premium" ? "PREMIUM 확장 기능" : "출시 예정 기능"}
+                {item.status === "addon_fsp" ? "FITSTEP+ 확장 기능" : "출시 예정 기능"}
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {item.status === "coming_soon"
@@ -2588,7 +2585,6 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
     active: { label: "활성", cls: "bg-green-100 text-green-700" },
     coming_soon: { label: "준비 중", cls: "bg-muted text-muted-foreground" },
     addon_fsp: { label: "ADD-ON", cls: "bg-blue-100 text-blue-600" },
-    addon_premium: { label: "PREMIUM", cls: "bg-amber-100 text-amber-600" },
     hidden: { label: "숨김", cls: "bg-gray-200 text-gray-500" },
   };
   const sm = STATUS_META[feature.status] ?? STATUS_META.coming_soon;
@@ -2680,11 +2676,10 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
           <div className="pt-2 border-t border-border space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 상태 변경</p>
             <div className="flex gap-2">
-              {(["active", "coming_soon", "addon_premium"] as const).map(s => {
+              {(["active", "coming_soon"] as const).map(s => {
                 const meta = {
                   active: { label: "활성", on: "bg-green-100 text-green-700 ring-2 ring-green-400", off: "bg-muted/60 text-foreground/60 hover:bg-green-50 hover:text-green-700" },
                   coming_soon: { label: "준비 중", on: "bg-muted text-muted-foreground ring-2 ring-border", off: "bg-muted/40 text-foreground/50 hover:bg-muted" },
-                  addon_premium: { label: "핵심(유료)", on: "bg-violet-100 text-violet-700 ring-2 ring-violet-400", off: "bg-muted/40 text-foreground/50 hover:bg-violet-50 hover:text-violet-700" },
                 }[s];
                 const isCurrent = feature.status === s;
                 return (
@@ -2696,7 +2691,6 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                 );
               })}
             </div>
-            <p className="text-[10px] text-muted-foreground">핵심(유료): 모든 스테퍼에게 잠금 · 설정 금액(기본 1만원) 결제로 개별 이용</p>
           </div>
 
           {/* 전용 설정 페이지 링크 */}
@@ -3486,7 +3480,6 @@ function AdminWorkshopView() {
     active:        { label: "활성",   cls: "bg-green-100 text-green-700" },
     coming_soon:   { label: "준비 중", cls: "bg-muted text-muted-foreground" },
     addon_fsp:     { label: "ADD-ON", cls: "bg-blue-100 text-blue-600" },
-    addon_premium: { label: "PREMIUM", cls: "bg-amber-100 text-amber-600" },
     hidden:        { label: "숨김",   cls: "bg-gray-200 text-gray-500" },
   };
 
@@ -3661,7 +3654,6 @@ function AdminWorkshopView() {
               <option value="active">활성</option>
               <option value="coming_soon">준비 중</option>
               <option value="addon_fsp">ADD-ON</option>
-              <option value="addon_premium">PREMIUM</option>
             </select>
             <button onClick={() => { setBulkMode(v => !v); setSelectedFeatureIds(new Set()); }}
               className={`ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${bulkMode ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
