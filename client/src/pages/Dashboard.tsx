@@ -487,67 +487,71 @@ function TrainerDashboard() {
 
   const today = new Date();
 
-  const alertItems = [
-    expiring?.length ? {
-      key: "expiring",
-      label: "만료 임박",
-      count: expiring.length,
-      desc: "7일 이내 만료 예정",
-      iconColor: "text-yellow-400",
-      bg: "bg-yellow-500/10 border-yellow-500/20",
-      dot: "bg-yellow-400",
-      action: () => { setAlertModalOpen(false); setLocation("/members?filter=expiring"); },
-      actionLabel: "회원 보기",
-    } : null,
-    unpaid?.length ? {
-      key: "unpaid",
-      label: "미수금",
-      count: unpaid.length,
-      desc: "결제 미완료 회원",
-      iconColor: "text-orange-400",
-      bg: "bg-orange-500/10 border-orange-500/20",
-      dot: "bg-orange-400",
-      action: () => { setAlertModalOpen(false); setLocation("/members?filter=unpaid"); },
-      actionLabel: "회원 보기",
-    } : null,
-    longAbsent?.length ? {
-      key: "absent",
-      label: "장기 미출석",
-      count: longAbsent.length,
-      desc: "14일 이상 미출석",
-      iconColor: "text-red-400",
-      bg: "bg-red-500/10 border-red-500/20",
-      dot: "bg-red-400",
-      action: () => { setAlertModalOpen(false); setLocation("/members?filter=long_absent"); },
-      actionLabel: "회원 보기",
-    } : null,
-    monthExpiring?.length ? {
-      key: "monthExpiring",
-      label: "이번달 마감",
-      count: monthExpiring.length,
-      desc: "5회 이하 잔여",
-      iconColor: "text-purple-400",
-      bg: "bg-purple-500/10 border-purple-500/20",
-      dot: "bg-purple-400",
-      action: () => { setAlertModalOpen(false); setLocation("/members?filter=low_sessions"); },
-      actionLabel: "회원 보기",
-    } : null,
-    rollover?.length ? {
-      key: "rollover",
-      label: "다음달 이월 예상",
-      count: rollover.length,
-      desc: "잔여 횟수 있는 만료 회원",
-      iconColor: "text-blue-400",
-      bg: "bg-blue-500/10 border-blue-500/20",
-      dot: "bg-blue-400",
-      action: () => { setAlertModalOpen(false); setRolloverOpen(true); },
-      actionLabel: "목록 보기",
-    } : null,
-  ].filter(Boolean) as {
-    key: string; label: string; count: number; desc: string;
-    iconColor: string; bg: string; dot: string;
-    action?: () => void; actionLabel?: string;
-  }[];
+  const notifItems = (() => {
+    type NotifItem = {
+      key: string; memberId: number; name: string;
+      tag: string; detail: string;
+      iconColor: string; tagBg: string; urgency: number;
+      onGo: () => void;
+    };
+    const items: NotifItem[] = [];
+
+    expiring?.forEach((m) => {
+      const days = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
+      items.push({
+        key: `expiring-${m.id}`, memberId: m.id, name: m.name,
+        tag: "만료 임박", detail: days !== null ? `D-${days}` : "-",
+        iconColor: "text-yellow-400", tagBg: "bg-yellow-500/20 text-yellow-500",
+        urgency: days ?? 999,
+        onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
+      });
+    });
+
+    unpaid?.forEach((m) => {
+      items.push({
+        key: `unpaid-${m.id}`, memberId: m.id, name: m.name,
+        tag: "미수금", detail: `${(m.unpaidAmount ?? 0).toLocaleString()}원`,
+        iconColor: "text-orange-400", tagBg: "bg-orange-500/20 text-orange-500",
+        urgency: -(m.unpaidAmount ?? 0),
+        onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
+      });
+    });
+
+    longAbsent?.forEach((m) => {
+      const absentDays = m.lastAttendDate
+        ? differenceInDays(today, new Date(m.lastAttendDate))
+        : 999;
+      items.push({
+        key: `absent-${m.id}`, memberId: m.id, name: m.name,
+        tag: "장기 미출석", detail: m.lastAttendDate ? `${absentDays}일째` : "기록 없음",
+        iconColor: "text-red-400", tagBg: "bg-red-500/20 text-red-500",
+        urgency: -absentDays,
+        onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
+      });
+    });
+
+    monthExpiring?.filter(m => m.renewalStatus === "마감임박").forEach((m) => {
+      items.push({
+        key: `month-${m.id}`, memberId: m.id, name: m.name,
+        tag: "이번달 마감", detail: `잔여 ${m.remaining}회`,
+        iconColor: "text-purple-400", tagBg: "bg-purple-500/20 text-purple-500",
+        urgency: 500 + m.remaining,
+        onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
+      });
+    });
+
+    rollover?.forEach((m) => {
+      items.push({
+        key: `rollover-${m.id}`, memberId: m.id, name: m.name,
+        tag: "이월 예상", detail: `잔여 ${m.remaining}회`,
+        iconColor: "text-blue-400", tagBg: "bg-blue-500/20 text-blue-500",
+        urgency: 1000 + m.remaining,
+        onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
+      });
+    });
+
+    return items.sort((a, b) => a.urgency - b.urgency);
+  })();
 
   return (
     <div className="space-y-6">
@@ -559,7 +563,7 @@ function TrainerDashboard() {
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
         <div className="flex items-center gap-2">
-          {alertItems.length > 0 && (
+          {notifItems.length > 0 && (
             <button
               onClick={() => setAlertModalOpen(true)}
               className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium border border-red-500/20"
@@ -567,7 +571,7 @@ function TrainerDashboard() {
               <Bell className="h-4 w-4" />
               알림
               <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
-                {alertItems.length}
+                {notifItems.length}
               </span>
             </button>
           )}
@@ -581,39 +585,34 @@ function TrainerDashboard() {
         </div>
       </div>
 
-      {/* 알림 모달 */}
+      {/* 알림 모달 — 개별 회원 카드 */}
       <Dialog open={alertModalOpen} onOpenChange={setAlertModalOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-3 border-b border-border">
+            <DialogTitle className="flex items-center gap-2 text-sm">
               <Bell className="h-4 w-4 text-red-400" />
               업무 알림
+              <span className="ml-auto text-xs text-muted-foreground font-normal">{notifItems.length}건</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              확인이 필요한 항목이 {alertItems.length}건 있습니다.
-            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 mt-1">
-            {alertItems.map((item) => (
-              <div key={item.key} className={`flex items-center justify-between p-3 rounded-lg border ${item.bg}`}>
-                <div className="flex items-center gap-3">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${item.dot}`} />
-                  <div>
-                    <p className={`text-sm font-semibold ${item.iconColor}`}>
-                      {item.label} <span className="font-bold">{item.count}명</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+          <div className="overflow-y-auto max-h-[60dvh] divide-y divide-border/50">
+            {notifItems.map((item) => (
+              <button
+                key={item.key}
+                onClick={item.onGo}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors text-left"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.tagBg} shrink-0`}>
+                      {item.tag}
+                    </span>
+                    <span className="text-sm font-medium truncate">{item.name}</span>
                   </div>
+                  <p className={`text-xs ${item.iconColor}`}>{item.detail}</p>
                 </div>
-                {item.action && (
-                  <button
-                    onClick={item.action}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium ${item.iconColor} bg-background/60 border border-current/20 hover:bg-background/80 transition-colors shrink-0`}
-                  >
-                    {item.actionLabel}
-                  </button>
-                )}
-              </div>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              </button>
             ))}
           </div>
         </DialogContent>
