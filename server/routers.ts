@@ -5627,6 +5627,137 @@ const dashboardRouter = t.router({
 
     return rows;
   }),
+
+  // 트레이너 본인 상반기/하반기/연간 성과 리포트
+  myPeriodReport: protectedProcedure
+    .input(z.object({ year: z.number(), period: z.enum(["H1", "H2", "annual"]) }))
+    .query(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const { year, period } = input;
+      const periodStart = period === "H2" ? `${year}-07-01` : `${year}-01-01`;
+      const periodEnd   = period === "H1" ? `${year}-07-01` : `${year + 1}-01-01`;
+      const monthCount  = period === "annual" ? 12 : 6;
+      const startMonth  = period === "H2" ? 7 : 1;
+      const today = kstDate();
+
+      const elapsedMonths = (() => {
+        const ps = `${year}-${String(startMonth).padStart(2, "0")}-01`;
+        const pe = period === "annual" ? `${year}-12-31` : period === "H1" ? `${year}-06-30` : `${year}-12-31`;
+        if (today > pe) return monthCount;
+        if (today < ps) return 1;
+        const [ty, tm] = today.split("-").map(Number);
+        return Math.min(monthCount, Math.max(1, (ty - year) * 12 + (tm - startMonth) + 1));
+      })();
+
+      const trainerUserId = (await db.select({ userId: trainers.userId }).from(trainers).where(eq(trainers.id, tid)).limit(1))[0]?.userId;
+      const assignedMemberIds = (await db.select({ id: members.id }).from(members).where(eq(members.trainerId, tid))).map(m => m.id);
+
+      const revOwnerFilter = sql`(
+        r."trainerId" = ${tid}
+        OR r."consultantId" = ${trainerUserId}
+        ${assignedMemberIds.length > 0
+          ? sql`OR r."memberId" IN (${sql.join(assignedMemberIds.map(id => sql`${id}`), sql`, `)})`
+          : sql``}
+      )`;
+
+      const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes] = await Promise.all([
+        db.execute(sql`SELECT COUNT(*)::int AS c FROM (
+          SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+            AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd})
+          UNION ALL
+          SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+        ) combined`),
+        db.select({ c: sql<number>`COUNT(*)::int` }).from(attendanceChecks).where(and(
+          eq(attendanceChecks.trainerId, tid),
+          eq(attendanceChecks.status, "noshow"),
+          sql`${attendanceChecks.checkDate} >= ${periodStart}`,
+          sql`${attendanceChecks.checkDate} < ${periodEnd}`,
+        )),
+        db.execute(sql`SELECT DISTINCT "memberId" FROM pt_packages
+          WHERE "trainerId" = ${tid} AND "totalSessions" > 0
+            AND "usedSessions" >= "totalSessions"
+            AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd}`),
+        db.execute(sql`SELECT r."subType", r."memberId", r."consultantId", r."trainerId"
+          FROM revenue_entries r
+          WHERE ${revOwnerFilter}
+            AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}
+            AND r."subType" IN ('신규', '신규배정', '재등록')`),
+        db.execute(sql`SELECT m, COUNT(*)::int AS c FROM (
+          SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+            AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd})
+          UNION ALL
+          SELECT EXTRACT(MONTH FROM "checkDate"::date)::int AS m FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+        ) combined GROUP BY m ORDER BY m`),
+        db.execute(sql`SELECT EXTRACT(MONTH FROM r."paymentDate"::date)::int AS m, COUNT(*)::int AS c
+          FROM revenue_entries r WHERE r."subType" = '재등록' AND ${revOwnerFilter}
+            AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}
+          GROUP BY m ORDER BY m`),
+      ]);
+
+      const revResultRows: any[] = (revRows as any).rows ?? revRows;
+      const assignedMemberIdSet = new Set(assignedMemberIds);
+      const newMemberIds = new Set<number>();
+      const reregMemberIds = new Set<number>();
+      for (const r of revResultRows) {
+        if (r.subType === "신규" || r.subType === "신규배정") {
+          if (r.subType === "신규") {
+            if (Number(r.trainerId) !== tid && !(r.memberId && assignedMemberIdSet.has(Number(r.memberId)))) continue;
+          }
+          if (r.memberId) newMemberIds.add(r.memberId);
+        } else if (r.subType === "재등록") {
+          if (r.memberId) reregMemberIds.add(r.memberId);
+        }
+      }
+
+      const sessions = ((sessionsRes as any).rows ?? sessionsRes)[0]?.c ?? 0;
+      const noShows = noShowRes[0]?.c ?? 0;
+      const expiredMemberIds = new Set<number>(
+        ((completedPkgRes as any).rows ?? completedPkgRes).map((r: any) => Number(r.memberId)).filter(Boolean)
+      );
+      const completed = expiredMemberIds.size;
+      const newMembers = newMemberIds.size;
+      const reregMembers = reregMemberIds.size;
+
+      let reregAfterExpired = 0;
+      if (completed > 0) {
+        const expiredList = Array.from(expiredMemberIds);
+        const res2 = await db.execute(sql`SELECT DISTINCT "memberId" FROM revenue_entries
+          WHERE "memberId" IN (${sql.join(expiredList.map(id => sql`${id}`), sql`, `)})
+            AND "paymentDate" >= ${periodStart} AND "paymentDate" < ${periodEnd}
+            AND "subType" = '재등록'`);
+        const reregSet = new Set<number>(((res2 as any).rows ?? res2).map((r: any) => Number(r.memberId)).filter(Boolean));
+        reregAfterExpired = expiredList.filter(id => reregSet.has(id)).length;
+      }
+
+      const reregRate = (newMembers + reregMembers) > 0
+        ? Math.round((reregMembers / (newMembers + reregMembers)) * 100) : null;
+
+      const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
+      for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0 };
+      for (const r of ((monthlySessionsRes as any).rows ?? monthlySessionsRes))
+        if (monthlyMap[r.m]) monthlyMap[r.m].sessions = r.c;
+      for (const r of ((monthlyReregRes as any).rows ?? monthlyReregRes))
+        if (monthlyMap[r.m]) monthlyMap[r.m].rereg = r.c;
+
+      return {
+        sessions,
+        avgMonthly: Math.round((sessions / elapsedMonths) * 10) / 10,
+        noShows,
+        completed,
+        newMembers,
+        reregMembers,
+        reregAfterExpired,
+        reregRate,
+        monthly: Object.entries(monthlyMap).map(([m, v]) => ({
+          month: Number(m), label: `${m}월`,
+          sessions: v.sessions, rereg: v.rereg,
+        })),
+      };
+    }),
 });
 
 // ─── Workout Memos ────────────────────────────────────────────────────────────

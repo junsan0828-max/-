@@ -383,9 +383,17 @@ function TrainerDashboard() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
-  const { data: chartData } = trpc.dashboard.getMonthlyChart.useQuery();
-  const { data: revenueData } = trpc.dashboard.getMonthlyRevenue.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
+
+  // 성과 리포트
+  const nowYear = new Date().getFullYear();
+  const defaultPeriod = new Date().getMonth() < 6 ? "H1" : "H2";
+  const [reportYear, setReportYear] = useState(nowYear);
+  const [reportPeriod, setReportPeriod] = useState<"H1" | "H2" | "annual">(defaultPeriod as any);
+  const { data: periodReport, isLoading: reportLoading } = trpc.dashboard.myPeriodReport.useQuery(
+    { year: reportYear, period: reportPeriod },
+    { staleTime: 5 * 60 * 1000 }
+  );
   const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
 
   const [journalOpen, setJournalOpen] = useState(false);
@@ -428,7 +436,6 @@ function TrainerDashboard() {
   });
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
-  const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
   const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5 });
   const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
@@ -560,191 +567,69 @@ function TrainerDashboard() {
         </CardContent>
       </Card>
 
-      {/* 월별 출석/신규 회원 추이 차트 */}
-      {chartData && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
+      {/* 성과 리포트 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 추이
+              <TrendingUp className="h-4 w-4 text-primary" />나의 성과
             </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value) => [`${value}회`]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Bar dataKey="출석" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="신규회원" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={28} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 월별 매출/정산 추이 차트 */}
-      {revenueData && revenueData.some(r => r.매출 > 0) && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 매출/정산 추이
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={revenueData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorSettlement" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v === 0 ? "0" : `${(v / 10000).toFixed(0)}만`} />
-                <Tooltip
-                  contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value) => [`${Number(value ?? 0).toLocaleString()}원`]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Area type="monotone" dataKey="매출" stroke="#6366f1" fill="url(#colorRevenue)" strokeWidth={2} dot={{ r: 3, fill: "#6366f1" }} />
-                <Area type="monotone" dataKey="정산" stroke="#22c55e" fill="url(#colorSettlement)" strokeWidth={2} dot={{ r: 3, fill: "#22c55e" }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {expiring && expiring.length > 0 && (
-        <Card className="bg-card border-border border-yellow-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-400" />
-              <span className="text-yellow-400">만료 임박 회원</span>
-              <span className="ml-auto text-xs font-normal text-muted-foreground">7일 이내</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {expiring.map((member) => {
-              const daysLeft = member.membershipEnd ? differenceInDays(new Date(member.membershipEnd), today) : null;
-              return (
-                <button key={member.id} onClick={() => setLocation(`/members/${member.id}`)}
-                  className="w-full flex items-center justify-between p-2.5 rounded-md bg-yellow-500/10 border border-yellow-500/20 hover:border-yellow-500/40 transition-colors text-left">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 font-bold text-xs">{member.name.charAt(0)}</div>
-                    <span className="text-sm font-medium">{member.name}</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-lg px-2 py-1">
+                <button onClick={() => setReportYear(y => y - 1)} className="px-1 hover:text-foreground">‹</button>
+                <span className="px-1 font-medium text-foreground">{reportYear}년</span>
+                <button onClick={() => setReportYear(y => Math.min(y + 1, nowYear))} className="px-1 hover:text-foreground">›</button>
+              </div>
+              <div className="flex bg-accent/30 border border-border rounded-lg p-0.5 gap-0.5">
+                {([["H1", "상반기"], ["H2", "하반기"], ["annual", "연간"]] as const).map(([k, l]) => (
+                  <button key={k} onClick={() => setReportPeriod(k)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${reportPeriod === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {reportLoading ? (
+            <p className="text-xs text-muted-foreground text-center py-4">로딩 중...</p>
+          ) : periodReport ? (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "총 수업", value: `${periodReport.sessions}회`, sub: `월평균 ${periodReport.avgMonthly}회`, color: "text-primary" },
+                  { label: "신규 배정", value: `${periodReport.newMembers}명`, color: "text-blue-400" },
+                  { label: "재등록", value: `${periodReport.reregMembers}건`, color: "text-emerald-400" },
+                  { label: "재등록률", value: periodReport.reregRate !== null ? `${periodReport.reregRate}%` : "-",
+                    color: periodReport.reregRate !== null ? (periodReport.reregRate >= 50 ? "text-emerald-400" : periodReport.reregRate >= 30 ? "text-yellow-400" : "text-red-400") : "text-muted-foreground" },
+                  { label: "종료 회원", value: `${periodReport.completed}명`, color: "text-muted-foreground" },
+                  { label: "노쇼", value: `${periodReport.noShows}회`, color: periodReport.noShows > 0 ? "text-orange-400" : "text-muted-foreground" },
+                ].map(c => (
+                  <div key={c.label} className="bg-accent/20 rounded-xl p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-1">{c.label}</p>
+                    <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
+                    {c.sub && <p className="text-[10px] text-muted-foreground mt-0.5">{c.sub}</p>}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-yellow-400">{daysLeft === 0 ? "오늘 만료" : daysLeft !== null ? `D-${daysLeft}` : "-"}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {unpaid && unpaid.length > 0 && (
-        <Card className="bg-card border-border border-orange-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-orange-400" />
-              <span className="text-orange-400">미수금 회원</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {unpaid.map((item) => (
-              <button key={item.id} onClick={() => setLocation(`/members/${item.id}`)}
-                className="w-full flex items-center justify-between p-2.5 rounded-md bg-orange-500/10 border border-orange-500/20 hover:border-orange-500/40 transition-colors text-left">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                  <div>
-                    <p className="text-sm font-medium">{item.name}</p>
-                    {item.packageName && <p className="text-xs text-muted-foreground">{item.packageName}</p>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-orange-400">{(item.unpaidAmount ?? 0).toLocaleString()}원</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 재등록 안내 회원 (PT 5회 이하) */}
-      {lowSessions && lowSessions.length > 0 && (
-        <Card className="bg-card border-border border-blue-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-blue-400" />
-              <span className="text-blue-400">재등록 안내 회원</span>
-              <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">5세션 이하</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {lowSessions.map((item) => {
-              const remaining = item.totalSessions - item.usedSessions;
-              return (
-                <button key={`${item.id}-${item.packageName}`} onClick={() => setLocation(`/members/${item.id}`)}
-                  className="w-full flex items-center justify-between p-2.5 rounded-md bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition-colors text-left">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                    <div>
-                      <p className="text-sm font-medium">{item.name}</p>
-                      {item.packageName && <p className="text-xs text-muted-foreground">{item.packageName}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-blue-400">잔여 {remaining}회</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 장기 미출석 회원 (2주 이상) */}
-      {longAbsent && longAbsent.length > 0 && (
-        <Card className="bg-card border-border border-red-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4 text-red-400" />
-              <span className="text-red-400">장기 미출석 회원</span>
-              <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">2주 이상</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {longAbsent.map((item) => (
-              <button key={item.id} onClick={() => setLocation(`/members/${item.id}`)}
-                className="w-full flex items-center justify-between p-2.5 rounded-md bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-colors text-left">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                  <div>
-                    <p className="text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.lastAttendDate ? `마지막 출석: ${item.lastAttendDate}` : "출석 기록 없음"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-red-400">미출석</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </div>
+              {periodReport.monthly.length > 0 && (
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={periodReport.monthly} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 11 }} formatter={(v, name) => [`${v}${name === "rereg" ? "건" : "회"}`, name === "rereg" ? "재등록" : "수업"]} />
+                    <Bar dataKey="sessions" name="수업" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                    <Bar dataKey="rereg" name="재등록" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-4">데이터 없음</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 트레이닝 일지 */}
       <Card className="bg-card border-border">
