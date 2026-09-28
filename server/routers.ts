@@ -2652,8 +2652,15 @@ const schedulesRouter = t.router({
   completeWithSignature: protectedProcedure
     .input(z.object({
       scheduleId: z.number(),
-      signature: z.string(),          // base64 dataURL
-      sessionDate: z.string().optional(), // YYYY-MM-DD (기본: KST 오늘)
+      signature: z.string(),
+      sessionDate: z.string().optional(),
+      checkin: z.object({
+        condition: z.number().int().min(1).max(5),
+        sleep: z.number().int().min(0).max(1),       // 1=충분 0=6h미만
+        nutrition: z.number().int().min(0).max(1),   // 1=식사함 0=결식/부족
+        painLevel: z.number().int().min(0).max(5),   // 0=없음
+        painNote: z.string().optional(),
+      }).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);
@@ -2709,12 +2716,20 @@ const schedulesRouter = t.router({
                 .set({ usedSessions: newUsed, status: newStatus as any })
                 .where(eq(ptPackages.id, pkg.id));
 
+              const ci = input.checkin;
               await db.insert(ptSessionLogs).values({
                 memberId: row.memberId,
                 trainerId: row.trainerId,
                 packageId: pkg.id,
                 sessionDate: targetDate,
                 isServiceSession: isService,
+                ...(ci ? {
+                  checkinCondition: ci.condition,
+                  checkinSleep: ci.sleep,
+                  checkinNutrition: ci.nutrition,
+                  checkinPainLevel: ci.painLevel,
+                  checkinPainNote: ci.painNote ?? null,
+                } : {}),
               });
 
               sessionResult = { remaining: pkg.totalSessions - newUsed };

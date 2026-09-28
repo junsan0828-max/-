@@ -1725,6 +1725,11 @@ async function initDatabase() {
   // 고정 슬롯은 시간만 잡고 회원은 매주 배정하므로 memberId가 비어 있을 수 있다.
   await pool.query(`ALTER TABLE schedules ALTER COLUMN "memberId" DROP NOT NULL`);
   await pool.query(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS "signature" TEXT`);
+  await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinCondition" INTEGER`);
+  await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinSleep" INTEGER`);
+  await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinNutrition" INTEGER`);
+  await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinPainLevel" INTEGER`);
+  await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinPainNote" TEXT`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_schedules_trainer_date ON schedules ("trainerId", "scheduledDate")`);
   await pool.query(`CREATE TABLE IF NOT EXISTS revenue_adjustments (
     id SERIAL PRIMARY KEY,

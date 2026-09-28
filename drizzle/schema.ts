@@ -180,6 +180,12 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   sharedToMember: integer("sharedToMember").default(0).notNull(),
   sharedAt: text("sharedAt"),
   sessionNumber: integer("sessionNumber"),
+  // 수업 전 체크인
+  checkinCondition: integer("checkinCondition"),   // 1~5
+  checkinSleep: integer("checkinSleep"),           // 1=충분 0=6h미만
+  checkinNutrition: integer("checkinNutrition"),   // 1=식사함 0=결식/부족
+  checkinPainLevel: integer("checkinPainLevel"),   // 0=없음 1~5=강도
+  checkinPainNote: text("checkinPainNote"),        // 통증 부위
   createdAt: text("createdAt").default(now).notNull(),
 });
 
