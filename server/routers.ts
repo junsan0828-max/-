@@ -2754,6 +2754,96 @@ const schedulesRouter = t.router({
       return { success: true, sessionResult };
     }),
 
+  // 완료 취소: 세션 로그 삭제 + usedSessions 복구 + 스케줄 pending 복원
+  cancelCompletion: protectedProcedure
+    .input(z.object({ scheduleId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.scheduleId);
+
+      const [row] = await db
+        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, scheduledDate: schedules.scheduledDate, status: schedules.status })
+        .from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.status !== "done")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "완료 상태인 수업만 취소할 수 있습니다." });
+
+      if (row.memberId) {
+        const logs = await db
+          .select({ id: ptSessionLogs.id, packageId: ptSessionLogs.packageId, isDraft: ptSessionLogs.isDraft })
+          .from(ptSessionLogs)
+          .where(and(
+            eq(ptSessionLogs.memberId, row.memberId),
+            eq(ptSessionLogs.trainerId, row.trainerId),
+            eq(ptSessionLogs.sessionDate, row.scheduledDate),
+          ));
+
+        if (logs.length > 1)
+          throw new TRPCError({ code: "BAD_REQUEST", message: "같은 날짜에 세션 기록이 2개 이상입니다. 수업일지에서 직접 삭제해 주세요." });
+
+        if (logs[0]) {
+          const log = logs[0];
+          await db.delete(ptSessionLogs).where(eq(ptSessionLogs.id, log.id));
+          if (log.packageId && !log.isDraft) {
+            const [pkg] = await db
+              .select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+              .from(ptPackages).where(eq(ptPackages.id, log.packageId)).limit(1);
+            if (pkg) {
+              const newUsed = Math.max(0, pkg.usedSessions - 1);
+              await db.update(ptPackages)
+                .set({ usedSessions: newUsed, status: newUsed < pkg.totalSessions ? "active" : "completed" })
+                .where(eq(ptPackages.id, log.packageId));
+            }
+          }
+        }
+      }
+
+      await db.update(schedules)
+        .set({ status: "pending", signature: null })
+        .where(eq(schedules.id, input.scheduleId));
+
+      return { success: true };
+    }),
+
+  // 회원 패키지 현황 + 주로 이용하는 요일·시간 (SlotEditor 인포 카드용)
+  memberSummary: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [pkg] = await db
+        .select({ packageName: ptPackages.packageName, totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions, serviceSessions: ptPackages.serviceSessions })
+        .from(ptPackages)
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active")))
+        .orderBy(desc(ptPackages.id)).limit(1);
+
+      // 최근 90일 완료 스케줄 → 요일+시간 빈도
+      const since = new Date();
+      since.setDate(since.getDate() - 90);
+      const sinceStr = since.toISOString().split("T")[0];
+      const WEEKDAYS_KR = ["월", "화", "수", "목", "금", "토", "일"];
+
+      const done = await db
+        .select({ scheduledDate: schedules.scheduledDate, scheduledTime: schedules.scheduledTime })
+        .from(schedules)
+        .where(and(eq(schedules.memberId, input.memberId), eq(schedules.status, "done"), gte(schedules.scheduledDate, sinceStr)));
+
+      const freq: Record<string, number> = {};
+      for (const s of done) {
+        if (!s.scheduledTime) continue;
+        const d = new Date(s.scheduledDate + "T00:00:00");
+        const dow = (d.getDay() + 6) % 7;
+        const key = `${WEEKDAYS_KR[dow]} ${s.scheduledTime.slice(0, 5)}`;
+        freq[key] = (freq[key] ?? 0) + 1;
+      }
+      const usualTimes = Object.entries(freq)
+        .sort((a, b) => b[1] - a[1]).slice(0, 2)
+        .map(([label, count]) => ({ label, count }));
+
+      return { pkg: pkg ?? null, usualTimes };
+    }),
+
   // 오늘 예정 수업 목록 — 대시보드 배너용 (전체 계정, 스케쥴 기능 미사용 계정은 빈 배열)
   todayUpcoming: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();

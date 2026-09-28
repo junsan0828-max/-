@@ -2,7 +2,7 @@ import { useState, useMemo, Fragment } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { holidayName } from "../lib/holidays";
-import { ChevronLeft, ChevronRight, Plus, X, Repeat, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Repeat, Trash2, CheckCircle2, RotateCcw, Package } from "lucide-react";
 
 // 일요일 휴무 — 월~토만 운영한다.
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토"];
@@ -244,15 +244,18 @@ export default function SchedulePage() {
 
                   const et = (top?.eventType ?? "pt") as EventType;
                   const colors = EVENT_COLORS[et] ?? EVENT_COLORS.pt;
+                  const isDone = top?.status === "done";
                   return (
                     <button
                       key={wd}
                       onClick={() => setEditing({ weekday: wd, hour: h })}
-                      className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-colors ${
+                      className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-colors relative ${
                         top
-                          ? top.isRecurring
-                            ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
-                            : colors.filled
+                          ? isDone
+                            ? "bg-muted/30 border-border/40 opacity-60"
+                            : top.isRecurring
+                              ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
+                              : colors.filled
                           : hol
                             ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
                             : colors.empty
@@ -260,6 +263,9 @@ export default function SchedulePage() {
                     >
                       {top ? (
                         <>
+                          {isDone && (
+                            <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />
+                          )}
                           {viewingAll && (
                             <span className="block truncate text-[10px] text-amber-300/90">
                               {top.trainerName ?? "담당없음"}
@@ -338,6 +344,10 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
   const [editingFixed, setEditingFixed] = useState(false);
 
   const { data: memberList } = trpc.members.list.useQuery(undefined, { enabled: !viewingAll });
+  const { data: memberSummary } = trpc.schedules.memberSummary.useQuery(
+    { memberId: memberId! },
+    { enabled: !!memberId }
+  );
 
   const suggestions = memberInput.trim().length >= 1
     ? (memberList ?? []).filter((m: any) =>
@@ -369,8 +379,12 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
     onSuccess: () => { toast.success("삭제되었습니다"); onSaved(); },
     onError: e => toast.error(e.message),
   });
+  const cancelCompletionMutation = trpc.schedules.cancelCompletion.useMutation({
+    onSuccess: () => { toast.success("완료 취소 — 회차가 복구되었습니다"); onSaved(); },
+    onError: e => toast.error(e.message),
+  });
 
-  const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || cancelCompletionMutation.isPending;
 
   const save = () => {
     // 시간을 직접 고쳐서 영업시간 밖으로 나가는 것도 막는다(칸 잠금만으론 못 막힘).
@@ -481,6 +495,29 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
           </div>
         )}
 
+        {/* 완료 상태 알림 */}
+        {target?.status === "done" && (
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-xs text-emerald-300 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              수업 완료됨
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm("완료를 취소하면 PT 세션 1회가 복구됩니다. 진행할까요?")) {
+                  cancelCompletionMutation.mutate({ scheduleId: target.id });
+                }
+              }}
+              disabled={busy}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw className="h-3 w-3" />
+              완료 취소
+            </button>
+          </div>
+        )}
+
         {assigningToFixed && (
           <div className="rounded-lg bg-violet-500/10 border border-violet-500/30 px-3 py-2 text-xs text-violet-300">
             <Repeat className="h-3 w-3 inline mr-1" />
@@ -531,6 +568,31 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
             </div>
           )}
         </div>
+
+        {/* 회원 패키지 현황 + 주요 타임 인포 카드 */}
+        {memberId && memberSummary && (
+          <div className="rounded-lg bg-background border border-border/60 px-3 py-2 space-y-1.5">
+            {memberSummary.pkg ? (
+              <div className="flex items-center gap-1.5 text-xs">
+                <Package className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                <span className="text-foreground font-medium">{memberSummary.pkg.packageName}</span>
+                <span className="text-muted-foreground">
+                  · {memberSummary.pkg.usedSessions}/{memberSummary.pkg.totalSessions}회 완료
+                  <span className="ml-1 text-primary">
+                    (잔여 {memberSummary.pkg.totalSessions - memberSummary.pkg.usedSessions}회)
+                  </span>
+                </span>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">활성 PT 패키지 없음</p>
+            )}
+            {memberSummary.usualTimes.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                주로 이용: {memberSummary.usualTimes.map(t => t.label).join(" · ")}
+              </p>
+            )}
+          </div>
+        )}
 
         {!assigningToFixed && (
           <label className="flex items-start gap-2 cursor-pointer">
