@@ -138,12 +138,16 @@ export const ptPauses = pgTable("pt_pauses", {
 // 예약/일정
 export const schedules = pgTable("schedules", {
   id: serial("id").primaryKey(),
-  memberId: integer("memberId").notNull(),
+  // 고정 슬롯(isRecurring=1)은 시간만 잡아두고 회원은 매주 따로 배정하므로 비어 있을 수 있다.
+  memberId: integer("memberId"),
   trainerId: integer("trainerId").notNull(),
+  // 고정 슬롯이면 반복 시작일. 요일은 이 날짜에서 계산한다.
   scheduledDate: text("scheduledDate").notNull(),
   scheduledTime: text("scheduledTime"),
   notes: text("notes"),
   status: text("status").default("pending").notNull(),
+  isRecurring: integer("isRecurring").default(0).notNull(),
+  branchId: integer("branchId"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 

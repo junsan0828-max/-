@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User, ClipboardCheck, Download, X, ChevronLeft,
-  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, BookOpen, Menu, ExternalLink, ClipboardList, ClipboardPlus, UsersRound, Database, PenLine,
+  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, BookOpen, Menu, ExternalLink, ClipboardList, ClipboardPlus, UsersRound, Database, PenLine, CalendarDays,
 } from "lucide-react";
 import Logo from "./Logo";
 import NoticeLoginPopup from "./NoticeLoginPopup";
@@ -93,9 +93,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   const isAdmin = user?.role === "admin" || user?.role === "sub_admin";
-  const navItems = isAdmin ? adminNavItems
+  // 수업 시간표는 베타 — 허용된 계정에만 메뉴를 노출한다(서버도 같은 기준으로 막는다).
+  const { data: scheduleAccess } = trpc.schedules.myAccess.useQuery(undefined, { staleTime: 10 * 60 * 1000 });
+  const baseNavItems = isAdmin ? adminNavItems
     : user?.role === "consultant" ? consultantNavItems
     : trainerNavItems;
+  const navItems = scheduleAccess?.allowed
+    ? [...baseNavItems, { path: "/schedule", label: "수업 시간표", icon: CalendarDays }]
+    : baseNavItems;
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";

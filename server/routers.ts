@@ -2498,31 +2498,117 @@ const ptRouter = t.router({
 });
 
 // ─── Schedules ────────────────────────────────────────────────────────────────
+// 수업 시간표 베타 허용 계정. Railway 환경변수 SCHEDULE_BETA_USERS 에 아이디를 쉼표로 적는다.
+// (예: "trainer1" / 여러 명은 "trainer1,kim" / 전원 개방은 "all")
+// 미설정이면 아무도 못 쓴다 — 실수로 전원에게 열리는 일이 없도록.
+function canUseSchedule(user?: { id: number; username?: string } | null): boolean {
+  if (!user) return false;
+  const raw = (process.env.SCHEDULE_BETA_USERS ?? "").trim();
+  if (!raw) return false;
+  if (raw.toLowerCase() === "all") return true;
+  const allow = raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  return allow.includes(String(user.username ?? "").toLowerCase()) || allow.includes(String(user.id));
+}
+
+// 스케줄은 본인 것만 건드릴 수 있다. 예전엔 scheduleId만 알면 남의 일정도 지워졌다.
+async function requireOwnSchedule(ctx: any, scheduleId: number) {
+  if (!canUseSchedule(ctx.user)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+  const [row] = await db.select({ trainerId: schedules.trainerId })
+    .from(schedules).where(eq(schedules.id, scheduleId)).limit(1);
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "일정을 찾을 수 없습니다." });
+  const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+  if (!isAdmin && row.trainerId !== ctx.user?.trainerId)
+    throw new TRPCError({ code: "FORBIDDEN", message: "본인 일정만 수정할 수 있습니다." });
+  return db;
+}
+
 const schedulesRouter = t.router({
-  listByMember: protectedProcedure
-    .input(z.object({ memberId: z.number() }))
+  // 사이드바 노출 여부 판단용
+  myAccess: protectedProcedure.query(({ ctx }) => ({ allowed: canUseSchedule(ctx.user as any) })),
+  // 주간 시간표: 그 주의 실제 수업 + 그 시점에 살아있는 고정 슬롯을 함께 돌려준다.
+  listByWeek: protectedProcedure
+    .input(z.object({ weekStart: z.string(), weekEnd: z.string() }))
     .query(async ({ ctx, input }) => {
+      if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      return db.select().from(schedules).where(eq(schedules.memberId, input.memberId)).orderBy(schedules.scheduledDate);
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "트레이너 계정만 사용할 수 있습니다." });
+
+      const rows = await db
+        .select({
+          id: schedules.id, memberId: schedules.memberId, memberName: members.name,
+          scheduledDate: schedules.scheduledDate, scheduledTime: schedules.scheduledTime,
+          notes: schedules.notes, status: schedules.status,
+          isRecurring: schedules.isRecurring, branchId: schedules.branchId,
+        })
+        .from(schedules)
+        .leftJoin(members, eq(schedules.memberId, members.id))
+        .where(and(
+          eq(schedules.trainerId, trainerId),
+          // 고정 슬롯은 시작일이 이 주 끝 이전이면 계속 유효하다.
+          or(
+            and(eq(schedules.isRecurring, 0), gte(schedules.scheduledDate, input.weekStart), lte(schedules.scheduledDate, input.weekEnd)),
+            and(eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, input.weekEnd)),
+          )!,
+        ))
+        .orderBy(schedules.scheduledTime);
+      return rows;
     }),
 
   create: protectedProcedure
-    .input(z.object({ memberId: z.number(), scheduledDate: z.string(), scheduledTime: z.string().optional(), notes: z.string().optional() }))
+    .input(z.object({
+      memberId: z.number().nullable().optional(),
+      scheduledDate: z.string(),
+      scheduledTime: z.string().optional(),
+      notes: z.string().optional(),
+      isRecurring: z.boolean().default(false),
+      branchId: z.number().nullable().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
+      if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-      await db.insert(schedules).values({ memberId: input.memberId, trainerId, scheduledDate: input.scheduledDate, scheduledTime: input.scheduledTime ?? null, notes: input.notes ?? null });
+      const [row] = await db.insert(schedules).values({
+        memberId: input.memberId ?? null,
+        trainerId,
+        scheduledDate: input.scheduledDate,
+        scheduledTime: input.scheduledTime ?? null,
+        notes: input.notes ?? null,
+        isRecurring: input.isRecurring ? 1 : 0,
+        branchId: input.branchId ?? null,
+      }).returning({ id: schedules.id });
+      return { id: row.id };
+    }),
+
+  update: protectedProcedure
+    .input(z.object({
+      scheduleId: z.number(),
+      memberId: z.number().nullable().optional(),
+      scheduledDate: z.string().optional(),
+      scheduledTime: z.string().optional(),
+      notes: z.string().nullable().optional(),
+      status: z.enum(["pending", "done", "cancelled"]).optional(),
+      isRecurring: z.boolean().optional(),
+      branchId: z.number().nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.scheduleId);
+      const { scheduleId, isRecurring, ...rest } = input;
+      const patch: Record<string, unknown> = { ...rest };
+      if (isRecurring !== undefined) patch.isRecurring = isRecurring ? 1 : 0;
+      await db.update(schedules).set(patch).where(eq(schedules.id, scheduleId));
       return { success: true };
     }),
 
   delete: protectedProcedure
     .input(z.object({ scheduleId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const db = await requireOwnSchedule(ctx, input.scheduleId);
       await db.delete(schedules).where(eq(schedules.id, input.scheduleId));
       return { success: true };
     }),
@@ -2530,8 +2616,7 @@ const schedulesRouter = t.router({
   updateStatus: protectedProcedure
     .input(z.object({ scheduleId: z.number(), status: z.enum(["pending", "done", "cancelled"]) }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const db = await requireOwnSchedule(ctx, input.scheduleId);
       await db.update(schedules).set({ status: input.status }).where(eq(schedules.id, input.scheduleId));
       return { success: true };
     }),
