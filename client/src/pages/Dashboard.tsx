@@ -443,11 +443,24 @@ function TrainerDashboard() {
   const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({});
   const [rolloverOpen, setRolloverOpen] = useState(false);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
+  // 낙관적 intent 업데이트: 서버 응답 전에도 즉시 UI 반영
+  const [localIntents, setLocalIntents] = useState<Map<number, string>>(new Map());
 
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
-    onSuccess: () => refetchMonthExpiring(),
+    onSuccess: () => {
+      refetchMonthExpiring();
+      utils.members.getExpiring.invalidate();
+      utils.members.getWithUnpaid.invalidate();
+      utils.members.getLongAbsent.invalidate();
+      utils.members.getRolloverToNextMonth.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
+
+  const setIntent = (memberId: number, intent: string) => {
+    setLocalIntents(prev => new Map(prev).set(memberId, intent));
+    setRenewalIntentMutation.mutate({ memberId, intent: intent as any });
+  };
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [reregisterOpen, setReregisterOpen] = useState(false);
@@ -487,65 +500,116 @@ function TrainerDashboard() {
 
   const today = new Date();
 
+  type Intent = "재등록예정" | "이월" | "이탈예정" | "연락함" | "납부약속" | "복귀예정" | "수업집중" | "확인함" | "이탈";
+  type NotifItem = {
+    key: string; memberId: number; name: string;
+    tag: string; detail: string;
+    iconColor: string; tagBg: string; urgency: number;
+    intent: string | null;
+    actions: { label: string; value: Intent; color: string }[];
+    onGo: () => void;
+  };
+
+  const INTENT_LABELS: Record<string, string> = {
+    재등록예정: "재등록 예정", 이월: "이월", 이탈예정: "이탈 예정", 연락함: "연락함",
+    납부약속: "납부 약속", 복귀예정: "복귀 예정", 수업집중: "수업 집중", 확인함: "확인함", 이탈: "이탈",
+  };
+  const INTENT_COLOR: Record<string, string> = {
+    재등록예정: "bg-emerald-500/20 text-emerald-400",
+    이월: "bg-blue-500/20 text-blue-400",
+    이탈예정: "bg-red-500/20 text-red-400",
+    이탈: "bg-red-500/20 text-red-400",
+    연락함: "bg-slate-500/20 text-slate-400",
+    납부약속: "bg-amber-500/20 text-amber-400",
+    복귀예정: "bg-teal-500/20 text-teal-400",
+    수업집중: "bg-indigo-500/20 text-indigo-400",
+    확인함: "bg-slate-500/20 text-slate-400",
+  };
+
   const notifItems = (() => {
-    type NotifItem = {
-      key: string; memberId: number; name: string;
-      tag: string; detail: string;
-      iconColor: string; tagBg: string; urgency: number;
-      onGo: () => void;
-    };
     const items: NotifItem[] = [];
 
     expiring?.forEach((m) => {
       const days = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
+      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
       items.push({
         key: `expiring-${m.id}`, memberId: m.id, name: m.name,
         tag: "만료 임박", detail: days !== null ? `D-${days}` : "-",
-        iconColor: "text-yellow-400", tagBg: "bg-yellow-500/20 text-yellow-500",
-        urgency: days ?? 999,
+        iconColor: "text-yellow-400", tagBg: "bg-yellow-500/20 text-yellow-600",
+        urgency: intent ? 9000 + (days ?? 999) : (days ?? 999),
+        intent,
+        actions: [
+          { label: "재등록 예정", value: "재등록예정", color: "text-emerald-400 border-emerald-500/30" },
+          { label: "이탈 예정", value: "이탈예정", color: "text-red-400 border-red-500/30" },
+          { label: "연락함", value: "연락함", color: "text-slate-400 border-slate-500/30" },
+        ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
 
     unpaid?.forEach((m) => {
+      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
       items.push({
         key: `unpaid-${m.id}`, memberId: m.id, name: m.name,
         tag: "미수금", detail: `${(m.unpaidAmount ?? 0).toLocaleString()}원`,
-        iconColor: "text-orange-400", tagBg: "bg-orange-500/20 text-orange-500",
-        urgency: -(m.unpaidAmount ?? 0),
+        iconColor: "text-orange-400", tagBg: "bg-orange-500/20 text-orange-600",
+        urgency: intent ? 9000 - (m.unpaidAmount ?? 0) : -(m.unpaidAmount ?? 0),
+        intent,
+        actions: [
+          { label: "납부 약속", value: "납부약속", color: "text-amber-400 border-amber-500/30" },
+          { label: "연락함", value: "연락함", color: "text-slate-400 border-slate-500/30" },
+        ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
 
     longAbsent?.forEach((m) => {
-      const absentDays = m.lastAttendDate
-        ? differenceInDays(today, new Date(m.lastAttendDate))
-        : 999;
+      const absentDays = m.lastAttendDate ? differenceInDays(today, new Date(m.lastAttendDate)) : 999;
+      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
       items.push({
         key: `absent-${m.id}`, memberId: m.id, name: m.name,
         tag: "장기 미출석", detail: m.lastAttendDate ? `${absentDays}일째` : "기록 없음",
-        iconColor: "text-red-400", tagBg: "bg-red-500/20 text-red-500",
-        urgency: -absentDays,
+        iconColor: "text-red-400", tagBg: "bg-red-500/20 text-red-600",
+        urgency: intent ? 9000 - absentDays : -absentDays,
+        intent,
+        actions: [
+          { label: "복귀 예정", value: "복귀예정", color: "text-teal-400 border-teal-500/30" },
+          { label: "이탈 예정", value: "이탈예정", color: "text-red-400 border-red-500/30" },
+          { label: "연락함", value: "연락함", color: "text-slate-400 border-slate-500/30" },
+        ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
 
     monthExpiring?.filter(m => m.renewalStatus === "마감임박").forEach((m) => {
+      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
       items.push({
         key: `month-${m.id}`, memberId: m.id, name: m.name,
         tag: "이번달 마감", detail: `잔여 ${m.remaining}회`,
-        iconColor: "text-purple-400", tagBg: "bg-purple-500/20 text-purple-500",
-        urgency: 500 + m.remaining,
+        iconColor: "text-purple-400", tagBg: "bg-purple-500/20 text-purple-600",
+        urgency: intent ? 9500 + m.remaining : 500 + m.remaining,
+        intent,
+        actions: [
+          { label: "재등록 예정", value: "재등록예정", color: "text-emerald-400 border-emerald-500/30" },
+          { label: "이탈", value: "이탈", color: "text-red-400 border-red-500/30" },
+          { label: "다음달로", value: "이월", color: "text-blue-400 border-blue-500/30" },
+        ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
 
     rollover?.forEach((m) => {
+      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
       items.push({
         key: `rollover-${m.id}`, memberId: m.id, name: m.name,
         tag: "이월 예상", detail: `잔여 ${m.remaining}회`,
-        iconColor: "text-blue-400", tagBg: "bg-blue-500/20 text-blue-500",
-        urgency: 1000 + m.remaining,
+        iconColor: "text-blue-400", tagBg: "bg-blue-500/20 text-blue-600",
+        urgency: intent ? 9800 + m.remaining : 1000 + m.remaining,
+        intent,
+        actions: [
+          { label: "수업 집중", value: "수업집중", color: "text-indigo-400 border-indigo-500/30" },
+          { label: "확인함", value: "확인함", color: "text-slate-400 border-slate-500/30" },
+        ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
@@ -595,24 +659,55 @@ function TrainerDashboard() {
               <span className="ml-auto text-xs text-muted-foreground font-normal">{notifItems.length}건</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="overflow-y-auto max-h-[60dvh] divide-y divide-border/50">
+          <div className="overflow-y-auto max-h-[65dvh] divide-y divide-border/40">
             {notifItems.map((item) => (
-              <button
-                key={item.key}
-                onClick={item.onGo}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors text-left"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.tagBg} shrink-0`}>
-                      {item.tag}
-                    </span>
+              <div key={item.key} className="px-4 py-3 space-y-2">
+                {/* 회원 이름 + 상세 + 바로가기 */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${item.tagBg}`}>
+                    {item.tag}
+                  </span>
+                  <button
+                    onClick={item.onGo}
+                    className="flex-1 flex items-center gap-1.5 min-w-0 text-left hover:opacity-80 transition-opacity"
+                  >
                     <span className="text-sm font-medium truncate">{item.name}</span>
-                  </div>
-                  <p className={`text-xs ${item.iconColor}`}>{item.detail}</p>
+                    <span className={`text-xs shrink-0 ${item.iconColor}`}>{item.detail}</span>
+                  </button>
+                  <button onClick={item.onGo} className="shrink-0">
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              </button>
+                {/* 업무 계획 버튼 or 선택된 상태 */}
+                {item.intent ? (
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${INTENT_COLOR[item.intent] ?? "bg-slate-500/20 text-slate-400"}`}>
+                      ✓ {INTENT_LABELS[item.intent] ?? item.intent}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setLocalIntents(prev => { const m = new Map(prev); m.delete(item.memberId); return m; });
+                        setRenewalIntentMutation.mutate({ memberId: item.memberId, intent: null });
+                      }}
+                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+                    >
+                      변경
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.actions.map((a) => (
+                      <button
+                        key={a.value}
+                        onClick={() => setIntent(item.memberId, a.value)}
+                        className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-colors hover:opacity-80 ${a.color} bg-background/40`}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </DialogContent>
