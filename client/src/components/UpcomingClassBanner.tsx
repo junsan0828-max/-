@@ -84,11 +84,31 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
 
       {/* 수면 */}
       <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">수면</p>
-        <div className="flex gap-2">
-          <ToggleBtn active={sleep === 1} onClick={() => setSleep(1)}>7시간 이상</ToggleBtn>
-          <ToggleBtn active={sleep === 0} onClick={() => setSleep(0)}>6시간 미만</ToggleBtn>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-foreground">수면 질</p>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={sleep === 0}
+              onChange={e => setSleep(e.target.checked ? 0 : null)}
+              className="w-3.5 h-3.5 accent-red-400 cursor-pointer"
+            />
+            <span className="text-xs text-red-400 font-medium">6시간 미만</span>
+          </label>
         </div>
+        {sleep !== 0 && (
+          <div className="flex gap-1.5">
+            {[1, 2, 3, 4, 5].map(v => (
+              <ScoreBtn key={v} val={v} current={sleep ?? 0} onClick={() => setSleep(v)} />
+            ))}
+            <span className="self-center text-xs text-muted-foreground ml-1">
+              {!sleep ? "" : sleep <= 2 ? "나쁨" : sleep === 3 ? "보통" : sleep === 4 ? "좋음" : "최고"}
+            </span>
+          </div>
+        )}
+        {sleep === 0 && (
+          <p className="text-xs text-red-400/70">수면 부족 — 강도 조절 필요</p>
+        )}
       </div>
 
       {/* 영양 */}
