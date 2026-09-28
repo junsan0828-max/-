@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
-  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock, BookOpen, Trash2, UserCheck,
+  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock, BookOpen, Trash2, UserCheck, Bell,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -442,6 +442,7 @@ function TrainerDashboard() {
   const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
   const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({});
   const [rolloverOpen, setRolloverOpen] = useState(false);
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
 
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
     onSuccess: () => refetchMonthExpiring(),
@@ -487,12 +488,66 @@ function TrainerDashboard() {
   const today = new Date();
 
   const alertItems = [
-    expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30", onClick: undefined } : null,
-    unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30", onClick: undefined } : null,
-    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30", onClick: undefined } : null,
-    monthExpiring?.length ? { label: `이번달 마감 ${monthExpiring.length}명`, color: "bg-purple-500/20 text-purple-400 border-purple-500/30", onClick: () => setMonthExpiringOpen(true) } : null,
-    rollover?.length ? { label: `다음달 이월 예상 ${rollover.length}명`, color: "bg-blue-500/20 text-blue-400 border-blue-500/30", onClick: () => setRolloverOpen(true) } : null,
-  ].filter(Boolean) as { label: string; color: string; onClick?: () => void }[];
+    expiring?.length ? {
+      key: "expiring",
+      label: "만료 임박",
+      count: expiring.length,
+      desc: "7일 이내 만료 예정",
+      iconColor: "text-yellow-400",
+      bg: "bg-yellow-500/10 border-yellow-500/20",
+      dot: "bg-yellow-400",
+      action: undefined as (() => void) | undefined,
+      actionLabel: undefined as string | undefined,
+    } : null,
+    unpaid?.length ? {
+      key: "unpaid",
+      label: "미수금",
+      count: unpaid.length,
+      desc: "결제 미완료 회원",
+      iconColor: "text-orange-400",
+      bg: "bg-orange-500/10 border-orange-500/20",
+      dot: "bg-orange-400",
+      action: undefined as (() => void) | undefined,
+      actionLabel: undefined as string | undefined,
+    } : null,
+    longAbsent?.length ? {
+      key: "absent",
+      label: "장기 미출석",
+      count: longAbsent.length,
+      desc: "14일 이상 미출석",
+      iconColor: "text-red-400",
+      bg: "bg-red-500/10 border-red-500/20",
+      dot: "bg-red-400",
+      action: undefined as (() => void) | undefined,
+      actionLabel: undefined as string | undefined,
+    } : null,
+    monthExpiring?.length ? {
+      key: "monthExpiring",
+      label: "이번달 마감",
+      count: monthExpiring.length,
+      desc: "5회 이하 잔여",
+      iconColor: "text-purple-400",
+      bg: "bg-purple-500/10 border-purple-500/20",
+      dot: "bg-purple-400",
+      action: () => { setAlertModalOpen(false); setMonthExpiringOpen(true); },
+      actionLabel: "목록 보기",
+    } : null,
+    rollover?.length ? {
+      key: "rollover",
+      label: "다음달 이월 예상",
+      count: rollover.length,
+      desc: "잔여 횟수 있는 만료 회원",
+      iconColor: "text-blue-400",
+      bg: "bg-blue-500/10 border-blue-500/20",
+      dot: "bg-blue-400",
+      action: () => { setAlertModalOpen(false); setRolloverOpen(true); },
+      actionLabel: "목록 보기",
+    } : null,
+  ].filter(Boolean) as {
+    key: string; label: string; count: number; desc: string;
+    iconColor: string; bg: string; dot: string;
+    action?: () => void; actionLabel?: string;
+  }[];
 
   return (
     <div className="space-y-6">
@@ -503,31 +558,73 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <button
-          onClick={() => setLocation("/schedule")}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors text-sm font-medium"
-        >
-          <Calendar className="h-4 w-4" />
-          스케줄
-        </button>
+        <div className="flex items-center gap-2">
+          {alertItems.length > 0 && (
+            <button
+              onClick={() => setAlertModalOpen(true)}
+              className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium border border-red-500/20"
+            >
+              <Bell className="h-4 w-4" />
+              알림
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                {alertItems.length}
+              </span>
+            </button>
+          )}
+          <button
+            onClick={() => setLocation("/schedule")}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors text-sm font-medium"
+          >
+            <Calendar className="h-4 w-4" />
+            스케줄
+          </button>
+        </div>
       </div>
 
-      {/* 알림 뱃지 */}
-      {alertItems.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {alertItems.map((item) => (
-            item.onClick ? (
-              <button key={item.label} onClick={item.onClick} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color} hover:opacity-80 transition-opacity`}>
-                ⚠ {item.label}
-              </button>
-            ) : (
-              <span key={item.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color}`}>
-                ⚠ {item.label}
-              </span>
-            )
-          ))}
-        </div>
-      )}
+      {/* 알림 모달 */}
+      <Dialog open={alertModalOpen} onOpenChange={setAlertModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-red-400" />
+              업무 알림
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              확인이 필요한 항목이 {alertItems.length}건 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-1">
+            {alertItems.map((item) => (
+              <div key={item.key} className={`flex items-center justify-between p-3 rounded-lg border ${item.bg}`}>
+                <div className="flex items-center gap-3">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${item.dot}`} />
+                  <div>
+                    <p className={`text-sm font-semibold ${item.iconColor}`}>
+                      {item.label} <span className="font-bold">{item.count}명</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
+                </div>
+                {item.action && item.actionLabel ? (
+                  <button
+                    onClick={item.action}
+                    className={`text-xs px-2.5 py-1 rounded-md font-medium ${item.iconColor} bg-background/60 border border-current/20 hover:bg-background/80 transition-colors shrink-0`}
+                  >
+                    {item.actionLabel}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setAlertModalOpen(false); setLocation("/members"); }}
+                    className={`text-xs px-2.5 py-1 rounded-md font-medium ${item.iconColor} bg-background/60 border border-current/20 hover:bg-background/80 transition-colors shrink-0`}
+                  >
+                    회원 보기
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-2 gap-3">
         {[
