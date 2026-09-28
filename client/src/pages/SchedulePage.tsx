@@ -276,9 +276,12 @@ export default function SchedulePage() {
                               {EVENT_LABELS[et]}
                             </span>
                           )}
-                          <span className="font-medium block truncate">
-                            {top.memberName ?? (et === "meeting" ? "회의" : "미배정")}
-                          </span>
+                          {/* 회의 유형에서 회원이 없으면 이름 행 생략 — 위 뱃지로 충분 */}
+                          {(top.memberName || et !== "meeting") && (
+                            <span className="font-medium block truncate">
+                              {top.memberName ?? "미배정"}
+                            </span>
+                          )}
                           <span className="opacity-70 flex items-center gap-0.5">
                             {top.scheduledTime}
                             {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
