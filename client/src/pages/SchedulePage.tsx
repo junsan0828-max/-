@@ -42,6 +42,8 @@ type Slot = {
   id: number;
   memberId: number | null;
   memberName: string | null;
+  trainerId: number;
+  trainerName: string | null;
   scheduledDate: string;
   scheduledTime: string | null;
   notes: string | null;
@@ -53,6 +55,13 @@ type Slot = {
 export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [editing, setEditing] = useState<{ weekday: number; hour: number } | null>(null);
+  // 관리자 전용: null = 전체 트레이너 보기
+  const [trainerFilter, setTrainerFilter] = useState<number | null>(null);
+
+  const { data: access } = trpc.schedules.myAccess.useQuery();
+  const isAdmin = access?.isAdmin ?? false;
+  const { data: trainerOptions } = trpc.schedules.trainerOptions.useQuery(undefined, { enabled: isAdmin });
+  const viewingAll = isAdmin && trainerFilter === null;
 
   const weekDates = useMemo(
     () => Array.from({ length: 6 }, (_, i) => {   // 월~토
@@ -74,6 +83,7 @@ export default function SchedulePage() {
   const { data: slots, isLoading } = trpc.schedules.listByWeek.useQuery({
     weekStart: weekStartYmd,
     weekEnd: weekEndYmd,
+    ...(isAdmin ? { trainerId: trainerFilter } : {}),
   });
 
   const refresh = () => utils.schedules.listByWeek.invalidate();
@@ -131,9 +141,26 @@ export default function SchedulePage() {
         </div>
       </div>
 
+      {isAdmin && (
+        <div className="flex items-center gap-2">
+          <select
+            value={trainerFilter ?? ""}
+            onChange={e => setTrainerFilter(e.target.value ? Number(e.target.value) : null)}
+            className="flex-1 bg-card border border-border rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">전체 트레이너</option>
+            {(trainerOptions ?? []).map(t => (
+              <option key={t.id} value={t.id}>{t.trainerName}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <p className="text-xs text-muted-foreground">
-        빈 칸을 누르면 수업을 넣고, 칸을 누르면 수정·삭제합니다. <Repeat className="h-3 w-3 inline" /> 표시는 매주 반복되는 고정 수업입니다.
-        일요일은 휴무라 빠져 있고, 토요일은 {SATURDAY_CLOSE}시까지만 열립니다.
+        {viewingAll
+          ? "전체 트레이너의 주간 일정입니다. 일정을 넣거나 고치려면 위에서 트레이너를 먼저 고르세요."
+          : <>빈 칸을 누르면 수업을 넣고, 칸을 누르면 수정·삭제합니다. <Repeat className="h-3 w-3 inline" /> 표시는 매주 반복되는 고정 수업입니다.</>}
+        {" "}일요일은 휴무라 빠져 있고, 토요일은 {SATURDAY_CLOSE}시까지만 열립니다.
       </p>
 
       {isLoading ? (
@@ -181,6 +208,10 @@ export default function SchedulePage() {
                   if (!open && !top) {
                     return <div key={wd} className="min-h-[44px] rounded-lg bg-muted/20 border border-border/30" />;
                   }
+                  // 전체 보기에서는 어느 트레이너 일정인지 정할 수 없으므로 빈 칸을 잠근다.
+                  if (viewingAll && !top) {
+                    return <div key={wd} className="min-h-[44px] rounded-lg border border-border/30 border-dashed" />;
+                  }
 
                   return (
                     <button
@@ -198,6 +229,11 @@ export default function SchedulePage() {
                     >
                       {top ? (
                         <>
+                          {viewingAll && (
+                            <span className="block truncate text-[10px] text-amber-300/90">
+                              {top.trainerName ?? "담당없음"}
+                            </span>
+                          )}
                           <span className="font-medium block truncate">
                             {top.memberName ?? "회원 미배정"}
                           </span>
@@ -226,6 +262,8 @@ export default function SchedulePage() {
           cell={grid[`${editing.weekday}-${editing.hour}`] ?? []}
           date={toYmd(weekDates[editing.weekday])}
           hour={editing.hour}
+          viewingAll={viewingAll}
+          trainerId={trainerFilter}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); refresh(); }}
         />
@@ -234,10 +272,12 @@ export default function SchedulePage() {
   );
 }
 
-function SlotEditor({ cell, date, hour, onClose, onSaved }: {
+function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved }: {
   cell: Slot[];
   date: string;
   hour: number;
+  viewingAll: boolean;
+  trainerId: number | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -258,7 +298,7 @@ function SlotEditor({ cell, date, hour, onClose, onSaved }: {
   const [notes, setNotes] = useState(target?.notes ?? "");
   const [editingFixed, setEditingFixed] = useState(false);
 
-  const { data: memberList } = trpc.members.list.useQuery();
+  const { data: memberList } = trpc.members.list.useQuery(undefined, { enabled: !viewingAll });
 
   const createMutation = trpc.schedules.create.useMutation({
     onSuccess: () => { toast.success(assigningToFixed ? "이 주 수업이 배정되었습니다" : "수업이 추가되었습니다"); onSaved(); },
@@ -290,6 +330,7 @@ function SlotEditor({ cell, date, hour, onClose, onSaved }: {
         memberId, scheduledDate: date, scheduledTime: time,
         notes: notes || undefined,
         isRecurring: assigningToFixed ? false : isRecurring,
+        ...(trainerId ? { trainerId } : {}),
       });
     } else {
       updateMutation.mutate({
@@ -300,6 +341,50 @@ function SlotEditor({ cell, date, hour, onClose, onSaved }: {
   };
 
   const holiday = holidayName(date);
+
+  // 전체 트레이너 보기: 어느 트레이너 일정인지 정할 수 없으므로 읽기 전용으로 보여준다.
+  if (viewingAll) {
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="bg-card border border-border rounded-t-2xl sm:rounded-xl w-full max-w-sm p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">{date} {String(hour).padStart(2, "0")}시</h3>
+            <button onClick={onClose}><X className="h-4 w-4 text-muted-foreground" /></button>
+          </div>
+          {holiday && (
+            <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-300">
+              {holiday} — 공휴일
+            </div>
+          )}
+          {cell.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2">이 시간에 잡힌 수업이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {cell.map(s => (
+                <div key={s.id} className="rounded-lg border border-border bg-background/40 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-amber-300">{s.trainerName ?? "담당없음"}</span>
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      {s.scheduledTime}
+                      {s.isRecurring === 1 && <Repeat className="h-3 w-3" />}
+                    </span>
+                  </div>
+                  <div className="text-sm font-medium mt-0.5">{s.memberName ?? "회원 미배정"}</div>
+                  {s.notes && <div className="text-[11px] text-muted-foreground mt-0.5">{s.notes}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            고치려면 위에서 트레이너를 골라 주세요.
+          </p>
+          <button onClick={onClose} className="w-full py-2 rounded-lg border border-border text-sm text-muted-foreground">
+            닫기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const title = assigningToFixed ? "이 주 수업 배정" : isNew ? "수업 추가" : "수업 수정";
 

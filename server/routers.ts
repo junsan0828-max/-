@@ -2498,12 +2498,14 @@ const ptRouter = t.router({
 });
 
 // ─── Schedules ────────────────────────────────────────────────────────────────
-// 수업 스케줄 베타 허용 계정. 기본값은 trainer1(대표) — 배포만 하면 바로 쓸 수 있다.
+// 수업 스케줄 베타 허용 계정. 관리자는 전체 트레이너 일정을 봐야 하므로 항상 허용한다.
+// 트레이너는 기본값 trainer1(대표)만 — 배포만 하면 바로 쓸 수 있다.
 // 나중에 다른 선생님께 열 때는 Railway 환경변수 SCHEDULE_BETA_USERS 만 바꾸면 되고
 // (예: "trainer1,kim", 전원은 "all") 그때는 배포가 필요 없다.
 const SCHEDULE_BETA_DEFAULT = "trainer1";
-function canUseSchedule(user?: { id: number; username?: string } | null): boolean {
+function canUseSchedule(user?: { id: number; username?: string; role?: string } | null): boolean {
   if (!user) return false;
+  if (user.role === "admin" || user.role === "sub_admin") return true;
   const raw = (process.env.SCHEDULE_BETA_USERS ?? SCHEDULE_BETA_DEFAULT).trim();
   if (!raw) return false;
   if (raw.toLowerCase() === "all") return true;
@@ -2526,37 +2528,59 @@ async function requireOwnSchedule(ctx: any, scheduleId: number) {
 }
 
 const schedulesRouter = t.router({
-  // 사이드바 노출 여부 판단용
-  myAccess: protectedProcedure.query(({ ctx }) => ({ allowed: canUseSchedule(ctx.user as any) })),
+  // 사이드바 노출 여부 + 관리자 여부(전체 트레이너 조회 가능)
+  myAccess: protectedProcedure.query(({ ctx }) => ({
+    allowed: canUseSchedule(ctx.user as any),
+    isAdmin: ctx.user?.role === "admin" || ctx.user?.role === "sub_admin",
+  })),
+
+  // 관리자가 트레이너를 골라 볼 수 있도록 — 일정이 있든 없든 전체 트레이너 목록
+  trainerOptions: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") return [];
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select({ id: trainers.id, trainerName: trainers.trainerName })
+      .from(trainers).orderBy(trainers.trainerName);
+  }),
+
   // 주간 시간표: 그 주의 실제 수업 + 그 시점에 살아있는 고정 슬롯을 함께 돌려준다.
+  // 관리자는 전체 트레이너를 보거나(trainerId 생략) 한 명만 골라 볼 수 있다.
   listByWeek: protectedProcedure
-    .input(z.object({ weekStart: z.string(), weekEnd: z.string() }))
+    .input(z.object({
+      weekStart: z.string(),
+      weekEnd: z.string(),
+      trainerId: z.number().nullable().optional(),
+    }))
     .query(async ({ ctx, input }) => {
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "트레이너 계정만 사용할 수 있습니다." });
 
-      const rows = await db
+      const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+      // 트레이너는 항상 본인 것만. 입력으로 남의 일정을 들여다볼 수 없게 관리자만 필터를 쓴다.
+      const scopeTrainerId = isAdmin ? (input.trainerId ?? null) : ctx.user.trainerId;
+      if (!isAdmin && !scopeTrainerId)
+        throw new TRPCError({ code: "FORBIDDEN", message: "트레이너 계정만 사용할 수 있습니다." });
+
+      const periodCond = or(
+        // 고정 슬롯은 시작일이 이 주 끝 이전이면 계속 유효하다.
+        and(eq(schedules.isRecurring, 0), gte(schedules.scheduledDate, input.weekStart), lte(schedules.scheduledDate, input.weekEnd)),
+        and(eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, input.weekEnd)),
+      )!;
+
+      return db
         .select({
           id: schedules.id, memberId: schedules.memberId, memberName: members.name,
+          trainerId: schedules.trainerId, trainerName: trainers.trainerName,
           scheduledDate: schedules.scheduledDate, scheduledTime: schedules.scheduledTime,
           notes: schedules.notes, status: schedules.status,
           isRecurring: schedules.isRecurring, branchId: schedules.branchId,
         })
         .from(schedules)
         .leftJoin(members, eq(schedules.memberId, members.id))
-        .where(and(
-          eq(schedules.trainerId, trainerId),
-          // 고정 슬롯은 시작일이 이 주 끝 이전이면 계속 유효하다.
-          or(
-            and(eq(schedules.isRecurring, 0), gte(schedules.scheduledDate, input.weekStart), lte(schedules.scheduledDate, input.weekEnd)),
-            and(eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, input.weekEnd)),
-          )!,
-        ))
+        .leftJoin(trainers, eq(schedules.trainerId, trainers.id))
+        .where(scopeTrainerId ? and(eq(schedules.trainerId, scopeTrainerId), periodCond) : periodCond)
         .orderBy(schedules.scheduledTime);
-      return rows;
     }),
 
   create: protectedProcedure
@@ -2567,13 +2591,15 @@ const schedulesRouter = t.router({
       notes: z.string().optional(),
       isRecurring: z.boolean().default(false),
       branchId: z.number().nullable().optional(),
+      trainerId: z.number().optional(),   // 관리자가 특정 트레이너 일정을 넣을 때만
     }))
     .mutation(async ({ ctx, input }) => {
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+      const trainerId = (isAdmin && input.trainerId) ? input.trainerId : ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "어느 트레이너의 일정인지 지정해야 합니다." });
       const [row] = await db.insert(schedules).values({
         memberId: input.memberId ?? null,
         trainerId,
