@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { useLocation } from "wouter";
 import { GymPlusRenewalsAdmin } from "./gym-plus/GymPlusAdmin";
+import UpcomingClassBanner from "../components/UpcomingClassBanner";
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Target,
   AlertCircle, RefreshCw, ArrowUpRight, ArrowDownRight,
@@ -343,6 +344,8 @@ export default function GymDashboard() {
 
   return (
     <div className="space-y-5">
+      <UpcomingClassBanner />
+
       {/* 앱 재등록 신청 알림 배너 — 별도 로그인 없이 그 자리에서 모달로 바로 처리 */}
       {(pendingRenewals?.length ?? 0) > 0 && !dismissedRenewalAlert && (
         <div

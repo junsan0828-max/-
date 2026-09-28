@@ -2647,6 +2647,45 @@ const schedulesRouter = t.router({
       await db.update(schedules).set({ status: input.status }).where(eq(schedules.id, input.scheduleId));
       return { success: true };
     }),
+
+  // 오늘 예정 수업 목록 — 대시보드 배너용 (전체 계정, 스케쥴 기능 미사용 계정은 빈 배열)
+  todayUpcoming: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    // KST 오늘 날짜
+    const nowUtc = new Date();
+    const kst = new Date(nowUtc.getTime() + 9 * 60 * 60 * 1000);
+    const today = kst.toISOString().split("T")[0];
+
+    const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+    const trainerId = isAdmin ? null : (ctx.user as any)?.trainerId ?? null;
+
+    if (!isAdmin && !trainerId) return [];
+
+    const whereCond = and(
+      eq(schedules.scheduledDate, today),
+      eq(schedules.status, "pending"),
+      trainerId ? eq(schedules.trainerId, trainerId) : undefined,
+    )!;
+
+    return db
+      .select({
+        id: schedules.id,
+        memberId: schedules.memberId,
+        memberName: members.name,
+        trainerId: schedules.trainerId,
+        trainerName: trainers.trainerName,
+        scheduledTime: schedules.scheduledTime,
+        notes: schedules.notes,
+        isRecurring: schedules.isRecurring,
+      })
+      .from(schedules)
+      .leftJoin(members, eq(schedules.memberId, members.id))
+      .leftJoin(trainers, eq(schedules.trainerId, trainers.id))
+      .where(whereCond)
+      .orderBy(schedules.scheduledTime);
+  }),
 });
 
 // ─── Attendances ─────────────────────────────────────────────────────────────

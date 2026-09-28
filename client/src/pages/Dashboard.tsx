@@ -22,6 +22,7 @@ import {
 } from "recharts";
 import ExerciseEditor, { type Exercise, parseExercisesJson } from "@/components/ExerciseEditor";
 import BodyPartPicker from "@/components/BodyPartPicker";
+import UpcomingClassBanner from "@/components/UpcomingClassBanner";
 
 const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
 
@@ -487,6 +488,8 @@ function TrainerDashboard() {
 
   return (
     <div className="space-y-6">
+      <UpcomingClassBanner />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">대시보드</h1>
