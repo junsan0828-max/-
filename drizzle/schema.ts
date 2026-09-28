@@ -150,6 +150,7 @@ export const schedules = pgTable("schedules", {
   isRecurring: integer("isRecurring").default(0).notNull(),
   branchId: integer("branchId"),
   signature: text("signature"),
+  eventType: text("eventType").default("pt").notNull(), // pt | consultation | trial | meeting | other
   createdAt: text("createdAt").default(now).notNull(),
 });
 

@@ -38,6 +38,25 @@ function hourOf(time: string | null) {
   return isNaN(h) ? null : h;
 }
 
+type EventType = "pt" | "consultation" | "trial" | "meeting" | "other";
+
+const EVENT_LABELS: Record<EventType, string> = {
+  pt: "PT수업",
+  consultation: "상담",
+  trial: "체험",
+  meeting: "회의",
+  other: "기타",
+};
+
+// grid cell colors: [filled bg+border, empty hover border]
+const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
+  pt:           { filled: "bg-primary/15 border-primary/40 hover:bg-primary/25",           empty: "border-border/60 border-dashed hover:border-primary/50 hover:bg-primary/5" },
+  consultation: { filled: "bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/25", empty: "border-border/60 border-dashed hover:border-emerald-500/50 hover:bg-emerald-500/5" },
+  trial:        { filled: "bg-amber-500/15 border-amber-500/40 hover:bg-amber-500/25",       empty: "border-border/60 border-dashed hover:border-amber-500/50 hover:bg-amber-500/5" },
+  meeting:      { filled: "bg-slate-500/15 border-slate-400/40 hover:bg-slate-500/25",       empty: "border-border/60 border-dashed hover:border-slate-400/50 hover:bg-slate-500/5" },
+  other:        { filled: "bg-purple-500/15 border-purple-500/40 hover:bg-purple-500/25",    empty: "border-border/60 border-dashed hover:border-purple-500/50 hover:bg-purple-500/5" },
+};
+
 type Slot = {
   id: number;
   memberId: number | null;
@@ -50,6 +69,7 @@ type Slot = {
   status: string;
   isRecurring: number;
   branchId: number | null;
+  eventType: EventType | null;
 };
 
 export default function SchedulePage() {
@@ -222,6 +242,8 @@ export default function SchedulePage() {
                     return <div key={wd} className="min-h-[42px] rounded-lg border border-border/30 border-dashed" />;
                   }
 
+                  const et = (top?.eventType ?? "pt") as EventType;
+                  const colors = EVENT_COLORS[et] ?? EVENT_COLORS.pt;
                   return (
                     <button
                       key={wd}
@@ -230,10 +252,10 @@ export default function SchedulePage() {
                         top
                           ? top.isRecurring
                             ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
-                            : "bg-primary/15 border-primary/40 hover:bg-primary/25"
+                            : colors.filled
                           : hol
                             ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
-                            : "border-border/60 border-dashed hover:border-primary/50 hover:bg-primary/5"
+                            : colors.empty
                       }`}
                     >
                       {top ? (
@@ -243,8 +265,13 @@ export default function SchedulePage() {
                               {top.trainerName ?? "담당없음"}
                             </span>
                           )}
+                          {et !== "pt" && (
+                            <span className="block text-[9px] opacity-60 font-medium">
+                              {EVENT_LABELS[et]}
+                            </span>
+                          )}
                           <span className="font-medium block truncate">
-                            {top.memberName ?? "미배정"}
+                            {top.memberName ?? (et === "meeting" ? "회의" : "미배정")}
                           </span>
                           <span className="opacity-70 flex items-center gap-0.5">
                             {top.scheduledTime}
@@ -306,6 +333,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
     target?.scheduledTime ?? fixed?.scheduledTime ?? `${String(hour).padStart(2, "0")}:00`
   );
   const [isRecurring, setIsRecurring] = useState((target?.isRecurring ?? 0) === 1);
+  const [eventType, setEventType] = useState<EventType>((target?.eventType ?? "pt") as EventType);
   const [notes, setNotes] = useState(target?.notes ?? "");
   const [editingFixed, setEditingFixed] = useState(false);
 
@@ -360,12 +388,13 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
         scheduledDate: date, scheduledTime: time,
         notes: notes || undefined,
         isRecurring: assigningToFixed ? false : isRecurring,
+        eventType,
         ...(trainerId ? { trainerId } : {}),
       });
     } else {
       updateMutation.mutate({
         scheduleId: target!.id, memberId, memberName: freeText ?? null,
-        scheduledTime: time, notes: notes || null, isRecurring,
+        scheduledTime: time, notes: notes || null, isRecurring, eventType,
       });
     }
   };
@@ -428,6 +457,24 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
 
         <p className="text-xs text-muted-foreground">{date}</p>
 
+        {/* 일정 유형 선택 */}
+        <div className="flex gap-1 flex-wrap">
+          {(Object.keys(EVENT_LABELS) as EventType[]).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setEventType(t)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                eventType === t
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {EVENT_LABELS[t]}
+            </button>
+          ))}
+        </div>
+
         {holiday && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-300">
             {holiday} — 공휴일입니다. 수업을 잡을 수는 있지만 휴관 여부를 확인하세요.
@@ -453,14 +500,16 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
         </div>
 
         <div className="space-y-1.5 relative">
-          <label className="text-xs text-muted-foreground">회원</label>
+          <label className="text-xs text-muted-foreground">
+            {eventType === "meeting" ? "참석자 (선택)" : eventType === "consultation" || eventType === "trial" ? "고객명" : "회원"}
+          </label>
           <input
             type="text"
             value={memberInput}
             onChange={e => handleMemberInput(e.target.value)}
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="이름 입력 (없으면 빈칸)"
+            placeholder={eventType === "meeting" ? "비워두거나 이름 입력" : "이름 입력 (없으면 빈칸)"}
             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
           />
           {memberId && (

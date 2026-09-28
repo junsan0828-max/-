@@ -1731,6 +1731,7 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinNutrition" INTEGER`);
   await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinPainLevel" INTEGER`);
   await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinPainNote" TEXT`);
+  await pool.query(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS "eventType" TEXT NOT NULL DEFAULT 'pt'`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_schedules_trainer_date ON schedules ("trainerId", "scheduledDate")`);
   await pool.query(`CREATE TABLE IF NOT EXISTS revenue_adjustments (
     id SERIAL PRIMARY KEY,

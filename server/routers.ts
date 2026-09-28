@@ -2576,6 +2576,7 @@ const schedulesRouter = t.router({
           scheduledDate: schedules.scheduledDate, scheduledTime: schedules.scheduledTime,
           notes: schedules.notes, status: schedules.status,
           isRecurring: schedules.isRecurring, branchId: schedules.branchId,
+          eventType: schedules.eventType,
         })
         .from(schedules)
         .leftJoin(members, eq(schedules.memberId, members.id))
@@ -2594,6 +2595,7 @@ const schedulesRouter = t.router({
       isRecurring: z.boolean().default(false),
       branchId: z.number().nullable().optional(),
       trainerId: z.number().optional(),
+      eventType: z.enum(["pt", "consultation", "trial", "meeting", "other"]).default("pt"),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
@@ -2611,6 +2613,7 @@ const schedulesRouter = t.router({
         notes: input.notes ?? null,
         isRecurring: input.isRecurring ? 1 : 0,
         branchId: input.branchId ?? null,
+        eventType: input.eventType,
       }).returning({ id: schedules.id });
       return { id: row.id };
     }),
@@ -2626,6 +2629,7 @@ const schedulesRouter = t.router({
       status: z.enum(["pending", "done", "cancelled"]).optional(),
       isRecurring: z.boolean().optional(),
       branchId: z.number().nullable().optional(),
+      eventType: z.enum(["pt", "consultation", "trial", "meeting", "other"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);
