@@ -95,7 +95,7 @@ export default function SchedulePage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold">수업 시간표</h1>
+          <h1 className="text-lg font-bold">스케줄 관리</h1>
           <p className="text-xs text-muted-foreground">
             {weekStartYmd} ~ {weekEndYmd}
           </p>

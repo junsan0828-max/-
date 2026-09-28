@@ -99,7 +99,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     : user?.role === "consultant" ? consultantNavItems
     : trainerNavItems;
   const navItems = scheduleAccess?.allowed
-    ? [...baseNavItems, { path: "/schedule", label: "수업 시간표", icon: CalendarDays }]
+    ? [...baseNavItems, { path: "/schedule", label: "스케줄 관리", icon: CalendarDays }]
     : baseNavItems;
 
   const isActive = (path: string) => {
