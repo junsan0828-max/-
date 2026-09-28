@@ -383,6 +383,7 @@ function TrainerDashboard() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
+  const { data: todayScheduleSummary } = trpc.dashboard.todayScheduleSummary.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
 
   // 성과 리포트
@@ -532,7 +533,7 @@ function TrainerDashboard() {
         {[
           { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
           { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", onClick: () => setLocation("/members") },
-          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
+          { label: "오늘 수업", value: todayScheduleSummary ? `${todayScheduleSummary.done}/${todayScheduleSummary.total}` : `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
           { label: "이번달 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
         ].map((card) => (
           <button key={card.label} onClick={card.onClick} className="text-left">

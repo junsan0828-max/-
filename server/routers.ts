@@ -5648,6 +5648,29 @@ const dashboardRouter = t.router({
     return getDashboardStats(trainerId);
   }),
 
+  // 오늘 수업 완료/전체 통계
+  todayScheduleSummary: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const today = kstDate();
+    const rows = await db
+      .select({ status: schedules.status })
+      .from(schedules)
+      .where(
+        and(
+          eq(schedules.trainerId, trainerId),
+          eq(schedules.scheduledDate, today),
+          eq(schedules.isRecurring, 0),
+        )
+      );
+    const total = rows.length;
+    const done = rows.filter(r => r.status === "done").length;
+    return { total, done };
+  }),
+
   // 최근 6개월 월별 회원 수 / 출석 수 추이
   getMonthlyChart: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
