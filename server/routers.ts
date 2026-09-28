@@ -2648,6 +2648,84 @@ const schedulesRouter = t.router({
       return { success: true };
     }),
 
+  // 수업 완료 + 전자서명 저장 + PT 세션 차감 (memberId 있는 경우)
+  completeWithSignature: protectedProcedure
+    .input(z.object({
+      scheduleId: z.number(),
+      signature: z.string(),          // base64 dataURL
+      sessionDate: z.string().optional(), // YYYY-MM-DD (기본: KST 오늘)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.scheduleId);
+
+      // 스케줄 정보 조회
+      const [row] = await db
+        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status })
+        .from(schedules)
+        .where(eq(schedules.id, input.scheduleId))
+        .limit(1);
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.status === "done")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "이미 완료 처리된 수업입니다." });
+
+      // 서명 저장 + 완료 처리
+      await db.update(schedules)
+        .set({ status: "done", signature: input.signature })
+        .where(eq(schedules.id, input.scheduleId));
+
+      // PT 세션 차감 — memberId가 있는 경우만 시도, 패키지 없으면 조용히 넘어감
+      let sessionResult: { remaining: number } | null = null;
+      if (row.memberId) {
+        const targetDate = input.sessionDate ?? kstDate();
+        const activePkgs = await db
+          .select({ id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName })
+          .from(ptPackages)
+          .where(and(eq(ptPackages.memberId, row.memberId), eq(ptPackages.status, "active")))
+          .limit(1);
+
+        if (activePkgs[0]) {
+          const pkg = activePkgs[0];
+          if (pkg.usedSessions < pkg.totalSessions) {
+            // 중복 방지: 같은 날 같은 회원 세션 로그 확인
+            const [dup] = await db
+              .select({ id: ptSessionLogs.id })
+              .from(ptSessionLogs)
+              .where(and(
+                eq(ptSessionLogs.memberId, row.memberId),
+                eq(ptSessionLogs.trainerId, row.trainerId),
+                eq(ptSessionLogs.sessionDate, targetDate),
+              ))
+              .limit(1);
+
+            if (!dup) {
+              const newUsed = pkg.usedSessions + 1;
+              const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
+              const isFullService = pkg.packageName === "서비스세션" || (pkg.serviceSessions ?? 0) >= pkg.totalSessions;
+              const paidSessions = isFullService ? 0 : pkg.totalSessions - (pkg.serviceSessions ?? 0);
+              const isService = isFullService || pkg.usedSessions >= paidSessions ? 1 : 0;
+
+              await db.update(ptPackages)
+                .set({ usedSessions: newUsed, status: newStatus as any })
+                .where(eq(ptPackages.id, pkg.id));
+
+              await db.insert(ptSessionLogs).values({
+                memberId: row.memberId,
+                trainerId: row.trainerId,
+                packageId: pkg.id,
+                sessionDate: targetDate,
+                isServiceSession: isService,
+              });
+
+              sessionResult = { remaining: pkg.totalSessions - newUsed };
+            }
+          }
+        }
+      }
+
+      return { success: true, sessionResult };
+    }),
+
   // 오늘 예정 수업 목록 — 대시보드 배너용 (전체 계정, 스케쥴 기능 미사용 계정은 빈 배열)
   todayUpcoming: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();

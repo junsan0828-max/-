@@ -148,6 +148,7 @@ export const schedules = pgTable("schedules", {
   status: text("status").default("pending").notNull(),
   isRecurring: integer("isRecurring").default(0).notNull(),
   branchId: integer("branchId"),
+  signature: text("signature"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 
