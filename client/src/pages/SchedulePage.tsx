@@ -57,6 +57,18 @@ const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
   other:        { filled: "bg-purple-500/15 border-purple-500/40 hover:bg-purple-500/25",    empty: "border-border/60 border-dashed hover:border-purple-500/50 hover:bg-purple-500/5" },
 };
 
+// 어드민 전체보기: 트레이너별 색상 팔레트 (id 오름차순으로 순서 고정)
+const TRAINER_PALETTE = [
+  { cell: "bg-sky-500/20 border-sky-500/50 hover:bg-sky-500/30",         dot: "bg-sky-400" },
+  { cell: "bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/30", dot: "bg-emerald-400" },
+  { cell: "bg-amber-500/20 border-amber-500/50 hover:bg-amber-500/30",    dot: "bg-amber-400" },
+  { cell: "bg-rose-500/20 border-rose-500/50 hover:bg-rose-500/30",       dot: "bg-rose-400" },
+  { cell: "bg-violet-500/20 border-violet-500/50 hover:bg-violet-500/30", dot: "bg-violet-400" },
+  { cell: "bg-pink-500/20 border-pink-500/50 hover:bg-pink-500/30",       dot: "bg-pink-400" },
+  { cell: "bg-teal-500/20 border-teal-500/50 hover:bg-teal-500/30",       dot: "bg-teal-400" },
+  { cell: "bg-orange-500/20 border-orange-500/50 hover:bg-orange-500/30", dot: "bg-orange-400" },
+];
+
 type Slot = {
   id: number;
   memberId: number | null;
@@ -124,6 +136,12 @@ export default function SchedulePage() {
     return g;
   }, [slots]);
 
+  // 트레이너 id → 팔레트 인덱스 (id 오름차순, 안정적)
+  const trainerColorMap = useMemo(() => {
+    const sorted = [...(trainerOptions ?? [])].sort((a, b) => a.id - b.id);
+    return new Map(sorted.map((t, i) => [t.id, i % TRAINER_PALETTE.length]));
+  }, [trainerOptions]);
+
   const todayYmd = toYmd(new Date());
   const shiftWeek = (delta: number) => {
     const d = new Date(weekStart);
@@ -162,17 +180,34 @@ export default function SchedulePage() {
       </div>
 
       {isAdmin && (
-        <div className="flex items-center gap-2">
-          <select
-            value={trainerFilter ?? ""}
-            onChange={e => setTrainerFilter(e.target.value ? Number(e.target.value) : null)}
-            className="flex-1 bg-card border border-border rounded-lg px-3 py-2 text-sm"
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setTrainerFilter(null)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+              trainerFilter === null
+                ? "bg-accent border-border text-foreground font-medium"
+                : "border-border/40 text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <option value="">전체 트레이너</option>
-            {(trainerOptions ?? []).map(t => (
-              <option key={t.id} value={t.id}>{t.trainerName}</option>
-            ))}
-          </select>
+            전체
+          </button>
+          {[...(trainerOptions ?? [])].sort((a, b) => a.id - b.id).map(t => {
+            const p = TRAINER_PALETTE[trainerColorMap.get(t.id) ?? 0];
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTrainerFilter(t.id)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  trainerFilter === t.id
+                    ? "bg-accent border-border text-foreground font-medium"
+                    : "border-border/40 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
+                {t.trainerName}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -245,6 +280,10 @@ export default function SchedulePage() {
                   const et = (top?.eventType ?? "pt") as EventType;
                   const colors = EVENT_COLORS[et] ?? EVENT_COLORS.pt;
                   const isDone = top?.status === "done";
+                  // 어드민 전체보기: 트레이너 색상 우선. 개인보기: 일정 유형 색상
+                  const tColor = (viewingAll && top?.trainerId != null)
+                    ? TRAINER_PALETTE[trainerColorMap.get(top.trainerId) ?? 0]
+                    : null;
                   return (
                     <button
                       key={wd}
@@ -253,9 +292,11 @@ export default function SchedulePage() {
                         top
                           ? isDone
                             ? "bg-muted/30 border-border/40 opacity-60"
-                            : top.isRecurring
-                              ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
-                              : colors.filled
+                            : tColor
+                              ? tColor.cell
+                              : top.isRecurring
+                                ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
+                                : colors.filled
                           : hol
                             ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
                             : colors.empty
