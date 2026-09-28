@@ -2534,6 +2534,13 @@ const schedulesRouter = t.router({
     isAdmin: ctx.user?.role === "admin" || ctx.user?.role === "sub_admin",
   })),
 
+  // 지점 목록 — 스케줄 등록 시 지점 선택용 (트레이너도 접근 가능)
+  branches: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select({ id: branches.id, name: branches.name }).from(branches).orderBy(branches.id);
+  }),
+
   // 관리자가 트레이너를 골라 볼 수 있도록 — 일정이 있든 없든 전체 트레이너 목록
   trainerOptions: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") return [];

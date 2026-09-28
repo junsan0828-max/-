@@ -93,7 +93,14 @@ export default function SchedulePage() {
   const { data: access } = trpc.schedules.myAccess.useQuery();
   const isAdmin = access?.isAdmin ?? false;
   const { data: trainerOptions } = trpc.schedules.trainerOptions.useQuery(undefined, { enabled: isAdmin });
+  const { data: branchList } = trpc.schedules.branches.useQuery();
   const viewingAll = isAdmin && trainerFilter === null;
+
+  // branchId → 순서 인덱스 (0=기본 지점, 1=2호점 …)
+  const branchIndexMap = useMemo(
+    () => new Map((branchList ?? []).map((b, i) => [b.id, i])),
+    [branchList]
+  );
 
   const weekDates = useMemo(
     () => Array.from({ length: 6 }, (_, i) => {   // 월~토
@@ -318,11 +325,17 @@ export default function SchedulePage() {
                             </span>
                           )}
                           {/* 회의 유형에서 회원이 없으면 이름 행 생략 — 위 뱃지로 충분 */}
-                          {(top.memberName || et !== "meeting") && (
-                            <span className="font-medium block truncate">
-                              {top.memberName ?? "미배정"}
-                            </span>
-                          )}
+                          {(top.memberName || et !== "meeting") && (() => {
+                            const bIdx = top.branchId != null ? (branchIndexMap.get(top.branchId) ?? 0) : 0;
+                            return (
+                              <span className="font-medium flex items-baseline gap-0.5 min-w-0">
+                                <span className="truncate">{top.memberName ?? "미배정"}</span>
+                                {bIdx > 0 && (
+                                  <span className="text-[9px] text-orange-300/80 font-bold shrink-0 leading-none">{bIdx + 1}</span>
+                                )}
+                              </span>
+                            );
+                          })()}
                           <span className="opacity-70 flex items-center gap-0.5">
                             {top.scheduledTime}
                             {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
@@ -350,6 +363,7 @@ export default function SchedulePage() {
           hour={editing.hour}
           viewingAll={viewingAll}
           trainerId={trainerFilter}
+          branchList={branchList ?? []}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); refresh(); }}
         />
@@ -358,12 +372,13 @@ export default function SchedulePage() {
   );
 }
 
-function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved }: {
+function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClose, onSaved }: {
   cell: Slot[];
   date: string;
   hour: number;
   viewingAll: boolean;
   trainerId: number | null;
+  branchList: { id: number; name: string }[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -376,6 +391,13 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
   const target = oneOff ?? (fixed && !assigningToFixed ? fixed : null);
   const isNew = !target;
 
+  // 지점: 저장된 값 → localStorage 마지막값 → 첫 번째 지점(기본)
+  const defaultBranchId = (() => {
+    if (target?.branchId) return target.branchId;
+    try { const v = localStorage.getItem("lastBranchId"); if (v) return Number(v); } catch {}
+    return branchList[0]?.id ?? null;
+  })();
+
   const [memberId, setMemberId] = useState<number | null>(target?.memberId ?? null);
   const [memberInput, setMemberInput] = useState(target?.memberName ?? "");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -384,6 +406,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
   );
   const [isRecurring, setIsRecurring] = useState((target?.isRecurring ?? 0) === 1);
   const [eventType, setEventType] = useState<EventType>((target?.eventType ?? "pt") as EventType);
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(defaultBranchId);
   const [notes, setNotes] = useState(target?.notes ?? "");
   const [editingFixed, setEditingFixed] = useState(false);
 
@@ -440,6 +463,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
       return;
     }
     const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
+    // localStorage에 마지막 선택 지점 저장
+    try { if (selectedBranchId) localStorage.setItem("lastBranchId", String(selectedBranchId)); } catch {}
     if (isNew) {
       createMutation.mutate({
         memberId, memberName: freeText,
@@ -447,12 +472,14 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
         notes: notes || undefined,
         isRecurring: assigningToFixed ? false : isRecurring,
         eventType,
+        branchId: selectedBranchId ?? undefined,
         ...(trainerId ? { trainerId } : {}),
       });
     } else {
       updateMutation.mutate({
         scheduleId: target!.id, memberId, memberName: freeText ?? null,
         scheduledTime: time, notes: notes || null, isRecurring, eventType,
+        branchId: selectedBranchId,
       });
     }
   };
@@ -532,6 +559,29 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
             </button>
           ))}
         </div>
+
+        {/* 지점 선택 — 지점이 2개 이상일 때만 표시 */}
+        {branchList.length > 1 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground shrink-0">지점</span>
+            <div className="flex gap-1">
+              {branchList.map(b => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setSelectedBranchId(b.id)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    selectedBranchId === b.id
+                      ? "bg-orange-500/80 text-white"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {holiday && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-300">
