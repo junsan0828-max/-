@@ -3427,17 +3427,6 @@ const reviewerProcedure = t.procedure.use(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
-// 관리자 설정(plan_settings.sequence_lab_min_plan) 기반 이용 플랜 게이트 — 기본 'free'(전체 허용)
-async function seqEnsurePlanAllowed(userId: number) {
-  const row = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='sequence_lab_min_plan'`);
-  const minPlan = row.rows[0]?.value ?? "free";
-  if (minPlan === "free") return;
-  const planRow = await pool.query<{ plan: string }>(`SELECT COALESCE("plan",'free') AS plan FROM users WHERE id=$1`, [userId]);
-  if ((planRow.rows[0]?.plan ?? "free") === "free") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "시퀀스 랩은 PRO 플랜부터 이용할 수 있어요." });
-  }
-}
-
 const sequenceLabRouter = t.router({
   // ── 공유권 ──────────────────────────────────────────────────────────────
   myCredits: protectedProcedure.query(async ({ ctx }) => {
@@ -3492,7 +3481,6 @@ const sequenceLabRouter = t.router({
   createDraft: protectedProcedure.mutation(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    await seqEnsurePlanAllowed(ctx.user.id);
     const seqRow = await pool.query<{ id: number }>(`INSERT INTO sequences ("authorTrainerId") VALUES ($1) RETURNING id`, [trainerId]);
     const sequenceId = seqRow.rows[0].id;
     const verRow = await pool.query<{ id: number }>(
@@ -3563,7 +3551,6 @@ const sequenceLabRouter = t.router({
   submitForReview: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    await seqEnsurePlanAllowed(ctx.user.id);
     const cur = await pool.query<any>(
       `SELECT sv.*, s."sourceSequenceId" FROM sequence_versions sv JOIN sequences s ON s.id = sv."sequenceId" WHERE sv.id=$1`,
       [input.versionId]
@@ -3872,7 +3859,6 @@ const sequenceLabRouter = t.router({
   importSequence: protectedProcedure.input(z.object({ sequenceId: z.number() })).mutation(async ({ ctx, input }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    await seqEnsurePlanAllowed(ctx.user.id);
 
     const sequence = (await pool.query<any>(`SELECT * FROM sequences WHERE id=$1`, [input.sequenceId])).rows[0];
     if (!sequence || !sequence.publishedVersionId) throw new TRPCError({ code: "NOT_FOUND" });

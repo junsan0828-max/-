@@ -67,8 +67,6 @@ const FREE_IDS = new Set([
   "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
   "renewal_analysis", "ai_insights",
 ]);
-const PRO_IDS = new Set(["fitstep_plus", "fitstep_rec"]);
-const ELITE_IDS = new Set<string>([]);
 // contract_kakao는 이미 편집 모달(EContractManager 재사용)로 연결돼 있어 "준비 중"이 아님
 const COMING_SOON_IDS = new Set(["activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
 
@@ -106,25 +104,13 @@ const WS_DASH: WsDashCat[] = [
   },
 ];
 
-type FeatureLock = "available" | "pro" | "soon" | "core";
+type FeatureLock = "available" | "soon";
 
-function getFeatureLock(
-  id: string,
-  plan: string,
-  featureConfigs?: Record<string, string>,
-  addonUnlocks?: string[],
-): FeatureLock {
+// 현재 모든 기능이 무료다. 잠그는 것은 아직 만들지 않은 기능(준비 중)뿐이고,
+// 플랜·포인트로 막는 곳은 없다.
+function getFeatureLock(id: string, featureConfigs?: Record<string, string>): FeatureLock {
   const cfg = featureConfigs?.[id];
-  // 핵심(유료) 기능: 관리자가 지정, 개별 구매(1만원) 전까지 잠금 — 플랜 무관
-  if (cfg === "addon_premium") {
-    return addonUnlocks?.includes(id) ? "available" : "core";
-  }
-  // 출시 예정/숨김은 관리자 설정을 우선 반영 (설정이 없으면 카탈로그 기본값 사용)
   if (cfg === "coming_soon" || cfg === "hidden" || (!cfg && COMING_SOON_IDS.has(id))) return "soon";
-  if (FREE_IDS.has(id)) return "available";
-  // Elite 티어는 Pro로 흡수 — 엘리트 기능도 Pro 가입 시 개방
-  // (관리자가 '활성'으로 지정했더라도 준비상태와 플랜 게이트는 별개이므로 잠금 유지)
-  if (PRO_IDS.has(id) || ELITE_IDS.has(id)) return plan === "free" ? "pro" : "available";
   return "available";
 }
 
@@ -183,16 +169,6 @@ function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDas
     <button onClick={() => onClick(item.id)} className="flex flex-col items-center gap-1.5 group">
       <div className={`relative w-14 h-14 rounded-[18px] ${cat.bgCls} border ${cat.borderCls} flex items-center justify-center transition-all active:scale-90 ${unavailable ? "opacity-40" : ""}`}>
         <item.icon className={`h-5 w-5 ${cat.itemColorCls}`} />
-        {lock === "pro" && (
-          <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
-            <Lock className="h-2.5 w-2.5 text-muted-foreground" />
-          </div>
-        )}
-        {lock === "core" && (
-          <div className="absolute -top-1 -right-1 h-[18px] px-1 bg-violet-500 rounded-[5px] flex items-center justify-center">
-            <Lock className="h-2.5 w-2.5 text-white" />
-          </div>
-        )}
         {lock === "soon" && (
           <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
             <Clock className="h-2.5 w-2.5 text-muted-foreground" />
@@ -228,7 +204,7 @@ function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { c
             key={item.id}
             item={item}
             cat={cat}
-            lock={getFeatureLock(item.id, plan, featureConfigs, addonUnlocks)}
+            lock={getFeatureLock(item.id, featureConfigs)}
             onClick={(id) => onNavigate(id)}
           />
         ))}
@@ -1195,16 +1171,8 @@ function TrainerDashboard() {
     monthly_pnl: "/settlement?tab=analysis",
     sales_analysis: "/settlement?tab=analysis",
   };
-  const isProPlan = userPlan === "pro" || userPlan === "elite";
   const openFeature: WsNavFn = (featureId?: string) => {
     if (!featureId) return;
-    // PRO 전용 기능은 모달/전용페이지를 열기 전에 먼저 플랜을 확인 — 잠금 배지만 보이고
-    // 실제로는 열려버리는 일이 없도록 여기서 막는다 (전용페이지는 자체적으로도 한 번 더 확인함)
-    if (PRO_IDS.has(featureId) && !isProPlan) {
-      toast.error("PRO 플랜에서 이용할 수 있는 기능입니다.");
-      setLocation("/profile");
-      return;
-    }
     if (MODAL_FEATURE_IDS.has(featureId)) { setEditorModalId(featureId); return; }
     if (PAGE_FEATURE_ROUTES[featureId]) { setLocation(PAGE_FEATURE_ROUTES[featureId]); return; }
     setInfoFeatureId(featureId);

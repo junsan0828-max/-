@@ -4030,35 +4030,12 @@ function WorkshopContent() {
   const featureConfigs = wsStatus?.featureConfigs ?? {};
   const removedFeatures = wsStatus?.removedFeatures ?? [];
 
-  // 핵심(유료) 기능 개별 구매 목록
-  const addonUnlocks = wsStatus?.addonUnlocks ?? [];
-
-  // 유저 플랜에 포함된 기능 ID 세트 — Pro는 PRO+ELITE 전체 기능 개방 (Elite 티어는 Pro로 흡수)
-  const userPlan = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
-  const isProPlan = userPlan === "pro" || userPlan === "elite";
-  const userPlanFeatureIds = new Set([
-    ...TIER_ITEMS.free,
-    ...(isProPlan ? [...TIER_ITEMS.pro, ...TIER_ITEMS.elite] : []),
-  ]);
-
+  // 현재 모든 기능이 무료다. 플랜·포인트로 잠그는 곳은 없고,
+  // 아직 만들지 않은 기능(준비 중/숨김)만 막는다.
   const getEffectiveStatus = (item: WsItem) => {
     const cfg = (featureConfigs[item.id] ?? item.status) as WsItemStatus | "removed" | "hidden";
-    // 핵심(유료) 기능: 플랜 무관 잠금. 개별 구매(1만원)한 경우에만 활성
-    if (cfg === "addon_premium") {
-      return addonUnlocks.includes(item.id) ? "active" : "addon_premium";
-    }
-    // 출시 예정 / 숨김은 그대로
     if (cfg === "coming_soon" || cfg === "hidden") return cfg;
-    // elite trial(전체 체험) 중: 플랜 기능 강제 active
-    if (eliteTrialActive && ELITE_TRIAL_FEATURE_IDS.includes(item.id)) return "active";
-    // 유저 플랜에 포함된 기능은 removed 여부와 무관하게 항상 active
-    if (userPlanFeatureIds.has(item.id)) return "active";
-    // 명시적으로 제거된 기능 (플랜 외 기능만 해당)
-    if (removedFeatures.includes(item.id)) return "removed";
-    // 여기 도달했다는 건 준비는 됐지만(cfg가 coming_soon/hidden이 아님) 유저 플랜에
-    // 포함되지 않은 상위 플랜 전용 기능이라는 뜻 — 관리자가 '활성'으로 지정했더라도
-    // 플랜 잠금은 그대로 유지해야 한다 (준비상태와 플랜 게이트는 별개).
-    return "locked";
+    return "active";
   };
 
   const activeItems = WS_CATALOG.flatMap(cat =>
@@ -4103,12 +4080,6 @@ function WorkshopContent() {
       {(() => {
         const allItems = WS_CATALOG.flatMap(c => c.items);
 
-        // PRO 잠금: Free 유저에게 Pro(엘리트 흡수 포함) 기능 노출. 핵심(addon)·출시예정 제외
-        const proTierIds = [...TIER_ITEMS.pro, ...TIER_ITEMS.elite];
-        const lockedProItems = !isProPlan
-          ? proTierIds.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && getEffectiveStatus(i) !== "active" && getEffectiveStatus(i) !== "coming_soon" && getEffectiveStatus(i) !== "addon_premium")
-          : [];
-
         return (
           <div className="space-y-4 pb-6">
             <p className="text-xs text-muted-foreground">
@@ -4133,30 +4104,6 @@ function WorkshopContent() {
               );
             })}
 
-            {/* PRO 잠금 섹션 (Free 유저) */}
-            {lockedProItems.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <div className="flex items-center gap-2 px-1 py-1.5 border-b border-blue-200/50 dark:border-blue-500/20">
-                  <Lock className="h-3.5 w-3.5 text-blue-500" />
-                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">PRO 플랜 기능</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">{lockedProItems.length}개</span>
-                </div>
-                {lockedProItems.map(item => (
-                  <LockedFeatureRow key={item.id} item={item} planLabel="PRO" planColor="bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400" />
-                ))}
-                <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">PRO로 업그레이드</p>
-                    <p className="text-[12px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
-                      연 {(planInfo?.prices?.pro ?? 69000).toLocaleString()}원으로 전체 기능 개방
-                    </p>
-                  </div>
-                  <a href="/profile" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shrink-0">
-                    업그레이드
-                  </a>
-                </div>
-              </div>
-            )}
           </div>
         );
       })()}
