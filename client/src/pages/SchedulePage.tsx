@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { holidayName } from "../lib/holidays";
@@ -166,58 +166,67 @@ export default function SchedulePage() {
       {isLoading ? (
         <div className="text-center text-sm text-muted-foreground py-10">불러오는 중...</div>
       ) : (
-        <div className="overflow-x-auto -mx-4 px-4">
-          <div className="min-w-[480px]">
-            {/* 요일 헤더 */}
-            <div className="grid grid-cols-[44px_repeat(6,1fr)] gap-1 mb-1">
-              <div />
-              {weekDates.map((d, i) => {
-                const ymd = toYmd(d);
-                const isToday = ymd === todayYmd;
-                const hol = holidayName(ymd);
-                return (
-                  <div
-                    key={i}
-                    className={`text-center text-xs py-1 rounded-lg ${
-                      hol ? "bg-red-500/15 text-red-300 font-semibold"
-                        : isToday ? "bg-primary/15 text-primary font-semibold"
-                        : "text-muted-foreground"
-                    }`}
-                  >
+        /* 단일 flat 그리드: overflow-auto + sticky로 요일헤더(위)·시간열(왼쪽) 고정 */
+        <div
+          className="overflow-auto rounded-lg"
+          style={{ maxHeight: "calc(100dvh - 210px)" }}
+        >
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: "36px repeat(6, minmax(46px, 1fr))",
+              gap: "3px",
+            }}
+          >
+            {/* 좌상 코너 */}
+            <div className="sticky top-0 left-0 z-30 bg-background" />
+
+            {/* 요일 헤더 (sticky top) */}
+            {weekDates.map((d, i) => {
+              const ymd = toYmd(d);
+              const isToday = ymd === todayYmd;
+              const hol = holidayName(ymd);
+              return (
+                <div key={i} className="sticky top-0 z-20 bg-background pb-0.5">
+                  <div className={`text-center text-xs py-1 rounded-lg ${
+                    hol ? "bg-red-500/15 text-red-300 font-semibold"
+                      : isToday ? "bg-primary/15 text-primary font-semibold"
+                      : "text-muted-foreground"
+                  }`}>
                     {WEEKDAYS[i]}
                     <span className="block text-[10px] opacity-70">{d.getDate()}</span>
                     {hol && <span className="block text-[9px] leading-tight truncate px-0.5">{hol}</span>}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
 
             {/* 시간 행 */}
             {visibleHours.map(h => (
-              <div key={h} className="grid grid-cols-[44px_repeat(6,1fr)] gap-1 mb-1">
-                <div className="text-[11px] text-muted-foreground text-right pr-1 pt-2 tabular-nums">
+              <Fragment key={h}>
+                {/* 시간 레이블 (sticky left) */}
+                <div className="sticky left-0 z-10 bg-background text-[11px] text-muted-foreground text-right pr-1 pt-2 tabular-nums leading-none self-start">
                   {String(h).padStart(2, "0")}시
                 </div>
+
                 {weekDates.map((d, wd) => {
                   const cell = grid[`${wd}-${h}`] ?? [];
                   const top = cell[0];
                   const open = isOpen(wd, h);
                   const hol = holidayName(toYmd(d));
 
-                  // 영업시간이 아니면 잠근다. 단 이미 잡힌 수업이 있으면 볼 수 있게 남겨둔다.
                   if (!open && !top) {
-                    return <div key={wd} className="min-h-[44px] rounded-lg bg-muted/20 border border-border/30" />;
+                    return <div key={wd} className="min-h-[42px] rounded-lg bg-muted/20 border border-border/30" />;
                   }
-                  // 전체 보기에서는 어느 트레이너 일정인지 정할 수 없으므로 빈 칸을 잠근다.
                   if (viewingAll && !top) {
-                    return <div key={wd} className="min-h-[44px] rounded-lg border border-border/30 border-dashed" />;
+                    return <div key={wd} className="min-h-[42px] rounded-lg border border-border/30 border-dashed" />;
                   }
 
                   return (
                     <button
                       key={wd}
                       onClick={() => setEditing({ weekday: wd, hour: h })}
-                      className={`min-h-[44px] rounded-lg border text-[11px] px-1 py-1 text-left transition-colors ${
+                      className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-colors ${
                         top
                           ? top.isRecurring
                             ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
@@ -235,7 +244,7 @@ export default function SchedulePage() {
                             </span>
                           )}
                           <span className="font-medium block truncate">
-                            {top.memberName ?? "회원 미배정"}
+                            {top.memberName ?? "미배정"}
                           </span>
                           <span className="opacity-70 flex items-center gap-0.5">
                             {top.scheduledTime}
@@ -251,7 +260,7 @@ export default function SchedulePage() {
                     </button>
                   );
                 })}
-              </div>
+              </Fragment>
             ))}
           </div>
         </div>
