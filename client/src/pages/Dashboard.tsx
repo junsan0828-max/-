@@ -496,8 +496,8 @@ function TrainerDashboard() {
       iconColor: "text-yellow-400",
       bg: "bg-yellow-500/10 border-yellow-500/20",
       dot: "bg-yellow-400",
-      action: undefined as (() => void) | undefined,
-      actionLabel: undefined as string | undefined,
+      action: () => { setAlertModalOpen(false); setLocation("/members?filter=expiring"); },
+      actionLabel: "회원 보기",
     } : null,
     unpaid?.length ? {
       key: "unpaid",
@@ -507,8 +507,8 @@ function TrainerDashboard() {
       iconColor: "text-orange-400",
       bg: "bg-orange-500/10 border-orange-500/20",
       dot: "bg-orange-400",
-      action: undefined as (() => void) | undefined,
-      actionLabel: undefined as string | undefined,
+      action: () => { setAlertModalOpen(false); setLocation("/members?filter=unpaid"); },
+      actionLabel: "회원 보기",
     } : null,
     longAbsent?.length ? {
       key: "absent",
@@ -518,8 +518,8 @@ function TrainerDashboard() {
       iconColor: "text-red-400",
       bg: "bg-red-500/10 border-red-500/20",
       dot: "bg-red-400",
-      action: undefined as (() => void) | undefined,
-      actionLabel: undefined as string | undefined,
+      action: () => { setAlertModalOpen(false); setLocation("/members?filter=long_absent"); },
+      actionLabel: "회원 보기",
     } : null,
     monthExpiring?.length ? {
       key: "monthExpiring",
@@ -529,8 +529,8 @@ function TrainerDashboard() {
       iconColor: "text-purple-400",
       bg: "bg-purple-500/10 border-purple-500/20",
       dot: "bg-purple-400",
-      action: () => { setAlertModalOpen(false); setMonthExpiringOpen(true); },
-      actionLabel: "목록 보기",
+      action: () => { setAlertModalOpen(false); setLocation("/members?filter=low_sessions"); },
+      actionLabel: "회원 보기",
     } : null,
     rollover?.length ? {
       key: "rollover",
@@ -605,19 +605,12 @@ function TrainerDashboard() {
                     <p className="text-xs text-muted-foreground">{item.desc}</p>
                   </div>
                 </div>
-                {item.action && item.actionLabel ? (
+                {item.action && (
                   <button
                     onClick={item.action}
                     className={`text-xs px-2.5 py-1 rounded-md font-medium ${item.iconColor} bg-background/60 border border-current/20 hover:bg-background/80 transition-colors shrink-0`}
                   >
                     {item.actionLabel}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { setAlertModalOpen(false); setLocation("/members"); }}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium ${item.iconColor} bg-background/60 border border-current/20 hover:bg-background/80 transition-colors shrink-0`}
-                  >
-                    회원 보기
                   </button>
                 )}
               </div>

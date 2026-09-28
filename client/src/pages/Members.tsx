@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { fmtPhone } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   UserPlus, ChevronRight, Search, AlertCircle, Dumbbell, Clock, XCircle,
-  CheckSquare, Square, CalendarPlus, X,
+  CheckSquare, Square, CalendarPlus, X, UserX,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
@@ -23,16 +23,27 @@ const gradeLabels: Record<string, string> = {
 
 type StatusFilter = "all" | "active" | "paused" | "inactive" | "ended";
 type GradeFilter = "all" | "basic" | "premium" | "vip";
-type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
+type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired" | "long_absent";
 
 const EXTEND_PRESETS = [30, 60, 90, 180];
 
 export default function Members() {
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
+  const urlFilter = new URLSearchParams(searchString).get("filter") as SpecialFilter | null;
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>("all");
-  const [specialFilter, setSpecialFilter] = useState<SpecialFilter>("none");
+  const [specialFilter, setSpecialFilter] = useState<SpecialFilter>(
+    urlFilter && ["unpaid","low_sessions","expiring","expired","long_absent"].includes(urlFilter) ? urlFilter : "none"
+  );
+
+  useEffect(() => {
+    if (urlFilter && ["unpaid","low_sessions","expiring","expired","long_absent"].includes(urlFilter)) {
+      setSpecialFilter(urlFilter);
+    }
+  }, [urlFilter]);
 
   // 다중 선택 모드
   const [selectMode, setSelectMode] = useState(false);
@@ -45,6 +56,7 @@ export default function Members() {
 
   const { data: members, isLoading, refetch } = trpc.members.list.useQuery();
   const { data: ptPackages } = trpc.pt.list.useQuery();
+  const { data: longAbsentList } = trpc.members.getLongAbsent.useQuery({ days: 14 });
 
   const bulkExtendMutation = trpc.members.bulkExtend.useMutation({
     onSuccess: (data) => {
@@ -71,6 +83,7 @@ export default function Members() {
   const unpaidSet = new Set<number>(
     ptPackages?.filter((pkg) => pkg.unpaidAmount && pkg.unpaidAmount > 0).map((pkg) => pkg.memberId) ?? []
   );
+  const longAbsentSet = new Set<number>(longAbsentList?.map((m) => m.id) ?? []);
 
   const counts = {
     unpaid: members?.filter((m) => unpaidSet.has(m.id)).length ?? 0,
@@ -86,6 +99,7 @@ export default function Members() {
       const d = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
       return d !== null && d < 0;
     }).length ?? 0,
+    longAbsent: longAbsentList?.length ?? 0,
   };
 
   const filtered = members?.filter((m) => {
@@ -109,6 +123,8 @@ export default function Members() {
       matchSpecial = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
     else if (specialFilter === "expired")
       matchSpecial = daysLeft !== null && daysLeft < 0;
+    else if (specialFilter === "long_absent")
+      matchSpecial = longAbsentSet.has(m.id);
 
     return matchSearch && matchStatus && matchGrade && matchSpecial;
   });
@@ -224,6 +240,14 @@ export default function Members() {
             icon: <XCircle className="h-3.5 w-3.5" />,
             activeClass: "bg-red-500/20 text-red-400 border-red-500/40",
             inactiveClass: "text-red-400/70 border-red-500/20 hover:border-red-500/40",
+          },
+          {
+            key: "long_absent" as SpecialFilter,
+            label: "장기 미출석 (14일)",
+            count: counts.longAbsent,
+            icon: <UserX className="h-3.5 w-3.5" />,
+            activeClass: "bg-rose-500/20 text-rose-400 border-rose-500/40",
+            inactiveClass: "text-rose-400/70 border-rose-500/20 hover:border-rose-500/40",
           },
         ].map((f) => (
           <button
