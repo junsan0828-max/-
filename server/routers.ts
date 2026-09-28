@@ -2498,12 +2498,13 @@ const ptRouter = t.router({
 });
 
 // ─── Schedules ────────────────────────────────────────────────────────────────
-// 수업 시간표 베타 허용 계정. Railway 환경변수 SCHEDULE_BETA_USERS 에 아이디를 쉼표로 적는다.
-// (예: "trainer1" / 여러 명은 "trainer1,kim" / 전원 개방은 "all")
-// 미설정이면 아무도 못 쓴다 — 실수로 전원에게 열리는 일이 없도록.
+// 수업 스케줄 베타 허용 계정. 기본값은 trainer1(대표) — 배포만 하면 바로 쓸 수 있다.
+// 나중에 다른 선생님께 열 때는 Railway 환경변수 SCHEDULE_BETA_USERS 만 바꾸면 되고
+// (예: "trainer1,kim", 전원은 "all") 그때는 배포가 필요 없다.
+const SCHEDULE_BETA_DEFAULT = "trainer1";
 function canUseSchedule(user?: { id: number; username?: string } | null): boolean {
   if (!user) return false;
-  const raw = (process.env.SCHEDULE_BETA_USERS ?? "").trim();
+  const raw = (process.env.SCHEDULE_BETA_USERS ?? SCHEDULE_BETA_DEFAULT).trim();
   if (!raw) return false;
   if (raw.toLowerCase() === "all") return true;
   const allow = raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
