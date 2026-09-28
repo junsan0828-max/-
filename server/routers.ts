@@ -2570,7 +2570,8 @@ const schedulesRouter = t.router({
 
       return db
         .select({
-          id: schedules.id, memberId: schedules.memberId, memberName: members.name,
+          id: schedules.id, memberId: schedules.memberId,
+          memberName: sql<string | null>`COALESCE(${members.name}, ${schedules.memberName})`,
           trainerId: schedules.trainerId, trainerName: trainers.trainerName,
           scheduledDate: schedules.scheduledDate, scheduledTime: schedules.scheduledTime,
           notes: schedules.notes, status: schedules.status,
@@ -2586,12 +2587,13 @@ const schedulesRouter = t.router({
   create: protectedProcedure
     .input(z.object({
       memberId: z.number().nullable().optional(),
+      memberName: z.string().optional(),
       scheduledDate: z.string(),
       scheduledTime: z.string().optional(),
       notes: z.string().optional(),
       isRecurring: z.boolean().default(false),
       branchId: z.number().nullable().optional(),
-      trainerId: z.number().optional(),   // 관리자가 특정 트레이너 일정을 넣을 때만
+      trainerId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
@@ -2602,6 +2604,7 @@ const schedulesRouter = t.router({
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "어느 트레이너의 일정인지 지정해야 합니다." });
       const [row] = await db.insert(schedules).values({
         memberId: input.memberId ?? null,
+        memberName: input.memberId ? null : (input.memberName ?? null),
         trainerId,
         scheduledDate: input.scheduledDate,
         scheduledTime: input.scheduledTime ?? null,
@@ -2616,6 +2619,7 @@ const schedulesRouter = t.router({
     .input(z.object({
       scheduleId: z.number(),
       memberId: z.number().nullable().optional(),
+      memberName: z.string().nullable().optional(),
       scheduledDate: z.string().optional(),
       scheduledTime: z.string().optional(),
       notes: z.string().nullable().optional(),
@@ -2625,9 +2629,13 @@ const schedulesRouter = t.router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);
-      const { scheduleId, isRecurring, ...rest } = input;
+      const { scheduleId, isRecurring, memberId, memberName, ...rest } = input;
       const patch: Record<string, unknown> = { ...rest };
       if (isRecurring !== undefined) patch.isRecurring = isRecurring ? 1 : 0;
+      if (memberId !== undefined) {
+        patch.memberId = memberId;
+        patch.memberName = memberId ? null : (memberName ?? null);
+      }
       await db.update(schedules).set(patch).where(eq(schedules.id, scheduleId));
       return { success: true };
     }),
@@ -2766,7 +2774,7 @@ const schedulesRouter = t.router({
       .select({
         id: schedules.id,
         memberId: schedules.memberId,
-        memberName: members.name,
+        memberName: sql<string | null>`COALESCE(${members.name}, ${schedules.memberName})`,
         trainerId: schedules.trainerId,
         trainerName: trainers.trainerName,
         scheduledTime: schedules.scheduledTime,

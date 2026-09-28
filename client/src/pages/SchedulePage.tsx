@@ -291,6 +291,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
   const isNew = !target;
 
   const [memberId, setMemberId] = useState<number | null>(target?.memberId ?? null);
+  const [memberInput, setMemberInput] = useState(target?.memberName ?? "");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [time, setTime] = useState(
     target?.scheduledTime ?? fixed?.scheduledTime ?? `${String(hour).padStart(2, "0")}:00`
   );
@@ -299,6 +301,24 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
   const [editingFixed, setEditingFixed] = useState(false);
 
   const { data: memberList } = trpc.members.list.useQuery(undefined, { enabled: !viewingAll });
+
+  const suggestions = memberInput.trim().length >= 1
+    ? (memberList ?? []).filter((m: any) =>
+        m.name.includes(memberInput.trim()) || m.name.replace(/\s/g, "").includes(memberInput.trim().replace(/\s/g, ""))
+      ).slice(0, 6)
+    : [];
+
+  const handleMemberInput = (val: string) => {
+    setMemberInput(val);
+    setMemberId(null);
+    setShowSuggestions(true);
+  };
+
+  const selectSuggestion = (m: any) => {
+    setMemberId(m.id);
+    setMemberInput(m.name);
+    setShowSuggestions(false);
+  };
 
   const createMutation = trpc.schedules.create.useMutation({
     onSuccess: () => { toast.success(assigningToFixed ? "이 주 수업이 배정되었습니다" : "수업이 추가되었습니다"); onSaved(); },
@@ -324,18 +344,19 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
       toast.error(`토요일은 ${SATURDAY_CLOSE}시까지만 운영합니다.`);
       return;
     }
+    const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
     if (isNew) {
-      // 고정 칸에 배정하는 경우엔 반복이 아니라 그 날짜 1회로 만든다.
       createMutation.mutate({
-        memberId, scheduledDate: date, scheduledTime: time,
+        memberId, memberName: freeText,
+        scheduledDate: date, scheduledTime: time,
         notes: notes || undefined,
         isRecurring: assigningToFixed ? false : isRecurring,
         ...(trainerId ? { trainerId } : {}),
       });
     } else {
       updateMutation.mutate({
-        scheduleId: target!.id, memberId, scheduledTime: time,
-        notes: notes || null, isRecurring,
+        scheduleId: target!.id, memberId, memberName: freeText ?? null,
+        scheduledTime: time, notes: notes || null, isRecurring,
       });
     }
   };
@@ -422,18 +443,35 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, onClose, onSaved 
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 relative">
           <label className="text-xs text-muted-foreground">회원</label>
-          <select
-            value={memberId ?? ""}
-            onChange={e => setMemberId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
-          >
-            <option value="">미배정 (시간만 잡아두기)</option>
-            {(memberList ?? []).map((m: any) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+          <input
+            type="text"
+            value={memberInput}
+            onChange={e => handleMemberInput(e.target.value)}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            placeholder="이름 입력 (없으면 빈칸)"
+            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {memberId && (
+            <span className="absolute right-3 top-7 text-xs text-primary">✓ 회원</span>
+          )}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-10 left-0 right-0 bg-card border border-border rounded-lg shadow-lg mt-0.5 overflow-hidden">
+              {suggestions.map((m: any) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onMouseDown={() => selectSuggestion(m)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
+                >
+                  <span>{m.name}</span>
+                  <span className="text-xs text-muted-foreground">{m.status === "active" ? "활성" : "종료"}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {!assigningToFixed && (

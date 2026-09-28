@@ -140,6 +140,7 @@ export const schedules = pgTable("schedules", {
   id: serial("id").primaryKey(),
   // 고정 슬롯(isRecurring=1)은 시간만 잡아두고 회원은 매주 따로 배정하므로 비어 있을 수 있다.
   memberId: integer("memberId"),
+  memberName: text("memberName"),   // memberId 없을 때 자유 입력 이름
   trainerId: integer("trainerId").notNull(),
   // 고정 슬롯이면 반복 시작일. 요일은 이 날짜에서 계산한다.
   scheduledDate: text("scheduledDate").notNull(),
