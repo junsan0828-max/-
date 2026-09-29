@@ -84,10 +84,8 @@ const POSITION_TASKS: Record<string, { daily: string[]; weekly: string[]; monthl
 };
 
 const defaultTaskForm = {
-  title: "", description: "", category: "기타",
-  priority: "normal", taskType: "daily",
-  taskDate: new Date().toISOString().substring(0, 10),
-  dueTime: "", isRecurring: 0,
+  title: "",
+  priority: "normal",
 };
 
 // assignTarget: "self" | "group:all" | "group:trainer" | "group:consultant" | number(userId)
@@ -103,7 +101,7 @@ export default function MyWorkPage() {
   const [showNotices, setShowNotices] = useState(true);
   const [showPosition, setShowPosition] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [taskForm, setTaskForm] = useState(defaultTaskForm);
+  const [taskForm, setTaskForm] = useState<{ title: string; priority: string }>(defaultTaskForm);
   const [assignTarget, setAssignTarget] = useState<AssignTarget>("self");
   const [selectedNotice, setSelectedNotice] = useState<any>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
@@ -115,11 +113,11 @@ export default function MyWorkPage() {
   const completeMutation   = trpc.gym.work.tasks.complete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
   const uncompleteMutation = trpc.gym.work.tasks.uncomplete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
   const createMutation     = trpc.gym.work.tasks.create.useMutation({
-    onSuccess: () => { toast.success("업무가 추가되었습니다"); utils.gym.work.tasks.invalidate(); setShowAdd(false); setTaskForm(defaultTaskForm); setAssignTarget("self"); },
+    onSuccess: () => { toast.success("업무가 추가되었습니다"); utils.gym.work.tasks.invalidate(); setShowAdd(false); setTaskForm({ title: "", priority: "normal" }); setAssignTarget("self"); },
     onError: (e) => toast.error(e.message),
   });
   const createForGroupMutation = trpc.gym.work.tasks.createForGroup.useMutation({
-    onSuccess: () => { toast.success("업무가 배정되었습니다"); utils.gym.work.tasks.invalidate(); setShowAdd(false); setTaskForm(defaultTaskForm); setAssignTarget("self"); },
+    onSuccess: () => { toast.success("업무가 배정되었습니다"); utils.gym.work.tasks.invalidate(); setShowAdd(false); setTaskForm({ title: "", priority: "normal" }); setAssignTarget("self"); },
     onError: (e) => toast.error(e.message),
   });
   const deleteMutation   = trpc.gym.work.tasks.delete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
@@ -152,10 +150,12 @@ export default function MyWorkPage() {
     if (!user) return;
 
     const base = {
-      ...taskForm,
-      taskDate: taskForm.isRecurring ? undefined : taskForm.taskDate,
-      dueTime: taskForm.dueTime || undefined,
-      description: taskForm.description || undefined,
+      title: taskForm.title,
+      priority: taskForm.priority,
+      taskType: "daily" as const,
+      category: "기타",
+      isRecurring: 0,
+      taskDate: new Date().toISOString().substring(0, 10),
     };
 
     if (typeof assignTarget === "number") {
@@ -423,91 +423,42 @@ export default function MyWorkPage() {
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center"
           style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
           <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
-            style={{ maxHeight: 'calc(85svh - env(safe-area-inset-bottom))' }}>
+            style={{ maxHeight: 'calc(60svh - env(safe-area-inset-bottom))' }}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <h2 className="font-semibold text-foreground">업무 추가</h2>
-              <button onClick={() => { setShowAdd(false); setTaskForm(defaultTaskForm); setAssignTarget("self"); }}
+              <button onClick={() => { setShowAdd(false); setTaskForm({ title: "", priority: "normal" }); setAssignTarget("self"); }}
                 className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
-            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+            <div className="p-4 space-y-4">
               <div>
-                <label className="text-xs text-muted-foreground">업무 제목 *</label>
-                <input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
+                <label className="text-xs text-muted-foreground">업무 내용 *</label>
+                <textarea
+                  value={taskForm.title}
+                  onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="예: 오늘 상담 예약 확인"
-                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">업무 구분</label>
-                <div className="flex gap-1 mt-1">
-                  {(["daily", "weekly", "monthly"] as const).map(t => (
-                    <button key={t} type="button" onClick={() => setTaskForm(f => ({ ...f, taskType: t }))}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${taskForm.taskType === t ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {t === "daily" ? "일일" : t === "weekly" ? "주간" : "월간"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">카테고리</label>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {CATEGORIES.map(c => (
-                    <button key={c} type="button" onClick={() => setTaskForm(f => ({ ...f, category: c }))}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${taskForm.category === c ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {c}
-                    </button>
-                  ))}
-                </div>
+                  rows={3}
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none resize-none" />
               </div>
 
               <div>
                 <label className="text-xs text-muted-foreground">우선순위</label>
                 <div className="flex gap-2 mt-1">
-                  {[["high", "높음"], ["normal", "보통"], ["low", "낮음"]].map(([v, l]) => (
-                    <button key={v} type="button" onClick={() => setTaskForm(f => ({ ...f, priority: v }))}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${taskForm.priority === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {l}
-                    </button>
-                  ))}
+                  <button type="button" onClick={() => setTaskForm(f => ({ ...f, priority: "high" }))}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${taskForm.priority === "high" ? "bg-red-500 text-white border-red-500" : "bg-background border-border text-muted-foreground"}`}>
+                    긴급
+                  </button>
+                  <button type="button" onClick={() => setTaskForm(f => ({ ...f, priority: "normal" }))}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${taskForm.priority === "normal" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                    보통
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <label className="text-xs text-muted-foreground">반복 업무</label>
-                <button type="button" onClick={() => setTaskForm(f => ({ ...f, isRecurring: f.isRecurring ? 0 : 1 }))}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${taskForm.isRecurring ? "bg-primary" : "bg-muted"}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${taskForm.isRecurring ? "translate-x-5" : "translate-x-0.5"}`} />
-                </button>
-                <span className="text-xs text-muted-foreground">{taskForm.isRecurring ? "매번 자동 반복" : "일회성"}</span>
-              </div>
-
-              {!taskForm.isRecurring && (
-                <div>
-                  <label className="text-xs text-muted-foreground">날짜</label>
-                  <input type="date" value={taskForm.taskDate} onChange={e => setTaskForm(f => ({ ...f, taskDate: e.target.value }))}
-                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs text-muted-foreground">마감 시간 (선택)</label>
-                <input type="time" value={taskForm.dueTime} onChange={e => setTaskForm(f => ({ ...f, dueTime: e.target.value }))}
-                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">메모 (선택)</label>
-                <textarea value={taskForm.description} onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))} rows={2}
-                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none resize-none" />
-              </div>
-
-              {/* 담당자 배정 (팀장/매니저/관리자만) */}
               {canAssign && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
                     <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                    <label className="text-xs text-muted-foreground">담당자 배정</label>
+                    <label className="text-xs text-muted-foreground">담당자</label>
                   </div>
                   <select
                     value={typeof assignTarget === "number" ? String(assignTarget) : assignTarget}

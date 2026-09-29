@@ -3675,6 +3675,10 @@ const noticesWorkRouter = t.router({
 
     await db.execute(sql`ALTER TABLE notice_reads ADD COLUMN IF NOT EXISTS "completedAt" TEXT`);
 
+    // 1개월(30일) 지난 공지 자동 삭제
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    await db.delete(notices).where(sql`${notices.createdAt} < ${thirtyDaysAgo}`);
+
     const allNotices = await db.select({ notice: notices, authorName: users.username })
       .from(notices).leftJoin(users, eq(notices.authorId, users.id)).orderBy(desc(notices.createdAt));
 
