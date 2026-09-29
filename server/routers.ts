@@ -5846,7 +5846,7 @@ const dashboardRouter = t.router({
     return getDashboardStats(trainerId);
   }),
 
-  // 오늘 수업 완료/전체 통계
+  // 오늘 수업 완료/전체 통계 (고정 반복 포함)
   todayScheduleSummary: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
@@ -5854,19 +5854,59 @@ const dashboardRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
     const today = kstDate();
-    const rows = await db
-      .select({ status: schedules.status })
+    const todayDow = (new Date(today + "T00:00:00").getDay() + 6) % 7; // 월=0
+
+    // 오늘 one-off 수업
+    const oneOffs = await db
+      .select({ status: schedules.status, scheduledTime: schedules.scheduledTime })
       .from(schedules)
-      .where(
-        and(
-          eq(schedules.trainerId, trainerId),
-          eq(schedules.scheduledDate, today),
-          eq(schedules.isRecurring, 0),
-        )
-      );
-    const total = rows.length;
-    const done = rows.filter(r => r.status === "done").length;
-    return { total, done };
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0)));
+
+    // 오늘 요일에 해당하는 고정 수업 (시작일 ≤ 오늘)
+    const recurringAll = await db
+      .select({ status: schedules.status, scheduledTime: schedules.scheduledTime, scheduledDate: schedules.scheduledDate })
+      .from(schedules)
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today)));
+
+    const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
+    const recurringToday = recurringAll
+      .filter(r => (new Date(r.scheduledDate + "T00:00:00").getDay() + 6) % 7 === todayDow)
+      .filter(r => !oneOffTimes.has(r.scheduledTime)); // one-off가 덮은 슬롯 제외
+
+    const all = [...oneOffs, ...recurringToday];
+    return { total: all.length, done: all.filter(r => r.status === "done").length };
+  }),
+
+  // 오늘 수업 목록 (팝업용) — 고정 반복 포함, 회원명/시간/상태
+  todayScheduleList: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const today = kstDate();
+    const todayDow = (new Date(today + "T00:00:00").getDay() + 6) % 7;
+
+    const cols = {
+      id: schedules.id, status: schedules.status, scheduledTime: schedules.scheduledTime,
+      memberName: schedules.memberName, memberId: schedules.memberId,
+      isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate,
+      eventType: schedules.eventType, notes: schedules.notes,
+    } as const;
+
+    const oneOffs = await db.select(cols).from(schedules)
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0)));
+
+    const recurringAll = await db.select(cols).from(schedules)
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today)));
+
+    const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
+    const recurringToday = recurringAll
+      .filter(r => (new Date(r.scheduledDate + "T00:00:00").getDay() + 6) % 7 === todayDow)
+      .filter(r => !oneOffTimes.has(r.scheduledTime));
+
+    return [...oneOffs, ...recurringToday]
+      .sort((a, b) => (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? ""));
   }),
 
   // 최근 6개월 월별 회원 수 / 출석 수 추이
