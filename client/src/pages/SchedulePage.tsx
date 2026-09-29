@@ -452,9 +452,14 @@ export default function SchedulePage() {
                             {top.scheduledTime}
                             {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
                           </span>
-                          {cell.length > 1 && (
-                            <span className="opacity-60">+{cell.length - 1}</span>
-                          )}
+                          {(() => {
+                            // one-off가 커버하는 반복 템플릿은 추가 카운트에서 제외
+                            const extra = cell.filter(s =>
+                              s !== top &&
+                              !(s.isRecurring === 1 && top?.isRecurring === 0 && s.scheduledTime === top?.scheduledTime)
+                            ).length;
+                            return extra > 0 ? <span className="opacity-60">+{extra}</span> : null;
+                          })()}
                         </>
                       ) : (
                         <Plus className="h-3 w-3 text-muted-foreground/40" />
