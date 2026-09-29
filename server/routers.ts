@@ -533,6 +533,8 @@ const membersRouter = t.router({
         name: members.name,
         phone: members.phone,
         renewalIntent: members.renewalIntent,
+        renewalIntentDate: members.renewalIntentDate,
+        renewalIntentAt: members.renewalIntentAt,
         unpaidAmount: ptPackages.unpaidAmount,
         packageName: ptPackages.packageName,
       })
@@ -961,7 +963,7 @@ const membersRouter = t.router({
       const cutoff = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
       const allMembers = await db
-        .select({ id: members.id, name: members.name, phone: members.phone, renewalIntent: members.renewalIntent })
+        .select({ id: members.id, name: members.name, phone: members.phone, renewalIntent: members.renewalIntent, renewalIntentDate: members.renewalIntentDate, renewalIntentAt: members.renewalIntentAt })
         .from(members)
         .where(and(eq(members.trainerId, trainerId), eq(members.status, "active"), hasPtPackage));
 
@@ -1067,7 +1069,7 @@ const membersRouter = t.router({
       const today = kstDate();
       const monthEnd = `${today.substring(0, 7)}-31`; // 문자열 비교라 31로 둬도 그 달 안이면 안전
 
-      const activeMembers = await db.select({ id: members.id, name: members.name, phone: members.phone, renewalIntent: members.renewalIntent })
+      const activeMembers = await db.select({ id: members.id, name: members.name, phone: members.phone, renewalIntent: members.renewalIntent, renewalIntentDate: members.renewalIntentDate, renewalIntentAt: members.renewalIntentAt })
         .from(members)
         .where(and(eq(members.trainerId, tid), eq(members.status, "active")));
       if (activeMembers.length === 0) return [];
@@ -1103,6 +1105,8 @@ const membersRouter = t.router({
           name: mem?.name ?? "-",
           phone: mem?.phone ?? null,
           renewalIntent: mem?.renewalIntent ?? null,
+          renewalIntentDate: mem?.renewalIntentDate ?? null,
+          renewalIntentAt: mem?.renewalIntentAt ?? null,
           packageName: p.packageName,
           remaining: (p.totalSessions ?? 0) - (p.usedSessions ?? 0),
           expiryDate: p.expiryDate,
@@ -1115,7 +1119,13 @@ const membersRouter = t.router({
   setRenewalIntent: protectedProcedure
     // 이월은 읽는 쪽(carryOver 집계)에 이미 있는데 여기 enum에만 빠져 있어서,
     // 트레이너가 이월 버튼을 눌러도 저장되지 않고 관리자 이월 집계는 늘 0이었다.
-    .input(z.object({ memberId: z.number(), intent: z.enum(["재등록예정", "이월", "이탈예정", "연락함", "납부약속", "복귀예정", "수업집중", "확인함", "이탈"]).nullable() }))
+    .input(z.object({
+      memberId: z.number(),
+      intent: z.enum(["재등록확정", "상담예정", "종료예정", "납부완료", "납부일확정", "미응답", "복귀일확정", "관리필요", "이탈확정", "이월", "소진", "일정확인필요",
+        // 기존 호환
+        "재등록예정", "이탈예정", "연락함", "납부약속", "복귀예정", "수업집중", "확인함", "이탈"]).nullable(),
+      intentDate: z.string().nullable().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1127,7 +1137,11 @@ const membersRouter = t.router({
         throw new TRPCError({ code: "FORBIDDEN" });
 
       await db.update(members)
-        .set({ renewalIntent: input.intent ?? null })
+        .set({
+          renewalIntent: input.intent ?? null,
+          renewalIntentDate: input.intent ? (input.intentDate ?? null) : null,
+          renewalIntentAt: input.intent ? kstDate() : null,
+        })
         .where(eq(members.id, input.memberId));
       return { success: true };
     }),

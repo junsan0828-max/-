@@ -1781,6 +1781,9 @@ async function initDatabase() {
     console.error("매출 유입채널 백필 오류:", e);
   }
 
+  await pool.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntentDate" TEXT`);
+  await pool.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntentAt" TEXT`);
+
   console.log("✅ 테이블 준비 완료");
 
   // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────

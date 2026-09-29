@@ -443,23 +443,33 @@ function TrainerDashboard() {
   const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({});
   const [rolloverOpen, setRolloverOpen] = useState(false);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
-  // 낙관적 intent 업데이트: 서버 응답 전에도 즉시 UI 반영
-  const [localIntents, setLocalIntents] = useState<Map<number, string>>(new Map());
+  // 낙관적 업데이트: {memberId → {intent, intentDate}}
+  const [localIntents, setLocalIntents] = useState<Map<number, { intent: string; intentDate?: string }>>(new Map());
+  // 날짜 선택 대기: {memberId, actionValue}
+  const [pendingDatePick, setPendingDatePick] = useState<{ memberId: number; intent: string; name: string } | null>(null);
+  const [pickedDate, setPickedDate] = useState("");
+
+  const invalidateAlerts = () => {
+    refetchMonthExpiring();
+    utils.members.getExpiring.invalidate();
+    utils.members.getWithUnpaid.invalidate();
+    utils.members.getLongAbsent.invalidate();
+    utils.members.getRolloverToNextMonth.invalidate();
+  };
 
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
-    onSuccess: () => {
-      refetchMonthExpiring();
-      utils.members.getExpiring.invalidate();
-      utils.members.getWithUnpaid.invalidate();
-      utils.members.getLongAbsent.invalidate();
-      utils.members.getRolloverToNextMonth.invalidate();
-    },
+    onSuccess: invalidateAlerts,
     onError: (e) => toast.error(e.message),
   });
 
-  const setIntent = (memberId: number, intent: string) => {
-    setLocalIntents(prev => new Map(prev).set(memberId, intent));
-    setRenewalIntentMutation.mutate({ memberId, intent: intent as any });
+  const applyIntent = (memberId: number, intent: string, intentDate?: string) => {
+    setLocalIntents(prev => new Map(prev).set(memberId, { intent, intentDate }));
+    setRenewalIntentMutation.mutate({ memberId, intent: intent as any, intentDate: intentDate ?? null });
+  };
+
+  const clearIntent = (memberId: number) => {
+    setLocalIntents(prev => { const m = new Map(prev); m.delete(memberId); return m; });
+    setRenewalIntentMutation.mutate({ memberId, intent: null });
   };
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
@@ -500,64 +510,98 @@ function TrainerDashboard() {
 
   const today = new Date();
 
-  type Intent = "재등록예정" | "이월" | "이탈예정" | "연락함" | "납부약속" | "복귀예정" | "수업집중" | "확인함" | "이탈";
+  // 버튼 종류: done=즉시완료, scheduled=날짜선택, pending=상단고정(미해결)
+  type BtnKind = "done" | "scheduled" | "pending";
+  type ActionBtn = { label: string; value: string; kind: BtnKind; color: string };
   type NotifItem = {
     key: string; memberId: number; name: string;
     tag: string; detail: string;
-    iconColor: string; tagBg: string; urgency: number;
-    intent: string | null;
-    actions: { label: string; value: Intent; color: string }[];
+    iconColor: string; tagBg: string;
+    urgency: number; // 낮을수록 위 (pending < unhandled < done)
+    intent: string | null; intentDate: string | null; intentAt: string | null;
+    actions: ActionBtn[];
     onGo: () => void;
   };
 
-  const INTENT_LABELS: Record<string, string> = {
-    재등록예정: "재등록 예정", 이월: "이월", 이탈예정: "이탈 예정", 연락함: "연락함",
+  const INTENT_LABEL: Record<string, string> = {
+    재등록확정: "재등록 확정", 상담예정: "상담 예정", 종료예정: "종료 예정",
+    납부완료: "납부 완료", 납부일확정: "납부일 확정", 미응답: "미응답",
+    복귀일확정: "복귀일 확정", 관리필요: "관리 필요", 이탈확정: "이탈 확정",
+    이월: "다음달 이월", 소진: "이번달 소진", 일정확인필요: "일정 확인 필요",
+    // 구버전 호환
+    재등록예정: "재등록 예정", 이탈예정: "이탈 예정", 연락함: "연락함",
     납부약속: "납부 약속", 복귀예정: "복귀 예정", 수업집중: "수업 집중", 확인함: "확인함", 이탈: "이탈",
   };
   const INTENT_COLOR: Record<string, string> = {
-    재등록예정: "bg-emerald-500/20 text-emerald-400",
+    재등록확정: "bg-emerald-500/20 text-emerald-400",
+    상담예정: "bg-sky-500/20 text-sky-400",
+    종료예정: "bg-gray-500/20 text-gray-400",
+    납부완료: "bg-emerald-500/20 text-emerald-400",
+    납부일확정: "bg-amber-500/20 text-amber-400",
+    미응답: "bg-orange-500/20 text-orange-400",
+    복귀일확정: "bg-teal-500/20 text-teal-400",
+    관리필요: "bg-rose-500/20 text-rose-400",
+    이탈확정: "bg-red-500/20 text-red-400",
     이월: "bg-blue-500/20 text-blue-400",
+    소진: "bg-purple-500/20 text-purple-400",
+    일정확인필요: "bg-orange-500/20 text-orange-400",
+    재등록예정: "bg-emerald-500/20 text-emerald-400",
     이탈예정: "bg-red-500/20 text-red-400",
-    이탈: "bg-red-500/20 text-red-400",
     연락함: "bg-slate-500/20 text-slate-400",
-    납부약속: "bg-amber-500/20 text-amber-400",
-    복귀예정: "bg-teal-500/20 text-teal-400",
-    수업집중: "bg-indigo-500/20 text-indigo-400",
-    확인함: "bg-slate-500/20 text-slate-400",
   };
+  // pending 종류: 처리됐다고 보기 어려운 상태 → 상단 유지
+  const PENDING_INTENTS = new Set(["미응답", "관리필요", "일정확인필요"]);
+  // done 종류: 처리 완료 → 하단 이동
+  const DONE_INTENTS = new Set(["재등록확정", "납부완료", "이탈확정", "소진", "이월", "종료예정",
+    "재등록예정", "이탈예정", "이탈", "연락함", "납부약속", "복귀예정", "수업집중", "확인함"]);
 
   const notifItems = (() => {
     const items: NotifItem[] = [];
 
+    const getIntentInfo = (m: { id: number; renewalIntent?: string | null; renewalIntentDate?: string | null; renewalIntentAt?: string | null }) => {
+      const local = localIntents.get(m.id);
+      return {
+        intent: local?.intent ?? m.renewalIntent ?? null,
+        intentDate: local?.intentDate ?? m.renewalIntentDate ?? null,
+        intentAt: m.renewalIntentAt ?? null,
+      };
+    };
+
+    const urgencyOf = (base: number, intent: string | null) => {
+      if (!intent) return base;
+      if (PENDING_INTENTS.has(intent)) return base - 5000; // 미해결 → 상단
+      if (DONE_INTENTS.has(intent)) return base + 10000;   // 완료 → 하단
+      return base;
+    };
+
     expiring?.forEach((m) => {
       const days = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
-      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
+      const { intent, intentDate, intentAt } = getIntentInfo(m);
       items.push({
         key: `expiring-${m.id}`, memberId: m.id, name: m.name,
         tag: "만료 임박", detail: days !== null ? `D-${days}` : "-",
         iconColor: "text-yellow-400", tagBg: "bg-yellow-500/20 text-yellow-600",
-        urgency: intent ? 9000 + (days ?? 999) : (days ?? 999),
-        intent,
+        urgency: urgencyOf(days ?? 999, intent), intent, intentDate, intentAt,
         actions: [
-          { label: "재등록 예정", value: "재등록예정", color: "text-emerald-400 border-emerald-500/30" },
-          { label: "이탈 예정", value: "이탈예정", color: "text-red-400 border-red-500/30" },
-          { label: "연락함", value: "연락함", color: "text-slate-400 border-slate-500/30" },
+          { label: "재등록 확정", value: "재등록확정", kind: "done", color: "text-emerald-400 border-emerald-500/30" },
+          { label: "상담 예정", value: "상담예정", kind: "scheduled", color: "text-sky-400 border-sky-500/30" },
+          { label: "종료 예정", value: "종료예정", kind: "done", color: "text-gray-400 border-gray-500/30" },
         ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
 
     unpaid?.forEach((m) => {
-      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
+      const { intent, intentDate, intentAt } = getIntentInfo(m);
       items.push({
         key: `unpaid-${m.id}`, memberId: m.id, name: m.name,
         tag: "미수금", detail: `${(m.unpaidAmount ?? 0).toLocaleString()}원`,
         iconColor: "text-orange-400", tagBg: "bg-orange-500/20 text-orange-600",
-        urgency: intent ? 9000 - (m.unpaidAmount ?? 0) : -(m.unpaidAmount ?? 0),
-        intent,
+        urgency: urgencyOf(-(m.unpaidAmount ?? 0), intent), intent, intentDate, intentAt,
         actions: [
-          { label: "납부 약속", value: "납부약속", color: "text-amber-400 border-amber-500/30" },
-          { label: "연락함", value: "연락함", color: "text-slate-400 border-slate-500/30" },
+          { label: "납부 완료", value: "납부완료", kind: "done", color: "text-emerald-400 border-emerald-500/30" },
+          { label: "납부일 확정", value: "납부일확정", kind: "scheduled", color: "text-amber-400 border-amber-500/30" },
+          { label: "미응답", value: "미응답", kind: "pending", color: "text-orange-400 border-orange-500/30" },
         ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
@@ -565,50 +609,48 @@ function TrainerDashboard() {
 
     longAbsent?.forEach((m) => {
       const absentDays = m.lastAttendDate ? differenceInDays(today, new Date(m.lastAttendDate)) : 999;
-      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
+      const { intent, intentDate, intentAt } = getIntentInfo(m);
       items.push({
         key: `absent-${m.id}`, memberId: m.id, name: m.name,
         tag: "장기 미출석", detail: m.lastAttendDate ? `${absentDays}일째` : "기록 없음",
         iconColor: "text-red-400", tagBg: "bg-red-500/20 text-red-600",
-        urgency: intent ? 9000 - absentDays : -absentDays,
-        intent,
+        urgency: urgencyOf(-absentDays, intent), intent, intentDate, intentAt,
         actions: [
-          { label: "복귀 예정", value: "복귀예정", color: "text-teal-400 border-teal-500/30" },
-          { label: "이탈 예정", value: "이탈예정", color: "text-red-400 border-red-500/30" },
-          { label: "연락함", value: "연락함", color: "text-slate-400 border-slate-500/30" },
+          { label: "복귀일 확정", value: "복귀일확정", kind: "scheduled", color: "text-teal-400 border-teal-500/30" },
+          { label: "관리 필요", value: "관리필요", kind: "pending", color: "text-rose-400 border-rose-500/30" },
+          { label: "이탈 확정", value: "이탈확정", kind: "done", color: "text-red-400 border-red-500/30" },
         ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
 
     monthExpiring?.filter(m => m.renewalStatus === "마감임박").forEach((m) => {
-      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
+      const { intent, intentDate, intentAt } = getIntentInfo(m);
       items.push({
         key: `month-${m.id}`, memberId: m.id, name: m.name,
         tag: "이번달 마감", detail: `잔여 ${m.remaining}회`,
         iconColor: "text-purple-400", tagBg: "bg-purple-500/20 text-purple-600",
-        urgency: intent ? 9500 + m.remaining : 500 + m.remaining,
-        intent,
+        urgency: urgencyOf(500 + m.remaining, intent), intent, intentDate, intentAt,
         actions: [
-          { label: "재등록 예정", value: "재등록예정", color: "text-emerald-400 border-emerald-500/30" },
-          { label: "이탈", value: "이탈", color: "text-red-400 border-red-500/30" },
-          { label: "다음달로", value: "이월", color: "text-blue-400 border-blue-500/30" },
+          { label: "재등록 확정", value: "재등록확정", kind: "done", color: "text-emerald-400 border-emerald-500/30" },
+          { label: "다음달 이월", value: "이월", kind: "done", color: "text-blue-400 border-blue-500/30" },
+          { label: "종료 확정", value: "종료예정", kind: "done", color: "text-gray-400 border-gray-500/30" },
         ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
     });
 
     rollover?.forEach((m) => {
-      const intent = localIntents.get(m.id) ?? m.renewalIntent ?? null;
+      const { intent, intentDate, intentAt } = getIntentInfo(m);
       items.push({
         key: `rollover-${m.id}`, memberId: m.id, name: m.name,
         tag: "이월 예상", detail: `잔여 ${m.remaining}회`,
         iconColor: "text-blue-400", tagBg: "bg-blue-500/20 text-blue-600",
-        urgency: intent ? 9800 + m.remaining : 1000 + m.remaining,
-        intent,
+        urgency: urgencyOf(1000 + m.remaining, intent), intent, intentDate, intentAt,
         actions: [
-          { label: "수업 집중", value: "수업집중", color: "text-indigo-400 border-indigo-500/30" },
-          { label: "확인함", value: "확인함", color: "text-slate-400 border-slate-500/30" },
+          { label: "이번달 소진", value: "소진", kind: "done", color: "text-purple-400 border-purple-500/30" },
+          { label: "다음달 이월", value: "이월", kind: "done", color: "text-blue-400 border-blue-500/30" },
+          { label: "일정 확인 필요", value: "일정확인필요", kind: "pending", color: "text-orange-400 border-orange-500/30" },
         ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
@@ -655,60 +697,100 @@ function TrainerDashboard() {
           <DialogHeader className="px-4 pt-4 pb-3 border-b border-border">
             <DialogTitle className="flex items-center gap-2 text-sm">
               <Bell className="h-4 w-4 text-red-400" />
-              업무 알림
+              이탈 방지 업무
               <span className="ml-auto text-xs text-muted-foreground font-normal">{notifItems.length}건</span>
             </DialogTitle>
           </DialogHeader>
           <div className="overflow-y-auto max-h-[65dvh] divide-y divide-border/40">
-            {notifItems.map((item) => (
-              <div key={item.key} className="px-4 py-3 space-y-2">
-                {/* 회원 이름 + 상세 + 바로가기 */}
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${item.tagBg}`}>
-                    {item.tag}
-                  </span>
-                  <button
-                    onClick={item.onGo}
-                    className="flex-1 flex items-center gap-1.5 min-w-0 text-left hover:opacity-80 transition-opacity"
-                  >
-                    <span className="text-sm font-medium truncate">{item.name}</span>
-                    <span className={`text-xs shrink-0 ${item.iconColor}`}>{item.detail}</span>
-                  </button>
-                  <button onClick={item.onGo} className="shrink-0">
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                </div>
-                {/* 업무 계획 버튼 or 선택된 상태 */}
-                {item.intent ? (
+            {notifItems.map((item) => {
+              const isDone = item.intent && DONE_INTENTS.has(item.intent);
+              const isPending = item.intent && PENDING_INTENTS.has(item.intent);
+              const displayDate = item.intentDate ?? item.intentAt?.substring(5, 10);
+              return (
+                <div key={item.key} className={`px-4 py-3 space-y-2 ${isDone ? "opacity-50" : ""}`}>
+                  {/* 회원명 + 상세 + 바로가기 */}
                   <div className="flex items-center gap-2">
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${INTENT_COLOR[item.intent] ?? "bg-slate-500/20 text-slate-400"}`}>
-                      ✓ {INTENT_LABELS[item.intent] ?? item.intent}
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${item.tagBg}`}>
+                      {item.tag}
                     </span>
-                    <button
-                      onClick={() => {
-                        setLocalIntents(prev => { const m = new Map(prev); m.delete(item.memberId); return m; });
-                        setRenewalIntentMutation.mutate({ memberId: item.memberId, intent: null });
-                      }}
-                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
-                    >
-                      변경
+                    <button onClick={item.onGo} className="flex-1 flex items-center gap-1.5 min-w-0 text-left hover:opacity-80">
+                      <span className="text-sm font-medium truncate">{item.name}</span>
+                      <span className={`text-xs shrink-0 ${item.iconColor}`}>{item.detail}</span>
+                    </button>
+                    <button onClick={item.onGo} className="shrink-0">
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                     </button>
                   </div>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {item.actions.map((a) => (
-                      <button
-                        key={a.value}
-                        onClick={() => setIntent(item.memberId, a.value)}
-                        className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-colors hover:opacity-80 ${a.color} bg-background/40`}
-                      >
-                        {a.label}
+                  {/* 업무 상태 or 선택 버튼 */}
+                  {item.intent ? (
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${INTENT_COLOR[item.intent] ?? "bg-slate-500/20 text-slate-400"}`}>
+                        {isDone ? "✓" : isPending ? "⚠" : "●"} {INTENT_LABEL[item.intent] ?? item.intent}
+                        {displayDate && ` · ${displayDate}`}
+                      </span>
+                      <button onClick={() => clearIntent(item.memberId)}
+                        className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2">
+                        변경
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.actions.map((a) => (
+                        <button
+                          key={a.value}
+                          onClick={() => {
+                            if (a.kind === "scheduled") {
+                              setPendingDatePick({ memberId: item.memberId, intent: a.value, name: item.name });
+                              setPickedDate("");
+                            } else {
+                              applyIntent(item.memberId, a.value);
+                            }
+                          }}
+                          className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-colors hover:opacity-80 ${a.color} bg-background/40`}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 날짜 선택 다이얼로그 (예정 버튼 클릭 시) */}
+      <Dialog open={!!pendingDatePick} onOpenChange={(o) => { if (!o) setPendingDatePick(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm">날짜 선택</DialogTitle>
+            <DialogDescription className="text-xs">
+              {pendingDatePick?.name} — {INTENT_LABEL[pendingDatePick?.intent ?? ""] ?? pendingDatePick?.intent}
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            type="date"
+            value={pickedDate}
+            onChange={(e) => setPickedDate(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-input text-sm"
+          />
+          <div className="flex gap-2 mt-1">
+            <button onClick={() => setPendingDatePick(null)}
+              className="flex-1 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-accent/30">
+              취소
+            </button>
+            <button
+              disabled={!pickedDate}
+              onClick={() => {
+                if (pendingDatePick && pickedDate) {
+                  applyIntent(pendingDatePick.memberId, pendingDatePick.intent, pickedDate);
+                  setPendingDatePick(null);
+                }
+              }}
+              className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40">
+              확인
+            </button>
           </div>
         </DialogContent>
       </Dialog>
