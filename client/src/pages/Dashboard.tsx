@@ -440,6 +440,7 @@ function TrainerDashboard() {
   const utils = trpc.useUtils();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
   const { data: todayScheduleSummary } = trpc.dashboard.todayScheduleSummary.useQuery();
+  const { data: me } = trpc.auth.me.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
 
   // 성과 리포트
@@ -1074,10 +1075,10 @@ function TrainerDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {(!allMembers || allMembers.filter(m => m.status === "active").length === 0) && (
+          {(!allMembers || allMembers.filter(m => m.status === "active" && m.trainerId === me?.trainerId).length === 0) && (
             <p className="text-sm text-muted-foreground text-center py-4">활성 회원이 없습니다</p>
           )}
-          {allMembers?.filter(m => m.status === "active").map((m) => (
+          {allMembers?.filter(m => m.status === "active" && m.trainerId === me?.trainerId).map((m) => (
             <button
               key={m.id}
               onClick={() => {
