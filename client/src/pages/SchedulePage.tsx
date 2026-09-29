@@ -537,7 +537,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
   const title = assigningToFixed ? "이 주 수업 배정" : isNew ? "수업 추가" : "수업 수정";
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!busy) save(); } }}>
       <div className="bg-card border border-border rounded-t-2xl sm:rounded-xl w-full max-w-sm p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm">{title}</h3>
