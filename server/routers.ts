@@ -2649,7 +2649,7 @@ const schedulesRouter = t.router({
       scheduledDate: z.string().optional(),
       scheduledTime: z.string().optional(),
       notes: z.string().nullable().optional(),
-      status: z.enum(["pending", "done", "cancelled"]).optional(),
+      status: z.enum(["pending", "done", "cancelled", "noshow"]).optional(),
       isRecurring: z.boolean().optional(),
       branchId: z.number().nullable().optional(),
       eventType: z.enum(["pt", "ballet", "consultation", "trial", "meeting", "other"]).optional(),
@@ -2676,7 +2676,7 @@ const schedulesRouter = t.router({
     }),
 
   updateStatus: protectedProcedure
-    .input(z.object({ scheduleId: z.number(), status: z.enum(["pending", "done", "cancelled"]) }))
+    .input(z.object({ scheduleId: z.number(), status: z.enum(["pending", "done", "cancelled", "noshow"]) }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);
       await db.update(schedules).set({ status: input.status }).where(eq(schedules.id, input.scheduleId));
@@ -2824,6 +2824,59 @@ const schedulesRouter = t.router({
       await db.update(schedules)
         .set({ status: "pending", signature: null })
         .where(eq(schedules.id, input.scheduleId));
+
+      return { success: true };
+    }),
+
+  // 노쇼 처리: 상태를 noshow로 변경 + PT 세션 차감 (PT 수업이고 회원 있는 경우만)
+  markNoShow: protectedProcedure
+    .input(z.object({ scheduleId: z.number(), sessionDate: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.scheduleId);
+
+      const [row] = await db
+        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType })
+        .from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.status === "done" || row.status === "noshow")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "이미 처리된 수업입니다." });
+
+      await db.update(schedules).set({ status: "noshow" }).where(eq(schedules.id, input.scheduleId));
+
+      // PT 수업 + 회원 있는 경우만 차감
+      const isPt = !row.eventType || row.eventType === "pt";
+      if (isPt && row.memberId) {
+        const targetDate = input.sessionDate ?? kstDate();
+        const [pkg] = await db
+          .select({ id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName })
+          .from(ptPackages)
+          .where(and(eq(ptPackages.memberId, row.memberId), eq(ptPackages.status, "active")))
+          .limit(1);
+
+        if (pkg && pkg.usedSessions < pkg.totalSessions) {
+          const [dup] = await db.select({ id: ptSessionLogs.id }).from(ptSessionLogs)
+            .where(and(
+              eq(ptSessionLogs.memberId, row.memberId),
+              eq(ptSessionLogs.trainerId, row.trainerId),
+              eq(ptSessionLogs.sessionDate, targetDate),
+            )).limit(1);
+
+          if (!dup) {
+            const newUsed = pkg.usedSessions + 1;
+            const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
+            const isFullService = pkg.packageName === "서비스세션" || (pkg.serviceSessions ?? 0) >= pkg.totalSessions;
+            const paidSessions = isFullService ? 0 : pkg.totalSessions - (pkg.serviceSessions ?? 0);
+            const isService = isFullService || pkg.usedSessions >= paidSessions ? 1 : 0;
+
+            await db.update(ptPackages).set({ usedSessions: newUsed, status: newStatus as any }).where(eq(ptPackages.id, pkg.id));
+            await db.insert(ptSessionLogs).values({
+              memberId: row.memberId, trainerId: row.trainerId, packageId: pkg.id,
+              sessionDate: targetDate, isServiceSession: isService,
+            });
+          }
+        }
+      }
 
       return { success: true };
     }),
