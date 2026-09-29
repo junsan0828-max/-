@@ -13,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ArrowLeft } from "lucide-react";
 
 const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제", "혼합"] as const;
@@ -74,6 +81,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [serviceHealthMonths, setServiceHealthMonths] = useState<number | undefined>(undefined);
   const [serviceHealthCustom, setServiceHealthCustom] = useState("");
   const [serviceLockerNum, setServiceLockerNum] = useState("");
+  const [showLockerSkipDialog, setShowLockerSkipDialog] = useState(false);
+  const skipLockerRef = useRef(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -236,8 +245,12 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       return;
     }
     if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
-    // 다이어트 시작 체중은 필수가 아니다 — 회원 앱(자이언트짐+)에서 첫 체중을 받아
-    // 기준으로 잡는다. 여기서는 비워둬도 프로그램이 만들어진다.
+    // 서비스 락커 선택됐는데 번호 미배정이면 확인 다이얼로그
+    if (serviceItems.includes("락커") && !serviceLockerNum && !skipLockerRef.current) {
+      setShowLockerSkipDialog(true);
+      return;
+    }
+    skipLockerRef.current = false;
     // 더블 제출 방지: 진행 중이면 무시 (버튼 disabled보다 앞서 동작하는 즉시 가드)
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -1116,6 +1129,31 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           </Button>
         </div>
       </form>
+
+      {/* 락커 번호 미배정 확인 다이얼로그 */}
+      <Dialog open={showLockerSkipDialog} onOpenChange={setShowLockerSkipDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>락커 번호 미배정</DialogTitle>
+            <DialogDescription>
+              서비스 항목에 락커가 포함되어 있지만 락커 번호를 선택하지 않았습니다.
+              나중에 회원 상세 화면에서 배정할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowLockerSkipDialog(false)}>
+              락커 번호 선택
+            </Button>
+            <Button className="flex-1" onClick={() => {
+              setShowLockerSkipDialog(false);
+              skipLockerRef.current = true;
+              document.querySelector<HTMLFormElement>("form")?.requestSubmit();
+            }}>
+              나중에 배정
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

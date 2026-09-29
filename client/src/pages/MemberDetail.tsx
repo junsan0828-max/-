@@ -417,6 +417,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
+  const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: accessCount } = trpc.access.getMemberAccessCount.useQuery({ memberId });
   const calYearMonth = `${calendarDate.year}-${String(calendarDate.month + 1).padStart(2, "0")}`;
   const { data: accessDates } = trpc.access.getMemberAccessDates.useQuery({ memberId, yearMonth: calYearMonth });
@@ -2015,29 +2016,40 @@ export default function MemberDetail({ memberId }: Props) {
                                 {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
                               </div>
                               <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
-                              {memberPrograms?.lockers.length === 0 && (
-                                <div className="mt-2 flex items-center gap-2">
-                                  <input
-                                    type="text"
-                                    value={lockerLinkNum}
-                                    onChange={e => setLockerLinkNum(e.target.value)}
-                                    placeholder="락커 번호 입력"
-                                    className="flex-1 text-xs px-2 py-1 rounded-md bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                  />
-                                  <button
-                                    disabled={!lockerLinkNum.trim() || fixLockerMutation.isPending}
-                                    onClick={() => fixLockerMutation.mutate({
-                                      memberId,
-                                      memberName: member.name ?? "",
-                                      memberPhone: member.phone ?? undefined,
-                                      lockerNumber: lockerLinkNum.trim(),
-                                    })}
-                                    className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-40"
-                                  >
-                                    {fixLockerMutation.isPending ? "연결 중…" : "락커 연결"}
-                                  </button>
-                                </div>
-                              )}
+                              {memberPrograms?.lockers.length === 0 && (() => {
+                                const availForBranch = (allLockers ?? []).filter((l: any) =>
+                                  !l.isOccupied && (l.branchId === member.branchId || !member.branchId || !l.branchId)
+                                );
+                                return (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <select
+                                      value={lockerLinkNum}
+                                      onChange={e => setLockerLinkNum(e.target.value)}
+                                      className="flex-1 text-xs px-2 py-1.5 rounded-md bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                    >
+                                      <option value="">락커 번호 선택...</option>
+                                      {availForBranch.map((l: any) => (
+                                        <option key={l.id} value={l.lockerNumber}>{l.lockerNumber}번</option>
+                                      ))}
+                                      {availForBranch.length === 0 && (
+                                        <option disabled>사용 가능한 락커 없음</option>
+                                      )}
+                                    </select>
+                                    <button
+                                      disabled={!lockerLinkNum.trim() || fixLockerMutation.isPending}
+                                      onClick={() => fixLockerMutation.mutate({
+                                        memberId,
+                                        memberName: member.name ?? "",
+                                        memberPhone: member.phone ?? undefined,
+                                        lockerNumber: lockerLinkNum.trim(),
+                                      })}
+                                      className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-40"
+                                    >
+                                      {fixLockerMutation.isPending ? "연결 중…" : "락커 배정"}
+                                    </button>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ))}
                           {memberPrograms!.lockers.map(locker => (

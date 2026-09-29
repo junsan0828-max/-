@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Dumbbell, Activity, Lock, Shirt, Search, X, AlertTriangle, Salad } from "lucide-react";
 
 function calcEndDateByPT(start: string, sessions: string): string {
@@ -102,6 +103,8 @@ export default function MemberReRegister() {
   const [serviceHealthMonths, setServiceHealthMonths] = useState<number | undefined>();
   const [serviceHealthCustom, setServiceHealthCustom] = useState("");
   const [serviceLockerNum, setServiceLockerNum] = useState("");
+  const [showLockerSkipDialog, setShowLockerSkipDialog] = useState(false);
+  const skipLockerRef = useRef(false);
 
   const selectedMember = members.find(m => String(m.id) === selectedMemberId);
 
@@ -234,6 +237,11 @@ export default function MemberReRegister() {
     if (!selectedMemberId) { toast.error("회원을 선택해주세요"); return; }
     if (!anySelected) { toast.error("등록 유형을 선택해주세요"); return; }
     if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
+    if (serviceItems.includes("락커") && !serviceLockerNum && !skipLockerRef.current) {
+      setShowLockerSkipDialog(true);
+      return;
+    }
+    skipLockerRef.current = false;
     if (addHealth && !healthMonths) { toast.error("헬스 이용 기간을 선택해주세요"); return; }
     if (addPt && !isServiceSession && !ptProgram) { toast.error("PT 프로그램명을 입력해주세요"); return; }
     if (addPt && !isServiceSession && !ptSessions) { toast.error("PT 횟수를 선택해주세요"); return; }
@@ -975,6 +983,31 @@ export default function MemberReRegister() {
           </Button>
         </div>
       </form>
+
+      {/* 락커 번호 미배정 확인 다이얼로그 */}
+      <Dialog open={showLockerSkipDialog} onOpenChange={setShowLockerSkipDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>락커 번호 미배정</DialogTitle>
+            <DialogDescription>
+              서비스 항목에 락커가 포함되어 있지만 락커 번호를 선택하지 않았습니다.
+              나중에 회원 상세 화면에서 배정할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowLockerSkipDialog(false)}>
+              락커 번호 선택
+            </Button>
+            <Button className="flex-1" onClick={() => {
+              setShowLockerSkipDialog(false);
+              skipLockerRef.current = true;
+              document.querySelector<HTMLFormElement>("form")?.requestSubmit();
+            }}>
+              나중에 배정
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
