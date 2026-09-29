@@ -561,6 +561,8 @@ function TrainerDashboard() {
     undefined,
     { enabled: ptStatsModalOpen }
   );
+  const { data: myTasks } = trpc.gym.work.tasks.list.useQuery();
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -724,28 +726,64 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <div className="flex items-center gap-2">
-          {notifItems.length > 0 && (
-            <button
-              onClick={() => setAlertModalOpen(true)}
-              className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium border border-red-500/20"
-            >
-              <Bell className="h-4 w-4" />
-              알림
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
-                {notifItems.length}
-              </span>
-            </button>
-          )}
-          <button
-            onClick={() => setLocation("/schedule")}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors text-sm font-medium"
-          >
-            <Calendar className="h-4 w-4" />
-            스케줄
-          </button>
-        </div>
+        <button
+          onClick={() => setLocation("/schedule")}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors text-sm font-medium"
+        >
+          <Calendar className="h-4 w-4" />
+          스케줄
+        </button>
       </div>
+
+      {/* 오늘 배정 업무 */}
+      {(() => {
+        const todayStr2 = new Date().toISOString().substring(0, 10);
+        const pendingToday = (myTasks ?? []).filter(r =>
+          r.effectiveStatus !== "done" &&
+          r.task.assigneeId != null &&
+          (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= todayStr2))
+        );
+        if (pendingToday.length === 0) return null;
+        return (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground px-0.5">📋 오늘 업무 ({pendingToday.length})</p>
+            {pendingToday.map(r => (
+              <div key={r.task.id} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${r.task.priority === "high" ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"}`}>
+                <span className={`w-2 h-2 rounded-full shrink-0 ${r.task.priority === "high" ? "bg-red-400" : "bg-amber-400"}`} />
+                <p className="text-sm text-foreground flex-1">{r.task.title}</p>
+                {r.task.priority === "high" && <span className="text-xs text-red-400 font-medium shrink-0">긴급</span>}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* 이탈방지 알림 카드 */}
+      {notifItems.length > 0 && (() => {
+        const pendingOnly = notifItems.filter(item => !item.intent || !DONE_INTENTS.has(item.intent));
+        const shown = showAllAlerts ? pendingOnly : pendingOnly.slice(0, 3);
+        if (pendingOnly.length === 0) return null;
+        return (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground px-0.5">🔔 이탈방지 알림 ({pendingOnly.length})</p>
+            {shown.map(item => (
+              <div key={item.key} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors"
+                onClick={() => { setAlertModalOpen(true); }}>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${item.tagBg}`}>{item.tag}</span>
+                <span className="text-sm font-medium flex-1">{item.name}</span>
+                <span className={`text-xs shrink-0 ${item.iconColor}`}>{item.detail}</span>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              </div>
+            ))}
+            {pendingOnly.length > 3 && (
+              <button onClick={() => setShowAllAlerts(v => !v)}
+                className="w-full text-xs text-muted-foreground py-2 hover:text-foreground transition-colors">
+                {showAllAlerts ? "접기" : `${pendingOnly.length - 3}건 더 보기`}
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 알림 모달 — 개별 회원 카드 */}
       <Dialog open={alertModalOpen} onOpenChange={setAlertModalOpen}>
