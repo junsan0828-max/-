@@ -88,8 +88,10 @@ const defaultTaskForm = {
   priority: "normal",
 };
 
-// assignTarget: "self" | "group:all" | "group:trainer" | "group:consultant" | number(userId)
-type AssignTarget = "self" | "group:all" | "group:trainer" | "group:consultant" | number;
+// assignTarget: "self" | "none" | "group:all" | "group:trainer" | "group:consultant" | number(userId)
+type AssignTarget = "self" | "none" | "group:all" | "group:trainer" | "group:consultant" | number;
+
+const ASSIGN_NAMES = ["이준산", "최성길", "김현석", "민문무", "fc"];
 
 export default function MyWorkPage() {
   const utils = trpc.useUtils();
@@ -121,21 +123,25 @@ export default function MyWorkPage() {
     onError: (e) => toast.error(e.message),
   });
   const deleteMutation   = trpc.gym.work.tasks.delete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
+  const assignMutation   = trpc.gym.work.tasks.assign.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
   const markReadMutation = trpc.gym.work.notices.markRead.useMutation({ onSuccess: () => utils.gym.work.notices.invalidate() });
 
   const today = new Date().toISOString().substring(0, 10);
 
-  const allPending = (allTasks ?? [])
-    .filter(r => r.effectiveStatus !== "done" && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)))
-    .sort((a, b) => {
-      const order = { high: 0, normal: 1, low: 2 };
-      const typeOrder = { daily: 0, weekly: 1, monthly: 2 };
-      const pDiff = (order[a.task.priority as keyof typeof order] ?? 1) - (order[b.task.priority as keyof typeof order] ?? 1);
-      if (pDiff !== 0) return pDiff;
-      return (typeOrder[a.task.taskType as keyof typeof typeOrder] ?? 0) - (typeOrder[b.task.taskType as keyof typeof typeOrder] ?? 0);
-    });
+  const activeTasks = (allTasks ?? []).filter(r =>
+    r.effectiveStatus !== "done" && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today))
+  );
+  const sortByPriority = (rows: typeof activeTasks) => [...rows].sort((a, b) => {
+    const order = { high: 0, normal: 1, low: 2 };
+    return (order[a.task.priority as keyof typeof order] ?? 1) - (order[b.task.priority as keyof typeof order] ?? 1);
+  });
 
+  const unassignedPending = sortByPriority(activeTasks.filter(r => r.task.assigneeId == null));
+  const allPending = sortByPriority(activeTasks.filter(r => r.task.assigneeId != null));
   const allDone = (allTasks ?? []).filter(r => r.effectiveStatus === "done");
+
+  // 팀장이 배정할 수 있는 직원 목록 (이름 필터)
+  const assignableStaff = (staffList ?? []).filter(s => ASSIGN_NAMES.includes(s.trainerName ?? s.username ?? ""));
 
   const dailyPending = allPending.filter(r => r.task.taskType === "daily");
   const unreadCount  = (noticeList ?? []).filter(n => !n.isRead).length;
@@ -158,9 +164,11 @@ export default function MyWorkPage() {
       taskDate: new Date().toISOString().substring(0, 10),
     };
 
-    if (typeof assignTarget === "number") {
+    if (assignTarget === "none") {
+      createMutation.mutate({ ...base }); // assigneeId 없음 = 미배정
+    } else if (typeof assignTarget === "number") {
       createMutation.mutate({ ...base, assigneeId: assignTarget });
-    } else if (assignTarget.startsWith("group:")) {
+    } else if (typeof assignTarget === "string" && assignTarget.startsWith("group:")) {
       const group = assignTarget.replace("group:", "") as "all" | "trainer" | "consultant";
       createForGroupMutation.mutate({ ...base, assigneeGroup: group });
     } else {
@@ -263,6 +271,25 @@ export default function MyWorkPage() {
         )}
       </div>
 
+      {/* 미배정 업무 (팀장/매니저만 표시) */}
+      {canAssign && unassignedPending.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+            <p className="text-sm font-semibold text-amber-400">담당자 미배정</p>
+            <span className="text-xs text-muted-foreground">{unassignedPending.length}개</span>
+          </div>
+          <div className="space-y-2">
+            {unassignedPending.map(row => (
+              <UnassignedTaskCard key={row.task.id} row={row}
+                staffList={assignableStaff}
+                onAssign={(assigneeId) => assignMutation.mutate({ id: row.task.id, assigneeId })}
+                onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 전체 업무 목록 */}
       <div>
         <div className="flex items-center justify-between mb-2 px-1">
@@ -271,7 +298,7 @@ export default function MyWorkPage() {
         </div>
         {isLoading ? (
           <div className="text-center text-muted-foreground py-10 text-sm">로딩 중...</div>
-        ) : allPending.length === 0 ? (
+        ) : allPending.length === 0 && unassignedPending.length === 0 ? (
           <div className="text-center text-muted-foreground py-12">
             <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
             <p className="text-sm">진행 중인 업무가 없습니다</p>
@@ -464,13 +491,14 @@ export default function MyWorkPage() {
                     value={typeof assignTarget === "number" ? String(assignTarget) : assignTarget}
                     onChange={e => {
                       const v = e.target.value;
-                      if (v === "self" || v.startsWith("group:")) setAssignTarget(v as AssignTarget);
+                      if (v === "self" || v === "none" || v.startsWith("group:")) setAssignTarget(v as AssignTarget);
                       else setAssignTarget(Number(v));
                     }}
                     className="w-full rounded-lg px-3 py-2 text-sm text-foreground bg-background border border-border focus:outline-none">
                     <option value="self">나에게 (본인)</option>
-                    <option disabled>── 개별 직원 ──</option>
-                    {(staffList ?? [])
+                    <option value="none">미배정 (나중에 배정)</option>
+                    <option disabled>── 직접 배정 ──</option>
+                    {assignableStaff
                       .filter(s => s.id !== user?.id)
                       .map(s => (
                         <option key={s.id} value={s.id}>
@@ -539,6 +567,41 @@ function TaskCard({ row, done, onComplete, onUncomplete, onDelete, onOpen }: {
           {tk.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{tk.description}</p>}
         </div>
         <button onClick={e => { e.stopPropagation(); onDelete?.(); }} className="text-muted-foreground hover:text-red-400 p-1 shrink-0">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UnassignedTaskCard({ row, staffList, onAssign, onDelete }: {
+  row: any;
+  staffList: { id: number; trainerName: string | null; username: string }[];
+  onAssign: (assigneeId: number) => void;
+  onDelete: () => void;
+}) {
+  const tk = row.task;
+  const pm = PRIORITY_META[tk.priority] ?? PRIORITY_META.normal;
+
+  return (
+    <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl p-4">
+      <div className="flex items-start gap-3">
+        <span className={`mt-1 inline-block w-2 h-2 rounded-full shrink-0 ${pm.dot}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground mb-2">{tk.title}</p>
+          <select
+            defaultValue=""
+            onChange={e => { if (e.target.value) onAssign(Number(e.target.value)); }}
+            className="w-full rounded-lg px-3 py-2 text-sm text-foreground bg-background border border-amber-500/40 focus:outline-none">
+            <option value="" disabled>담당자 선택...</option>
+            {staffList.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.trainerName ?? s.username}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button onClick={onDelete} className="text-muted-foreground hover:text-red-400 p-1 shrink-0">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>

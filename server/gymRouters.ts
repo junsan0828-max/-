@@ -3518,7 +3518,8 @@ const tasksWorkRouter = t.router({
 
       let filtered = rows;
       if (!isAdmin) {
-        filtered = filtered.filter(r => r.task.assigneeId === userId);
+        // 본인 업무 + 미배정 업무(assigneeId null) 모두 표시
+        filtered = filtered.filter(r => r.task.assigneeId === userId || r.task.assigneeId == null);
       } else if (input?.assigneeId) {
         filtered = filtered.filter(r => r.task.assigneeId === input.assigneeId);
       }
@@ -3537,6 +3538,15 @@ const tasksWorkRouter = t.router({
       });
     }),
 
+  assign: protectedProcedure
+    .input(z.object({ id: z.number(), assigneeId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.execute(sql`UPDATE tasks SET "assigneeId" = ${input.assigneeId}, "updatedAt" = ${new Date().toISOString()} WHERE id = ${input.id} RETURNING *`);
+      return row;
+    }),
+
   listStaff: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -3553,7 +3563,7 @@ const tasksWorkRouter = t.router({
       category: z.string().default("기타"),
       priority: z.string().default("normal"),
       taskType: z.string().default("daily"),
-      assigneeId: z.number(),
+      assigneeId: z.number().optional(),
       taskDate: z.string().optional(),
       dayOfWeek: z.number().optional(),
       dayOfMonth: z.number().optional(),
