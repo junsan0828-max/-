@@ -675,9 +675,8 @@ function TrainerDashboard() {
         iconColor: "text-red-400", tagBg: "bg-red-500/20 text-red-600",
         urgency: urgencyOf(-absentDays, intent), intent, intentDate, intentAt,
         actions: [
-          { label: "복귀일 확정", value: "복귀일확정", kind: "scheduled", color: "text-teal-400 border-teal-500/30" },
-          { label: "관리 필요", value: "관리필요", kind: "pending", color: "text-rose-400 border-rose-500/30" },
-          { label: "이탈 확정", value: "이탈확정", kind: "done", color: "text-red-400 border-red-500/30" },
+          { label: "다음달 이월", value: "이월", kind: "done", color: "text-blue-400 border-blue-500/30" },
+          { label: "다음 수업 예약", value: "__schedule__", kind: "done", color: "text-teal-400 border-teal-500/30" },
         ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });
@@ -829,12 +828,16 @@ function TrainerDashboard() {
                     {card.item.actions.map(action => (
                       <button key={action.value}
                         onClick={() => {
-                          if (action.kind === "scheduled") {
+                          if (action.value === "__schedule__") {
+                            dismiss(card.key);
+                            setLocation("/schedule");
+                          } else if (action.kind === "scheduled") {
                             setPendingDatePick({ memberId: card.item.memberId, intent: action.value, name: card.item.name });
+                            dismiss(card.key);
                           } else {
                             applyIntent(card.item.memberId, action.value);
+                            dismiss(card.key);
                           }
-                          dismiss(card.key);
                         }}
                         className={`px-3 py-2 rounded-xl border text-xs font-medium hover:bg-accent/40 active:scale-95 transition-all ${action.color}`}>
                         {action.label}
