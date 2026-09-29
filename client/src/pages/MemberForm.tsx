@@ -918,7 +918,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
               {/* 서비스 내역 */}
               <div className="space-y-2 pt-2 border-t border-border">
-                <Label className="text-sm text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></Label>
+                <Label className="text-sm text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(패키지 포함 항목)</span></Label>
 
                 {/* PT */}
                 {(() => {

@@ -767,7 +767,7 @@ export default function MemberReRegister() {
           <Card className="bg-card border-border">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">
-                서비스 내역 <span className="text-xs font-normal text-muted-foreground">무료 제공 항목</span>
+                서비스 내역 <span className="text-xs font-normal text-muted-foreground">패키지 포함 항목</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">

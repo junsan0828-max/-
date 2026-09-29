@@ -1127,9 +1127,32 @@ export default function RegistrationManagement() {
                       <textarea value={editRevForm.memo} onChange={e => setEditRevForm(f => ({ ...f, memo: e.target.value }))}
                         rows={2} className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm resize-none" />
                     </div>
+                    {/* 실제 배정된 락커·운동복 표시 */}
+                    {editRev.memberId && (() => {
+                      const memberLockers = allLockers.filter((l: any) => l.memberId === editRev.memberId && l.isOccupied === 1);
+                      const memberUniforms = (uniformsQuery.data ?? []).filter((u: any) => u.memberId === editRev.memberId && u.isActive === 1);
+                      if (memberLockers.length === 0 && memberUniforms.length === 0) return null;
+                      return (
+                        <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3 space-y-1.5">
+                          <p className="text-xs font-medium text-green-400">배정된 프로그램 (실제 레코드)</p>
+                          {memberLockers.map((l: any) => (
+                            <div key={l.id} className="flex items-center justify-between text-xs">
+                              <span className="text-foreground">🔑 락커 {l.lockerNumber}번</span>
+                              <span className="text-muted-foreground">{l.startDate ?? "-"} ~ {l.endDate ?? "-"}</span>
+                            </div>
+                          ))}
+                          {memberUniforms.map((u: any) => (
+                            <div key={u.id} className="flex items-center justify-between text-xs">
+                              <span className="text-foreground">👕 운동복{u.rentalType === "paid" ? " (유료)" : ""}</span>
+                              <span className="text-muted-foreground">{u.startDate ?? "-"} ~ {u.endDate ?? "-"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {/* 서비스 내역 */}
                     <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground font-medium">서비스 내역 (무료 제공 항목)</label>
+                      <label className="text-xs text-muted-foreground font-medium">서비스 내역 (패키지 포함 항목)</label>
                       <div className="space-y-2">
                         {/* 헬스 */}
                         <div className={`rounded-xl border transition-colors ${editServiceItems.includes("헬스") ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
@@ -1268,7 +1291,7 @@ export default function RegistrationManagement() {
                             👕 유료 운동복 대여
                           </button>
                         </div>
-                        <p className="text-[11px] text-muted-foreground/70">무료 제공은 위 "서비스 내역"에서 선택하세요.</p>
+                        <p className="text-[11px] text-muted-foreground/70">패키지 포함 항목은 위 "서비스 내역"에서, 별도 유료 구매는 아래 버튼을 사용하세요.</p>
                       </div>
                     )}
 
