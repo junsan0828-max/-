@@ -161,6 +161,17 @@ export default function SchedulePage() {
   for (const key of Object.keys(grid)) usedHours.add(Number(key.split("-")[1]));
   const visibleHours = HOURS.filter(h => usedHours.has(h) || (h >= 9 && h <= 22));
 
+  const weekStats = useMemo(() => {
+    const all = (slots ?? []) as Slot[];
+    // 고정 슬롯(isRecurring)은 실제 배정된 수업만 집계
+    const real = all.filter(s => s.isRecurring !== 1 || s.status === "done" || s.status === "cancelled");
+    return {
+      done: real.filter(s => s.status === "done").length,
+      cancelled: real.filter(s => s.status === "cancelled").length,
+      pending: real.filter(s => s.status === "pending").length,
+    };
+  }, [slots]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -218,12 +229,19 @@ export default function SchedulePage() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        {viewingAll
-          ? "전체 트레이너의 주간 일정입니다. 일정을 넣거나 고치려면 위에서 트레이너를 먼저 고르세요."
-          : <>빈 칸을 누르면 수업을 넣고, 칸을 누르면 수정·삭제합니다. <Repeat className="h-3 w-3 inline" /> 표시는 매주 반복되는 고정 수업입니다.</>}
-        {" "}일요일은 휴무라 빠져 있고, 토요일은 {SATURDAY_CLOSE}시까지만 열립니다.
-      </p>
+      {/* 주간 통계 */}
+      <div className="flex gap-2">
+        {[
+          { label: "수업 완료", value: weekStats.done,      color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/25" },
+          { label: "캔슬",     value: weekStats.cancelled,  color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/25" },
+          { label: "예정",     value: weekStats.pending,    color: "text-sky-400",     bg: "bg-sky-500/10 border-sky-500/25" },
+        ].map(s => (
+          <div key={s.label} className={`flex-1 rounded-lg border px-3 py-2 ${s.bg}`}>
+            <p className="text-[10px] text-muted-foreground">{s.label}</p>
+            <p className={`text-lg font-bold leading-tight ${s.color}`}>{s.value}</p>
+          </div>
+        ))}
+      </div>
 
       {isLoading ? (
         <div className="text-center text-sm text-muted-foreground py-10">불러오는 중...</div>
