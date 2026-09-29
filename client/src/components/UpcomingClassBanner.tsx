@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, useLayoutEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -247,8 +247,80 @@ function SignaturePad({ onSign, onClear, hasSignature, hideClearBtn }: {
   );
 }
 
+// ─── 전체화면 서명 패드 (부모 크기에 맞춰 캔버스 리사이즈) ────────────────────────
+function FullscreenSignaturePad({ onSign, onClear, hasSignature }: {
+  onSign: (dataUrl: string) => void;
+  onClear: () => void;
+  hasSignature: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const drawing = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const resize = () => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
+      const { width, height } = container.getBoundingClientRect();
+      canvas.width = Math.round(width);
+      canvas.height = Math.round(height);
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const getPos = (e: React.TouchEvent | React.MouseEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    if ("touches" in e) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+  };
+
+  const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    drawing.current = true;
+    lastPos.current = getPos(e, canvas);
+  };
+  const draw = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current!.x, lastPos.current!.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    lastPos.current = pos;
+    onSign(canvas.toDataURL("image/png"));
+  };
+  const endDraw = () => { drawing.current = false; lastPos.current = null; };
+
+  return (
+    <div ref={containerRef} className="absolute inset-0" style={{ touchAction: "none" }}>
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full cursor-crosshair block"
+        onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
+        onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
+      />
+    </div>
+  );
+}
+
 // ─── 서명 + 완료 모달 ─────────────────────────────────────────────────────────
-type Slot = { id: number; memberName: string | null; scheduledTime: string | null; notes: string | null; eventType: string | null };
+type Slot = { id: number; memberId?: number | null; memberName: string | null; scheduledTime: string | null; notes: string | null; eventType: string | null };
 type ModalStep = "checkin" | "signature" | "confirm" | "done";
 
 function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void }) {
@@ -287,40 +359,47 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
   // 서명 단계는 전체화면으로
   if (step === "signature") {
     return (
-      <div className="fixed inset-0 z-50 bg-card flex flex-col">
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+      <div className="fixed inset-0 z-50 bg-card flex flex-col" style={{ touchAction: "none" }}>
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 pt-safe-top pt-5 pb-3 border-b border-border shrink-0">
           <div>
             <p className="text-base font-semibold">수업 완료 서명</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {slot.scheduledTime}{slot.memberName ? ` · ${slot.memberName}` : ""}
+              {slot.memberName ?? ""} {slot.scheduledTime ? `· ${slot.scheduledTime}` : ""}
             </p>
           </div>
           <button type="button" onClick={() => setStep("checkin")} className="text-xs text-muted-foreground px-3 py-1.5 rounded-lg border border-border hover:text-foreground">
             이전
           </button>
         </div>
-        <div className="flex-1 flex flex-col justify-center px-5 py-6 space-y-4">
-          <p className="text-sm text-muted-foreground text-center">아래 공간에 서명해 주세요</p>
-          <div className="relative border border-border rounded-2xl overflow-hidden bg-slate-900/60" style={{ touchAction: "none", height: "45dvh" }}>
-            <SignaturePad
-              hasSignature={!!sigDataUrl}
-              onSign={setSigDataUrl}
-              onClear={() => setSigDataUrl(null)}
-              hideClearBtn
-            />
-          </div>
-          {sigDataUrl && (
-            <button type="button" onClick={() => setSigDataUrl(null)} className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              <RotateCcw className="h-3.5 w-3.5" /> 다시 그리기
-            </button>
+        {/* 캔버스 — flex-1로 남은 공간 전부 사용 */}
+        <div className="flex-1 relative border-b border-border bg-slate-950" style={{ touchAction: "none" }}>
+          <FullscreenSignaturePad
+            onSign={setSigDataUrl}
+            onClear={() => setSigDataUrl(null)}
+            hasSignature={!!sigDataUrl}
+          />
+          {!sigDataUrl && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="flex items-center gap-2 text-muted-foreground/30">
+                <Pen className="h-5 w-5" />
+                <span className="text-base">여기에 서명하세요</span>
+              </div>
+            </div>
           )}
         </div>
-        <div className="px-5 pb-8">
+        {/* 하단 버튼 */}
+        <div className="shrink-0 px-5 py-4 space-y-2">
+          {sigDataUrl && (
+            <button type="button" onClick={() => setSigDataUrl(null)} className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors py-1">
+              <RotateCcw className="h-4 w-4" /> 다시 그리기
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!sigDataUrl || completeMutation.isPending}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-500 transition-colors disabled:opacity-40"
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-500 transition-colors disabled:opacity-40"
           >
             <CheckCircle className="h-5 w-5" />
             {completeMutation.isPending ? "처리 중..." : "서명 완료"}
@@ -388,7 +467,16 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => { onClose(); setLocation("/schedule"); }}
+                onClick={() => {
+                  try {
+                    localStorage.setItem("scheduleFor", JSON.stringify({
+                      memberName: slot.memberName,
+                      memberId: slot.memberId ?? null,
+                    }));
+                  } catch {}
+                  onClose();
+                  setLocation("/schedule");
+                }}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <CalendarDays className="h-4 w-4" />

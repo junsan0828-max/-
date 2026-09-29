@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, useRef, useCallback } from "react";
+import { useState, useMemo, Fragment, useRef, useCallback, useEffect } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { holidayName } from "../lib/holidays";
@@ -91,6 +91,14 @@ export default function SchedulePage() {
   const [editing, setEditing] = useState<{ weekday: number; hour: number } | null>(null);
   // 관리자 전용: null = 전체 트레이너 보기
   const [trainerFilter, setTrainerFilter] = useState<number | null>(null);
+  // 다음 스케줄 잡기에서 넘어온 회원 자동입력
+  const [prefillMember, setPrefillMember] = useState<{ memberName: string; memberId: number | null } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("scheduleFor");
+      if (raw) { setPrefillMember(JSON.parse(raw)); localStorage.removeItem("scheduleFor"); }
+    } catch {}
+  }, []);
 
   const { data: access } = trpc.schedules.myAccess.useQuery();
   const isAdmin = access?.isAdmin ?? false;
@@ -473,6 +481,13 @@ export default function SchedulePage() {
         </div>
       )}
 
+      {/* 다음 스케줄 잡기에서 넘어온 경우: 회원 자동입력 안내 배너 */}
+      {prefillMember && !editing && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-primary text-primary-foreground text-xs font-medium px-4 py-2 rounded-full shadow-lg whitespace-nowrap">
+          {prefillMember.memberName} — 시간을 탭해 스케줄 추가
+        </div>
+      )}
+
       {editing && (
         <SlotEditor
           cell={grid[`${editing.weekday}-${editing.hour}`] ?? []}
@@ -481,21 +496,23 @@ export default function SchedulePage() {
           viewingAll={viewingAll}
           trainerId={trainerFilter}
           branchList={branchList ?? []}
+          prefillMember={prefillMember}
           onClose={() => setEditing(null)}
-          onSaved={() => { setEditing(null); refresh(); }}
+          onSaved={() => { setEditing(null); setPrefillMember(null); refresh(); }}
         />
       )}
     </div>
   );
 }
 
-function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClose, onSaved }: {
+function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefillMember, onClose, onSaved }: {
   cell: Slot[];
   date: string;
   hour: number;
   viewingAll: boolean;
   trainerId: number | null;
   branchList: { id: number; name: string }[];
+  prefillMember?: { memberName: string; memberId: number | null } | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -515,8 +532,13 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
     return branchList[0]?.id ?? null;
   })();
 
-  const [memberId, setMemberId] = useState<number | null>(target?.memberId ?? null);
-  const [memberInput, setMemberInput] = useState(target?.memberName ?? "");
+  // 신규 수업이면 prefillMember 사용, 기존 수업이면 target 값 사용
+  const [memberId, setMemberId] = useState<number | null>(
+    target?.memberId ?? (isNew ? (prefillMember?.memberId ?? null) : null)
+  );
+  const [memberInput, setMemberInput] = useState(
+    target?.memberName ?? (isNew ? (prefillMember?.memberName ?? "") : "")
+  );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [time, setTime] = useState(
     target?.scheduledTime ?? fixed?.scheduledTime ?? `${String(hour).padStart(2, "0")}:00`
