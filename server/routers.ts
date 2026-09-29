@@ -2618,7 +2618,7 @@ const schedulesRouter = t.router({
       isRecurring: z.boolean().default(false),
       branchId: z.number().nullable().optional(),
       trainerId: z.number().optional(),
-      eventType: z.enum(["pt", "consultation", "trial", "meeting", "other"]).default("pt"),
+      eventType: z.enum(["pt", "ballet", "consultation", "trial", "meeting", "other"]).default("pt"),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
@@ -2652,7 +2652,7 @@ const schedulesRouter = t.router({
       status: z.enum(["pending", "done", "cancelled"]).optional(),
       isRecurring: z.boolean().optional(),
       branchId: z.number().nullable().optional(),
-      eventType: z.enum(["pt", "consultation", "trial", "meeting", "other"]).optional(),
+      eventType: z.enum(["pt", "ballet", "consultation", "trial", "meeting", "other"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);

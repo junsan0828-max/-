@@ -38,10 +38,11 @@ function hourOf(time: string | null) {
   return isNaN(h) ? null : h;
 }
 
-type EventType = "pt" | "consultation" | "trial" | "meeting" | "other";
+type EventType = "pt" | "ballet" | "consultation" | "trial" | "meeting" | "other";
 
 const EVENT_LABELS: Record<EventType, string> = {
   pt: "PT수업",
+  ballet: "밸체",
   consultation: "상담",
   trial: "체험",
   meeting: "회의",
@@ -50,7 +51,8 @@ const EVENT_LABELS: Record<EventType, string> = {
 
 // grid cell colors: [filled bg+border, empty hover border]
 const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
-  pt:           { filled: "bg-primary/15 border-primary/40 hover:bg-primary/25",           empty: "border-border/60 border-dashed hover:border-primary/50 hover:bg-primary/5" },
+  pt:           { filled: "bg-primary/15 border-primary/40 hover:bg-primary/25",             empty: "border-border/60 border-dashed hover:border-primary/50 hover:bg-primary/5" },
+  ballet:       { filled: "bg-pink-500/15 border-pink-500/40 hover:bg-pink-500/25",          empty: "border-border/60 border-dashed hover:border-pink-500/50 hover:bg-pink-500/5" },
   consultation: { filled: "bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/25", empty: "border-border/60 border-dashed hover:border-emerald-500/50 hover:bg-emerald-500/5" },
   trial:        { filled: "bg-amber-500/15 border-amber-500/40 hover:bg-amber-500/25",       empty: "border-border/60 border-dashed hover:border-amber-500/50 hover:bg-amber-500/5" },
   meeting:      { filled: "bg-slate-500/15 border-slate-400/40 hover:bg-slate-500/25",       empty: "border-border/60 border-dashed hover:border-slate-400/50 hover:bg-slate-500/5" },
