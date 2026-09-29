@@ -129,32 +129,52 @@ export default function SchedulePage() {
 
   const refresh = () => utils.schedules.listByWeek.invalidate();
 
-  // ── 드래그 앤 드롭 ──────────────────────────────────────────────
+  // ── 수업 이동 (Pick & Place) ────────────────────────────────────
+  // 꾹 누르면(500ms) 선택 → 빈 칸 탭하면 이동
   const [dragSlotId, setDragSlotId] = useState<number | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ wd: number; h: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStartPos = useRef<{ x: number; y: number } | null>(null);
 
   const moveMutation = trpc.schedules.update.useMutation({
     onSuccess: () => { toast.success("수업을 이동했습니다"); refresh(); },
     onError: e => toast.error(e.message),
   });
 
-  const cancelDrag = useCallback(() => {
+  const cancelMove = useCallback(() => {
     setDragSlotId(null);
-    setDropTarget(null);
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    pressStartPos.current = null;
   }, []);
 
-  const commitMove = useCallback((slot: Slot, wd: number, h: number) => {
+  const commitMove = useCallback((slotId: number, wd: number, h: number) => {
     const targetDate = toYmd(weekDates[wd]);
     const targetTime = `${String(h).padStart(2, "0")}:00`;
-    if (slot.scheduledDate === targetDate && slot.scheduledTime?.startsWith(targetTime.slice(0, 2))) {
-      cancelDrag();
-      return;
+    moveMutation.mutate({ scheduleId: slotId, scheduledDate: targetDate, scheduledTime: targetTime });
+    cancelMove();
+  }, [weekDates, cancelMove, moveMutation]);
+
+  const startLongPress = useCallback((slotId: number, x: number, y: number) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    pressStartPos.current = { x, y };
+    longPressTimer.current = setTimeout(() => {
+      setDragSlotId(slotId);
+      try { (navigator as any).vibrate?.(40); } catch {}
+      longPressTimer.current = null;
+    }, 500);
+  }, []);
+
+  const cancelLongPress = useCallback((x?: number, y?: number) => {
+    if (!longPressTimer.current) return;
+    // 10px 이상 이동 시 또는 손 뗄 때 취소
+    if (x != null && y != null && pressStartPos.current) {
+      const dx = x - pressStartPos.current.x;
+      const dy = y - pressStartPos.current.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 10) return; // 미세 움직임은 무시
     }
-    moveMutation.mutate({ scheduleId: slot.id, scheduledDate: targetDate, scheduledTime: targetTime });
-    cancelDrag();
-  }, [weekDates, cancelDrag, moveMutation]);
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    pressStartPos.current = null;
+  }, []);
 
   // 요일×시간 격자에 배치. 고정 슬롯은 시작일 이후의 모든 주에 같은 요일로 깔린다.
   const grid = useMemo(() => {
@@ -272,11 +292,11 @@ export default function SchedulePage() {
         ))}
       </div>
 
-      {/* 드래그 중 안내 배너 */}
+      {/* 이동 모드 안내 배너 */}
       {dragSlotId != null && (
         <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-primary/15 border border-primary/30 text-xs text-primary">
-          <span>이동할 시간칸을 클릭하세요</span>
-          <button onClick={cancelDrag} className="text-muted-foreground hover:text-foreground">취소</button>
+          <span>이동할 빈 칸을 누르세요 — 카드를 다시 누르면 취소</span>
+          <button onClick={cancelMove} className="text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border/40">취소</button>
         </div>
       )}
 
@@ -347,57 +367,40 @@ export default function SchedulePage() {
                     ? TRAINER_PALETTE[trainerColorMap.get(top.trainerId) ?? 0]
                     : null;
 
-                  const isBeingDragged = top != null && dragSlotId === top.id;
-                  const isDropTarget = dropTarget?.wd === wd && dropTarget?.h === h;
-                  const isDragActive = dragSlotId != null;
-                  const draggedSlot = isDragActive ? (slots ?? []).find(s => s.id === dragSlotId) : null;
+                  const isMoveActive = dragSlotId != null;
+                  const isSelected = top != null && dragSlotId === top.id;
 
-                  // 드롭 가능한 빈 칸 (드래그 중에만)
-                  if (isDragActive && !top && open && !hol) {
+                  // 이동 모드: 빈 칸 → 이동 대상 표시
+                  if (isMoveActive && !top && open && !hol) {
                     return (
-                      <div
+                      <button
                         key={wd}
-                        onDragOver={e => { e.preventDefault(); setDropTarget({ wd, h }); }}
-                        onDragLeave={() => setDropTarget(null)}
-                        onDrop={() => draggedSlot && commitMove(draggedSlot, wd, h)}
-                        onClick={() => draggedSlot && commitMove(draggedSlot, wd, h)}
-                        className={`min-h-[42px] rounded-lg border-2 border-dashed transition-colors cursor-pointer ${
-                          isDropTarget
-                            ? "border-primary bg-primary/15 scale-[1.02]"
-                            : "border-border/50 hover:border-primary/60 hover:bg-primary/8"
-                        }`}
+                        onClick={() => commitMove(dragSlotId!, wd, h)}
+                        className="min-h-[42px] rounded-lg border-2 border-dashed border-primary/50 hover:border-primary hover:bg-primary/15 transition-colors cursor-pointer flex items-center justify-center"
                       >
-                        {isDropTarget && (
-                          <div className="flex items-center justify-center h-full text-[10px] text-primary/80 font-medium pt-2">여기로 이동</div>
-                        )}
-                      </div>
+                        <span className="text-[10px] text-primary/60 font-medium">여기로</span>
+                      </button>
                     );
                   }
 
                   return (
                     <button
                       key={wd}
-                      draggable={top != null && !isDone}
-                      onDragStart={() => top && setDragSlotId(top.id)}
-                      onDragEnd={cancelDrag}
-                      onTouchStart={() => {
-                        if (!top || isDone) return;
-                        longPressTimer.current = setTimeout(() => { setDragSlotId(top.id); }, 500);
+                      onPointerDown={e => {
+                        if (!top || isDone || isMoveActive) return;
+                        startLongPress(top.id, e.clientX, e.clientY);
                       }}
-                      onTouchMove={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
-                      onTouchEnd={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
+                      onPointerMove={e => cancelLongPress(e.clientX, e.clientY)}
+                      onPointerUp={() => cancelLongPress()}
+                      onPointerCancel={() => cancelLongPress()}
                       onClick={() => {
-                        if (isDragActive && top && dragSlotId !== top.id && draggedSlot) {
-                          commitMove(draggedSlot, wd, h);
-                        } else if (!isDragActive) {
-                          setEditing({ weekday: wd, hour: h });
-                        } else {
-                          cancelDrag();
-                        }
+                        if (isSelected) { cancelMove(); return; }
+                        if (isMoveActive && top) { commitMove(dragSlotId!, wd, h); return; }
+                        if (!isMoveActive) setEditing({ weekday: wd, hour: h });
                       }}
-                      className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-all relative ${
-                        isBeingDragged
-                          ? "opacity-40 scale-95 border-dashed"
+                      className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-all relative select-none ${
+                        isSelected
+                          ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
                           : top
                             ? isDone
                               ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
@@ -409,7 +412,7 @@ export default function SchedulePage() {
                             : hol
                               ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
                               : colors.empty
-                      } ${top && !isDone ? "cursor-grab active:cursor-grabbing" : ""}`}
+                      }`}
                     >
                       {top ? (
                         <>
