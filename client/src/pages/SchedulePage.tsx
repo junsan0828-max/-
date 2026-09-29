@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useRef, useCallback } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { holidayName } from "../lib/holidays";
@@ -51,7 +51,7 @@ const EVENT_LABELS: Record<EventType, string> = {
 
 // grid cell colors: [filled bg+border, empty hover border]
 const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
-  pt:           { filled: "bg-white/8 border-white/25 hover:bg-white/14 text-white/90",       empty: "border-border/60 border-dashed hover:border-white/30 hover:bg-white/5" },
+  pt:           { filled: "bg-slate-100/10 border-slate-300/35 hover:bg-slate-100/16 text-slate-100",  empty: "border-border/60 border-dashed hover:border-slate-300/40 hover:bg-slate-100/5" },
   ballet:       { filled: "bg-pink-500/20 border-pink-400/50 hover:bg-pink-500/30",           empty: "border-border/60 border-dashed hover:border-pink-500/50 hover:bg-pink-500/5" },
   consultation: { filled: "bg-emerald-500/20 border-emerald-400/50 hover:bg-emerald-500/30",  empty: "border-border/60 border-dashed hover:border-emerald-500/50 hover:bg-emerald-500/5" },
   trial:        { filled: "bg-amber-500/20 border-amber-400/50 hover:bg-amber-500/30",        empty: "border-border/60 border-dashed hover:border-amber-500/50 hover:bg-amber-500/5" },
@@ -128,6 +128,33 @@ export default function SchedulePage() {
   });
 
   const refresh = () => utils.schedules.listByWeek.invalidate();
+
+  // ── 드래그 앤 드롭 ──────────────────────────────────────────────
+  const [dragSlotId, setDragSlotId] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ wd: number; h: number } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const moveMutation = trpc.schedules.update.useMutation({
+    onSuccess: () => { toast.success("수업을 이동했습니다"); refresh(); },
+    onError: e => toast.error(e.message),
+  });
+
+  const cancelDrag = useCallback(() => {
+    setDragSlotId(null);
+    setDropTarget(null);
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }, []);
+
+  const commitMove = useCallback((slot: Slot, wd: number, h: number) => {
+    const targetDate = toYmd(weekDates[wd]);
+    const targetTime = `${String(h).padStart(2, "0")}:00`;
+    if (slot.scheduledDate === targetDate && slot.scheduledTime?.startsWith(targetTime.slice(0, 2))) {
+      cancelDrag();
+      return;
+    }
+    moveMutation.mutate({ scheduleId: slot.id, scheduledDate: targetDate, scheduledTime: targetTime });
+    cancelDrag();
+  }, [weekDates, cancelDrag, moveMutation]);
 
   // 요일×시간 격자에 배치. 고정 슬롯은 시작일 이후의 모든 주에 같은 요일로 깔린다.
   const grid = useMemo(() => {
@@ -245,6 +272,14 @@ export default function SchedulePage() {
         ))}
       </div>
 
+      {/* 드래그 중 안내 배너 */}
+      {dragSlotId != null && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-primary/15 border border-primary/30 text-xs text-primary">
+          <span>이동할 시간칸을 클릭하세요</span>
+          <button onClick={cancelDrag} className="text-muted-foreground hover:text-foreground">취소</button>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="text-center text-sm text-muted-foreground py-10">불러오는 중...</div>
       ) : (
@@ -311,23 +346,70 @@ export default function SchedulePage() {
                   const tColor = (viewingAll && top?.trainerId != null)
                     ? TRAINER_PALETTE[trainerColorMap.get(top.trainerId) ?? 0]
                     : null;
+
+                  const isBeingDragged = top != null && dragSlotId === top.id;
+                  const isDropTarget = dropTarget?.wd === wd && dropTarget?.h === h;
+                  const isDragActive = dragSlotId != null;
+                  const draggedSlot = isDragActive ? (slots ?? []).find(s => s.id === dragSlotId) : null;
+
+                  // 드롭 가능한 빈 칸 (드래그 중에만)
+                  if (isDragActive && !top && open && !hol) {
+                    return (
+                      <div
+                        key={wd}
+                        onDragOver={e => { e.preventDefault(); setDropTarget({ wd, h }); }}
+                        onDragLeave={() => setDropTarget(null)}
+                        onDrop={() => draggedSlot && commitMove(draggedSlot, wd, h)}
+                        onClick={() => draggedSlot && commitMove(draggedSlot, wd, h)}
+                        className={`min-h-[42px] rounded-lg border-2 border-dashed transition-colors cursor-pointer ${
+                          isDropTarget
+                            ? "border-primary bg-primary/15 scale-[1.02]"
+                            : "border-border/50 hover:border-primary/60 hover:bg-primary/8"
+                        }`}
+                      >
+                        {isDropTarget && (
+                          <div className="flex items-center justify-center h-full text-[10px] text-primary/80 font-medium pt-2">여기로 이동</div>
+                        )}
+                      </div>
+                    );
+                  }
+
                   return (
                     <button
                       key={wd}
-                      onClick={() => setEditing({ weekday: wd, hour: h })}
-                      className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-colors relative ${
-                        top
-                          ? isDone
-                            ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
-                            : tColor
-                              ? tColor.cell
-                              : top.isRecurring
-                                ? "bg-white/5 border-white/20 hover:bg-white/10 text-white/80"
-                                : colors.filled
-                          : hol
-                            ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
-                            : colors.empty
-                      }`}
+                      draggable={top != null && !isDone}
+                      onDragStart={() => top && setDragSlotId(top.id)}
+                      onDragEnd={cancelDrag}
+                      onTouchStart={() => {
+                        if (!top || isDone) return;
+                        longPressTimer.current = setTimeout(() => { setDragSlotId(top.id); }, 500);
+                      }}
+                      onTouchMove={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
+                      onTouchEnd={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
+                      onClick={() => {
+                        if (isDragActive && top && dragSlotId !== top.id && draggedSlot) {
+                          commitMove(draggedSlot, wd, h);
+                        } else if (!isDragActive) {
+                          setEditing({ weekday: wd, hour: h });
+                        } else {
+                          cancelDrag();
+                        }
+                      }}
+                      className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-all relative ${
+                        isBeingDragged
+                          ? "opacity-40 scale-95 border-dashed"
+                          : top
+                            ? isDone
+                              ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
+                              : tColor
+                                ? tColor.cell
+                                : top.isRecurring
+                                  ? "bg-slate-100/7 border-slate-300/25 hover:bg-slate-100/12 text-slate-200/85"
+                                  : colors.filled
+                            : hol
+                              ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
+                              : colors.empty
+                      } ${top && !isDone ? "cursor-grab active:cursor-grabbing" : ""}`}
                     >
                       {top ? (
                         <>
