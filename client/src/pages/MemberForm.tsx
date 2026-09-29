@@ -83,6 +83,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [serviceLockerNum, setServiceLockerNum] = useState("");
   const [showLockerSkipDialog, setShowLockerSkipDialog] = useState(false);
   const skipLockerRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -406,7 +407,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
         <h1 className="text-xl font-bold">{isEdit ? "회원 정보 수정" : "신규 회원 등록"}</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
         {/* 기본 정보 */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-4">
@@ -1147,7 +1148,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <Button className="flex-1" onClick={() => {
               setShowLockerSkipDialog(false);
               skipLockerRef.current = true;
-              document.querySelector<HTMLFormElement>("form")?.requestSubmit();
+              formRef.current?.requestSubmit();
             }}>
               나중에 배정
             </Button>

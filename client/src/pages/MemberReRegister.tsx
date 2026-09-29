@@ -105,6 +105,7 @@ export default function MemberReRegister() {
   const [serviceLockerNum, setServiceLockerNum] = useState("");
   const [showLockerSkipDialog, setShowLockerSkipDialog] = useState(false);
   const skipLockerRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const selectedMember = members.find(m => String(m.id) === selectedMemberId);
 
@@ -241,7 +242,6 @@ export default function MemberReRegister() {
       setShowLockerSkipDialog(true);
       return;
     }
-    skipLockerRef.current = false;
     if (addHealth && !healthMonths) { toast.error("헬스 이용 기간을 선택해주세요"); return; }
     if (addPt && !isServiceSession && !ptProgram) { toast.error("PT 프로그램명을 입력해주세요"); return; }
     if (addPt && !isServiceSession && !ptSessions) { toast.error("PT 횟수를 선택해주세요"); return; }
@@ -250,6 +250,7 @@ export default function MemberReRegister() {
     if (hasPaidItem && !paymentMethod) { toast.error("결제 방법을 선택해주세요"); return; }
     if (hasPaidItem && !paymentDate) { toast.error("결제일자를 입력해주세요"); return; }
     if (ptStartConflict) { toast.error(`이전 PT 잔여 ${remainingPt}회 있음. 새 패키지 시작일을 이전 패키지 완료 후 날짜로 설정해주세요.`); return; }
+    skipLockerRef.current = false; // 모든 validation 통과 후 리셋
 
     const siStr = buildServiceItemsStr();
     const method = paymentMethod || undefined;
@@ -320,7 +321,7 @@ export default function MemberReRegister() {
         <h1 className="text-xl font-bold">재등록</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
         {/* 회원 선택 */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-4">
@@ -1001,7 +1002,7 @@ export default function MemberReRegister() {
             <Button className="flex-1" onClick={() => {
               setShowLockerSkipDialog(false);
               skipLockerRef.current = true;
-              document.querySelector<HTMLFormElement>("form")?.requestSubmit();
+              formRef.current?.requestSubmit();
             }}>
               나중에 배정
             </Button>
