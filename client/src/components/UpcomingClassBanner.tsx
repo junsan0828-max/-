@@ -27,13 +27,13 @@ interface Checkin {
 // ─── 체크인 스텝 ─────────────────────────────────────────────────────────────────
 function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext: (data: Checkin) => void }) {
   const [condition, setCondition] = useState(0);
-  const [sleep, setSleep] = useState<number | null>(null);
+  const [sleep] = useState<number>(1); // 고정값 (수면 질 항목 제거)
   const [nutrition, setNutrition] = useState<number | null>(null);
   const [pain, setPain] = useState<number | null>(null);    // null=미선택 0=없음 1~5=강도
   const [painNote, setPainNote] = useState("");
 
   const conditionOk = condition >= 1;
-  const sleepOk = sleep !== null;
+  const sleepOk = true;
   const nutritionOk = nutrition !== null;
   const painOk = pain !== null && (pain === 0 || painNote.trim().length > 0 || true); // 통증 있어도 위치 미입력 허용
   const canNext = conditionOk && sleepOk && nutritionOk && painOk;
@@ -80,35 +80,6 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
             {condition === 0 ? "" : condition <= 2 ? "나쁨" : condition === 3 ? "보통" : condition === 4 ? "좋음" : "최고"}
           </span>
         </div>
-      </div>
-
-      {/* 수면 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-foreground">수면 질</p>
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={sleep === 0}
-              onChange={e => setSleep(e.target.checked ? 0 : null)}
-              className="w-3.5 h-3.5 accent-red-400 cursor-pointer"
-            />
-            <span className="text-xs text-red-400 font-medium">6시간 미만</span>
-          </label>
-        </div>
-        {sleep !== 0 && (
-          <div className="flex gap-1.5">
-            {[1, 2, 3, 4, 5].map(v => (
-              <ScoreBtn key={v} val={v} current={sleep ?? 0} onClick={() => setSleep(v)} />
-            ))}
-            <span className="self-center text-xs text-muted-foreground ml-1">
-              {!sleep ? "" : sleep <= 2 ? "나쁨" : sleep === 3 ? "보통" : sleep === 4 ? "좋음" : "최고"}
-            </span>
-          </div>
-        )}
-        {sleep === 0 && (
-          <p className="text-xs text-red-400/70">수면 부족 — 강도 조절 필요</p>
-        )}
       </div>
 
       {/* 영양 */}
