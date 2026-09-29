@@ -3539,6 +3539,133 @@ const trainersRouter = t.router({
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 const adminRouter = t.router({
+  // 트레이너별 이탈방지 업무 처리 현황
+  trainerAlertSummary: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const today = kstDate();
+    const future7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const cutoff14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const monthEnd = `${today.substring(0, 7)}-31`;
+
+    // 트레이너 목록
+    const trainerList = await db
+      .select({ id: trainers.id, trainerName: trainers.trainerName })
+      .from(trainers)
+      .orderBy(trainers.trainerName);
+
+    // 미수금 회원 set
+    const unpaidRows = await pool.query<{ trainerId: number }>(
+      `SELECT m."trainerId" FROM members m
+       INNER JOIN pt_packages p ON p."memberId" = m.id
+       WHERE p."unpaidAmount" IS NOT NULL AND p."unpaidAmount" > 0 AND m."trainerId" IS NOT NULL`
+    );
+    const unpaidByTrainer = new Map<number, number>();
+    for (const r of unpaidRows.rows) {
+      unpaidByTrainer.set(r.trainerId, (unpaidByTrainer.get(r.trainerId) ?? 0) + 1);
+    }
+
+    // 만료 임박(7일 이내) 회원
+    const expiringRows = await pool.query<{ trainerId: number }>(
+      `SELECT "trainerId" FROM members
+       WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2 AND "trainerId" IS NOT NULL`,
+      [today, future7]
+    );
+    const expiringByTrainer = new Map<number, number>();
+    for (const r of expiringRows.rows) {
+      expiringByTrainer.set(r.trainerId, (expiringByTrainer.get(r.trainerId) ?? 0) + 1);
+    }
+
+    // 이번달 마감(잔여≤5)
+    const monthExpiringRows = await pool.query<{ trainerId: number }>(
+      `SELECT m."trainerId" FROM members m
+       INNER JOIN (
+         SELECT DISTINCT ON ("memberId") "memberId", "totalSessions", "usedSessions", "expiryDate", "startDate"
+         FROM pt_packages WHERE status = 'active' ORDER BY "memberId", "startDate" DESC
+       ) p ON p."memberId" = m.id
+       WHERE m.status = 'active' AND m."trainerId" IS NOT NULL
+         AND (p."totalSessions" - p."usedSessions") <= 5
+         AND NOT EXISTS (
+           SELECT 1 FROM pt_packages p2
+           WHERE p2."memberId" = m.id AND p2."startDate" > p."startDate"
+         )`
+    );
+    const monthExpiringByTrainer = new Map<number, number>();
+    for (const r of monthExpiringRows.rows) {
+      monthExpiringByTrainer.set(r.trainerId, (monthExpiringByTrainer.get(r.trainerId) ?? 0) + 1);
+    }
+
+    // 각 트레이너의 알림 대상 회원 + renewalIntent 상태
+    const PENDING_SET = new Set(["미응답", "관리필요", "일정확인필요"]);
+    const DONE_SET = new Set(["재등록확정", "납부완료", "이탈확정", "소진", "이월", "종료예정",
+      "재등록예정", "이탈예정", "이탈", "연락함", "납부약속", "복귀예정", "수업집중", "확인함"]);
+
+    // 장기 미출석 - trainerId별 집계 (최적화: 최근 출석일 조회)
+    const longAbsentRows = await pool.query<{ trainerId: number; memberId: number; lastAttend: string | null }>(
+      `SELECT m."trainerId", m.id AS "memberId",
+              MAX(a."attendDate") AS "lastAttend"
+       FROM members m
+       LEFT JOIN attendances a ON a."memberId" = m.id AND a.status = 'attended'
+       WHERE m.status = 'active' AND m."trainerId" IS NOT NULL
+         AND EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = m.id AND p.status = 'active')
+       GROUP BY m."trainerId", m.id
+       HAVING MAX(a."attendDate") < $1 OR MAX(a."attendDate") IS NULL`,
+      [cutoff14]
+    );
+    const longAbsentByTrainer = new Map<number, number>();
+    for (const r of longAbsentRows.rows) {
+      longAbsentByTrainer.set(r.trainerId, (longAbsentByTrainer.get(r.trainerId) ?? 0) + 1);
+    }
+
+    // 알림 대상 회원의 renewalIntent 상태
+    const intentRows = await pool.query<{ trainerId: number; memberId: number; intent: string | null }>(
+      `SELECT m."trainerId", m.id AS "memberId", m."renewalIntent" AS intent
+       FROM members m WHERE m."trainerId" IS NOT NULL AND m.status = 'active'`
+    );
+    const intentMap = new Map<number, { intent: string | null }[]>();
+    for (const r of intentRows.rows) {
+      if (!intentMap.has(r.trainerId)) intentMap.set(r.trainerId, []);
+      intentMap.get(r.trainerId)!.push({ intent: r.intent });
+    }
+
+    return trainerList.map((t) => {
+      // 이 트레이너의 alert 대상 memberId 집합 (중복 제거)
+      const alertMemberIds = new Set<number>();
+      for (const r of unpaidRows.rows) if (r.trainerId === t.id) alertMemberIds.add(0); // placeholder count
+      // 실제로는 count만 필요하므로 각 Map에서 합산
+      const totalAlerts =
+        (unpaidByTrainer.get(t.id) ?? 0) +
+        (expiringByTrainer.get(t.id) ?? 0) +
+        (monthExpiringByTrainer.get(t.id) ?? 0) +
+        (longAbsentByTrainer.get(t.id) ?? 0);
+
+      // 처리율: 알림 대상 회원 중 renewalIntent 있는 비율
+      // (정확한 교집합 계산은 비용 높으므로 알림 대상 전체 회원의 intent 보유 비율로 근사)
+      const trainerIntents = intentMap.get(t.id) ?? [];
+      const handled = trainerIntents.filter(m => m.intent && DONE_SET.has(m.intent)).length;
+      const pendingCount = trainerIntents.filter(m => m.intent && PENDING_SET.has(m.intent)).length;
+      const rate = totalAlerts > 0 ? Math.round((handled / totalAlerts) * 100) : null;
+
+      return {
+        trainerId: t.id,
+        trainerName: t.trainerName,
+        totalAlerts,
+        handled,
+        pendingCount,
+        unhandled: Math.max(0, totalAlerts - handled - pendingCount),
+        rate,
+        breakdown: {
+          expiring: expiringByTrainer.get(t.id) ?? 0,
+          unpaid: unpaidByTrainer.get(t.id) ?? 0,
+          longAbsent: longAbsentByTrainer.get(t.id) ?? 0,
+          monthExpiring: monthExpiringByTrainer.get(t.id) ?? 0,
+        },
+      };
+    }).filter(t => t.totalAlerts > 0).sort((a, b) => b.unhandled - a.unhandled);
+  }),
+
   // 트레이너 목록 (회원 수 포함)
   listTrainers: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });

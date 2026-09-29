@@ -32,6 +32,7 @@ function AdminDashboard() {
   const [selectedBranchId, setSelectedBranchId] = useState<number | undefined>(undefined);
   const { data: branchList } = trpc.admin.listBranches.useQuery();
   const { data: stats, isLoading } = trpc.admin.getStats.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
+  const { data: alertSummary } = trpc.admin.trainerAlertSummary.useQuery();
   const { data: chart } = trpc.admin.getMonthlyChart.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
   const { data: branchMembers } = trpc.admin.listMembersByBranch.useQuery(
     { branchId: selectedBranchId! },
@@ -373,6 +374,61 @@ function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 트레이너별 이탈방지 처리 현황 */}
+      {alertSummary && alertSummary.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Bell className="h-4 w-4 text-red-400" />
+              이탈방지 업무 처리 현황
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            {alertSummary.map((t) => {
+              const rate = t.totalAlerts > 0 ? Math.round(((t.handled) / t.totalAlerts) * 100) : 0;
+              return (
+                <div key={t.trainerId} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{t.trainerName}</span>
+                      {t.pendingCount > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-semibold">
+                          관리필요 {t.pendingCount}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      {t.unhandled > 0 && (
+                        <span className="text-red-400 font-semibold">미처리 {t.unhandled}</span>
+                      )}
+                      {t.handled > 0 && (
+                        <span className="text-emerald-400">완료 {t.handled}</span>
+                      )}
+                      <span className="text-muted-foreground">/ {t.totalAlerts}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${rate >= 80 ? "bg-emerald-500" : rate >= 50 ? "bg-yellow-500" : "bg-red-500"}`}
+                        style={{ width: `${rate}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground w-8 text-right">{rate}%</span>
+                  </div>
+                  <div className="flex gap-2 text-[10px] text-muted-foreground">
+                    {t.breakdown.expiring > 0 && <span>만료임박 {t.breakdown.expiring}</span>}
+                    {t.breakdown.unpaid > 0 && <span>미수금 {t.breakdown.unpaid}</span>}
+                    {t.breakdown.longAbsent > 0 && <span>장기미출석 {t.breakdown.longAbsent}</span>}
+                    {t.breakdown.monthExpiring > 0 && <span>이번달마감 {t.breakdown.monthExpiring}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
     </div>
   );
