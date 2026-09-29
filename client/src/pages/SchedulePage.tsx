@@ -784,8 +784,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
                     createMutation.mutate({ memberId, memberName: freeText, scheduledDate: date, scheduledTime: time, notes: notes || undefined, isRecurring: false, eventType, branchId: selectedBranchId ?? undefined, ...(trainerId ? { trainerId } : {}), status: "cancelled" });
                   }
                 }}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50">
-                캔슬 (차감 없음)
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50 whitespace-nowrap">
+                캔슬
               </button>
             </div>
           </div>
@@ -813,8 +813,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
               </button>
               <button type="button" disabled={busy}
                 onClick={() => { if (confirm(`${target.scheduledDate} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`)) updateMutation.mutate({ scheduleId: target.id, status: "cancelled" }); }}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50">
-                캔슬 (차감 없음)
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50 whitespace-nowrap">
+                캔슬
               </button>
             </div>
           </div>
