@@ -19,7 +19,7 @@ function minutesUntil(timeStr: string) {
 interface Checkin {
   condition: number;      // 1~5
   sleep: number;          // 1=충분 0=6h미만
-  nutrition: number;      // 1=식사함 0=결식
+  nutrition: number;      // 1=단백질 2=탄수화물 0=결식/부족
   painLevel: number;      // 0=없음 1~5
   painNote?: string;
 }
@@ -27,16 +27,15 @@ interface Checkin {
 // ─── 체크인 스텝 ─────────────────────────────────────────────────────────────────
 function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext: (data: Checkin) => void }) {
   const [condition, setCondition] = useState(0);
-  const [sleep] = useState<number>(1); // 고정값 (수면 질 항목 제거)
+  const [sleepShort, setSleepShort] = useState(false); // 6시간 이하 여부
   const [nutrition, setNutrition] = useState<number | null>(null);
-  const [pain, setPain] = useState<number | null>(null);    // null=미선택 0=없음 1~5=강도
+  const [pain, setPain] = useState<number | null>(null);
   const [painNote, setPainNote] = useState("");
 
   const conditionOk = condition >= 1;
-  const sleepOk = true;
   const nutritionOk = nutrition !== null;
-  const painOk = pain !== null && (pain === 0 || painNote.trim().length > 0 || true); // 통증 있어도 위치 미입력 허용
-  const canNext = conditionOk && sleepOk && nutritionOk && painOk;
+  const painOk = pain !== null;
+  const canNext = conditionOk && nutritionOk && painOk;
 
   const ToggleBtn = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
     <button
@@ -72,21 +71,37 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
       {/* 컨디션 */}
       <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">컨디션</p>
-        <div className="flex gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground shrink-0">나쁨</span>
           {[1, 2, 3, 4, 5].map(v => (
             <ScoreBtn key={v} val={v} current={condition} onClick={() => setCondition(v)} />
           ))}
-          <span className="self-center text-xs text-muted-foreground ml-1">
-            {condition === 0 ? "" : condition <= 2 ? "나쁨" : condition === 3 ? "보통" : condition === 4 ? "좋음" : "최고"}
-          </span>
+          <span className="text-xs text-muted-foreground shrink-0">최고</span>
         </div>
+      </div>
+
+      {/* 수면 6시간 이하 */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-foreground">수면 6시간 이하</p>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={sleepShort}
+            onChange={e => setSleepShort(e.target.checked)}
+            className="w-4 h-4 accent-red-400 cursor-pointer"
+          />
+          <span className={`text-sm font-medium ${sleepShort ? "text-red-400" : "text-muted-foreground"}`}>
+            {sleepShort ? "예" : "아니오"}
+          </span>
+        </label>
       </div>
 
       {/* 영양 */}
       <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">영양 (식사 여부)</p>
+        <p className="text-sm font-medium text-foreground">영양</p>
         <div className="flex gap-2">
-          <ToggleBtn active={nutrition === 1} onClick={() => setNutrition(1)}>식사 함</ToggleBtn>
+          <ToggleBtn active={nutrition === 1} onClick={() => setNutrition(1)}>단백질</ToggleBtn>
+          <ToggleBtn active={nutrition === 2} onClick={() => setNutrition(2)}>탄수화물</ToggleBtn>
           <ToggleBtn active={nutrition === 0} onClick={() => setNutrition(0)}>결식 / 부족</ToggleBtn>
         </div>
       </div>
@@ -122,7 +137,7 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
       <button
         type="button"
         disabled={!canNext}
-        onClick={() => onNext({ condition, sleep: sleep!, nutrition: nutrition!, painLevel: pain!, painNote })}
+        onClick={() => onNext({ condition, sleep: sleepShort ? 0 : 1, nutrition: nutrition!, painLevel: pain!, painNote })}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40"
       >
         서명하기
