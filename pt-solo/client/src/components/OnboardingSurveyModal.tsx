@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, X, Sparkles, TrendingUp, Coins } from "lucide-react";
+import { ChevronRight, ChevronLeft, X, Sparkles, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Question = {
@@ -147,12 +147,6 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
               소중한 응답 감사합니다.<br />맞춤형 교육 콘텐츠와 기능으로 성장을 도와드릴게요.
             </p>
           </div>
-          {pointsGranted && (
-            <div className="flex items-center justify-center gap-2 bg-amber-50 border-b border-amber-100 px-6 py-3">
-              <Coins className="h-4 w-4 text-amber-500" />
-              <p className="text-sm font-semibold text-amber-700">+300 FIT POINT 지급 완료!</p>
-            </div>
-          )}
           <div className="p-6">
             <Button className="w-full" onClick={handleClose}>FIT STEP 시작하기</Button>
           </div>
@@ -186,16 +180,7 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
               </p>
             </div>
 
-            {/* 포인트 안내 */}
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-              <Coins className="h-6 w-6 text-amber-500 shrink-0" />
-              <div>
-                <p className="font-semibold text-amber-800 text-sm">완료 시 300 FIT POINT 즉시 지급</p>
-                <p className="text-amber-700 text-xs mt-0.5 leading-relaxed">
-                  응답 결과는 교육 콘텐츠 기획 및 앱 기능 개선에만 활용됩니다.
-                </p>
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground">응답 결과는 교육 콘텐츠 기획 및 앱 기능 개선에만 활용됩니다.</p>
 
             <div className="space-y-2 pt-1">
               <Button className="w-full gap-2" onClick={() => setStep("survey")}>

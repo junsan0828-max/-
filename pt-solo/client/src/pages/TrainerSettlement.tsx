@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2, Wallet, Plus, Trash2, LineChart as LineChartIcon } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
 import TabBanner from "@/components/TabBanner";
-import PointSpendConfirm from "@/components/PointSpendConfirm";
 
 function fmt(n: number) { return n.toLocaleString(); }
 
@@ -39,12 +38,6 @@ function RevenueTab({ initialView }: { initialView?: "monthly" | "daily" }) {
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
   const [view, setView] = useState<"monthly" | "daily">(initialView ?? "monthly");
-  const [showPdfConfirm, setShowPdfConfirm] = useState(false);
-  const [pendingPdfAction, setPendingPdfAction] = useState<"csv" | "pdf" | null>(null);
-  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
-  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
-  const statsEnabled = featureCosts?.["stats_report"]?.enabled ?? true;
-  const statsCost = featureCosts?.["stats_report"]?.cost ?? 50;
 
   const { data: monthly } = trpc.trainers.getMonthlySettlement.useQuery(
     { yearMonth },
@@ -145,33 +138,15 @@ function RevenueTab({ initialView }: { initialView?: "monthly" | "daily" }) {
 
       {data && data.sessionCount > 0 && (
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => { if (statsEnabled) { setPendingPdfAction("csv"); setShowPdfConfirm(true); } else exportCSV(); }}>
-            <FileText className="h-4 w-4" />CSV{statsEnabled ? <span className="text-primary/70 text-[10px]"> -{statsCost}P</span> : null}
+          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={exportCSV}>
+            <FileText className="h-4 w-4" />CSV
           </Button>
-          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => { if (statsEnabled) { setPendingPdfAction("pdf"); setShowPdfConfirm(true); } else exportPDF(); }}>
-            <FileText className="h-4 w-4" />PDF 인쇄{statsEnabled ? <span className="text-primary/70 text-[10px]"> -{statsCost}P</span> : null}
+          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={exportPDF}>
+            <FileText className="h-4 w-4" />PDF 인쇄
           </Button>
         </div>
       )}
 
-      <PointSpendConfirm
-        open={showPdfConfirm}
-        onClose={() => { setShowPdfConfirm(false); setPendingPdfAction(null); }}
-        featureName="통계 리포트 생성"
-        cost={statsCost}
-        loading={spendFeatureMutation.isPending}
-        onConfirm={() => {
-          spendFeatureMutation.mutate({ feature: "stats_report" }, {
-            onSuccess: () => {
-              setShowPdfConfirm(false);
-              if (pendingPdfAction === "csv") exportCSV();
-              else if (pendingPdfAction === "pdf") exportPDF();
-              setPendingPdfAction(null);
-            },
-            onError: (e) => toast.error(e.message),
-          });
-        }}
-      />
 
       {data && data.logs.length > 0 && (
         <div className="space-y-2">

@@ -44,7 +44,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import PointSpendConfirm from "@/components/PointSpendConfirm";
 import { useAutoPoints, pointLabel } from "@/hooks/useAutoPoints";
 import {
   ArrowLeft,
@@ -277,7 +276,6 @@ export default function MemberDetail({ memberId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [reportPointConfirm, setReportPointConfirm] = useState(false);
   const [editMemoOpen, setEditMemoOpen] = useState(false);
   const [editMemoForm, setEditMemoForm] = useState({ id: 0, memoDate: "", content: "" });
   const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
@@ -495,13 +493,6 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "업데이트 실패"),
   });
 
-  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
-  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
-  const featureInfo = (feature: string) => {
-    const rule = featureCosts?.[feature];
-    return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
-  };
-
   // 기능 활성 여부 (관리자가 전역으로 켜고 끈다)
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
   const isFeatureActive = (featureId: string) => {
@@ -679,14 +670,13 @@ export default function MemberDetail({ memberId }: Props) {
             variant="outline"
             onClick={() => {
               if (shareToken) { setShareOpen(true); }
-              else if (featureInfo("health_report").enabled) { setReportPointConfirm(true); }
               else { generateReportMutation.mutate({ memberId }); }
             }}
             disabled={generateReportMutation.isPending}
             className="gap-1.5"
           >
             <Share2 className="h-3.5 w-3.5" />
-            공유{featureInfo("health_report").enabled ? <span className="text-primary/70 text-[10px]"> -{featureInfo("health_report").cost}P</span> : null}
+            공유
           </Button>
           <Button
             size="sm"
@@ -1065,12 +1055,11 @@ export default function MemberDetail({ memberId }: Props) {
                               disabled={generateReportMutation.isPending}
                               onClick={() => {
                                 if (shareToken) { setShareOpen(true); }
-                                else if (featureInfo("health_report").enabled) { setReportPointConfirm(true); }
                                 else { generateReportMutation.mutate({ memberId }); }
                               }}
                             >
                               <Share2 className="h-3.5 w-3.5" />
-                              보고서 생성 및 공유{featureInfo("health_report").enabled ? ` (-${featureInfo("health_report").cost}P)` : ""}
+                              보고서 생성 및 공유
                             </Button>
                           </div>
                         )}
@@ -2205,23 +2194,6 @@ export default function MemberDetail({ memberId }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* 건강 리포트 공유 포인트 확인 */}
-      <PointSpendConfirm
-        open={reportPointConfirm}
-        onClose={() => setReportPointConfirm(false)}
-        featureName="건강 리포트 공유"
-        cost={featureInfo("health_report").cost}
-        loading={spendFeatureMutation.isPending || generateReportMutation.isPending}
-        onConfirm={() => {
-          spendFeatureMutation.mutate({ feature: "health_report" }, {
-            onSuccess: () => {
-              setReportPointConfirm(false);
-              generateReportMutation.mutate({ memberId });
-            },
-            onError: (e) => toast.error(e.message),
-          });
-        }}
-      />
     </div>
   );
 }

@@ -6,8 +6,6 @@ import { useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import PointSpendConfirm from "@/components/PointSpendConfirm";
-import { useAutoPoints, pointLabel } from "@/hooks/useAutoPoints";
 
 // 관리상담: consulted 상태이고 상담일로부터 7일 이내
 function resolveDisplayStatus(status: string, consultationDate: string | null | undefined): string {
@@ -193,10 +191,7 @@ export default function LeadsPage() {
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
   const [isQuickReg, setIsQuickReg] = useState(false);
-  const [showPdfConfirm, setShowPdfConfirm] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState("");
-  const [showReregiConfirm, setShowReregiConfirm] = useState(false);
-  const [showNewContractConfirm, setShowNewContractConfirm] = useState(false);
+
   const [reregMemberId, setReregMemberId] = useState("");
   const [reregPkg, setReregPkg] = useState({
     ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
@@ -205,22 +200,12 @@ export default function LeadsPage() {
     paymentMemo: "",
   });
 
-  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
-  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
   const kakaoShareEnabled = (() => {
     const configs = wsStatus?.featureConfigs ?? {};
     const removed = wsStatus?.removedFeatures ?? [];
     return configs["contract_kakao"] === "active" && !removed.includes("contract_kakao");
   })();
-  const autoPoints = useAutoPoints();
-
-  // 기능별 비용/활성화 여부 헬퍼
-  function featureInfo(feature: string) {
-    const rule = featureCosts?.[feature];
-    return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
-  }
-
   const addPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
       toast.success("재등록 완료!");
@@ -246,7 +231,7 @@ export default function LeadsPage() {
       paymentMemo: reregPkg.paymentMemo || undefined,
       withContract: true,
     }, {
-      onSuccess: () => setShowReregiConfirm(false),
+      onSuccess: () => setShowQuickModal(false),
       onError: (e) => toast.error(e.message),
     });
   }
@@ -641,17 +626,12 @@ export default function LeadsPage() {
                     <button
                       onClick={() => {
                         if (contractTerms) sessionStorage.setItem("contractTerms", JSON.stringify(contractTerms));
-                        setPdfUrl(contractUrl);
-                        if (featureInfo("contract_pdf").enabled) {
-                          setShowPdfConfirm(true);
-                        } else {
-                          window.open(contractUrl, "_blank");
-                        }
+                        window.open(contractUrl, "_blank");
                       }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                     >
                       <FileText className="h-3.5 w-3.5" />
-                      계약서 PDF 출력{featureInfo("contract_pdf").enabled ? <span className="text-primary/70"> -{featureInfo("contract_pdf").cost}P</span> : null}
+                      계약서 PDF 출력
                     </button>
                   </div>
                   {/* PAR-Q */}
@@ -810,10 +790,9 @@ export default function LeadsPage() {
                   <button onClick={() => setShowQuickModal(false)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
                   <button onClick={() => {
                     if (!quickName.trim()) return toast.error("이름을 입력해주세요");
-                    if (!featureInfo("new_contract").enabled) { startQuickNew(); return; }
-                    setShowNewContractConfirm(true);
+                    startQuickNew();
                   }} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-semibold hover:bg-primary/90">
-                    전자계약 진행{featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}
+                    전자계약 진행
                   </button>
                 </div>
               </div>
@@ -888,18 +867,12 @@ export default function LeadsPage() {
                     disabled={!reregMemberId || !reregPkg.totalSessions || addPackageMutation.isPending}
                     onClick={() => {
                       if (!reregMemberId || !reregPkg.totalSessions) return;
-                      if (featureInfo("reregistration").enabled) {
-                        setShowReregiConfirm(true);
-                      } else {
-                        submitReregistration();
-                      }
+                      submitReregistration();
                     }}
                     className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-40">
                     {addPackageMutation.isPending ? "등록 중..." : (
                       <span className="flex items-center justify-center gap-1.5">
                         재등록 완료
-                        {pointLabel(autoPoints("renewal_complete")) && <span className="text-xs font-normal text-green-300">{pointLabel(autoPoints("renewal_complete"))}</span>}
-                        {featureInfo("reregistration").enabled && <span className="text-xs font-normal opacity-70">-{featureInfo("reregistration").cost}P</span>}
                       </span>
                     )}
                   </button>
@@ -1069,7 +1042,7 @@ export default function LeadsPage() {
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
                 className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
-                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : `등록 완료 및 회원 생성${featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}`}
+                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : "등록 완료 및 회원 생성"}
               </button>
               <button type="button" onClick={() => { setShowRegistration(false); setIsQuickReg(false); }}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
@@ -1237,51 +1210,6 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
-      {/* 신규 전자계약 포인트 확인 */}
-      <PointSpendConfirm
-        open={showNewContractConfirm}
-        onClose={() => setShowNewContractConfirm(false)}
-        featureName="신규 전자계약"
-        cost={featureInfo("new_contract").cost}
-        loading={spendFeatureMutation.isPending}
-        onConfirm={() => {
-          spendFeatureMutation.mutate({ feature: "new_contract" }, {
-            onSuccess: () => {
-              setShowNewContractConfirm(false);
-              startQuickNew();
-            },
-            onError: (e) => toast.error(e.message),
-          });
-        }}
-      />
-
-      {/* PDF 출력 포인트 확인 */}
-      <PointSpendConfirm
-        open={showPdfConfirm}
-        onClose={() => setShowPdfConfirm(false)}
-        featureName="계약서 PDF 전달"
-        cost={featureInfo("contract_pdf").cost}
-        loading={spendFeatureMutation.isPending}
-        onConfirm={() => {
-          spendFeatureMutation.mutate({ feature: "contract_pdf" }, {
-            onSuccess: () => {
-              setShowPdfConfirm(false);
-              window.open(pdfUrl, "_blank");
-            },
-            onError: (e) => toast.error(e.message),
-          });
-        }}
-      />
-
-      {/* 재등록 계약 포인트 확인 */}
-      <PointSpendConfirm
-        open={showReregiConfirm}
-        onClose={() => setShowReregiConfirm(false)}
-        featureName="재등록 계약"
-        cost={featureInfo("reregistration").cost}
-        loading={addPackageMutation.isPending}
-        onConfirm={submitReregistration}
-      />
     </div>
   );
 }

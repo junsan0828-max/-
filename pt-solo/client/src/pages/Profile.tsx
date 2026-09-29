@@ -4,26 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList, CreditCard, Zap, Bell, BellOff, Send } from "lucide-react";
+import { User, Lock, CheckCircle, Clock, XCircle, Briefcase, Camera, Share2, Copy, Check, Users, ClipboardList, Bell, BellOff, Send } from "lucide-react";
 
-const CHARGE_PACKAGES = [
-  { krw: 10000,  points: 10000, bonus: 0 },
-  { krw: 30000,  points: 35000, bonus: 5000 },
-  { krw: 50000,  points: 70000, bonus: 20000 },
-  { krw: 100000, points: 130000, bonus: 30000 },
-];
-const KAKAO_ACCOUNT = "3333-37-4826334";
-const KAKAO_HOLDER  = "피트니스텝";
-
-const PLAN_INFO = {
-  free:  { label: "FREE",  color: "text-gray-500",   border: "border-gray-500/30",   bg: "bg-gray-500/10",   features: ["회원 수 무제한", "기본 PT 관리"] },
-  pro:   { label: "PRO",   color: "text-blue-500",   border: "border-blue-500/30",   bg: "bg-blue-500/10",   features: ["회원 수 무제한", "전체 기능 개방", "브랜딩·예약·분석·AI"] },
-  elite: { label: "ELITE", color: "text-purple-500", border: "border-purple-500/30", bg: "bg-purple-500/10", features: ["회원 수 무제한", "모든 기능 포함", "FIT STEP+"] },
-} as const;
-
-function calcDiscounted(price: number, discount: number) {
-  return Math.round(price * (1 - discount / 100));
-}
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -136,14 +118,6 @@ import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
 import OnboardingSurveyModal from "@/components/OnboardingSurveyModal";
 
-const TYPE_LABEL: Record<string, string> = {
-  admin_grant: "관리자 지급",
-  charge_request: "충전 신청",
-  daily_reset: "일일 초기화",
-  usage: "사용",
-  profile_bonus: "프로필 완성 보너스",
-  referral_bonus: "친구 초대 보너스",
-};
 
 const JOB_TYPES = ["퍼스널트레이너", "필라테스강사", "트레이너 준비생", "센터 운영자", "프리랜서", "학생"];
 const CAREER_RANGES = ["준비 중", "1년 미만", "1~3년", "3~5년", "5년 이상"];
@@ -185,41 +159,12 @@ async function resizeImageToBase64(file: File, maxSize = 300): Promise<string> {
   });
 }
 
-function ProfileCompletionBanner({ profile }: { profile: { jobType?: string | null; careerRange?: string | null; activityArea?: string | null; profileBonusGranted?: number } | undefined }) {
-  if (!profile) return null;
-  const fields = [profile.jobType, profile.careerRange, profile.activityArea];
-  const filled = fields.filter(Boolean).length;
-  const total = fields.length;
-  const pct = Math.round((filled / total) * 100);
-  if (profile.profileBonusGranted) return null;
-  return (
-    <div className="rounded-xl border border-amber-400/50 bg-amber-50/80 dark:bg-amber-900/20 dark:border-amber-500/30 p-4 flex items-start gap-3">
-      <Gift className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">STEPER 프로필 완성 시 <span className="text-amber-600 dark:text-amber-400">+200P</span> 지급!</p>
-        <p className="text-xs text-amber-700/80 dark:text-amber-400/70 mt-0.5">직무, 경력, 활동지역을 모두 입력하면 FIT POINT 200P를 드립니다.</p>
-        <div className="mt-2">
-          <div className="flex justify-between text-xs text-amber-700/70 dark:text-amber-400/70 mb-1">
-            <span>프로필 완성도</span>
-            <span className="text-amber-600 dark:text-amber-400 font-medium">{filled}/{total} ({pct}%)</span>
-          </div>
-          <div className="h-1.5 bg-amber-200/60 dark:bg-amber-800/40 rounded-full overflow-hidden">
-            <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
   const { data: referralInfo } = trpc.trainers.getMyReferralInfo.useQuery();
   const { data: authUser } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
-  const { data: balanceData } = trpc.fitPoints.getBalance.useQuery();
-  const { data: history } = trpc.fitPoints.getHistory.useQuery();
-  const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
@@ -228,33 +173,8 @@ export default function Profile() {
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
-  const [showChargeForm, setShowChargeForm] = useState(false);
-  const [showPointDetail, setShowPointDetail] = useState(false);
-  const [selectedPkg, setSelectedPkg] = useState<typeof CHARGE_PACKAGES[number] | null>(null);
-  const [depositor, setDepositor] = useState("");
-  const [acctCopied, setAcctCopied] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
-
-  // 플랜 구매
-  const [selectedPlan, setSelectedPlan] = useState<"pro" | null>(null);
-  const [planDepositor, setPlanDepositor] = useState("");
-  const [planAcctCopied, setPlanAcctCopied] = useState(false);
-  const submitPlanMutation = trpc.fitStepPlus.trainer_submitPlanPurchase.useMutation({
-    onSuccess: (data) => {
-      if ((data as any).instant) {
-        toast.success("플랜이 즉시 변경되었습니다!");
-        utils.auth.me.invalidate();
-      } else {
-        toast.success("신청 완료! 나머지 금액 입금 확인 후 플랜이 변경됩니다.");
-      }
-      setSelectedPlan(null);
-      setPlanDepositor("");
-      utils.fitPoints.getBalance.invalidate();
-      utils.fitPoints.getHistory.invalidate();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
 
   useEffect(() => {
     if (profile) {
@@ -276,16 +196,7 @@ export default function Profile() {
   });
 
   const updateExtended = trpc.trainers.updateExtendedProfile.useMutation({
-    onSuccess: (data) => {
-      if (data.bonusGranted) {
-        toast.success("🎉 프로필 완성! FIT POINT 200P가 지급되었습니다.");
-        utils.fitPoints.getBalance.invalidate();
-        utils.fitPoints.getHistory.invalidate();
-      } else {
-        toast.success("STEPER 정보가 저장되었습니다.");
-      }
-      refetch();
-    },
+    onSuccess: () => { toast.success("STEPER 정보가 저장되었습니다."); refetch(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -293,30 +204,6 @@ export default function Profile() {
     onSuccess: () => { setPwMsg(""); setPw({ currentPassword: "", newPassword: "", confirmPassword: "" }); toast.success("비밀번호가 변경되었습니다."); },
     onError: (e) => setPwMsg(e.message),
   });
-
-  const requestCharge = trpc.fitPoints.requestCharge.useMutation({
-    onSuccess: () => {
-      toast.success("충전 신청이 완료되었습니다. 관리자 확인 후 포인트가 지급됩니다.");
-      setSelectedPkg(null); setDepositor(""); setShowChargeForm(false);
-      utils.fitPoints.getHistory.invalidate();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  function handleCopyAcct() {
-    navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, ""));
-    setAcctCopied(true);
-    setTimeout(() => setAcctCopied(false), 2000);
-  }
-
-  function handleChargeSubmit() {
-    if (!selectedPkg) { toast.error("충전 패키지를 선택해주세요."); return; }
-    if (!depositor.trim()) { toast.error("입금자명을 입력해주세요."); return; }
-    requestCharge.mutate({
-      amount: selectedPkg.points,
-      memo: `${selectedPkg.krw.toLocaleString()}원 입금 | 입금자: ${depositor.trim()}`,
-    });
-  }
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -357,355 +244,15 @@ export default function Profile() {
     changePassword.mutate({ currentPassword: pw.currentPassword, newPassword: pw.newPassword });
   };
 
-  const balance = balanceData?.balance ?? 0;
-  const freeBalance = balanceData?.freeBalance ?? 0;
-  const earnedBalance = balanceData?.earnedBalance ?? 0;
-  const dailyPoint = balanceData?.dailyPoint ?? 300;
-
   return (
     <div className="space-y-6">
       <TabBanner tabKey="profile" />
       <div>
         <h1 className="text-xl font-bold">내 프로필</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">정보 수정 및 포인트 관리</p>
+        <p className="text-sm text-muted-foreground mt-0.5">정보 수정</p>
       </div>
 
-      {/* 프로필 완성 보너스 안내 */}
-      <ProfileCompletionBanner profile={profile as any} />
-
       <PushNotificationCard />
-
-      {/* 플랜 구독 */}
-      {(() => {
-        const currentPlan = (authUser as any)?.plan ?? "free";
-        const prices = planInfo?.prices ?? { free: 0, pro: 69000, elite: 59000 };
-        const discounts = planInfo?.discounts ?? { free: 0, pro: 0, elite: 0 };
-        const proOriginalPrice = (planInfo as any)?.proOriginalPrice ?? 150000;
-        const billingUnit = ((planInfo as any)?.billingPeriod ?? "annual") === "annual" ? "/년" : "/월";
-        // Elite 임시 비활성화 — Pro만 구독 대상
-        const planKeys = (["pro"] as const);
-        return (
-          <Card className="bg-card border-border">
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-primary" />플랜 구독
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    현재 플랜:
-                    <span className={`ml-1.5 font-semibold ${PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.color ?? "text-gray-500"}`}>
-                      {PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.label ?? "FREE"}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              {/* 플랜 카드 */}
-              <div className="grid grid-cols-1 gap-2">
-                {planKeys.map(plan => {
-                  const info = PLAN_INFO[plan];
-                  const price = prices[plan] ?? 0;
-                  const disc = discounts[plan] ?? 0;
-                  const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
-                  const isCurrent = currentPlan === plan;
-                  const isSelected = selectedPlan === plan;
-                  const hasEvent = plan === "pro" && proOriginalPrice > price;
-                  return (
-                    <button key={plan} type="button"
-                      onClick={() => { if (!isCurrent) setSelectedPlan(isSelected ? null : plan); }}
-                      disabled={isCurrent}
-                      className={`relative rounded-xl border-2 p-4 text-left transition-all ${
-                        isCurrent ? "border-primary bg-primary/10 opacity-80 cursor-default"
-                          : isSelected ? `border-current ${info.border} ${info.bg}`
-                          : `border-border bg-card hover:${info.border}`
-                      }`}>
-                      {isCurrent ? (
-                        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">현재</span>
-                      ) : hasEvent ? (
-                        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full">오픈이벤트</span>
-                      ) : disc > 0 ? (
-                        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full">-{disc}%</span>
-                      ) : null}
-                      <p className={`text-sm font-semibold mb-1 ${info.color}`}>{info.label}</p>
-                      {price > 0 ? (
-                        <div className="flex items-baseline gap-1.5">
-                          {(hasEvent || disc > 0) && (
-                            <span className="text-[12px] text-muted-foreground line-through">
-                              {(hasEvent ? proOriginalPrice : price).toLocaleString()}원
-                            </span>
-                          )}
-                          <span className={`text-lg font-bold ${hasEvent || disc > 0 ? info.color : "text-foreground"}`}>
-                            {finalPrice.toLocaleString()}원
-                          </span>
-                          <span className="text-[12px] font-normal text-muted-foreground">{billingUnit}</span>
-                        </div>
-                      ) : (
-                        <p className="text-lg font-bold text-gray-500">무료</p>
-                      )}
-                      <ul className="mt-2.5 space-y-1">
-                        {info.features.map(f => (
-                          <li key={f} className="text-[12px] text-muted-foreground flex items-center gap-1.5">
-                            <Zap className="h-3 w-3 text-primary shrink-0" />{f}
-                          </li>
-                        ))}
-                      </ul>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 구매 폼 */}
-              {selectedPlan && (() => {
-                const price = prices[selectedPlan] ?? 0;
-                const disc = discounts[selectedPlan] ?? 0;
-                const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
-                const pointsApplied = Math.min(balance, finalPrice);
-                const bankAmount = finalPrice - pointsApplied;
-                const isFree = finalPrice === 0;
-                return (
-                  <div className="space-y-3 pt-1">
-                    {/* 결제 내역 */}
-                    <div className="rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-2.5 bg-accent/10 text-xs">
-                        <span className="text-muted-foreground">{selectedPlan.toUpperCase()} 구독료</span>
-                        <div className="text-right">
-                          {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
-                          <span className="font-semibold">{isFree ? "무료" : `${finalPrice.toLocaleString()}원`}{disc > 0 && <span className="ml-1 text-red-400">({disc}%↓)</span>}</span>
-                        </div>
-                      </div>
-                      {!isFree && pointsApplied > 0 && (
-                        <div className="flex items-center justify-between px-3 py-2.5 text-xs">
-                          <span className="flex items-center gap-1.5 text-primary"><Coins className="h-3.5 w-3.5" />포인트 적용</span>
-                          <span className="font-semibold text-primary">-{pointsApplied.toLocaleString()} P</span>
-                        </div>
-                      )}
-                      {!isFree && (
-                        <div className="flex items-center justify-between px-3 py-2.5 bg-accent/20 text-xs font-semibold">
-                          <span>계좌이체 금액</span>
-                          <span className={bankAmount === 0 ? "text-green-400" : ""}>{bankAmount === 0 ? "없음 (즉시 결제)" : `${bankAmount.toLocaleString()}원`}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 계좌이체가 필요한 경우 */}
-                    {bankAmount > 0 && (
-                      <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
-                              <span className="text-[10px] font-semibold text-white">K</span>
-                            </div>
-                            <p className="text-xs font-semibold text-yellow-800">카카오뱅크</p>
-                          </div>
-                          <p className="text-sm font-semibold text-yellow-900">{bankAmount.toLocaleString()}원 입금</p>
-                        </div>
-                        <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
-                          <p className="text-sm font-semibold text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
-                          <button onClick={() => { navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, "")); setPlanAcctCopied(true); setTimeout(() => setPlanAcctCopied(false), 2000); }}
-                            className="flex items-center gap-1 text-[12px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
-                            {planAcctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                            {planAcctCopied ? "복사됨" : "복사"}
-                          </button>
-                        </div>
-                        <Input placeholder="입금자명" value={planDepositor}
-                          onChange={e => setPlanDepositor(e.target.value)} className="h-9 text-sm bg-white border-yellow-200" />
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedPlan(null); setPlanDepositor(""); }}>취소</Button>
-                      <Button size="sm" className="flex-1"
-                        disabled={(bankAmount > 0 && !planDepositor.trim()) || submitPlanMutation.isPending}
-                        onClick={() => submitPlanMutation.mutate({
-                          plan: selectedPlan,
-                          totalAmount: finalPrice,
-                          pointsUsed: pointsApplied,
-                          bankAmount,
-                          depositor: planDepositor.trim(),
-                        })}>
-                        {submitPlanMutation.isPending ? "처리 중..." : bankAmount > 0 ? "신청하기" : "즉시 결제"}
-                      </Button>
-                    </div>
-                    {bankAmount > 0 && (
-                      <p className="text-[12px] text-muted-foreground text-center">포인트 {pointsApplied.toLocaleString()}P 즉시 차감 + 나머지 입금 확인 후 플랜 변경</p>
-                    )}
-                  </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {/* FIT POINT */}
-      <Card className="bg-primary/10 border-primary/30">
-        <CardContent className="p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-            <Coins className="h-6 w-6 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground mb-0.5">보유 FIT POINT</p>
-            <p className="text-2xl font-bold text-primary tracking-tight">
-              {balance.toLocaleString()} <span className="text-sm font-semibold">P</span>
-            </p>
-            <button
-              onClick={() => setShowPointDetail(v => !v)}
-              className="flex items-center gap-0.5 text-[10px] text-muted-foreground/70 hover:text-muted-foreground mt-1 transition-colors"
-            >
-              포인트 상세
-              <ChevronDown className={`h-3 w-3 transition-transform ${showPointDetail ? "rotate-180" : ""}`} />
-            </button>
-          </div>
-          {!showChargeForm && (
-            <button onClick={() => setShowChargeForm(true)}
-              className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/20 px-2.5 py-1.5 rounded-lg hover:bg-primary/30 transition-colors shrink-0">
-              <Plus className="h-3.5 w-3.5" />충전하기
-            </button>
-          )}
-        </CardContent>
-
-        {showPointDetail && (
-          <CardContent className="pt-0 pb-4 px-5">
-            <div className="rounded-xl bg-background/40 border border-primary/20 divide-y divide-border/50 text-xs">
-              <div className="flex items-center justify-between px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                  <span className="text-muted-foreground">무료포인트</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-semibold text-blue-400">{freeBalance.toLocaleString()} P</span>
-                  <span className="text-muted-foreground/60 ml-1.5">/ {dailyPoint.toLocaleString()} P</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  <span className="text-muted-foreground">적립포인트</span>
-                </div>
-                <span className="font-semibold text-primary">{earnedBalance.toLocaleString()} P</span>
-              </div>
-              <div className="px-3 py-2 bg-blue-500/5 rounded-b-xl">
-                <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                  💡 무료포인트는 매일 <span className="text-blue-400 font-medium">{dailyPoint.toLocaleString()}P</span>로 제공되며 <span className="text-blue-400 font-medium">00시에 초기화</span>됩니다.
-                  적립포인트는 보너스·관리자 지급 포인트로 초기화되지 않습니다.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        )}
-
-        {showChargeForm && (
-          <CardContent className="pt-0 space-y-4">
-            {/* 패키지 선택 */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground">충전 패키지</p>
-              <div className="grid grid-cols-2 gap-2">
-                {CHARGE_PACKAGES.map(pkg => {
-                  const isSel = selectedPkg?.krw === pkg.krw;
-                  return (
-                    <button key={pkg.krw} onClick={() => setSelectedPkg(pkg)}
-                      className={`relative rounded-2xl border-2 p-3 text-left transition-all ${
-                        isSel ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/40"
-                      }`}>
-                      {pkg.bonus > 0 && (
-                        <span className="absolute top-1.5 right-1.5 text-[10px] font-semibold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">
-                          +{(pkg.bonus / 1000).toFixed(0)}천P
-                        </span>
-                      )}
-                      <p className="text-[12px] text-muted-foreground">{pkg.krw.toLocaleString()}원</p>
-                      <p className={`text-sm font-semibold mt-0.5 ${isSel ? "text-primary" : "text-foreground"}`}>
-                        {pkg.points.toLocaleString()} P
-                      </p>
-                      {pkg.bonus > 0 && (
-                        <p className="text-[10px] text-amber-500 font-semibold mt-0.5">
-                          보너스 {pkg.bonus.toLocaleString()}P
-                        </p>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 카카오뱅크 계좌 */}
-            <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2.5">
-              <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-semibold text-white">K</span>
-                </div>
-                <p className="text-xs font-semibold text-yellow-800">카카오뱅크 입금 계좌</p>
-              </div>
-              <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
-                <div>
-                  <p className="text-sm font-semibold text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
-                  <p className="text-[12px] text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
-                </div>
-                <button onClick={handleCopyAcct}
-                  className="flex items-center gap-1 text-[12px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
-                  {acctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {acctCopied ? "복사됨" : "복사"}
-                </button>
-              </div>
-              {selectedPkg && (
-                <div className="flex items-center justify-between text-xs px-0.5">
-                  <span className="text-yellow-700">입금 금액</span>
-                  <span className="font-semibold text-yellow-900">{selectedPkg.krw.toLocaleString()}원</span>
-                </div>
-              )}
-            </div>
-
-            {/* 입금자명 */}
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-muted-foreground">입금자명</p>
-              <Input placeholder="실제 입금 시 표시되는 이름" value={depositor}
-                onChange={e => setDepositor(e.target.value)} className="h-9 text-sm bg-background/50 border-primary/30" />
-            </div>
-
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1"
-                onClick={() => { setShowChargeForm(false); setSelectedPkg(null); setDepositor(""); }}>
-                취소
-              </Button>
-              <Button size="sm" className="flex-1"
-                disabled={!selectedPkg || !depositor.trim() || requestCharge.isPending}
-                onClick={handleChargeSubmit}>
-                {requestCharge.isPending ? "신청 중..." : "신청하기"}
-              </Button>
-            </div>
-            <p className="text-[12px] text-muted-foreground text-center">입금 확인 후 관리자가 포인트를 지급합니다 (보통 1시간 이내)</p>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* 포인트 내역 */}
-      {history && history.filter(l => l.type !== "daily_reset").length > 0 && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">FIT POINT 내역</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {history.filter(l => l.type !== "daily_reset").slice(0, 10).map((log, i) => (
-              <div key={log.id}
-                className={`flex items-center gap-3 px-4 py-3 ${i < Math.min(history.filter(l => l.type !== "daily_reset").length, 10) - 1 ? "border-b border-border/50" : ""}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    {log.status === "completed" && <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />}
-                    {log.status === "pending" && <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
-                    {log.status === "rejected" && <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-                    <span className="text-sm font-medium">{TYPE_LABEL[log.type] ?? log.type}</span>
-                  </div>
-                  {log.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">{log.memo}</p>}
-                  <p className="text-xs text-muted-foreground mt-0.5">{log.createdAt.slice(0, 10)}</p>
-                </div>
-                <span className={`text-sm font-semibold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
-                  {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()} P
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {/* 친구 초대 */}
       {referralInfo?.referralCode && (
@@ -713,15 +260,11 @@ export default function Profile() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Share2 className="h-4 w-4 text-primary" />친구 초대하기
-              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-full">
-                각 +500P
-              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              초대 링크를 공유하면 친구가 가입 승인 후 <span className="text-primary font-semibold">각각 500 FIT POINT</span>를 드립니다.
-              최대 <span className="text-primary font-semibold">3명</span>까지 혜택이 적용됩니다.
+              초대 링크를 공유해 FIT STEP을 함께 사용해보세요.
             </p>
             {/* 초대 링크 */}
             <div className="flex items-center gap-2 bg-accent/30 border border-border rounded-lg px-3 py-2.5">
@@ -753,9 +296,9 @@ export default function Profile() {
               <div className="flex-1 rounded-xl bg-primary/10 border border-primary/20 p-3 text-center">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <CheckCircle className="h-3.5 w-3.5 text-primary" />
-                  <p className="text-xs text-muted-foreground">보너스 지급</p>
+                  <p className="text-xs text-muted-foreground">가입 승인</p>
                 </div>
-                <p className="text-xl font-bold text-primary">{Math.min(referralInfo.approvedInvited, 3)}<span className="text-sm font-medium text-muted-foreground"> / 3</span></p>
+                <p className="text-xl font-bold text-primary">{referralInfo.approvedInvited}</p>
                 <p className="text-[10px] text-muted-foreground">명</p>
               </div>
             </div>
@@ -771,16 +314,6 @@ export default function Profile() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />STEPER 상세 정보
-            {!(profile as any)?.profileBonusGranted && (
-              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-amber-600 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                <Gift className="h-3 w-3" />완성 시 +200P
-              </span>
-            )}
-            {!!(profile as any)?.profileBonusGranted && (
-              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
-                <Star className="h-3 w-3" />보너스 지급 완료
-              </span>
-            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1006,7 +539,7 @@ export default function Profile() {
                 <p className="text-xs text-muted-foreground">
                   {(profile as any)?.onboardingSurveyDone
                     ? "완료됨 · 다시 응답할 수 있습니다"
-                    : "미완료 · 완료 시 300P 지급"}
+                    : "미완료"}
                 </p>
               </div>
             </div>
