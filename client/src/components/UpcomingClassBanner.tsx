@@ -81,19 +81,19 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
       </div>
 
       {/* 수면 6시간 이하 */}
-      <div className="flex items-center justify-between">
+      <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">수면 6시간 이하</p>
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={sleepShort}
-            onChange={e => setSleepShort(e.target.checked)}
-            className="w-4 h-4 accent-red-400 cursor-pointer"
-          />
-          <span className={`text-sm font-medium ${sleepShort ? "text-red-400" : "text-muted-foreground"}`}>
-            {sleepShort ? "예" : "아니오"}
-          </span>
-        </label>
+        <button
+          type="button"
+          onClick={() => setSleepShort(p => !p)}
+          className={`w-full py-2 rounded-lg text-sm font-medium transition-colors border ${
+            sleepShort
+              ? "bg-red-500/20 border-red-500/60 text-red-300"
+              : "border-border text-muted-foreground hover:text-foreground hover:border-border/80"
+          }`}
+        >
+          {sleepShort ? "✓ 6시간 이하 (수면 부족)" : "6시간 이하인 경우 누르세요"}
+        </button>
       </div>
 
       {/* 영양 */}
