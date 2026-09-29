@@ -562,7 +562,8 @@ function TrainerDashboard() {
     { enabled: ptStatsModalOpen }
   );
   const { data: myTasks } = trpc.gym.work.tasks.list.useQuery();
-  const [showAllAlerts, setShowAllAlerts] = useState(false);
+  const [dismissedCardKeys, setDismissedCardKeys] = useState<Set<string>>(() => new Set());
+  const taskCompleteMutation = trpc.gym.work.tasks.complete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -735,52 +736,122 @@ function TrainerDashboard() {
         </button>
       </div>
 
-      {/* 오늘 배정 업무 */}
+      {/* ── 업무 브리핑 덱 (1장씩) ── */}
       {(() => {
         const todayStr2 = new Date().toISOString().substring(0, 10);
-        const pendingToday = (myTasks ?? []).filter(r =>
+        const pendingTasks = (myTasks ?? []).filter(r =>
           r.effectiveStatus !== "done" &&
           r.task.assigneeId != null &&
           (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= todayStr2))
-        );
-        if (pendingToday.length === 0) return null;
-        return (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground px-0.5">📋 오늘 업무 ({pendingToday.length})</p>
-            {pendingToday.map(r => (
-              <div key={r.task.id} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${r.task.priority === "high" ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"}`}>
-                <span className={`w-2 h-2 rounded-full shrink-0 ${r.task.priority === "high" ? "bg-red-400" : "bg-amber-400"}`} />
-                <p className="text-sm text-foreground flex-1">{r.task.title}</p>
-                {r.task.priority === "high" && <span className="text-xs text-red-400 font-medium shrink-0">긴급</span>}
-              </div>
-            ))}
-          </div>
-        );
-      })()}
+        ).sort((a, b) => (a.task.priority === "high" ? -1 : 1) - (b.task.priority === "high" ? -1 : 1));
 
-      {/* 이탈방지 알림 카드 */}
-      {notifItems.length > 0 && (() => {
-        const pendingOnly = notifItems.filter(item => !item.intent || !DONE_INTENTS.has(item.intent));
-        const shown = showAllAlerts ? pendingOnly : pendingOnly.slice(0, 3);
-        if (pendingOnly.length === 0) return null;
+        const pendingAlerts = notifItems.filter(item => !item.intent || !DONE_INTENTS.has(item.intent));
+
+        type DeckCard =
+          | { kind: "task"; key: string; taskId: number; title: string; priority: string }
+          | { kind: "alert"; key: string; item: (typeof notifItems)[number] };
+
+        const allCards: DeckCard[] = [
+          ...pendingTasks.map(r => ({
+            kind: "task" as const,
+            key: `task-${r.task.id}`,
+            taskId: r.task.id,
+            title: r.task.title,
+            priority: r.task.priority,
+          })),
+          ...pendingAlerts.map(item => ({ kind: "alert" as const, key: item.key, item })),
+        ];
+
+        const remaining = allCards.filter(c => !dismissedCardKeys.has(c.key));
+        if (remaining.length === 0) {
+          if (allCards.length === 0) return null;
+          return (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-5 py-6 text-center">
+              <p className="text-2xl mb-1">🎉</p>
+              <p className="text-sm font-semibold text-emerald-400">오늘 할 일 완료!</p>
+              <p className="text-xs text-muted-foreground mt-1">모든 업무와 알림을 처리했습니다</p>
+            </div>
+          );
+        }
+
+        const card = remaining[0];
+        const doneCount = allCards.length - remaining.length;
+        const dismiss = (key: string) => setDismissedCardKeys(prev => new Set([...prev, key]));
+
         return (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground px-0.5">🔔 이탈방지 알림 ({pendingOnly.length})</p>
-            {shown.map(item => (
-              <div key={item.key} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 cursor-pointer hover:bg-accent/30 transition-colors"
-                onClick={() => { setAlertModalOpen(true); }}>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${item.tagBg}`}>{item.tag}</span>
-                <span className="text-sm font-medium flex-1">{item.name}</span>
-                <span className={`text-xs shrink-0 ${item.iconColor}`}>{item.detail}</span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <div className="space-y-1">
+            {/* 진행 표시 */}
+            <div className="flex items-center justify-between px-0.5 mb-2">
+              <span className="text-xs text-muted-foreground">
+                {doneCount > 0 ? `${doneCount} / ${allCards.length} 처리됨` : `업무 브리핑 · ${allCards.length}건`}
+              </span>
+              <div className="flex gap-0.5">
+                {allCards.map(c => (
+                  <span key={c.key} className={`h-1.5 rounded-full transition-all ${dismissedCardKeys.has(c.key) ? "w-4 bg-emerald-500/60" : c.key === card.key ? "w-6 bg-primary" : "w-1.5 bg-border"}`} />
+                ))}
               </div>
-            ))}
-            {pendingOnly.length > 3 && (
-              <button onClick={() => setShowAllAlerts(v => !v)}
-                className="w-full text-xs text-muted-foreground py-2 hover:text-foreground transition-colors">
-                {showAllAlerts ? "접기" : `${pendingOnly.length - 3}건 더 보기`}
-              </button>
-            )}
+            </div>
+
+            {/* 카드 */}
+            <div key={card.key} className={`rounded-2xl border p-5 space-y-4 transition-all ${card.kind === "task" && card.priority === "high" ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"}`}>
+              {card.kind === "task" ? (
+                <>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-medium">📋 업무</span>
+                      {card.priority === "high" && <span className="text-[10px] font-bold text-red-400 bg-red-500/15 px-1.5 py-0.5 rounded-full">긴급</span>}
+                    </div>
+                    <p className="text-base font-semibold text-foreground leading-snug">{card.title}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { taskCompleteMutation.mutate({ id: card.taskId }); dismiss(card.key); }}
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-400 active:scale-95 transition-all">
+                      ✓ 완료
+                    </button>
+                    <button
+                      onClick={() => dismiss(card.key)}
+                      className="px-4 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-accent/30 active:scale-95 transition-all">
+                      나중에
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${card.item.tagBg}`}>{card.item.tag}</span>
+                      <span className={`text-xs font-medium ${card.item.iconColor}`}>{card.item.detail}</span>
+                    </div>
+                    <p className="text-base font-semibold text-foreground">{card.item.name}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {card.item.actions.map(action => (
+                      <button key={action.value}
+                        onClick={() => {
+                          if (action.kind === "scheduled") {
+                            setPendingDatePick({ memberId: card.item.memberId, intent: action.value, name: card.item.name });
+                          } else {
+                            applyIntent(card.item.memberId, action.value);
+                          }
+                          dismiss(card.key);
+                        }}
+                        className={`px-3 py-2 rounded-xl border text-xs font-medium hover:bg-accent/40 active:scale-95 transition-all ${action.color}`}>
+                        {action.label}
+                      </button>
+                    ))}
+                    <button onClick={() => { card.item.onGo(); dismiss(card.key); }}
+                      className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-accent/30 transition-all flex items-center gap-1">
+                      회원 상세 <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <button onClick={() => dismiss(card.key)}
+                    className="w-full text-xs text-muted-foreground py-1 hover:text-foreground transition-colors">
+                    건너뛰기 →
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         );
       })()}

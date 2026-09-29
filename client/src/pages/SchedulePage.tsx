@@ -450,8 +450,12 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
     onSuccess: () => { toast.success("완료 취소 — 회차가 복구되었습니다"); onSaved(); },
     onError: e => toast.error(e.message),
   });
+  const checkPastMutation = trpc.schedules.completeWithSignature.useMutation({
+    onSuccess: () => { toast.success("수업 체크 완료! PT 세션이 차감되었습니다"); onSaved(); },
+    onError: e => toast.error(e.message),
+  });
 
-  const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || cancelCompletionMutation.isPending;
+  const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || cancelCompletionMutation.isPending || checkPastMutation.isPending;
 
   const save = () => {
     // 시간을 직접 고쳐서 영업시간 밖으로 나가는 것도 막는다(칸 잠금만으론 못 막힘).
@@ -608,6 +612,26 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
             >
               <RotateCcw className="h-3 w-3" />
               완료 취소
+            </button>
+          </div>
+        )}
+
+        {/* 지나간 수업 미체크 — 수업 체크 버튼 */}
+        {target && target.status !== "done" && target.scheduledDate < new Date().toISOString().substring(0, 10) && (
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 flex items-center justify-between gap-2">
+            <span>지나간 수업 — 체크되지 않음</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (confirm(`${target.scheduledDate} 수업을 완료 처리합니다. PT 세션 1회가 차감됩니다.`)) {
+                  checkPastMutation.mutate({ scheduleId: target.id, sessionDate: target.scheduledDate });
+                }
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-3 w-3" />
+              수업 체크
             </button>
           </div>
         )}
