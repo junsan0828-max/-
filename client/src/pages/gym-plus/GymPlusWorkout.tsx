@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import { CheckInModal } from "./GymPlusVideos";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -855,6 +856,7 @@ export default function GymPlusWorkout() {
 
   const [tab, setTab] = useState<"workout" | "history">("workout");
   const [analysisRequested, setAnalysisRequested] = useState(false);
+  const [showCheckInFromWorkout, setShowCheckInFromWorkout] = useState(false);
 
   function requestAnalysis() {
     setAnalysisRequested(true);
@@ -1101,20 +1103,25 @@ export default function GymPlusWorkout() {
   // 출석 체크를 먼저 완료해야 운동 기록을 확인/작성할 수 있다
   if (!isLoading && !todayCheckedIn) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-7 h-7 text-muted-foreground">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-          </svg>
+      <>
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-7 h-7 text-muted-foreground">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+          </div>
+          <div className="space-y-1">
+            <p className="font-bold text-base">먼저 출석 체크를 해주세요</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              출석 체크를 완료하면<br />운동 기록을 확인하고 작성할 수 있어요
+            </p>
+          </div>
+          <Button onClick={() => setShowCheckInFromWorkout(true)}>출석하러 가기</Button>
         </div>
-        <div className="space-y-1">
-          <p className="font-bold text-base">먼저 출석 체크를 해주세요</p>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            운동영상 탭에서 출석 체크를 완료하면<br />운동 기록을 확인하고 작성할 수 있어요
-          </p>
-        </div>
-        <Button onClick={() => navigate("/gym-plus/videos")}>출석하러 가기</Button>
-      </div>
+        {showCheckInFromWorkout && (
+          <CheckInModal onClose={() => { setShowCheckInFromWorkout(false); utils.gymPlus.listWorkoutLogs.invalidate(); }} />
+        )}
+      </>
     );
   }
 

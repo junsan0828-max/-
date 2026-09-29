@@ -47,7 +47,7 @@ function getAutoThumbnail(videoId: number, videoUrl: string): string | null {
   return `https://img.youtube.com/vi/${ytId}/${frame}.jpg`;
 }
 
-function CheckInModal({ onClose }: { onClose: () => void }) {
+export function CheckInModal({ onClose }: { onClose: () => void }) {
   const [, navigate] = useLocation();
   const [step, setStep] = useState<"form" | "result">("form");
   const [conditionScore, setConditionScore] = useState<number | null>(null);
