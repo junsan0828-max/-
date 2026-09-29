@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
-import { Plus, CheckCircle2, Circle, Bell, ChevronDown, ChevronUp, Trash2, X } from "lucide-react";
+import { Plus, CheckCircle2, Circle, Bell, ChevronDown, ChevronUp, Trash2, X, Users } from "lucide-react";
 
 const CATEGORIES = ["상담", "수업", "회원관리", "청소/정리", "마케팅", "매출/등록", "교육", "기타"];
 
@@ -28,15 +28,12 @@ const NOTICE_PRIORITY: Record<string, { label: string; style: string }> = {
   normal:    { label: "일반", style: "bg-blue-500/20 text-blue-400 border border-blue-500/30" },
 };
 
-const TAB_LABELS = [
-  { key: "daily",    label: "오늘" },
-  { key: "weekly",   label: "주간" },
-  { key: "monthly",  label: "월간" },
-  { key: "position", label: "직책" },
-  { key: "notices",  label: "공지" },
-] as const;
-
-type Tab = typeof TAB_LABELS[number]["key"];
+const TYPE_BADGE: Record<string, string> = {
+  daily:   "bg-sky-500/15 text-sky-400 border border-sky-500/30",
+  weekly:  "bg-violet-500/15 text-violet-400 border border-violet-500/30",
+  monthly: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+};
+const TYPE_LABEL: Record<string, string> = { daily: "일일", weekly: "주간", monthly: "월간" };
 
 const POSITION_BADGE: Record<string, string> = {
   "매니저":    "bg-purple-500/15 text-purple-400 border border-purple-500/30",
@@ -93,64 +90,85 @@ const defaultTaskForm = {
   dueTime: "", isRecurring: 0,
 };
 
+// assignTarget: "self" | "group:all" | "group:trainer" | "group:consultant" | number(userId)
+type AssignTarget = "self" | "group:all" | "group:trainer" | "group:consultant" | number;
+
 export default function MyWorkPage() {
   const utils = trpc.useUtils();
   const { data: user } = trpc.auth.me.useQuery();
-  const [tab, setTab] = useState<Tab>("daily");
+
+  const canAssign = ["매니저", "팀장"].includes(user?.position ?? "") || user?.role === "admin";
+
   const [showDone, setShowDone] = useState(false);
+  const [showNotices, setShowNotices] = useState(true);
+  const [showPosition, setShowPosition] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [taskForm, setTaskForm] = useState(defaultTaskForm);
+  const [assignTarget, setAssignTarget] = useState<AssignTarget>("self");
   const [selectedNotice, setSelectedNotice] = useState<any>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
 
   const { data: allTasks, isLoading } = trpc.gym.work.tasks.list.useQuery();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery();
+  const { data: staffList } = trpc.gym.work.tasks.listStaff.useQuery(undefined, { enabled: canAssign });
 
   const completeMutation   = trpc.gym.work.tasks.complete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
   const uncompleteMutation = trpc.gym.work.tasks.uncomplete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
   const createMutation     = trpc.gym.work.tasks.create.useMutation({
-    onSuccess: () => { toast.success("업무가 추가되었습니다"); utils.gym.work.tasks.invalidate(); setShowAdd(false); setTaskForm(defaultTaskForm); },
+    onSuccess: () => { toast.success("업무가 추가되었습니다"); utils.gym.work.tasks.invalidate(); setShowAdd(false); setTaskForm(defaultTaskForm); setAssignTarget("self"); },
     onError: (e) => toast.error(e.message),
   });
-  const deleteMutation     = trpc.gym.work.tasks.delete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
-  const markReadMutation   = trpc.gym.work.notices.markRead.useMutation({ onSuccess: () => utils.gym.work.notices.invalidate() });
-
-  const today     = new Date().toISOString().substring(0, 10);
-  const thisMonth = today.substring(0, 7);
-  const weekStart = (() => {
-    const d = new Date(); const day = d.getDay();
-    d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
-    return d.toISOString().substring(0, 10);
-  })();
-
-  // 비반복 업무: taskDate >= today면 표시 (미리 보임), 날짜 지나면 사라짐
-  const dailyTasks   = (allTasks ?? []).filter(r => r.task.taskType === "daily"   && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)));
-  const weeklyTasks  = (allTasks ?? []).filter(r => r.task.taskType === "weekly"  && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)));
-  const monthlyTasks = (allTasks ?? []).filter(r => r.task.taskType === "monthly" && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)));
-
-  const currentTasks = tab === "daily" ? dailyTasks : tab === "weekly" ? weeklyTasks : monthlyTasks;
-  const pendingTasks = currentTasks.filter(r => r.effectiveStatus !== "done").sort((a, b) => {
-    const order = { high: 0, normal: 1, low: 2 };
-    return (order[a.task.priority as keyof typeof order] ?? 1) - (order[b.task.priority as keyof typeof order] ?? 1);
+  const createForGroupMutation = trpc.gym.work.tasks.createForGroup.useMutation({
+    onSuccess: () => { toast.success("업무가 배정되었습니다"); utils.gym.work.tasks.invalidate(); setShowAdd(false); setTaskForm(defaultTaskForm); setAssignTarget("self"); },
+    onError: (e) => toast.error(e.message),
   });
-  const doneTasks = currentTasks.filter(r => r.effectiveStatus === "done");
+  const deleteMutation   = trpc.gym.work.tasks.delete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
+  const markReadMutation = trpc.gym.work.notices.markRead.useMutation({ onSuccess: () => utils.gym.work.notices.invalidate() });
 
-  const todayPending = dailyTasks.filter(r => r.effectiveStatus !== "done").length;
-  const todayDone    = dailyTasks.filter(r => r.effectiveStatus === "done").length;
+  const today = new Date().toISOString().substring(0, 10);
+
+  const allPending = (allTasks ?? [])
+    .filter(r => r.effectiveStatus !== "done" && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)))
+    .sort((a, b) => {
+      const order = { high: 0, normal: 1, low: 2 };
+      const typeOrder = { daily: 0, weekly: 1, monthly: 2 };
+      const pDiff = (order[a.task.priority as keyof typeof order] ?? 1) - (order[b.task.priority as keyof typeof order] ?? 1);
+      if (pDiff !== 0) return pDiff;
+      return (typeOrder[a.task.taskType as keyof typeof typeOrder] ?? 0) - (typeOrder[b.task.taskType as keyof typeof typeOrder] ?? 0);
+    });
+
+  const allDone = (allTasks ?? []).filter(r => r.effectiveStatus === "done");
+
+  const dailyPending = allPending.filter(r => r.task.taskType === "daily");
   const unreadCount  = (noticeList ?? []).filter(n => !n.isRead).length;
   const urgentNotices = (noticeList ?? []).filter(n => n.notice.priority === "urgent" && !n.isRead);
+  const sortedNotices = [...(noticeList ?? [])].sort((a, b) => {
+    const p = { urgent: 0, important: 1, normal: 2 };
+    return (p[a.notice.priority as keyof typeof p] ?? 2) - (p[b.notice.priority as keyof typeof p] ?? 2);
+  });
 
   function handleSaveTask() {
     if (!taskForm.title.trim()) return toast.error("업무 제목을 입력해주세요");
     if (!user) return;
-    createMutation.mutate({
+
+    const base = {
       ...taskForm,
-      assigneeId: user.id,
       taskDate: taskForm.isRecurring ? undefined : taskForm.taskDate,
       dueTime: taskForm.dueTime || undefined,
       description: taskForm.description || undefined,
-    });
+    };
+
+    if (typeof assignTarget === "number") {
+      createMutation.mutate({ ...base, assigneeId: assignTarget });
+    } else if (assignTarget.startsWith("group:")) {
+      const group = assignTarget.replace("group:", "") as "all" | "trainer" | "consultant";
+      createForGroupMutation.mutate({ ...base, assigneeGroup: group });
+    } else {
+      createMutation.mutate({ ...base, assigneeId: user.id });
+    }
   }
+
+  const isSaving = createMutation.isPending || createForGroupMutation.isPending;
 
   return (
     <div className="space-y-4 pb-24">
@@ -173,7 +191,7 @@ export default function MyWorkPage() {
         </button>
       </div>
 
-      {/* 긴급 공지 */}
+      {/* 긴급 공지 배너 */}
       {urgentNotices.map(n => (
         <div key={n.notice.id} className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-3">
           <Bell className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
@@ -189,11 +207,11 @@ export default function MyWorkPage() {
       {/* 요약 카드 */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <div className="text-2xl font-bold text-foreground">{todayPending}</div>
+          <div className="text-2xl font-bold text-foreground">{dailyPending.length}</div>
           <div className="text-xs text-muted-foreground mt-0.5">오늘 할 일</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <div className="text-2xl font-bold text-emerald-400">{todayDone}</div>
+          <div className="text-2xl font-bold text-emerald-400">{allDone.length}</div>
           <div className="text-xs text-muted-foreground mt-0.5">완료</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 text-center">
@@ -202,98 +220,114 @@ export default function MyWorkPage() {
         </div>
       </div>
 
-      {/* 탭 */}
-      <div className="flex bg-card border border-border rounded-xl p-1 gap-1">
-        {TAB_LABELS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            {t.label}
-            {t.key === "notices" && unreadCount > 0 && (
-              <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{unreadCount}</span>
+      {/* 공지사항 섹션 (접을 수 있음) */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowNotices(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/30 transition-colors">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">공지사항</span>
+            {unreadCount > 0 && (
+              <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{unreadCount}</span>
             )}
-          </button>
-        ))}
+          </div>
+          {showNotices ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {showNotices && (
+          <div className="border-t border-border">
+            {sortedNotices.length === 0 ? (
+              <p className="text-center text-muted-foreground text-sm py-6">공지사항이 없습니다</p>
+            ) : (
+              <div className="divide-y divide-border">
+                {sortedNotices.map(n => {
+                  const pm = NOTICE_PRIORITY[n.notice.priority] ?? NOTICE_PRIORITY.normal;
+                  return (
+                    <div key={n.notice.id}
+                      onClick={() => { setSelectedNotice(n); if (!n.isRead) markReadMutation.mutate({ noticeId: n.notice.id }); }}
+                      className={`px-4 py-3 cursor-pointer hover:bg-accent/40 transition-colors ${n.isRead ? "opacity-60" : ""}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${pm.style}`}>{pm.label}</span>
+                          <span className="text-sm text-foreground truncate">{n.notice.title}</span>
+                        </div>
+                        {!n.isRead && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{n.authorName} · {n.notice.createdAt.substring(0, 10)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* 직책 탭 */}
-      {tab === "position" && <PositionTab position={user?.position ?? null} />}
+      {/* 전체 업무 목록 */}
+      <div>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-sm font-semibold text-foreground">진행 중 업무</p>
+          <span className="text-xs text-muted-foreground">{allPending.length}개</span>
+        </div>
+        {isLoading ? (
+          <div className="text-center text-muted-foreground py-10 text-sm">로딩 중...</div>
+        ) : allPending.length === 0 ? (
+          <div className="text-center text-muted-foreground py-12">
+            <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
+            <p className="text-sm">진행 중인 업무가 없습니다</p>
+            <p className="text-xs mt-1 opacity-60">+ 업무 추가 버튼으로 등록하세요</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {allPending.map(row => (
+              <TaskCard key={row.task.id} row={row}
+                onComplete={() => completeMutation.mutate({ id: row.task.id })}
+                onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }}
+                onOpen={() => setSelectedTask(row)} />
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* 업무 탭 콘텐츠 */}
-      {tab !== "notices" && tab !== "position" && (
-        <div className="space-y-2">
-          {isLoading ? (
-            <div className="text-center text-muted-foreground py-10 text-sm">로딩 중...</div>
-          ) : pendingTasks.length === 0 && doneTasks.length === 0 ? (
-            <div className="text-center text-muted-foreground py-12">
-              <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm">업무가 없습니다</p>
-              <p className="text-xs mt-1 opacity-60">+ 업무 추가 버튼으로 등록하세요</p>
+      {/* 직책 업무 가이드 */}
+      {user?.position && POSITION_TASKS[user.position] && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowPosition(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/30 transition-colors">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${POSITION_BADGE[user.position] ?? ""}`}>
+                {user.position}
+              </span>
+              <span className="text-sm font-medium text-foreground">직책 업무 가이드</span>
             </div>
-          ) : (
-            <>
-              {pendingTasks.map(row => <TaskCard key={row.task.id} row={row} onComplete={() => completeMutation.mutate({ id: row.task.id })} onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }} onOpen={() => setSelectedTask(row)} />)}
-
-              {doneTasks.length > 0 && (
-                <div>
-                  <button onClick={() => setShowDone(v => !v)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground py-2 w-full">
-                    {showDone ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                    완료된 업무 {doneTasks.length}개
-                  </button>
-                  {showDone && doneTasks.map(row => (
-                    <TaskCard key={row.task.id} row={row} done
-                      onUncomplete={() => uncompleteMutation.mutate({ id: row.task.id })}
-                      onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }}
-                      onOpen={() => setSelectedTask(row)} />
-                  ))}
-                </div>
-              )}
-            </>
+            {showPosition ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {showPosition && (
+            <div className="border-t border-border p-4">
+              <PositionGuide position={user.position} />
+            </div>
           )}
         </div>
       )}
 
-      {/* 공지 탭 */}
-      {tab === "notices" && (
-        <div className="space-y-2">
-          {(noticeList ?? []).length === 0 ? (
-            <div className="text-center text-muted-foreground py-12">
-              <Bell className="h-10 w-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm">공지사항이 없습니다</p>
+      {/* 완료된 업무 */}
+      {allDone.length > 0 && (
+        <div>
+          <button onClick={() => setShowDone(v => !v)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground py-2 w-full px-1">
+            {showDone ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            완료된 업무 {allDone.length}개
+          </button>
+          {showDone && (
+            <div className="space-y-2">
+              {allDone.map(row => (
+                <TaskCard key={row.task.id} row={row} done
+                  onUncomplete={() => uncompleteMutation.mutate({ id: row.task.id })}
+                  onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }}
+                  onOpen={() => setSelectedTask(row)} />
+              ))}
             </div>
-          ) : (
-            (noticeList ?? [])
-              .sort((a, b) => {
-                const pOrder = { urgent: 0, important: 1, normal: 2 };
-                return (pOrder[a.notice.priority as keyof typeof pOrder] ?? 2) - (pOrder[b.notice.priority as keyof typeof pOrder] ?? 2);
-              })
-              .map(n => {
-                const pm = NOTICE_PRIORITY[n.notice.priority] ?? NOTICE_PRIORITY.normal;
-                return (
-                  <div
-                    key={n.notice.id}
-                    onClick={() => {
-                      setSelectedNotice(n);
-                      if (!n.isRead) markReadMutation.mutate({ noticeId: n.notice.id });
-                    }}
-                    className={`bg-card border rounded-xl p-4 space-y-2 cursor-pointer hover:bg-accent/50 active:bg-accent transition-colors ${n.isRead ? "border-border opacity-70" : "border-border"}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${pm.style}`}>{pm.label}</span>
-                        <span className="font-medium text-sm text-foreground">{n.notice.title}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {n.isRead ? "확인 완료" : "탭하여 확인"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{n.notice.content}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {n.authorName} · {n.notice.createdAt.substring(0, 10)}
-                    </p>
-                  </div>
-                );
-              })
           )}
         </div>
       )}
@@ -333,6 +367,9 @@ export default function MyWorkPage() {
           <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(80svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border ${TYPE_BADGE[selectedTask.task.taskType] ?? TYPE_BADGE.daily}`}>
+                  {TYPE_LABEL[selectedTask.task.taskType] ?? "일일"}
+                </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CAT_COLOR[selectedTask.task.category] ?? CAT_COLOR["기타"]}`}>
                   {selectedTask.task.category}
                 </span>
@@ -389,14 +426,15 @@ export default function MyWorkPage() {
             style={{ maxHeight: 'calc(85svh - env(safe-area-inset-bottom))' }}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <h2 className="font-semibold text-foreground">업무 추가</h2>
-              <button onClick={() => setShowAdd(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+              <button onClick={() => { setShowAdd(false); setTaskForm(defaultTaskForm); setAssignTarget("self"); }}
+                className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="overflow-y-auto flex-1 p-4 space-y-4">
               <div>
                 <label className="text-xs text-muted-foreground">업무 제목 *</label>
                 <input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="예: 오늘 상담 예약 확인"
-                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
               </div>
 
               <div>
@@ -448,26 +486,58 @@ export default function MyWorkPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">날짜</label>
                   <input type="date" value={taskForm.taskDate} onChange={e => setTaskForm(f => ({ ...f, taskDate: e.target.value }))}
-                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
                 </div>
               )}
 
               <div>
                 <label className="text-xs text-muted-foreground">마감 시간 (선택)</label>
                 <input type="time" value={taskForm.dueTime} onChange={e => setTaskForm(f => ({ ...f, dueTime: e.target.value }))}
-                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
               </div>
 
               <div>
                 <label className="text-xs text-muted-foreground">메모 (선택)</label>
                 <textarea value={taskForm.description} onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))} rows={2}
-                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none resize-none" />
               </div>
+
+              {/* 담당자 배정 (팀장/매니저/관리자만) */}
+              {canAssign && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                    <label className="text-xs text-muted-foreground">담당자 배정</label>
+                  </div>
+                  <select
+                    value={typeof assignTarget === "number" ? String(assignTarget) : assignTarget}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (v === "self" || v.startsWith("group:")) setAssignTarget(v as AssignTarget);
+                      else setAssignTarget(Number(v));
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground bg-background border border-border focus:outline-none">
+                    <option value="self">나에게 (본인)</option>
+                    <option disabled>── 개별 직원 ──</option>
+                    {(staffList ?? [])
+                      .filter(s => s.id !== user?.id)
+                      .map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.trainerName ?? s.username}
+                        </option>
+                      ))}
+                    <option disabled>── 그룹 배정 ──</option>
+                    <option value="group:all">전체 직원</option>
+                    <option value="group:trainer">트레이너 전체</option>
+                    <option value="group:consultant">컨설턴트 전체</option>
+                  </select>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t border-border shrink-0">
-              <button type="button" onClick={handleSaveTask} disabled={createMutation.isPending}
+              <button type="button" onClick={handleSaveTask} disabled={isSaving}
                 className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-bold hover:bg-primary/90 disabled:opacity-50">
-                {createMutation.isPending ? "저장 중..." : "저장"}
+                {isSaving ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>
@@ -503,6 +573,9 @@ function TaskCard({ row, done, onComplete, onUncomplete, onDelete, onOpen }: {
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border ${TYPE_BADGE[tk.taskType] ?? TYPE_BADGE.daily}`}>
+              {TYPE_LABEL[tk.taskType] ?? "일일"}
+            </span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${catColor}`}>{tk.category}</span>
             <span className={`inline-block w-2 h-2 rounded-full ${pm.dot}`} />
             <span className="text-xs text-muted-foreground">{pm.label}</span>
@@ -522,32 +595,18 @@ function TaskCard({ row, done, onComplete, onUncomplete, onDelete, onOpen }: {
   );
 }
 
-function PositionTab({ position }: { position: string | null }) {
-  if (!position || !POSITION_TASKS[position]) {
-    return (
-      <div className="text-center text-muted-foreground py-12">
-        <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
-        <p className="text-sm">직책이 설정되지 않았습니다</p>
-        <p className="text-xs mt-1 opacity-60">관리자에게 직책 설정을 요청하세요</p>
-      </div>
-    );
-  }
-
+function PositionGuide({ position }: { position: string }) {
+  if (!POSITION_TASKS[position]) return null;
   const tasks = POSITION_TASKS[position];
-  const badge = POSITION_BADGE[position] ?? "bg-gray-500/15 text-gray-400 border border-gray-500/30";
   const sections = [
-    { label: "일일 업무", items: tasks.daily,   accent: "border-blue-500/30 bg-blue-500/5" },
+    { label: "일일 업무", items: tasks.daily,   accent: "border-sky-500/30 bg-sky-500/5" },
     { label: "주간 업무", items: tasks.weekly,  accent: "border-violet-500/30 bg-violet-500/5" },
     { label: "월간 업무", items: tasks.monthly, accent: "border-amber-500/30 bg-amber-500/5" },
   ];
-
   return (
-    <div className="space-y-4">
-      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${badge}`}>
-        {position} 직책 업무
-      </div>
+    <div className="space-y-3">
       {sections.map(sec => (
-        <div key={sec.label} className={`border rounded-xl p-4 space-y-2 ${sec.accent}`}>
+        <div key={sec.label} className={`border rounded-xl p-3 space-y-1.5 ${sec.accent}`}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{sec.label}</p>
           {sec.items.map((item, i) => (
             <div key={i} className="flex items-start gap-2">
