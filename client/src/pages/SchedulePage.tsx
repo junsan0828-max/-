@@ -329,7 +329,7 @@ export default function SchedulePage() {
                             const bIdx = top.branchId != null ? (branchIndexMap.get(top.branchId) ?? 0) : 0;
                             return (
                               <span className="font-medium flex items-baseline gap-0.5 min-w-0">
-                                <span className="truncate">{top.memberName ?? "미배정"}</span>
+                                <span className="truncate">{top.memberName ?? top.notes ?? "미배정"}</span>
                                 {bIdx > 0 && (
                                   <span className="text-[9px] text-orange-300/80 font-bold shrink-0 leading-none">{bIdx + 1}</span>
                                 )}
