@@ -498,10 +498,10 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
   const fixed = cell.find(s => s.isRecurring === 1) ?? null;
   const oneOff = cell.find(s => s.isRecurring === 0 && s.scheduledDate === date) ?? null;
 
-  // 고정 칸에 아직 이 주 배정이 없으면 → 템플릿을 건드리지 않고 이 날짜에만 새로 만든다.
-  const assigningToFixed = !!fixed && !oneOff;
-  const target = oneOff ?? (fixed && !assigningToFixed ? fixed : null);
+  // 고정 수업은 항상 템플릿을 직접 수정한다 (이 주만 배정 모드 제거)
+  const target = oneOff ?? fixed ?? null;
   const isNew = !target;
+  const assigningToFixed = false; // 레거시 참조 호환용
 
   // 지점: 저장된 값 → localStorage 마지막값 → 첫 번째 지점(기본)
   const defaultBranchId = (() => {
@@ -521,6 +521,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(defaultBranchId);
   const [notes, setNotes] = useState(target?.notes ?? "");
   const [editingFixed, setEditingFixed] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<"none" | "one" | "future" | "all">("none");
 
   const { data: memberList } = trpc.members.list.useQuery(undefined, { enabled: !viewingAll });
   const { data: memberSummary } = trpc.schedules.memberSummary.useQuery(
@@ -785,7 +786,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
                   }
                 }}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50 whitespace-nowrap">
-                캔슬
+                캔슬(차감X)
               </button>
             </div>
           </div>
@@ -814,7 +815,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
               <button type="button" disabled={busy}
                 onClick={() => { if (confirm(`${target.scheduledDate} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`)) updateMutation.mutate({ scheduleId: target.id, status: "cancelled" }); }}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50 whitespace-nowrap">
-                캔슬
+                캔슬(차감X)
               </button>
             </div>
           </div>
@@ -923,7 +924,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
         <div className="flex gap-2 pt-1">
           {!isNew && (
             <button
-              onClick={() => { if (confirm("이 수업을 삭제할까요?")) deleteMutation.mutate({ scheduleId: target!.id }); }}
+              onClick={() => setDeleteDialog("none") === undefined && setDeleteDialog("one")}
               disabled={busy}
               className="px-3 py-2 rounded-lg border border-red-500/40 text-red-400 text-sm disabled:opacity-50"
             >
@@ -941,38 +942,73 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
             {busy ? "저장 중..." : "저장"}
           </button>
         </div>
-
-        {/* 고정 수업 자체를 손보는 건 실수 방지를 위해 따로 둔다 */}
-        {fixed && (
-          <div className="pt-2 border-t border-border">
-            {!editingFixed ? (
-              <button
-                onClick={() => setEditingFixed(true)}
-                className="text-[11px] text-muted-foreground hover:text-foreground"
-              >
-                고정 수업 시간 자체를 바꾸거나 없애기
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground flex-1">
-                  매주 {fixed.scheduledTime} 반복
-                </span>
-                <button
-                  onClick={() => {
-                    if (confirm("이 고정 수업을 없앨까요? 이미 배정된 주의 수업은 남습니다.")) {
-                      deleteMutation.mutate({ scheduleId: fixed.id });
-                    }
-                  }}
-                  disabled={busy}
-                  className="text-[11px] px-2 py-1 rounded border border-red-500/40 text-red-400 disabled:opacity-50"
-                >
-                  고정 해제
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* 삭제 다이얼로그 */}
+      {deleteDialog !== "none" && target && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-6">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-xs shadow-xl space-y-4">
+            <h3 className="font-semibold text-base">
+              {target.isRecurring === 1 ? "반복 일정 삭제" : "일정 삭제"}
+            </h3>
+            {target.isRecurring === 1 ? (
+              <div className="space-y-3">
+                {([
+                  { value: "one",    label: "이 일정만 취소" },
+                  { value: "future", label: "이 일정 및 향후 일정 삭제" },
+                  { value: "all",    label: "모든 일정 삭제" },
+                ] as const).map(opt => (
+                  <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deleteMode"
+                      value={opt.value}
+                      checked={deleteDialog === opt.value}
+                      onChange={() => setDeleteDialog(opt.value)}
+                      className="w-4 h-4 accent-primary"
+                    />
+                    <span className="text-sm">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">이 수업을 삭제합니다.</p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setDeleteDialog("none")}
+                className="flex-1 py-2 rounded-lg border border-border text-sm text-muted-foreground">
+                취소
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  if (target.isRecurring === 1) {
+                    if (deleteDialog === "one") {
+                      // 이 주만 취소: 취소 상태 one-off 생성 (recurring template 유지)
+                      createMutation.mutate({
+                        memberId: target.memberId, memberName: target.memberName ?? undefined,
+                        scheduledDate: date, scheduledTime: target.scheduledTime ?? undefined,
+                        isRecurring: false, eventType: (target.eventType ?? "pt") as any,
+                        branchId: target.branchId ?? undefined, status: "cancelled",
+                        ...(trainerId ? { trainerId } : {}),
+                      });
+                    } else {
+                      // 향후 / 전체: 반복 템플릿 삭제
+                      deleteMutation.mutate({ scheduleId: fixed!.id });
+                    }
+                  } else {
+                    deleteMutation.mutate({ scheduleId: target.id });
+                  }
+                  setDeleteDialog("none");
+                }}
+                className="flex-1 py-2 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-sm font-medium disabled:opacity-50"
+              >
+                {busy ? "처리 중..." : "확인"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

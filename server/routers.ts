@@ -2619,6 +2619,7 @@ const schedulesRouter = t.router({
       branchId: z.number().nullable().optional(),
       trainerId: z.number().optional(),
       eventType: z.enum(["pt", "ballet", "consultation", "trial", "meeting", "other"]).default("pt"),
+      status: z.enum(["pending", "done", "cancelled", "noshow"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
@@ -2637,6 +2638,7 @@ const schedulesRouter = t.router({
         isRecurring: input.isRecurring ? 1 : 0,
         branchId: input.branchId ?? null,
         eventType: input.eventType,
+        ...(input.status ? { status: input.status } : {}),
       }).returning({ id: schedules.id });
       return { id: row.id };
     }),
