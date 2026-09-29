@@ -622,8 +622,9 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
           const now = new Date();
           const todayStr = now.toISOString().substring(0, 10);
           const isPastDate = target.scheduledDate < todayStr;
+          const nowTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
           const isTodayPastHour = target.scheduledDate === todayStr &&
-            parseInt((target.scheduledTime ?? "99:00").substring(0, 2), 10) < now.getHours();
+            (target.scheduledTime ?? "99:00") <= nowTimeStr;
           return isPastDate || isTodayPastHour;
         })() && (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 flex items-center justify-between gap-2">
