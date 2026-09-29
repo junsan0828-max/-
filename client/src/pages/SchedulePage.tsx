@@ -298,7 +298,7 @@ export default function SchedulePage() {
                       className={`min-h-[42px] rounded-lg border text-[11px] px-1 py-1 text-left transition-colors relative ${
                         top
                           ? isDone
-                            ? "bg-muted/30 border-border/40 opacity-60"
+                            ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
                             : tColor
                               ? tColor.cell
                               : top.isRecurring
