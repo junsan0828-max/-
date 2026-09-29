@@ -617,7 +617,14 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
         )}
 
         {/* 지나간 수업 미체크 — 수업 체크 버튼 */}
-        {target && target.status !== "done" && target.scheduledDate < new Date().toISOString().substring(0, 10) && (
+        {target && target.status !== "done" && (() => {
+          const now = new Date();
+          const todayStr = now.toISOString().substring(0, 10);
+          const isPastDate = target.scheduledDate < todayStr;
+          const isTodayPastHour = target.scheduledDate === todayStr &&
+            parseInt((target.scheduledTime ?? "99:00").substring(0, 2), 10) < now.getHours();
+          return isPastDate || isTodayPastHour;
+        })() && (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 flex items-center justify-between gap-2">
             <span>지나간 수업 — 체크되지 않음</span>
             <button
