@@ -781,15 +781,15 @@ function TrainerDashboard() {
         return (
           <div className="space-y-1">
             {/* 진행 표시 */}
-            <div className="flex items-center justify-between px-0.5 mb-2">
-              <span className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-3 px-0.5 mb-2">
+              <span className="text-xs text-muted-foreground shrink-0">
                 {doneCount > 0 ? `${doneCount} / ${allCards.length} 처리됨` : `업무 브리핑 · ${allCards.length}건`}
               </span>
-              <div className="flex gap-0.5">
-                {allCards.map(c => (
-                  <span key={c.key} className={`h-1.5 rounded-full transition-all ${dismissedCardKeys.has(c.key) ? "w-4 bg-emerald-500/60" : c.key === card.key ? "w-6 bg-primary" : "w-1.5 bg-border"}`} />
-                ))}
+              <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
+                <div className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${allCards.length > 0 ? Math.round((doneCount / allCards.length) * 100) : 0}%` }} />
               </div>
+              <span className="text-xs text-muted-foreground shrink-0">{doneCount}/{allCards.length}</span>
             </div>
 
             {/* 카드 */}
