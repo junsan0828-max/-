@@ -156,10 +156,11 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
 }
 
 // ─── 캔버스 서명 패드 ──────────────────────────────────────────────────────────
-function SignaturePad({ onSign, onClear, hasSignature }: {
+function SignaturePad({ onSign, onClear, hasSignature, hideClearBtn }: {
   onSign: (dataUrl: string) => void;
   onClear: () => void;
   hasSignature: boolean;
+  hideClearBtn?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -237,7 +238,7 @@ function SignaturePad({ onSign, onClear, hasSignature }: {
           </div>
         )}
       </div>
-      {hasSignature && (
+      {hasSignature && !hideClearBtn && (
         <button type="button" onClick={clear} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
           <RotateCcw className="h-3.5 w-3.5" /> 다시 그리기
         </button>
@@ -283,6 +284,52 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
     });
   };
 
+  // 서명 단계는 전체화면으로
+  if (step === "signature") {
+    return (
+      <div className="fixed inset-0 z-50 bg-card flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+          <div>
+            <p className="text-base font-semibold">수업 완료 서명</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {slot.scheduledTime}{slot.memberName ? ` · ${slot.memberName}` : ""}
+            </p>
+          </div>
+          <button type="button" onClick={() => setStep("checkin")} className="text-xs text-muted-foreground px-3 py-1.5 rounded-lg border border-border hover:text-foreground">
+            이전
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col justify-center px-5 py-6 space-y-4">
+          <p className="text-sm text-muted-foreground text-center">아래 공간에 서명해 주세요</p>
+          <div className="relative border border-border rounded-2xl overflow-hidden bg-slate-900/60" style={{ touchAction: "none", height: "45dvh" }}>
+            <SignaturePad
+              hasSignature={!!sigDataUrl}
+              onSign={setSigDataUrl}
+              onClear={() => setSigDataUrl(null)}
+              hideClearBtn
+            />
+          </div>
+          {sigDataUrl && (
+            <button type="button" onClick={() => setSigDataUrl(null)} className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <RotateCcw className="h-3.5 w-3.5" /> 다시 그리기
+            </button>
+          )}
+        </div>
+        <div className="px-5 pb-8">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!sigDataUrl || completeMutation.isPending}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-500 transition-colors disabled:opacity-40"
+          >
+            <CheckCircle className="h-5 w-5" />
+            {completeMutation.isPending ? "처리 중..." : "서명 완료"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
@@ -318,41 +365,6 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
               >
                 <CheckCircle className="h-4 w-4" />
                 {completeMutation.isPending ? "처리 중..." : "완료 처리"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === "signature" && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-base font-semibold">수업 완료 서명</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {slot.scheduledTime}{slot.memberName ? ` · ${slot.memberName}` : ""}
-                {slot.notes ? ` · ${slot.notes}` : ""}
-              </p>
-            </div>
-            <SignaturePad
-              hasSignature={!!sigDataUrl}
-              onSign={setSigDataUrl}
-              onClear={() => setSigDataUrl(null)}
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setStep("checkin")}
-                className="px-4 py-2.5 rounded-xl bg-accent text-foreground text-sm hover:bg-accent/80 transition-colors"
-              >
-                이전
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!sigDataUrl || completeMutation.isPending}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 transition-colors disabled:opacity-40"
-              >
-                <CheckCircle className="h-4 w-4" />
-                {completeMutation.isPending ? "처리 중..." : "서명 완료"}
               </button>
             </div>
           </div>

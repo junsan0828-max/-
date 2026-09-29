@@ -2694,7 +2694,7 @@ const schedulesRouter = t.router({
       checkin: z.object({
         condition: z.number().int().min(1).max(5),
         sleep: z.number().int().min(0).max(1),       // 1=충분 0=6h미만
-        nutrition: z.number().int().min(0).max(1),   // 1=식사함 0=결식/부족
+        nutrition: z.number().int().min(0).max(2),   // 0=결식/부족 1=단백질 2=탄수화물
         painLevel: z.number().int().min(0).max(5),   // 0=없음
         painNote: z.string().optional(),
       }).optional(),
