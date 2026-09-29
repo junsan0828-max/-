@@ -28,12 +28,12 @@ interface Checkin {
 function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext: (data: Checkin) => void }) {
   const [condition, setCondition] = useState(0);
   const [sleepShort, setSleepShort] = useState(false); // 6시간 이하 여부
-  const [nutrition, setNutrition] = useState<number | null>(null);
+  const [nutrition, setNutrition] = useState<Set<number>>(new Set());
   const [pain, setPain] = useState<number | null>(null);
   const [painNote, setPainNote] = useState("");
 
   const conditionOk = condition >= 1;
-  const nutritionOk = nutrition !== null;
+  const nutritionOk = nutrition.size > 0;
   const painOk = pain !== null;
   const canNext = conditionOk && nutritionOk && painOk;
 
@@ -100,9 +100,17 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
       <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">영양</p>
         <div className="flex gap-2">
-          <ToggleBtn active={nutrition === 1} onClick={() => setNutrition(1)}>단백질</ToggleBtn>
-          <ToggleBtn active={nutrition === 2} onClick={() => setNutrition(2)}>탄수화물</ToggleBtn>
-          <ToggleBtn active={nutrition === 0} onClick={() => setNutrition(0)}>결식 / 부족</ToggleBtn>
+          {([[1, "단백질"], [2, "탄수화물"], [0, "결식 / 부족"]] as [number, string][]).map(([v, label]) => (
+            <ToggleBtn
+              key={v}
+              active={nutrition.has(v)}
+              onClick={() => setNutrition(prev => {
+                const next = new Set(prev);
+                next.has(v) ? next.delete(v) : next.add(v);
+                return next;
+              })}
+            >{label}</ToggleBtn>
+          ))}
         </div>
       </div>
 
@@ -137,7 +145,7 @@ function CheckinStep({ memberName, onNext }: { memberName: string | null; onNext
       <button
         type="button"
         disabled={!canNext}
-        onClick={() => onNext({ condition, sleep: sleepShort ? 0 : 1, nutrition: nutrition!, painLevel: pain!, painNote })}
+        onClick={() => onNext({ condition, sleep: sleepShort ? 0 : 1, nutrition: [...nutrition][0] ?? 0, painLevel: pain!, painNote })}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40"
       >
         서명하기
