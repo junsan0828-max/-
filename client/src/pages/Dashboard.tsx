@@ -553,8 +553,8 @@ function TrainerDashboard() {
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
-  const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
-    { date: todayStr },
+  const { data: todayScheduleList } = trpc.dashboard.todayScheduleList.useQuery(
+    undefined,
     { enabled: todayModalOpen }
   );
   const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
@@ -1162,46 +1162,48 @@ function TrainerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* 오늘 출석 모달 */}
+      {/* 오늘 수업 현황 모달 */}
       <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-yellow-400" />
-              오늘 출석 현황
+              오늘 수업 현황
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {todayStr.replace(/-/g, ".")} · 출석 {todayAttendanceList?.filter(m => m.check?.status === "attended").length ?? 0}명
+              {todayStr.replace(/-/g, ".")} · 완료 {todayScheduleList?.filter((s: any) => s.status === "done").length ?? 0} / 전체 {todayScheduleList?.length ?? 0}건
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1 max-h-80 overflow-y-auto">
-            {!todayAttendanceList ? (
+            {!todayScheduleList ? (
               <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>
-            ) : todayAttendanceList.filter(m => m.check).length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">오늘 출석 기록이 없습니다.</p>
+            ) : todayScheduleList.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">오늘 수업 일정이 없습니다.</p>
             ) : (
-              todayAttendanceList
-                .filter(m => m.check)
-                .map(m => {
+              (todayScheduleList as any[])
+                .sort((a, b) => (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? ""))
+                .map((s: any) => {
                   const statusColor =
-                    m.check?.status === "attended" ? "text-green-400" :
-                    m.check?.status === "noshow" ? "text-red-400" : "text-yellow-400";
+                    s.status === "done" ? "text-emerald-400" :
+                    s.status === "noshow" ? "text-rose-400" :
+                    s.status === "cancelled" ? "text-amber-400" : "text-sky-400";
                   const statusLabel =
-                    m.check?.status === "attended" ? "출석" :
-                    m.check?.status === "noshow" ? "노쇼" : "캔슬";
+                    s.status === "done" ? "완료" :
+                    s.status === "noshow" ? "노쇼" :
+                    s.status === "cancelled" ? "캔슬" : "예정";
                   return (
                     <button
-                      key={m.id}
-                      onClick={() => { setTodayModalOpen(false); setLocation(`/members/${m.id}`); }}
+                      key={`${s.id}-${s.scheduledTime}`}
+                      onClick={() => { setTodayModalOpen(false); if (s.memberId) setLocation(`/members/${s.memberId}`); }}
                       className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors"
                     >
-                      <span className="text-sm font-medium">{m.name}</span>
                       <div className="flex items-center gap-2">
-                        {m.check?.checkTime && (
-                          <span className="text-xs text-muted-foreground">{m.check.checkTime}</span>
+                        {s.scheduledTime && (
+                          <span className="text-xs text-muted-foreground w-10 text-left">{s.scheduledTime}</span>
                         )}
-                        <span className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
+                        <span className="text-sm font-medium">{s.memberName ?? s.notes ?? "미배정"}</span>
                       </div>
+                      <span className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
                     </button>
                   );
                 })
