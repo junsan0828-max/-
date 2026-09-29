@@ -761,70 +761,61 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, onClo
           </div>
         )}
 
-        {/* 고정 슬롯 + 과거 시간: 수업체크 / 노쇼 / 캔슬 */}
-        {assigningToFixed && (() => {
+        {/* 지나간 수업 미체크 — 수업체크 / 노쇼 / 캔슬 버튼
+            반복 수업은 이번 주 날짜(date/time)로 과거 여부 판단, one-off 생성으로 처리.
+            일반 수업은 target 날짜로 판단, target.id 직접 수정. */}
+        {target && !["done","noshow","cancelled"].includes(target.status) && (() => {
           const now = new Date();
           const todayStr = now.toISOString().substring(0, 10);
           const nowTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-          return date < todayStr || (date === todayStr && time <= nowTimeStr);
+          // 반복 수업은 템플릿 생성일이 아닌 이번 주 수업 날짜/시간으로 판단
+          const checkDate = target.isRecurring === 1 ? date : target.scheduledDate;
+          const checkTime = target.isRecurring === 1 ? time : (target.scheduledTime ?? "99:00");
+          return checkDate < todayStr || (checkDate === todayStr && checkTime <= nowTimeStr);
         })() && (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 space-y-2">
             <span className="font-medium">지나간 수업 — 처리 선택</span>
             <div className="flex gap-1.5">
-              <button type="button" disabled={busy} onClick={() => checkPastFixed("done")}
+              <button type="button" disabled={busy}
+                onClick={() => {
+                  if (target.isRecurring === 1) {
+                    checkPastFixed("done");
+                  } else {
+                    if (confirm(`${target.scheduledDate} 수업을 완료 처리합니다. PT 세션 1회가 차감됩니다.`))
+                      checkPastMutation.mutate({ scheduleId: target.id, sessionDate: target.scheduledDate });
+                  }
+                }}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-medium transition-colors disabled:opacity-50">
                 <CheckCircle2 className="h-3 w-3" /> 수업 체크
               </button>
-              <button type="button" disabled={busy} onClick={() => checkPastFixed("noshow")}
+              <button type="button" disabled={busy}
+                onClick={() => {
+                  if (target.isRecurring === 1) {
+                    checkPastFixed("noshow");
+                  } else {
+                    if (confirm(`${target.scheduledDate} 수업을 노쇼 처리합니다. PT 세션 1회가 차감됩니다.`))
+                      noShowMutation.mutate({ scheduleId: target.id, sessionDate: target.scheduledDate });
+                  }
+                }}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-medium transition-colors disabled:opacity-50">
                 노쇼 (차감)
               </button>
-              <button type="button" disabled={busy} onClick={() => {
-                  if (confirm(`${date} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`)) {
-                    const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
-                    createMutation.mutate({ memberId, memberName: freeText, scheduledDate: date, scheduledTime: time, notes: notes || undefined, isRecurring: false, eventType, branchId: selectedBranchId ?? undefined, ...(trainerId ? { trainerId } : {}), status: "cancelled" });
+              <button type="button" disabled={busy}
+                onClick={() => {
+                  if (target.isRecurring === 1) {
+                    if (confirm(`${date} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`)) {
+                      const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
+                      createMutation.mutate({ memberId, memberName: freeText, scheduledDate: date, scheduledTime: time, notes: notes || undefined, isRecurring: false, eventType, branchId: selectedBranchId ?? undefined, ...(trainerId ? { trainerId } : {}), status: "cancelled" });
+                    }
+                  } else {
+                    if (confirm(`${target.scheduledDate} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`))
+                      updateMutation.mutate({ scheduleId: target.id, status: "cancelled" });
                   }
                 }}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50 whitespace-nowrap">
                 캔슬(차감X)
               </button>
             </div>
-          </div>
-        )}
-
-        {/* 지나간 수업 미체크 — 수업체크 / 노쇼 / 캔슬 버튼 */}
-        {target && !["done","noshow","cancelled"].includes(target.status) && (() => {
-          const now = new Date();
-          const todayStr = now.toISOString().substring(0, 10);
-          const nowTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-          return target.scheduledDate < todayStr || (target.scheduledDate === todayStr && (target.scheduledTime ?? "99:00") <= nowTimeStr);
-        })() && (
-          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 space-y-2">
-            <span className="font-medium">지나간 수업 — 처리 선택</span>
-            <div className="flex gap-1.5">
-              <button type="button" disabled={busy}
-                onClick={() => { if (confirm(`${target.scheduledDate} 수업을 완료 처리합니다. PT 세션 1회가 차감됩니다.`)) checkPastMutation.mutate({ scheduleId: target.id, sessionDate: target.scheduledDate }); }}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-medium transition-colors disabled:opacity-50">
-                <CheckCircle2 className="h-3 w-3" /> 수업 체크
-              </button>
-              <button type="button" disabled={busy}
-                onClick={() => { if (confirm(`${target.scheduledDate} 수업을 노쇼 처리합니다. PT 세션 1회가 차감됩니다.`)) noShowMutation.mutate({ scheduleId: target.id, sessionDate: target.scheduledDate }); }}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-medium transition-colors disabled:opacity-50">
-                노쇼 (차감)
-              </button>
-              <button type="button" disabled={busy}
-                onClick={() => { if (confirm(`${target.scheduledDate} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`)) updateMutation.mutate({ scheduleId: target.id, status: "cancelled" }); }}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50 whitespace-nowrap">
-                캔슬(차감X)
-              </button>
-            </div>
-          </div>
-        )}
-
-        {assigningToFixed && (
-          <div className="rounded-lg bg-violet-500/10 border border-violet-500/30 px-3 py-2 text-xs text-violet-300">
-            <Repeat className="h-3 w-3 inline mr-1" />
-            고정 수업 시간입니다. 여기서 배정하면 <strong>이 주에만</strong> 적용됩니다.
           </div>
         )}
 
