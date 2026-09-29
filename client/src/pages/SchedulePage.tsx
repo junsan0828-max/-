@@ -51,12 +51,12 @@ const EVENT_LABELS: Record<EventType, string> = {
 
 // grid cell colors: [filled bg+border, empty hover border]
 const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
-  pt:           { filled: "bg-primary/15 border-primary/40 hover:bg-primary/25",             empty: "border-border/60 border-dashed hover:border-primary/50 hover:bg-primary/5" },
-  ballet:       { filled: "bg-pink-500/15 border-pink-500/40 hover:bg-pink-500/25",          empty: "border-border/60 border-dashed hover:border-pink-500/50 hover:bg-pink-500/5" },
-  consultation: { filled: "bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/25", empty: "border-border/60 border-dashed hover:border-emerald-500/50 hover:bg-emerald-500/5" },
-  trial:        { filled: "bg-amber-500/15 border-amber-500/40 hover:bg-amber-500/25",       empty: "border-border/60 border-dashed hover:border-amber-500/50 hover:bg-amber-500/5" },
-  meeting:      { filled: "bg-slate-500/15 border-slate-400/40 hover:bg-slate-500/25",       empty: "border-border/60 border-dashed hover:border-slate-400/50 hover:bg-slate-500/5" },
-  other:        { filled: "bg-purple-500/15 border-purple-500/40 hover:bg-purple-500/25",    empty: "border-border/60 border-dashed hover:border-purple-500/50 hover:bg-purple-500/5" },
+  pt:           { filled: "bg-white/8 border-white/25 hover:bg-white/14 text-white/90",       empty: "border-border/60 border-dashed hover:border-white/30 hover:bg-white/5" },
+  ballet:       { filled: "bg-pink-500/20 border-pink-400/50 hover:bg-pink-500/30",           empty: "border-border/60 border-dashed hover:border-pink-500/50 hover:bg-pink-500/5" },
+  consultation: { filled: "bg-emerald-500/20 border-emerald-400/50 hover:bg-emerald-500/30",  empty: "border-border/60 border-dashed hover:border-emerald-500/50 hover:bg-emerald-500/5" },
+  trial:        { filled: "bg-amber-500/20 border-amber-400/50 hover:bg-amber-500/30",        empty: "border-border/60 border-dashed hover:border-amber-500/50 hover:bg-amber-500/5" },
+  meeting:      { filled: "bg-sky-500/20 border-sky-400/50 hover:bg-sky-500/30",              empty: "border-border/60 border-dashed hover:border-sky-400/50 hover:bg-sky-500/5" },
+  other:        { filled: "bg-orange-500/20 border-orange-400/50 hover:bg-orange-500/30",     empty: "border-border/60 border-dashed hover:border-orange-500/50 hover:bg-orange-500/5" },
 };
 
 // 어드민 전체보기: 트레이너별 색상 팔레트 (id 오름차순으로 순서 고정)
@@ -322,7 +322,7 @@ export default function SchedulePage() {
                             : tColor
                               ? tColor.cell
                               : top.isRecurring
-                                ? "bg-violet-500/15 border-violet-500/40 hover:bg-violet-500/25"
+                                ? "bg-white/5 border-white/20 hover:bg-white/10 text-white/80"
                                 : colors.filled
                           : hol
                             ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
