@@ -1605,6 +1605,75 @@ const dashboardRouter = t.router({
       return { month: m.label, 매출: revenue, 지출: expense, 순이익: afterTax - expense };
     }));
   }),
+
+  // 나의 성과 리포트 — 기간(상반기/하반기/연간) × 연도
+  myPeriodReport: protectedProcedure
+    .input(z.object({ year: z.number(), period: z.enum(["H1", "H2", "annual"]) }))
+    .query(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { year, period } = input;
+      const months: number[] = period === "H1" ? [1,2,3,4,5,6] : period === "H2" ? [7,8,9,10,11,12] : [1,2,3,4,5,6,7,8,9,10,11,12];
+      const periodStart = `${year}-${String(months[0]).padStart(2,"0")}-01`;
+      const lastM = months[months.length - 1];
+      const periodEndDate = new Date(year, lastM, 1);
+      const periodEnd = periodEndDate.toISOString().split("T")[0];
+
+      // 월별 데이터
+      const monthly = await Promise.all(months.map(async (m) => {
+        const mStart = `${year}-${String(m).padStart(2,"0")}-01`;
+        const mEnd = new Date(year, m, 1).toISOString().split("T")[0];
+        const [sessRes, reregRes] = await Promise.all([
+          pool.query<{ count: string }>(
+            `SELECT COUNT(*) AS count FROM pt_session_logs WHERE "trainerId"=$1 AND "sessionDate">=$2 AND "sessionDate"<$3`,
+            [tid, mStart, mEnd]
+          ),
+          pool.query<{ count: string }>(
+            `SELECT COUNT(*) AS count FROM pt_packages p
+             INNER JOIN members mem ON mem.id = p."memberId"
+             WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3 AND mem."createdAt"<$2`,
+            [tid, mStart, mEnd]
+          ),
+        ]);
+        return { label: `${m}월`, sessions: Number(sessRes.rows[0]?.count ?? 0), rereg: Number(reregRes.rows[0]?.count ?? 0) };
+      }));
+
+      const [totalSessRes, newMembRes, reregRes, noShowRes, completedMembRes] = await Promise.all([
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM pt_session_logs WHERE "trainerId"=$1 AND "sessionDate">=$2 AND "sessionDate"<$3`,
+          [tid, periodStart, periodEnd]
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM members WHERE "trainerId"=$1 AND "createdAt">=$2 AND "createdAt"<$3`,
+          [tid, periodStart, periodEnd]
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM pt_packages p
+           INNER JOIN members mem ON mem.id = p."memberId"
+           WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3 AND mem."createdAt"<$2`,
+          [tid, periodStart, periodEnd]
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM trainer_schedules WHERE "trainerId"=$1 AND status='noshow' AND "scheduledDate">=$2 AND "scheduledDate"<$3`,
+          [tid, periodStart, periodEnd]
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(DISTINCT "memberId") AS count FROM pt_packages WHERE "trainerId"=$1 AND status='completed' AND "createdAt">=$2 AND "createdAt"<$3`,
+          [tid, periodStart, periodEnd]
+        ),
+      ]);
+
+      const sessions = Number(totalSessRes.rows[0]?.count ?? 0);
+      const newMembers = Number(newMembRes.rows[0]?.count ?? 0);
+      const reregMembers = Number(reregRes.rows[0]?.count ?? 0);
+      const noShows = Number(noShowRes.rows[0]?.count ?? 0);
+      const completed = Number(completedMembRes.rows[0]?.count ?? 0);
+      const avgMonthly = months.length > 0 ? Math.round(sessions / months.length) : 0;
+      const reregRate = (newMembers + reregMembers) > 0 ? Math.round(reregMembers / (newMembers + reregMembers) * 100) : 0;
+
+      return { sessions, avgMonthly, newMembers, reregMembers, reregRate, completed, noShows, monthly };
+    }),
 });
 
 // ─── Workout Memos ────────────────────────────────────────────────────────────

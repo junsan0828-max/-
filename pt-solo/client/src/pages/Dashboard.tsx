@@ -1093,6 +1093,119 @@ function GettingStarted({
   );
 }
 
+// ─── 나의 성과 카드 ────────────────────────────────────────────────────────────
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+} from "recharts";
+
+function MyPerformanceCard() {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const defaultPeriod: "H1" | "H2" | "annual" = currentMonth <= 6 ? "H1" : "H2";
+
+  const [year, setYear] = useState(currentYear);
+  const [period, setPeriod] = useState<"H1" | "H2" | "annual">(defaultPeriod);
+
+  const { data, isLoading } = trpc.dashboard.myPeriodReport.useQuery(
+    { year, period },
+    { refetchOnWindowFocus: false }
+  );
+
+  const reregRateColor =
+    (data?.reregRate ?? 0) >= 50 ? "text-emerald-500"
+    : (data?.reregRate ?? 0) >= 30 ? "text-amber-500"
+    : "text-rose-500";
+
+  return (
+    <div className="rounded-2xl bg-card border border-border p-4 space-y-4">
+      {/* 헤더 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <TrendingUp className="h-4 w-4 text-primary shrink-0" />
+        <span className="text-sm font-semibold mr-auto">나의 성과</span>
+
+        {/* 연도 선택 */}
+        <div className="flex items-center gap-1">
+          <button onClick={() => setYear(y => y - 1)} className="p-1 hover:bg-accent/40 rounded-lg">
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground rotate-180" />
+          </button>
+          <span className="text-xs font-semibold w-12 text-center">{year}년</span>
+          <button onClick={() => setYear(y => y + 1)} disabled={year >= currentYear} className="p-1 hover:bg-accent/40 rounded-lg disabled:opacity-30">
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* 기간 탭 */}
+        <div className="flex gap-1 bg-muted/50 rounded-lg p-0.5">
+          {(["H1", "H2", "annual"] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-colors ${
+                period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p === "H1" ? "상반기" : p === "H2" ? "하반기" : "연간"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="py-6 text-center text-xs text-muted-foreground">불러오는 중...</div>
+      ) : (
+        <>
+          {/* 지표 2×3 그리드 */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl bg-muted/30 px-3 py-3">
+              <p className="text-[10px] text-muted-foreground mb-1">총 수업</p>
+              <p className="text-xl font-bold text-primary">{data?.sessions ?? 0}<span className="text-xs font-normal ml-0.5">회</span></p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">월평균 {data?.avgMonthly ?? 0}회</p>
+            </div>
+            <div className="rounded-xl bg-muted/30 px-3 py-3">
+              <p className="text-[10px] text-muted-foreground mb-1">신규 배정</p>
+              <p className="text-xl font-bold text-primary">{data?.newMembers ?? 0}<span className="text-xs font-normal ml-0.5">명</span></p>
+            </div>
+            <div className="rounded-xl bg-muted/30 px-3 py-3">
+              <p className="text-[10px] text-muted-foreground mb-1">재등록</p>
+              <p className="text-xl font-bold text-primary">{data?.reregMembers ?? 0}<span className="text-xs font-normal ml-0.5">건</span></p>
+            </div>
+            <div className="rounded-xl bg-muted/30 px-3 py-3">
+              <p className="text-[10px] text-muted-foreground mb-1">재등록률</p>
+              <p className={`text-xl font-bold ${reregRateColor}`}>{data?.reregRate ?? 0}<span className="text-xs font-normal ml-0.5">%</span></p>
+            </div>
+            <div className="rounded-xl bg-muted/30 px-3 py-3">
+              <p className="text-[10px] text-muted-foreground mb-1">종료 회원</p>
+              <p className="text-xl font-bold">{data?.completed ?? 0}<span className="text-xs font-normal ml-0.5">명</span></p>
+            </div>
+            <div className="rounded-xl bg-muted/30 px-3 py-3">
+              <p className="text-[10px] text-muted-foreground mb-1">노쇼</p>
+              <p className="text-xl font-bold">{data?.noShows ?? 0}<span className="text-xs font-normal ml-0.5">회</span></p>
+            </div>
+          </div>
+
+          {/* 월별 막대 차트 */}
+          {(data?.monthly?.length ?? 0) > 0 && (
+            <div className="h-36 -mx-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data?.monthly ?? []} barGap={2} barCategoryGap="30%">
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip
+                    contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)" }}
+                    cursor={{ fill: "transparent" }}
+                  />
+                  <Bar dataKey="sessions" name="수업" fill="#8b5cf6" radius={[4,4,0,0]} maxBarSize={18} />
+                  <Bar dataKey="rereg" name="재등록" fill="#10b981" radius={[4,4,0,0]} maxBarSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
 function TrainerDashboard() {
   const [location, setLocation] = useLocation();
@@ -1287,6 +1400,9 @@ function TrainerDashboard() {
             </button>
           </div>
         </div>
+
+        {/* 나의 성과 */}
+        <MyPerformanceCard />
       </div>
       )}
 
