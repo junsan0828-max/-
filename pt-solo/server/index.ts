@@ -686,6 +686,9 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS trainer_schedules_trainer_date ON trainer_schedules ("trainerId", "scheduledDate")`);
+  // 반복 일정 지원 컬럼 마이그레이션
+  await pool.query(`ALTER TABLE trainer_schedules ADD COLUMN IF NOT EXISTS "isRecurring" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainer_schedules ADD COLUMN IF NOT EXISTS "dayOfWeek" INTEGER`);
 
   await pool.query(`CREATE TABLE IF NOT EXISTS booking_blackouts (
     id SERIAL PRIMARY KEY,

@@ -6064,6 +6064,66 @@ const trainerSchedulesRouter = t.router({
       await pool.query(`DELETE FROM trainer_schedules WHERE id=$1 AND "trainerId"=$2`, [input.id, tid]);
       return { success: true };
     }),
+
+  // 결석 처리
+  markNoShow: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `UPDATE trainer_schedules SET status='noshow' WHERE id=$1 AND "trainerId"=$2 AND status='pending'`,
+        [input.id, tid]
+      );
+      return { success: true };
+    }),
+
+  // 완료 취소 (세션 차감 복구 없이 상태만 되돌림)
+  cancelCompletion: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `UPDATE trainer_schedules SET status='pending' WHERE id=$1 AND "trainerId"=$2`,
+        [input.id, tid]
+      );
+      return { success: true };
+    }),
+
+  // 반복 일정 생성
+  createRecurring: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      dayOfWeek: z.number().min(0).max(6),
+      scheduledTime: z.string(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const result = await pool.query<any>(
+        `INSERT INTO trainer_schedules ("trainerId", "memberId", "scheduledDate", "scheduledTime", memo, "isRecurring", "dayOfWeek")
+         VALUES ($1,$2,'',$3,$4,1,$5) RETURNING id`,
+        [tid, input.memberId, input.scheduledTime, input.memo ?? null, input.dayOfWeek]
+      );
+      return result.rows[0];
+    }),
+
+  // 반복 일정 목록
+  listRecurring: protectedProcedure.query(async ({ ctx }) => {
+    const tid = ctx.user.trainerId;
+    if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await pool.query<any>(
+      `SELECT ts.*, m.name AS "memberName"
+       FROM trainer_schedules ts
+       JOIN members m ON m.id = ts."memberId"
+       WHERE ts."trainerId"=$1 AND ts."isRecurring"=1
+       ORDER BY ts."dayOfWeek", ts."scheduledTime"`,
+      [tid]
+    );
+    return rows.rows;
+  }),
 });
 
 const trainerFeedbackRouter = t.router({

@@ -28,6 +28,7 @@ import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
 import Sessions from "./pages/Sessions";
+import ScheduleManagement from "./pages/ScheduleManagement";
 import Academy from "./pages/Academy";
 import TrainerBrandPage from "./pages/TrainerBrandPage";
 import ClassBookingPage from "./pages/ClassBookingPage";
@@ -200,6 +201,7 @@ function App() {
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
           <Route path="/sessions">{() => <Sessions />}</Route>
+          <Route path="/schedule">{() => <ScheduleManagement />}</Route>
           {/* 관리자가 STEPER에게 노출할 기능을 켜고 끄는 콘솔.
               STEPER는 /features(전체 기능)에서 기능을 연다. */}
           <Route path="/workshop">

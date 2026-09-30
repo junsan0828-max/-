@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, BookMarked, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList, Layers, Globe,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, BookMarked, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList, Layers, Globe, CalendarDays,
 } from "lucide-react";
 import PageGuideModal, { hasGuide, syncServerDismissed } from "./PageGuideModal";
 import QuickAskFloat from "./QuickAskFloat";
@@ -80,7 +80,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     ] },
     { label: "회원 운영", items: [
       { path: "/pt", label: "회원 관리", icon: Dumbbell },
-      { path: "/sessions", label: "수업 관리", icon: BookOpen },
+      { path: "/schedule", label: "스케줄 관리", icon: CalendarDays },
+      { path: "/sessions", label: "수업 일지", icon: BookOpen },
       { path: "/leads", label: "상담 관리", icon: UserPlus },
       ...(isFeatureActive("booking") ? [{ path: "/booking", label: "예약 관리", icon: CalendarCheck }] : []),
       { path: "/settlement", label: "성장분석실", icon: TrendingUp },

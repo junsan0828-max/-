@@ -1,4 +1,4 @@
-import { X, LayoutDashboard, Dumbbell, BookOpen, UserPlus, CalendarCheck, TrendingUp, GraduationCap, Wrench, User, ShieldCheck, CreditCard, Coins, Bell, Zap, MessageSquarePlus, ClipboardList, type LucideIcon } from "lucide-react";
+import { X, LayoutDashboard, Dumbbell, BookOpen, UserPlus, CalendarCheck, TrendingUp, GraduationCap, Wrench, User, ShieldCheck, CreditCard, Coins, Bell, Zap, MessageSquarePlus, ClipboardList, CalendarDays, type LucideIcon } from "lucide-react";
 
 interface PageGuide {
   icon: LucideIcon;
@@ -31,15 +31,26 @@ const GUIDES: Record<string, PageGuide> = {
       "검색창에서 이름이나 전화번호로 빠르게 찾을 수 있습니다.",
     ],
   },
+  "/schedule": {
+    icon: CalendarDays,
+    color: "bg-green-500/15 text-green-500",
+    title: "스케줄 관리",
+    desc: "주간 수업 스케줄을 한눈에 관리합니다.",
+    tips: [
+      "+ 등록 버튼으로 단건 또는 매주 반복 수업을 등록하세요.",
+      "수업 카드를 탭하면 완료·결석 처리를 할 수 있습니다.",
+      "완료 처리 시 회원의 잔여 세션이 자동 차감됩니다.",
+    ],
+  },
   "/sessions": {
     icon: BookOpen,
-    color: "bg-green-500/15 text-green-500",
-    title: "수업 관리",
-    desc: "수업 완료 체크와 세션 기록을 관리합니다.",
+    color: "bg-indigo-500/15 text-indigo-500",
+    title: "수업 일지",
+    desc: "운동 일지와 트레이닝 기록을 작성합니다.",
     tips: [
-      "날짜별로 수업 진행 현황을 확인하세요.",
-      "완료 버튼을 누르면 회원의 잔여 횟수가 자동 차감됩니다.",
-      "운동 내용, 특이사항 등을 메모로 남길 수 있습니다.",
+      "회원을 선택한 후 운동 내용을 기록하세요.",
+      "운동 템플릿을 불러와 빠르게 작성할 수 있습니다.",
+      "라이브 트레이닝 모드로 실시간 세션 기록도 가능합니다.",
     ],
   },
   "/leads": {
