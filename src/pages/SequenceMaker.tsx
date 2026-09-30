@@ -553,11 +553,6 @@ export default function SequenceMaker() {
             </div>
           </div>
 
-          {/* 수업 목표 */}
-          <div style={{ ...CARD, marginBottom: 14 }}>
-            <label style={LB}>수업 목표</label>
-            <textarea style={{ ...IS, minHeight: 72, resize: "vertical" }} value={draft.classGoal} onChange={e => updateDraft({ classGoal: e.target.value })} placeholder="오늘 수업에서 달성할 목표" />
-          </div>
 
           {/* 운동 목록 */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 4px 10px" }}>
@@ -580,8 +575,9 @@ export default function SequenceMaker() {
                 <div><label style={LB}>횟수/시간</label><input style={IS} value={ex.reps} onChange={e => updateExercise(i, { reps: e.target.value })} placeholder="12회 / 30초" /></div>
               </div>
               <div style={{ marginTop: 10 }}>
-                <label style={LB}>영상 URL</label>
-                <input style={IS} value={ex.videoUrl} onChange={e => updateExercise(i, { videoUrl: e.target.value })} placeholder="https://youtube.com/..." />
+                <label style={LB}>운동 영상 URL</label>
+                <p style={{ fontSize: 11, color: "#94a3b8", margin: "0 0 6px" }}>유튜브 숏츠(15초 내외)를 권장합니다. 영상을 유튜브에 공유한 후 링크를 붙여넣으세요.</p>
+                <input style={IS} value={ex.videoUrl} onChange={e => updateExercise(i, { videoUrl: e.target.value })} placeholder="https://youtube.com/shorts/..." />
               </div>
               <div style={{ marginTop: 10 }}>
                 <label style={LB}>노트</label>
