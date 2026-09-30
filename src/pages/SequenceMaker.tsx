@@ -86,15 +86,21 @@ async function exchangeKakaoCode(code: string, verifier: string, redirectUri: st
   const appKey = import.meta.env.VITE_KAKAO_APP_KEY as string | undefined;
   if (!appKey) return null;
   try {
+    const body = new URLSearchParams({ grant_type: "authorization_code", client_id: appKey, redirect_uri: redirectUri, code, code_verifier: verifier }).toString();
+    console.log("[kakao] token exchange →", { appKey: appKey.slice(0,8)+"...", redirectUri, codeLen: code.length, verifierLen: verifier.length });
     const res = await fetch("https://kauth.kakao.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ grant_type: "authorization_code", client_id: appKey, redirect_uri: redirectUri, code, code_verifier: verifier }).toString(),
+      body,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[kakao] token exchange failed", res.status, errText);
+      return null;
+    }
     const data = await res.json();
     return data.access_token ?? null;
-  } catch { return null; }
+  } catch(e) { console.error("[kakao] token exchange exception", e); return null; }
 }
 async function fetchKakaoProfile(token: string): Promise<KakaoUser | null> {
   try {
