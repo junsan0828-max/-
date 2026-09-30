@@ -1856,7 +1856,8 @@ export default function DietPlanner() {
     // 카카오 PKCE 콜백 처리 (URL search params에서 code 추출)
     const authCode = searchParams.get("code");
     if (authCode) {
-      const verifier = sessionStorage.getItem("kakao_pkce_verifier");
+      const verifier = localStorage.getItem("kakao_pkce_verifier") || sessionStorage.getItem("kakao_pkce_verifier");
+      localStorage.removeItem("kakao_pkce_verifier");
       sessionStorage.removeItem("kakao_pkce_verifier");
       const redirectUri = window.location.origin + window.location.pathname;
       window.history.replaceState(null, "", window.location.pathname);
@@ -1880,8 +1881,9 @@ export default function DietPlanner() {
                 setUserType("member");
               }
               // 다른 페이지에서 로그인 요청 → 돌아가기
-              const returnPath = sessionStorage.getItem("login_return");
+              const returnPath = localStorage.getItem("login_return") || sessionStorage.getItem("login_return");
               if (returnPath) {
+                localStorage.removeItem("login_return");
                 sessionStorage.removeItem("login_return");
                 window.location.href = returnPath;
                 return;

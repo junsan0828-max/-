@@ -297,8 +297,8 @@ export default function SequenceMaker() {
     const appKey = import.meta.env.VITE_KAKAO_APP_KEY as string | undefined;
     if (!appKey) { alert("카카오 앱키가 설정되지 않았습니다."); return; }
     const verifier = generateCodeVerifier();
-    sessionStorage.setItem("kakao_pkce_verifier", verifier);
-    sessionStorage.setItem("login_return", "/sequence");
+    localStorage.setItem("kakao_pkce_verifier", verifier);
+    localStorage.setItem("login_return", "/sequence");
     const challenge = await generateCodeChallenge(verifier);
     const redirectUri = window.location.origin + "/";
     window.location.href =
