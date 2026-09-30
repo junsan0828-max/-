@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Users, Dumbbell, TrendingUp, Calendar,
+  Users, Dumbbell, TrendingUp, Calendar, CalendarDays,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
   Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed, ScanLine, UserPlus,
   Lock, Cpu, ArrowRight, Search, Pencil,
@@ -1192,161 +1192,103 @@ function TrainerDashboard() {
       {!featuresOnly && <TabBanner tabKey="dashboard" />}
       {!featuresOnly && <BannerAndNotices />}
 
-      {!featuresOnly && (<>
-      {/* 인사말 */}
-      <div className="pt-1">
-        <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">안녕하세요</p>
-        <h1 className="text-[22px] font-bold tracking-tight mt-0.5 leading-snug">
-          {trainerName} 스테퍼님,<br />
-          오늘 <span className="text-primary">무엇을 시작</span>할까요?
-        </h1>
-      </div>
-
-      {/* 온보딩 — FIT STEP 시작하기 */}
-      {showOnboarding && (
-        <GettingStarted
-          step1Done={step1Done}
-          step2Done={step2Done}
-          step3Done={step3Done}
-          step4Done={step4Done}
-          onSkip={() => { localStorage.setItem("fitstep_onboarding_skipped", "1"); setOnboardingSkipped(true); }}
-          onNavigate={setLocation}
-          onRegisterMember={() => setRegisterTypeOpen(true)}
-          onViewSettlement={() => { markSettlementVisited.mutate(); setLocation("/settlement"); }}
-        />
-      )}
-
-      {/* 작성 중인 회원 등록 (중간 이탈분) */}
-      {draft && (
-        <div className="rounded-2xl bg-amber-500/8 border border-amber-500/25 p-3.5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-            <Pencil className="h-4 w-4 text-amber-600" />
+      {!featuresOnly && (
+      <div className="space-y-4">
+        {/* 헤더 */}
+        <div className="flex items-start justify-between pt-1">
+          <div>
+            <h1 className="text-xl font-bold">대시보드</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">오늘의 현황</p>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate">작성 중인 등록 · {draft.name}</p>
-            <p className="text-[11px] text-muted-foreground">이어서 마무리할 수 있어요</p>
-          </div>
-          <button onClick={() => { setResumeDraft(true); setRegisterTypeOpen(true); }}
-            className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-[11px] font-semibold shrink-0 hover:opacity-90">
-            이어서
-          </button>
-          <button onClick={() => { clearDraft(); setDraft(null); }}
-            className="text-muted-foreground hover:text-foreground p-1 shrink-0" aria-label="작성 중인 등록 삭제">
-            <X className="h-4 w-4" />
+          <button onClick={() => setLocation("/schedule")}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-full">
+            <CalendarDays className="h-3.5 w-3.5" />
+            스케줄
           </button>
         </div>
-      )}
 
-      {/* KPI 카드 5개 */}
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => setTodayModalOpen(true)}
-          className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
-          <div className="flex items-center gap-1.5 mb-2">
-            <CalendarCheck className="h-3.5 w-3.5 text-teal-500" />
-            <span className="text-[11px] text-muted-foreground">오늘 수업</span>
-          </div>
-          <p className="text-2xl font-bold">{stats?.todayAttendances ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">회</span></p>
-        </button>
-
-        <button onClick={() => setLocation("/pt")}
-          className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Users className="h-3.5 w-3.5 text-indigo-500" />
-            <span className="text-[11px] text-muted-foreground">활성 회원</span>
-          </div>
-          <p className="text-2xl font-bold">{stats?.activeMembers ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
-        </button>
-
-        <button onClick={() => setExpiringModalOpen(true)}
-          className="relative rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Clock className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-[11px] text-muted-foreground">만료 임박</span>
-            {(expiring?.length ?? 0) > 0 && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />}
-          </div>
-          <p className="text-2xl font-bold">{expiring?.length ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
-          <p className="text-[10px] text-muted-foreground mt-1">7일 이내</p>
-        </button>
-
-        <button onClick={() => setUnpaidModalOpen(true)}
-          className="relative rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
-          <div className="flex items-center gap-1.5 mb-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
-            <span className="text-[11px] text-muted-foreground">미수금</span>
-            {(unpaid?.length ?? 0) > 0 && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-500" />}
-          </div>
-          <p className="text-xl font-bold leading-tight">{(unpaid ?? []).reduce((s, m) => s + (m.unpaidAmount ?? 0), 0).toLocaleString()}<span className="text-xs font-normal text-muted-foreground ml-1">원</span></p>
-          <p className="text-[10px] text-muted-foreground mt-1">{unpaid?.length ?? 0}명</p>
-        </button>
-      </div>
-
-      {/* 이번달 실입금 (전체 폭) */}
-      <button onClick={() => setLocation("/settlement")}
-        className="w-full rounded-2xl border p-4 text-left active:scale-95 transition-transform flex items-center justify-between"
-        style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.10) 0%, hsl(172 66% 50% / 0.06) 100%)", borderColor: "hsl(142 76% 36% / 0.25)" }}>
-        <div>
-          <div className="flex items-center gap-1.5 mb-1">
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-            <span className="text-[11px] text-muted-foreground">이번달 실입금</span>
-          </div>
-          <p className="text-2xl font-bold">{(stats?.monthlySettlement ?? 0).toLocaleString()}<span className="text-sm font-normal text-muted-foreground ml-1">원</span></p>
-        </div>
-        <ArrowRight className="h-5 w-5 text-emerald-500 shrink-0" />
-      </button>
-
-      {/* 주요 액션 4개 */}
-      <div className="grid grid-cols-4 gap-2">
-        {([
-          { label: "등록/상담", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", onClick: () => setRegisterTypeOpen(true) },
-          { label: "수업 시작", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", onClick: () => setLocation("/attendance") },
-          { label: "예약 관리", icon: CalendarCheck, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", onClick: () => setLocation("/booking") },
-          { label: "정산·매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", onClick: () => setLocation("/settlement") },
-        ] as const).map(item => (
-          <button key={item.label} onClick={item.onClick}
-            className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform">
-            <div className={`w-14 h-14 rounded-[18px] ${item.bgCls} flex items-center justify-center`}>
-              <item.icon className={`h-5 w-5 ${item.colorCls}`} />
+        {/* 작성 중인 회원 등록 (중간 이탈분) */}
+        {draft && (
+          <div className="rounded-2xl bg-amber-500/8 border border-amber-500/25 p-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Pencil className="h-4 w-4 text-amber-600" />
             </div>
-            <span className="text-[10.5px] font-semibold text-foreground/65 text-center leading-tight">{item.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* 오늘 확인할 업무 */}
-      {(() => {
-        const tasks: { icon: ElementType; colorCls: string; label: string; sub: string; onClick: () => void }[] = [
-          ...(expiring?.length ? [{ icon: Clock, colorCls: "text-amber-500", label: `만료 임박 ${expiring.length}명`, sub: "7일 이내 만료 예정", onClick: () => setExpiringModalOpen(true) }] : []),
-          ...(unpaid?.length ? [{ icon: AlertTriangle, colorCls: "text-orange-500", label: `미수금 ${unpaid.length}명`, sub: `총 ${(unpaid ?? []).reduce((s, m) => s + (m.unpaidAmount ?? 0), 0).toLocaleString()}원`, onClick: () => setUnpaidModalOpen(true) }] : []),
-          ...((lowSessions6?.length ?? 0) > 0 ? [{ icon: RefreshCw, colorCls: "text-cyan-500", label: `잔여세션 6회 이하 ${lowSessions6!.length}명`, sub: "재등록 안내 필요", onClick: () => setLowSessionsModalOpen(true) }] : []),
-          ...((parqMissing?.length ?? 0) > 0 ? [{ icon: ShieldCheck, colorCls: "text-rose-500", label: `PAR-Q 미기록 ${parqMissing!.length}명`, sub: "사전건강검사 누락", onClick: () => setParqModalOpen(true) }] : []),
-        ];
-        return (
-          <div className="rounded-2xl bg-card border border-border p-4">
-            <p className="text-sm font-semibold mb-3">오늘 확인할 업무</p>
-            {tasks.length === 0 ? (
-              <div className="flex items-center gap-2 py-1">
-                <Check className="h-4 w-4 text-emerald-500" />
-                <p className="text-sm text-muted-foreground">오늘 처리할 업무가 없어요</p>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {tasks.map((task, i) => (
-                  <button key={i} onClick={task.onClick}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-accent/20 hover:bg-accent/40 transition-colors text-left">
-                    <task.icon className={`h-4 w-4 ${task.colorCls} shrink-0`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold">{task.label}</p>
-                      <p className="text-xs text-muted-foreground">{task.sub}</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate">작성 중인 등록 · {draft.name}</p>
+              <p className="text-[11px] text-muted-foreground">이어서 마무리할 수 있어요</p>
+            </div>
+            <button onClick={() => { setResumeDraft(true); setRegisterTypeOpen(true); }}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-[11px] font-semibold shrink-0 hover:opacity-90">
+              이어서
+            </button>
+            <button onClick={() => { clearDraft(); setDraft(null); }}
+              className="text-muted-foreground hover:text-foreground p-1 shrink-0" aria-label="작성 중인 등록 삭제">
+              <X className="h-4 w-4" />
+            </button>
           </div>
-        );
-      })()}
-      </>)}
+        )}
+
+        {/* 2×2 통계 그리드 */}
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => setLocation("/pt")}
+            className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs text-muted-foreground">전체 회원</span>
+              <Users className="h-4 w-4 text-teal-500" />
+            </div>
+            <p className="text-2xl font-bold">{stats?.totalMembers ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
+          </button>
+
+          <button onClick={() => setLocation("/pt")}
+            className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs text-muted-foreground">활성 회원</span>
+              <Activity className="h-4 w-4 text-green-500" />
+            </div>
+            <p className="text-2xl font-bold">{stats?.activeMembers ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">명</span></p>
+          </button>
+
+          <button onClick={() => setTodayModalOpen(true)}
+            className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs text-muted-foreground">오늘 수업</span>
+              <Calendar className="h-4 w-4 text-amber-500" />
+            </div>
+            <p className="text-2xl font-bold">
+              {(stats as any)?.todayScheduleCompleted ?? stats?.todayAttendances ?? 0}
+              <span className="text-lg font-semibold text-muted-foreground">/{(stats as any)?.todayScheduleTotal ?? 0}</span>
+            </p>
+          </button>
+
+          <button onClick={() => setPtStatsModalOpen(true)}
+            className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs text-muted-foreground">이번달 PT 세션</span>
+              <Dumbbell className="h-4 w-4 text-violet-500" />
+            </div>
+            <p className="text-2xl font-bold">{stats?.monthPtSessions ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">회</span></p>
+          </button>
+        </div>
+
+        {/* 정산 현황 */}
+        <div className="rounded-2xl bg-card border border-border p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">정산 현황</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <button onClick={() => setLocation("/settlement")} className="text-left">
+              <p className="text-xs text-muted-foreground mb-1">일일 정산</p>
+              <p className="text-lg font-bold text-primary">{(stats?.dailySettlement ?? 0).toLocaleString()}원</p>
+            </button>
+            <button onClick={() => setLocation("/settlement")} className="text-left">
+              <p className="text-xs text-muted-foreground mb-1">월 정산</p>
+              <p className="text-lg font-bold text-primary">{(stats?.monthlySettlement ?? 0).toLocaleString()}원</p>
+            </button>
+          </div>
+        </div>
+      </div>
+      )}
 
       {/* 전체 기능 */}
       <div className={featuresOnly ? "space-y-4" : "rounded-2xl bg-card border border-border overflow-hidden"}>
