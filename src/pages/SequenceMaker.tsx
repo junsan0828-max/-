@@ -439,7 +439,12 @@ export default function SequenceMaker() {
     setList(next); saveAll(next);
     setDraft(updated);
     setSaving(false);
-    setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1800);
+    setSavedFlash(true);
+    setTimeout(() => {
+      setSavedFlash(false);
+      setMode("list");
+      localStorage.removeItem(DRAFT_KEY);
+    }, 800);
   }
 
   async function shareDraft() {
