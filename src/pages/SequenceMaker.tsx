@@ -40,6 +40,7 @@ interface CommunitySeq {
 }
 
 const STORE_KEY = "sq_sequences";
+const DRAFT_KEY = "sq_draft_temp";
 const emptyExercise = (): Exercise => ({ name: "", sets: "", reps: "", videoUrl: "", note: "" });
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const nowISO = () => new Date().toISOString();
@@ -615,12 +616,20 @@ export default function SequenceMaker() {
           )}
 
           {/* 하단 액션 */}
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={saveDraft} disabled={saving} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: savedFlash ? "#16a34a" : "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 12, padding: "14px 0", color: "#fff", fontSize: 15, fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, transition: "background 0.3s" }}>
-              {savedFlash ? <><Check size={18} /> 저장 완료</> : saving ? "저장 중..." : <><Save size={18} /> 저장</>}
+          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+            <button onClick={() => {
+              try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
+              alert("임시저장 완료! 나중에 이어서 작성할 수 있어요.");
+            }} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "14px 18px", color: "#475569", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              임시저장
             </button>
             <button onClick={shareDraft} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "14px 18px", color: "#475569", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
               {copied ? <Check size={16} color="#16a34a" /> : <><Share2 size={16} /> 공유</>}
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={saveDraft} disabled={saving} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: savedFlash ? "#16a34a" : "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 12, padding: "14px 0", color: "#fff", fontSize: 15, fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, transition: "background 0.3s" }}>
+              {savedFlash ? <><Check size={18} /> 저장 완료</> : saving ? "저장 중..." : <><Save size={18} /> 저장</>}
             </button>
           </div>
         </div>
@@ -645,11 +654,26 @@ export default function SequenceMaker() {
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "16px 16px 80px" }}>
         {tab === "mine" ? (
           <>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-              <button onClick={startNew} style={{ display: "flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 10, padding: "10px 18px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                <Plus size={16} /> 새 시퀀스
-              </button>
-            </div>
+            {/* 임시저장 불러오기 배너 */}
+            {(() => {
+              try {
+                const saved = localStorage.getItem(DRAFT_KEY);
+                if (!saved) return null;
+                const temp = JSON.parse(saved) as Sequence;
+                return (
+                  <div style={{ ...CARD, marginBottom: 14, background: "#fffbeb", border: "1px solid #fcd34d", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#92400e" }}>임시저장된 시퀀스가 있어요</p>
+                      <p style={{ margin: "2px 0 0", fontSize: 12, color: "#a16207" }}>{temp.title || "(제목 없음)"}</p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => { setDraft(temp); setMode("edit"); }} style={{ fontSize: 13, fontWeight: 700, color: "#d97706", background: "#fff", border: "1px solid #fcd34d", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>이어 작성</button>
+                      <button onClick={() => { localStorage.removeItem(DRAFT_KEY); window.location.reload(); }} style={{ fontSize: 13, color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}>삭제</button>
+                    </div>
+                  </div>
+                );
+              } catch { return null; }
+            })()}
             {list.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 20px", color: "#94a3b8" }}>
                 <Dumbbell size={40} style={{ margin: "0 auto 12px", display: "block", opacity: 0.3 }} />
