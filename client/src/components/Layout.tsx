@@ -58,9 +58,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const adminNavItems = [
     { path: "/", label: "KPI 대시보드", icon: LayoutDashboard },
     { path: "/revenue", label: "장부 관리", icon: TrendingUp },
-    { path: "/trainers", label: "트레이너", icon: UserCog },
+    { path: "/trainers", label: "트레이너 관리", icon: UserCog },
     { path: "/members", label: "회원 관리", icon: Users },
-    { path: "/admin/reservations", label: "예약관리", icon: UserPlus },
+    { path: "/admin/reservations", label: "예약 관리", icon: UserPlus },
     { path: "/leads", label: "상담 관리", icon: UserPlus },
     { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
     { path: "/work-management", label: "업무 관리", icon: ClipboardList },
@@ -98,7 +98,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     : user?.role === "consultant" ? consultantNavItems
     : trainerNavItems;
   const navItems = scheduleAccess?.allowed
-    ? [...baseNavItems, { path: "/schedule", label: "스케줄 관리", icon: CalendarDays }]
+    ? [baseNavItems[0], { path: "/schedule", label: "스케줄 관리", icon: CalendarDays }, ...baseNavItems.slice(1)]
     : baseNavItems;
 
   const isActive = (path: string) => {
