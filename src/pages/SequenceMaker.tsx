@@ -81,6 +81,32 @@ async function generateCodeChallenge(v: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
+/* ── Kakao 토큰 교환 / 프로필 ── */
+async function exchangeKakaoCode(code: string, verifier: string, redirectUri: string): Promise<string | null> {
+  const appKey = import.meta.env.VITE_KAKAO_APP_KEY as string | undefined;
+  if (!appKey) return null;
+  try {
+    const res = await fetch("https://kauth.kakao.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "authorization_code", client_id: appKey, redirect_uri: redirectUri, code, code_verifier: verifier }).toString(),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.access_token ?? null;
+  } catch { return null; }
+}
+async function fetchKakaoProfile(token: string): Promise<KakaoUser | null> {
+  try {
+    const res = await fetch("https://kapi.kakao.com/v2/user/me", { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await res.json();
+    const profile = data.kakao_account?.profile;
+    return { id: data.id, name: profile?.nickname ?? "카카오 사용자", thumbnail: profile?.thumbnail_image_url ?? null };
+  } catch { return null; }
+}
+
 /* ── API 헬퍼 ── */
 async function apiGet(path: string) {
   const res = await fetch(`${API_URL}/api/sequences${path}`);
@@ -281,6 +307,27 @@ export default function SequenceMaker() {
 
   useEffect(() => { document.title = "시퀀스 메이커 · FIT STEP"; }, []);
 
+  // 카카오 PKCE 콜백 처리
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const code = sp.get("code");
+    if (!code) return;
+    const verifier = localStorage.getItem("kakao_pkce_verifier");
+    if (!verifier) return;
+    localStorage.removeItem("kakao_pkce_verifier");
+    const redirectUri = window.location.origin + "/sequence";
+    window.history.replaceState(null, "", "/sequence");
+    exchangeKakaoCode(code, verifier, redirectUri).then(token => {
+      if (!token) return;
+      fetchKakaoProfile(token).then(user => {
+        if (!user) return;
+        localStorage.setItem("dp_kakao_user", JSON.stringify(user));
+        localStorage.setItem("dp_kakao_at", token);
+        setKakaoUser(user);
+      });
+    });
+  }, []);
+
   const fetchCommunity = useCallback(async () => {
     if (!API_URL) return;
     setCommLoading(true);
@@ -298,9 +345,8 @@ export default function SequenceMaker() {
     if (!appKey) { alert("카카오 앱키가 설정되지 않았습니다."); return; }
     const verifier = generateCodeVerifier();
     localStorage.setItem("kakao_pkce_verifier", verifier);
-    localStorage.setItem("login_return", "/sequence");
     const challenge = await generateCodeChallenge(verifier);
-    const redirectUri = window.location.origin + "/";
+    const redirectUri = window.location.origin + "/sequence";
     window.location.href =
       `https://kauth.kakao.com/oauth/authorize?client_id=${appKey}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
