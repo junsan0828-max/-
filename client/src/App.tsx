@@ -48,7 +48,6 @@ import MyWorkPage from "./pages/MyWork";
 import RevenuePage from "./pages/Revenue";
 import ExpensesPage from "./pages/Expenses";
 import MarketingPage from "./pages/Marketing";
-import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
 import AccessManagement from "./pages/AccessManagement";
 import KioskCheckin from "./pages/KioskCheckin";
@@ -194,7 +193,6 @@ function App() {
         <Route path="/revenue">{() => <RevenuePage />}</Route>
         <Route path="/expenses">{() => <ExpensesPage />}</Route>
         <Route path="/marketing">{() => <MarketingPage />}</Route>
-        <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
         <Route path="/admin/reservations">{() => <BodyAnalysisAdmin />}</Route>
         <Route path="/members">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <AdminMembers /> : <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
