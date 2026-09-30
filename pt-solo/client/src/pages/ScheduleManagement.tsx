@@ -403,6 +403,7 @@ export default function ScheduleManagement() {
           const ds = toDateStr(d);
           const items = byDay[ds] ?? [];
           const isToday = ds === today;
+          if (items.length === 0 && !isToday) return null;
           return (
             <div key={ds}>
               <div className="flex items-center gap-2 mb-1.5">
