@@ -169,6 +169,70 @@ const dietPaybackNavItem = {
   ),
 };
 
+function ScheduleBanner() {
+  const { data: schedules } = trpc.gymPlus.myUpcomingSchedules.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+  const [, forceUpdate] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => forceUpdate(n => n + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!schedules || schedules.length === 0) return null;
+
+  const next = schedules[0];
+  if (!next.scheduledTime) return null;
+
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const classDateTime = new Date(`${next.scheduledDate}T${next.scheduledTime}:00+09:00`);
+  const diffMs = classDateTime.getTime() - kstNow.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMs < -60 * 60 * 1000) return null;
+  if (diffMs > 24 * 60 * 60 * 1000) return null;
+
+  const timeLabel = next.scheduledTime.slice(0, 5);
+  const trainerLabel = next.trainerName ? ` (${next.trainerName} 트레이너)` : "";
+
+  if (diffMs < 0) {
+    const overMin = Math.abs(diffMin);
+    return (
+      <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center gap-2 shrink-0">
+        <span>🏋️</span>
+        <span className="text-xs font-semibold text-blue-700">
+          지금 수업 시간이에요!{trainerLabel} · {overMin}분 진행 중
+        </span>
+      </div>
+    );
+  }
+
+  if (diffMin <= 180) {
+    const h = Math.floor(diffMin / 60);
+    const m = diffMin % 60;
+    const remain = h > 0 ? `${h}시간${m > 0 ? ` ${m}분` : ""}` : `${m}분`;
+    return (
+      <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 flex items-center gap-2 shrink-0">
+        <span>⏰</span>
+        <span className="text-xs font-semibold text-orange-700">
+          오늘 {timeLabel} 수업{trainerLabel} — {remain} 전이에요!
+        </span>
+      </div>
+    );
+  }
+
+  const isToday = next.scheduledDate === kstNow.toISOString().slice(0, 10);
+  return (
+    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 shrink-0">
+      <span>📅</span>
+      <span className="text-xs font-semibold text-amber-700">
+        {isToday ? "오늘" : "내일"} {timeLabel} 수업이 있어요{trainerLabel}
+      </span>
+    </div>
+  );
+}
+
 export default function GymPlusLayout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const utils = trpc.useUtils();
@@ -226,6 +290,9 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
         </button>
         <div className="w-7" />
       </header>
+
+      {/* 수업 알림 배너 */}
+      <ScheduleBanner />
 
       {/* 콘텐츠 */}
       <main className="flex-1 overflow-y-auto bg-[#f8f9fc]">

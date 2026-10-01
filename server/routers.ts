@@ -6845,6 +6845,37 @@ const kioskRouter = t.router({
       return { ok: true };
     }),
 
+  // ─── 수업 알림: 로그인 회원의 임박 수업 조회 ────────────────────────────────
+  myUpcomingSchedules: gymPlusProtected.query(async ({ ctx }) => {
+    const gmRes = await pool.query(
+      `SELECT phone FROM gym_plus_members WHERE id = $1`,
+      [ctx.gymPlusMemberId]
+    );
+    const phone = gmRes.rows[0]?.phone;
+    if (!phone) return [];
+
+    const memberRes = await pool.query(
+      `SELECT id FROM members WHERE phone = $1 LIMIT 1`,
+      [phone]
+    );
+    const memberId = memberRes.rows[0]?.id;
+    if (!memberId) return [];
+
+    const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const res = await pool.query(
+      `SELECT s."scheduledDate", s."scheduledTime", t."trainerName"
+       FROM schedules s
+       JOIN trainers t ON t.id = s."trainerId"
+       WHERE s."memberId" = $1
+         AND s.status = 'pending'
+         AND s."scheduledDate" >= $2
+       ORDER BY s."scheduledDate" ASC, s."scheduledTime" ASC
+       LIMIT 5`,
+      [memberId, kstToday]
+    );
+    return res.rows as { scheduledDate: string; scheduledTime: string | null; trainerName: string }[];
+  }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
