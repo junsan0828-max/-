@@ -1712,6 +1712,7 @@ export default function MemberDetail({ memberId }: Props) {
               p.pauseStart <= todayStr && (p.pauseEnd == null || p.pauseEnd >= todayStr)
             );
             const memberIsPaused = member.status === "paused";
+            const memberIsInactive = member.status === "inactive" || member.status === "양도마감";
 
             // serviceItems 기반 파싱
             const siEntries = allRevs.filter(r => r.serviceItems);
@@ -2091,6 +2092,8 @@ export default function MemberDetail({ memberId }: Props) {
                                 )}
                                 {memberIsPaused ? (
                                   <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>
+                                ) : memberIsInactive ? (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.expired.bg} ${STATUS_COLORS.expired.text} ${STATUS_COLORS.expired.border}`}>종료</span>
                                 ) : (
                                   <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
                                     {locker.isOccupied ? "이용중" : "미사용"}
@@ -2170,6 +2173,8 @@ export default function MemberDetail({ memberId }: Props) {
                                 )}
                                 {memberIsPaused ? (
                                   <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">정지</span>
+                                ) : memberIsInactive ? (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.expired.bg} ${STATUS_COLORS.expired.text} ${STATUS_COLORS.expired.border}`}>종료</span>
                                 ) : (
                                   <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
                                     {u.isActive ? "이용중" : "반납"}
