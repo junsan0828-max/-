@@ -2516,7 +2516,7 @@ const ptRouter = t.router({
 // 트레이너는 기본값 trainer1(대표)만 — 배포만 하면 바로 쓸 수 있다.
 // 나중에 다른 선생님께 열 때는 Railway 환경변수 SCHEDULE_BETA_USERS 만 바꾸면 되고
 // (예: "trainer1,kim", 전원은 "all") 그때는 배포가 필요 없다.
-const SCHEDULE_BETA_DEFAULT = "trainer1";
+const SCHEDULE_BETA_DEFAULT = "all";
 function canUseSchedule(user?: { id: number; username?: string; role?: string } | null): boolean {
   if (!user) return false;
   if (user.role === "admin" || user.role === "sub_admin") return true;
