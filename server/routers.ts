@@ -2487,11 +2487,16 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
-  // 회원별 총 PT 세션 횟수
+  // 회원별 이번달 PT 세션 횟수
   memberSessionStats: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const y = kst.getUTCFullYear();
+    const m = kst.getUTCMonth();
+    const monthStart = new Date(Date.UTC(y, m, 1)).toISOString().split("T")[0];
+    const monthEnd = new Date(Date.UTC(y, m + 1, 1)).toISOString().split("T")[0];
     const rows = await db
       .select({
         memberId: members.id,
@@ -2499,7 +2504,14 @@ const ptRouter = t.router({
         totalSessions: sql<number>`COUNT(${ptSessionLogs.id})`,
       })
       .from(members)
-      .leftJoin(ptSessionLogs, eq(ptSessionLogs.memberId, members.id))
+      .leftJoin(
+        ptSessionLogs,
+        and(
+          eq(ptSessionLogs.memberId, members.id),
+          sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+          sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
+        ),
+      )
       .where(and(eq(members.trainerId, trainerId), hasPtPackage))
       .groupBy(members.id, members.name)
       .orderBy(desc(sql<number>`COUNT(${ptSessionLogs.id})`));
