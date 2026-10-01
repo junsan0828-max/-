@@ -5,6 +5,7 @@ import cors from "cors";
 import path from "path";
 import fs from "fs";
 import bcrypt from "bcryptjs";
+import webpush from "web-push";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
@@ -858,6 +859,73 @@ async function start() {
       console.error("시트 동기화 오류:", e);
     }
   }, 5 * 60 * 1000);
+
+  // 수업 알림 푸시 (30분마다)
+  const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || "BK0ZTd_UQHIaELB4FB0JphGm4UWlwIAwsfOdF3DNnAn_DGQNfwVm3I2HMi2VQxuHHUZhCwup7h1frg8Ue2XKMl8";
+  const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "P6P5QkLgcevRCu79kmk4AhUIlaxvrqKosPHB5NCkHv4";
+  webpush.setVapidDetails("mailto:admin@ziantgym.com", VAPID_PUBLIC, VAPID_PRIVATE);
+
+  async function sendSchedulePushNotifications() {
+    try {
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const kstToday = kstNow.toISOString().slice(0, 10);
+
+      // 24시간 후 ±15분, 3시간 후 ±15분 수업 대상 조회
+      const res = await pool.query(`
+        SELECT DISTINCT
+          ps.endpoint, ps.p256dh, ps.auth,
+          s."scheduledDate", s."scheduledTime",
+          t."trainerName",
+          gm.name AS member_name
+        FROM schedules s
+        JOIN members m ON m.id = s."memberId"
+        JOIN gym_plus_members gm ON gm.phone = m.phone
+        JOIN push_subscriptions ps ON ps."gymPlusMemberId" = gm.id
+        JOIN trainers t ON t.id = s."trainerId"
+        WHERE s.status = 'pending'
+          AND s."scheduledDate" >= $1
+          AND s."scheduledTime" IS NOT NULL
+      `, [kstToday]);
+
+      const toSend: { endpoint: string; p256dh: string; auth: string; title: string; body: string }[] = [];
+
+      for (const row of res.rows) {
+        const classMs = new Date(`${row.scheduledDate}T${row.scheduledTime}:00+09:00`).getTime();
+        const diffMin = Math.round((classMs - kstNow.getTime()) / 60000);
+
+        let body: string | null = null;
+        if (diffMin >= 1425 && diffMin <= 1455) {
+          body = `내일 ${row.scheduledTime.slice(0, 5)} ${row.trainerName} 트레이너 수업이 있어요 💪`;
+        } else if (diffMin >= 165 && diffMin <= 195) {
+          body = `오늘 ${row.scheduledTime.slice(0, 5)} 수업 3시간 전이에요! ⏰`;
+        }
+
+        if (body) {
+          toSend.push({ endpoint: row.endpoint, p256dh: row.p256dh, auth: row.auth, title: "ZIANTGYM+ 수업 알림", body });
+        }
+      }
+
+      for (const s of toSend) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+            JSON.stringify({ title: s.title, body: s.body, url: "/gym-plus" })
+          );
+        } catch (e: any) {
+          if (e?.statusCode === 410) {
+            await pool.query(`DELETE FROM push_subscriptions WHERE endpoint = $1`, [s.endpoint]).catch(() => {});
+          }
+        }
+      }
+
+      if (toSend.length > 0) console.log(`🔔 수업 알림 푸시 발송: ${toSend.length}건`);
+    } catch (e) {
+      console.error("수업 알림 푸시 오류:", e);
+    }
+  }
+
+  sendSchedulePushNotifications();
+  setInterval(sendSchedulePushNotifications, 30 * 60 * 1000);
 }
 
 start().catch(console.error);
