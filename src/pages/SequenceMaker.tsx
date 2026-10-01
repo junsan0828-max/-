@@ -335,6 +335,39 @@ export default function SequenceMaker() {
     });
   }, []);
 
+  // 서버에서 내 시퀀스 불러와서 로컬과 병합
+  const fetchMine = useCallback(async () => {
+    if (!API_URL || !getKakaoToken()) return;
+    try {
+      const remote: Array<{
+        id: number; title: string; description: string; category: string;
+        bodyParts: string; targetAudience: string; difficulty: string;
+        estimatedMinutes: string; equipment: string; coachingNotes: string;
+        exercisesJson: string; isPublic: boolean; createdAt: string; updatedAt: string;
+      }> = await apiAuth("/mine", "GET");
+      const remoteSeqs: Sequence[] = remote.map(r => ({
+        id: `remote_${r.id}`, title: r.title, description: r.description,
+        category: r.category, bodyParts: r.bodyParts, targetAudience: r.targetAudience,
+        difficulty: r.difficulty, estimatedMinutes: r.estimatedMinutes,
+        equipment: r.equipment, classGoal: "", coachingNotes: r.coachingNotes,
+        exercises: (() => { try { return JSON.parse(r.exercisesJson); } catch { return []; } })(),
+        author: "", isPublic: r.isPublic, remoteId: r.id,
+        createdAt: r.createdAt, updatedAt: r.updatedAt,
+      }));
+      // 로컬에 없는 서버 항목만 추가 (remoteId 기준 병합)
+      setList(local => {
+        const localRemoteIds = new Set(local.map(s => s.remoteId).filter(Boolean));
+        const toAdd = remoteSeqs.filter(r => !localRemoteIds.has(r.remoteId));
+        if (toAdd.length === 0) return local;
+        const merged = [...local, ...toAdd];
+        saveAll(merged);
+        return merged;
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { if (kakaoUser && API_URL) fetchMine(); }, [kakaoUser, fetchMine]);
+
   const fetchCommunity = useCallback(async () => {
     if (!API_URL) return;
     setCommLoading(true);
