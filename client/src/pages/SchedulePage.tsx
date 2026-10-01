@@ -601,6 +601,15 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
     else if (res.skipReason) toast.warning(`${label} 처리됐지만 PT 차감 안 됨: ${SKIP_REASON_LABEL[res.skipReason] ?? res.skipReason}`, { duration: 8000 });
     else toast.success(`${label} 처리됨 (PT 수업 아님 — 차감 없음)`);
   };
+  const retryDeductMutation = trpc.schedules.retryDeduct.useMutation({
+    onSuccess: (res) => {
+      if (res.sessionResult) toast.success(`PT 1회 차감 반영 (잔여 ${res.sessionResult.remaining}회)`);
+      else if (res.skipReason === "duplicate") toast.success("이미 차감돼 있습니다 — 추가 차감 없음");
+      else toast.warning(`차감 안 됨: ${SKIP_REASON_LABEL[res.skipReason ?? ""] ?? res.skipReason}`, { duration: 8000 });
+      onSaved();
+    },
+    onError: e => toast.error(e.message),
+  });
   const checkPastMutation = trpc.schedules.completeWithSignature.useMutation({
     onSuccess: (res) => { reportDeduct("수업 체크", res); onSaved(); },
     onError: e => toast.error(e.message),
@@ -783,6 +792,16 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
               수업 완료됨
             </span>
+            {target.isRecurring !== 1 && (eventType === "pt") && (
+              <button
+                type="button"
+                onClick={() => retryDeductMutation.mutate({ scheduleId: target.id })}
+                disabled={busy || retryDeductMutation.isPending}
+                className="ml-auto px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition-colors disabled:opacity-50"
+              >
+                차감 확인
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

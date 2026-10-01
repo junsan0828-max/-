@@ -2542,8 +2542,29 @@ async function pickActivePackage(db: any, memberId: number) {
 
 type DeductSkip = "no_member" | "no_package" | "duplicate" | null;
 
+// 스케줄에 이름만 적힌 경우(자동완성에서 고르지 않음) 회원과 연결. 동명이인이면 연결하지 않는다.
+// 담당 트레이너의 PT 회원을 먼저 보고, 없으면 전체에서 이름이 유일할 때만.
+async function resolveMemberByName(db: any, name: string | null | undefined, trainerId: number): Promise<number | null> {
+  const n = (name ?? "").trim();
+  if (!n) return null;
+  const mine = await pool.query(
+    `SELECT DISTINCT m.id FROM members m JOIN pt_packages p ON p."memberId" = m.id
+     WHERE TRIM(m.name) = $1 AND p."trainerId" = $2 AND p.status = 'active'`, [n, trainerId]);
+  if (mine.rows.length === 1) return mine.rows[0].id;
+  if (mine.rows.length > 1) return null;
+  const all = await pool.query(`SELECT id FROM members WHERE TRIM(name) = $1`, [n]);
+  return all.rows.length === 1 ? all.rows[0].id : null;
+}
+
 // 스케줄 완료/노쇼 공통 차감. 차감 못 했으면 이유를 돌려줘 화면에 경고를 띄운다(조용히 0원 되는 걸 막음).
-async function deductForSchedule(db: any, row: { memberId: number | null; trainerId: number }, targetDate: string, checkin?: { condition: number; sleep: number; nutrition: number; painLevel: number; painNote?: string }) {
+async function deductForSchedule(db: any, row: { id?: number; memberId: number | null; memberName?: string | null; trainerId: number }, targetDate: string, checkin?: { condition: number; sleep: number; nutrition: number; painLevel: number; painNote?: string }) {
+  if (!row.memberId && row.id) {
+    const linked = await resolveMemberByName(db, row.memberName, row.trainerId);
+    if (linked) {
+      await db.update(schedules).set({ memberId: linked, memberName: null }).where(eq(schedules.id, row.id));
+      row = { ...row, memberId: linked };
+    }
+  }
   if (!row.memberId) return { sessionResult: null, skipReason: "no_member" as DeductSkip };
   const pkg = await pickActivePackage(db, row.memberId);
   if (!pkg) return { sessionResult: null, skipReason: "no_package" as DeductSkip };
@@ -2683,9 +2704,10 @@ const schedulesRouter = t.router({
       const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
       const trainerId = (isAdmin && input.trainerId) ? input.trainerId : ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "어느 트레이너의 일정인지 지정해야 합니다." });
+      const memberId = input.memberId ?? (input.eventType === "pt" ? await resolveMemberByName(db, input.memberName, trainerId) : null);
       const [row] = await db.insert(schedules).values({
-        memberId: input.memberId ?? null,
-        memberName: input.memberId ? null : (input.memberName ?? null),
+        memberId,
+        memberName: memberId ? null : (input.memberName ?? null),
         trainerId,
         scheduledDate: input.scheduledDate,
         scheduledTime: input.scheduledTime ?? null,
@@ -2717,8 +2739,13 @@ const schedulesRouter = t.router({
       const patch: Record<string, unknown> = { ...rest };
       if (isRecurring !== undefined) patch.isRecurring = isRecurring ? 1 : 0;
       if (memberId !== undefined) {
-        patch.memberId = memberId;
-        patch.memberName = memberId ? null : (memberName ?? null);
+        let linked = memberId;
+        if (!linked && memberName) {
+          const [cur] = await db.select({ trainerId: schedules.trainerId }).from(schedules).where(eq(schedules.id, scheduleId)).limit(1);
+          if (cur) linked = await resolveMemberByName(db, memberName, cur.trainerId);
+        }
+        patch.memberId = linked;
+        patch.memberName = linked ? null : (memberName ?? null);
       }
       await db.update(schedules).set(patch).where(eq(schedules.id, scheduleId));
       return { success: true };
@@ -2761,7 +2788,7 @@ const schedulesRouter = t.router({
 
       // 스케줄 정보 조회
       const [row] = await db
-        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType, isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate })
+        .select({ id: schedules.id, memberId: schedules.memberId, memberName: schedules.memberName, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType, isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate })
         .from(schedules)
         .where(eq(schedules.id, input.scheduleId))
         .limit(1);
@@ -2780,6 +2807,23 @@ const schedulesRouter = t.router({
       if (!isPt) return { success: true, sessionResult: null, skipReason: null };
       const { sessionResult, skipReason } = await deductForSchedule(db, row, row.scheduledDate, input.checkin);
       return { success: true, sessionResult, skipReason };
+    }),
+
+  // 이미 완료/노쇼인데 차감이 빠진 수업에 차감만 반영. 같은 날 로그가 있으면 duplicate로 끝나 이중 차감은 없다.
+  retryDeduct: protectedProcedure
+    .input(z.object({ scheduleId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.scheduleId);
+      const [row] = await db
+        .select({ id: schedules.id, memberId: schedules.memberId, memberName: schedules.memberName, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType, isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate })
+        .from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      assertNotRecurringTemplate(row.isRecurring);
+      if (row.status !== "done" && row.status !== "noshow")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "완료 또는 노쇼 처리된 수업만 가능합니다." });
+      if (row.eventType && row.eventType !== "pt")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "PT 수업이 아니라 차감 대상이 아닙니다." });
+      return deductForSchedule(db, row, row.scheduledDate);
     }),
 
   // 완료 취소: 세션 로그 삭제 + usedSessions 복구 + 스케줄 pending 복원
@@ -2846,7 +2890,7 @@ const schedulesRouter = t.router({
       const db = await requireOwnSchedule(ctx, input.scheduleId);
 
       const [row] = await db
-        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType, isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate })
+        .select({ id: schedules.id, memberId: schedules.memberId, memberName: schedules.memberName, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType, isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate })
         .from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
 
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });

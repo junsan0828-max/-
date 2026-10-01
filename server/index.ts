@@ -1744,6 +1744,18 @@ async function initDatabase() {
     );
     if ((unstuck.rowCount ?? 0) > 0)
       console.log(`🔓 고정 수업 템플릿 완료상태 해제: ${unstuck.rowCount}건`, JSON.stringify(unstuck.rows));
+
+    // 이름만 적힌 PT 일정을 회원과 연결(memberId가 비어 있으면 차감이 건너뛰어진다).
+    // 빈 칸을 채우기만 하고, 동명이인이 있으면 건드리지 않는다. 두 번째 실행부터 0건.
+    const linked = await pool.query(
+      `UPDATE schedules s SET "memberId" = m.id, "memberName" = NULL
+       FROM (SELECT TRIM(name) AS n, MIN(id) AS id FROM members GROUP BY TRIM(name) HAVING COUNT(*) = 1) m
+       WHERE s."memberId" IS NULL AND s."memberName" IS NOT NULL
+         AND TRIM(s."memberName") = m.n
+         AND COALESCE(s."eventType", 'pt') = 'pt'
+       RETURNING s.id`
+    );
+    if ((linked.rowCount ?? 0) > 0) console.log(`🔗 이름만 적힌 일정 회원 연결: ${linked.rowCount}건`);
   }
   await pool.query(`CREATE TABLE IF NOT EXISTS revenue_adjustments (
     id SERIAL PRIMARY KEY,
