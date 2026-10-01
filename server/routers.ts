@@ -1280,8 +1280,6 @@ const membersRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
-        throw new TRPCError({ code: "FORBIDDEN" });
       await db.update(members).set({ branchId: input.branchId }).where(eq(members.id, input.memberId));
       return { ok: true };
     }),
@@ -3933,9 +3931,16 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
-  // 지점 목록
+  // 지점 목록 (관리자 전용)
   listBranches: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(branches).orderBy(branches.name);
+  }),
+
+  // 지점 목록 (전체 계정 공개)
+  listBranchesAll: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     return db.select().from(branches).orderBy(branches.name);

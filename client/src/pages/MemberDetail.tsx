@@ -653,7 +653,7 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   // 지점 변경
-  const { data: branchList } = trpc.admin.listBranches.useQuery(undefined, { enabled: currentUser?.role === "admin" });
+  const { data: branchList } = trpc.admin.listBranchesAll.useQuery();
   const assignBranchMutation = trpc.members.assignBranch.useMutation({
     onSuccess: () => {
       toast.success("지점이 변경되었습니다.");
@@ -1340,25 +1340,23 @@ export default function MemberDetail({ memberId }: Props) {
                     </div>
                   </div>
                 </div>
-                {currentUser?.role === "admin" && (
-                  <div className="flex items-start gap-3">
-                    <div className="text-muted-foreground mt-0.5"><MapPin className="h-4 w-4" /></div>
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground">지점</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-foreground">
-                          {(member as any).branchId ? (branchList?.find(b => b.id === (member as any).branchId)?.name ?? `지점 #${(member as any).branchId}`) : "-"}
-                        </p>
-                        <button
-                          onClick={() => { setSelectedBranchId(String((member as any).branchId ?? "")); setBranchChangeOpen(true); }}
-                          className="text-xs text-primary underline hover:text-primary/70"
-                        >
-                          변경
-                        </button>
-                      </div>
+                <div className="flex items-start gap-3">
+                  <div className="text-muted-foreground mt-0.5"><MapPin className="h-4 w-4" /></div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">지점</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">
+                        {(member as any).branchId ? (branchList?.find(b => b.id === (member as any).branchId)?.name ?? `지점 #${(member as any).branchId}`) : "-"}
+                      </p>
+                      <button
+                        onClick={() => { setSelectedBranchId(String((member as any).branchId ?? "")); setBranchChangeOpen(true); }}
+                        className="text-xs text-primary underline hover:text-primary/70"
+                      >
+                        변경
+                      </button>
                     </div>
                   </div>
-                )}
+                </div>
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
