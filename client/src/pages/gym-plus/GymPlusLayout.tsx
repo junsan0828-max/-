@@ -169,6 +169,102 @@ const dietPaybackNavItem = {
   ),
 };
 
+function PwaInstallBanner() {
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showBanner, setShowBanner] = useState(false);
+  const [showIosTip, setShowIosTip] = useState(false);
+
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isInStandaloneMode = (window.navigator as any).standalone === true
+    || window.matchMedia("(display-mode: standalone)").matches;
+
+  useEffect(() => {
+    if (isInStandaloneMode) return;
+    try { if (sessionStorage.getItem("pwa-install-dismissed")) return; } catch { return; }
+
+    if (isIos) {
+      setShowBanner(true);
+      return;
+    }
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const dismiss = () => {
+    setShowBanner(false);
+    try { sessionStorage.setItem("pwa-install-dismissed", "1"); } catch { /* noop */ }
+  };
+
+  const handleInstall = async () => {
+    if (isIos) { setShowIosTip(true); return; }
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") setShowBanner(false);
+    setInstallPrompt(null);
+  };
+
+  if (!showBanner) return null;
+
+  return (
+    <>
+      <div className="bg-[#1D4ED8]/10 border-b border-[#1D4ED8]/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
+        <div className="w-7 h-7 bg-[#1D4ED8] rounded-lg flex items-center justify-center shrink-0">
+          <span className="text-white font-black text-xs">G+</span>
+        </div>
+        <p className="text-xs text-[#1a2b4b] flex-1 font-medium">
+          홈 화면에 추가하면 앱처럼 사용할 수 있어요
+        </p>
+        <button
+          onClick={handleInstall}
+          className="text-xs font-bold text-white bg-[#1D4ED8] px-3 py-1.5 rounded-lg shrink-0"
+        >
+          추가
+        </button>
+        <button onClick={dismiss} className="text-gray-400 shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {showIosTip && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center p-4" onClick={() => setShowIosTip(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-base text-[#1a2b4b] text-center">홈 화면에 추가하기</h3>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
+                <p className="text-sm text-gray-600">하단의 <span className="font-semibold">공유 버튼</span> (□↑) 을 누르세요</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
+                <p className="text-sm text-gray-600"><span className="font-semibold">"홈 화면에 추가"</span>를 선택하세요</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0">3</span>
+                <p className="text-sm text-gray-600">오른쪽 상단 <span className="font-semibold">"추가"</span>를 누르면 완료!</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setShowIosTip(false); dismiss(); }}
+              className="w-full h-11 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold"
+            >
+              확인했어요
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function ScheduleBanner() {
   const { data: schedules } = trpc.gymPlus.myUpcomingSchedules.useQuery(undefined, {
     refetchInterval: 60000,
@@ -290,6 +386,9 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
         </button>
         <div className="w-7" />
       </header>
+
+      {/* PWA 홈화면 추가 배너 */}
+      <PwaInstallBanner />
 
       {/* 수업 알림 배너 */}
       <ScheduleBanner />
