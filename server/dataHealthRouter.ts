@@ -820,6 +820,38 @@ export const dataHealthRouter = t.router({
       rows: expiredWithSessions.rows,
     });
 
+    // 스케줄에서 PT 수업을 완료/노쇼 처리했는데 수업일지(차감)가 없는 건.
+    // 회원 미연결(이름만 입력)·활성 패키지 없음 때문에 차감이 조용히 빠지면 정산 0원이 된다.
+    const scheduleNoLog = await pool.query(`
+      SELECT s.id AS "스케줄ID", s."scheduledDate" AS "수업일", s."scheduledTime" AS "시간",
+             COALESCE(m.name, s."memberName") AS "회원", t."trainerName" AS "트레이너",
+             CASE s.status WHEN 'done' THEN '완료' ELSE '노쇼' END AS "처리",
+             CASE
+               WHEN s."memberId" IS NULL THEN '회원 미연결'
+               WHEN NOT EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = s."memberId" AND p.status = 'active' AND p."usedSessions" < p."totalSessions") THEN '활성 패키지 없음'
+               ELSE '차감 누락'
+             END AS "원인"
+      FROM schedules s
+      LEFT JOIN members m ON m.id = s."memberId"
+      LEFT JOIN trainers t ON t.id = s."trainerId"
+      WHERE s."isRecurring" = 0
+        AND s.status IN ('done', 'noshow')
+        AND COALESCE(s."eventType", 'pt') = 'pt'
+        AND NOT EXISTS (
+          SELECT 1 FROM pt_session_logs sl
+          WHERE sl."memberId" = s."memberId" AND sl."sessionDate" = s."scheduledDate"
+        )
+      ORDER BY s."scheduledDate" DESC, s."scheduledTime"
+      LIMIT 50
+    `);
+    groups.push({
+      key: "schedule_done_without_log",
+      title: "스케줄 완료인데 PT 차감 안 됨",
+      severity: "critical",
+      description: "스케줄에서 수업 체크(또는 노쇼)는 했는데 PT 세션이 차감되지 않아 정산에서 빠진 수업입니다. 회원 미연결이면 스케줄에서 회원을 검색해 다시 선택하고, 패키지가 없으면 회원 화면에서 PT 등록 후 수업일지로 기록하세요.",
+      rows: scheduleNoLog.rows,
+    });
+
     // ⑥ 재등록 타이밍 — 잔여가 얼마 안 남은 진행중 회원. 이상이 아니라 영업 액션이다.
     const reRegister = await pool.query(`
       SELECT m.name AS "회원",

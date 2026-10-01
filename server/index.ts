@@ -1734,6 +1734,17 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "checkinPainNote" TEXT`);
   await pool.query(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS "eventType" TEXT NOT NULL DEFAULT 'pt'`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_schedules_trainer_date ON schedules ("trainerId", "scheduledDate")`);
+  // 고정 수업 템플릿에 잘못 박힌 완료/노쇼 상태 해제. 템플릿이 '완료'면 매주 체크 버튼이 숨어 차감이 안 됐다.
+  // 상태만 되돌리고 세션 로그는 건드리지 않는다. 두 번째 실행부터 0건(멱등).
+  {
+    const unstuck = await pool.query(
+      `UPDATE schedules SET status = 'pending', signature = NULL
+       WHERE "isRecurring" = 1 AND status IN ('done', 'noshow')
+       RETURNING id, "trainerId", "memberId", "memberName", "scheduledTime"`
+    );
+    if ((unstuck.rowCount ?? 0) > 0)
+      console.log(`🔓 고정 수업 템플릿 완료상태 해제: ${unstuck.rowCount}건`, JSON.stringify(unstuck.rows));
+  }
   await pool.query(`CREATE TABLE IF NOT EXISTS revenue_adjustments (
     id SERIAL PRIMARY KEY,
     "branchId" INTEGER,

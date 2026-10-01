@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment, useRef, useCallback, useEffect } from "rea
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { holidayName } from "../lib/holidays";
+import { SKIP_REASON_LABEL } from "../lib/utils";
 import { ChevronLeft, ChevronRight, Plus, X, Repeat, Trash2, CheckCircle2, RotateCcw, Package } from "lucide-react";
 
 // 일요일 휴무 — 월~토만 운영한다.
@@ -135,7 +136,12 @@ export default function SchedulePage() {
     ...(isAdmin ? { trainerId: trainerFilter } : {}),
   });
 
-  const refresh = () => utils.schedules.listByWeek.invalidate();
+  const refresh = () => {
+    utils.schedules.listByWeek.invalidate();
+    utils.schedules.todayUpcoming.invalidate();
+    utils.dashboard.getStats.invalidate();
+    utils.dashboard.todayScheduleSummary.invalidate();
+  };
 
   // ── 수업 이동 (Pick & Place) ────────────────────────────────────
   // 꾹 누르면(500ms) 선택 → 빈 칸 탭하면 이동
@@ -590,12 +596,17 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
     onSuccess: () => { toast.success("완료 취소 — 회차가 복구되었습니다"); onSaved(); },
     onError: e => toast.error(e.message),
   });
+  const reportDeduct = (label: string, res: { sessionResult?: { remaining: number } | null; skipReason?: string | null }) => {
+    if (res.sessionResult) toast.success(`${label} — PT 1회 차감 (잔여 ${res.sessionResult.remaining}회)`);
+    else if (res.skipReason) toast.warning(`${label} 처리됐지만 PT 차감 안 됨: ${SKIP_REASON_LABEL[res.skipReason] ?? res.skipReason}`, { duration: 8000 });
+    else toast.success(`${label} 처리됨 (PT 수업 아님 — 차감 없음)`);
+  };
   const checkPastMutation = trpc.schedules.completeWithSignature.useMutation({
-    onSuccess: () => { toast.success("수업 체크 완료! PT 세션이 차감되었습니다"); onSaved(); },
+    onSuccess: (res) => { reportDeduct("수업 체크", res); onSaved(); },
     onError: e => toast.error(e.message),
   });
   const noShowMutation = trpc.schedules.markNoShow.useMutation({
-    onSuccess: () => { toast.success("노쇼 처리 — PT 세션 1회 차감됩니다"); onSaved(); },
+    onSuccess: (res) => { reportDeduct("노쇼", res); onSaved(); },
     onError: e => toast.error(e.message),
   });
   // 고정 슬롯(assigningToFixed) + 과거 시간: 생성 후 즉시 완료/노쇼 처리
@@ -793,7 +804,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
             일반 수업은 target 날짜로 판단, target.id 직접 수정. */}
         {target && !["done","noshow","cancelled"].includes(target.status) && (() => {
           const now = new Date();
-          const todayStr = now.toISOString().substring(0, 10);
+          const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
           const nowTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
           // 반복 수업은 템플릿 생성일이 아닌 이번 주 수업 날짜/시간으로 판단
           const checkDate = target.isRecurring === 1 ? date : target.scheduledDate;

@@ -1822,13 +1822,9 @@ const ptRouter = t.router({
       // packageId 미입력 시 활성 패키지 자동 탐색
       let resolvedPackageId = input.packageId;
       if (!resolvedPackageId) {
-        const activePkgs = await db
-          .select({ id: ptPackages.id })
-          .from(ptPackages)
-          .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active")))
-          .limit(1);
-        if (!activePkgs[0]) throw new TRPCError({ code: "BAD_REQUEST", message: "활성 PT 패키지가 없습니다." });
-        resolvedPackageId = activePkgs[0].id;
+        const picked = await pickActivePackage(db, input.memberId);
+        if (!picked) throw new TRPCError({ code: "BAD_REQUEST", message: "잔여 횟수가 있는 활성 PT 패키지가 없습니다." });
+        resolvedPackageId = picked.id;
       }
 
       // 패키지 조회
@@ -2527,6 +2523,67 @@ function canUseSchedule(user?: { id: number; username?: string; role?: string } 
   return allow.includes(String(user.username ?? "").toLowerCase()) || allow.includes(String(user.id));
 }
 
+// 차감 대상 패키지 선택 — attendanceChecks.upsert와 같은 기준(기타 뒤로, 시작된 것, 오래된 것 먼저).
+// 예전엔 정렬 없이 limit(1)이라 활성 패키지가 2개면 어느 쪽이 차감될지 DB 마음이었다.
+async function pickActivePackage(db: any, memberId: number) {
+  const [pkg] = await db
+    .select({ id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName })
+    .from(ptPackages)
+    .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "active"), sql`${ptPackages.usedSessions} < ${ptPackages.totalSessions}`))
+    .orderBy(
+      sql`CASE WHEN "packageName" = '기타' THEN 1 ELSE 0 END`,
+      sql`CASE WHEN "startDate" IS NULL OR "startDate" <= ${kstDate()} THEN 0 ELSE 1 END`,
+      asc(ptPackages.startDate),
+      asc(ptPackages.id),
+    )
+    .limit(1);
+  return pkg as { id: number; usedSessions: number; totalSessions: number; serviceSessions: number | null; packageName: string | null } | undefined;
+}
+
+type DeductSkip = "no_member" | "no_package" | "duplicate" | null;
+
+// 스케줄 완료/노쇼 공통 차감. 차감 못 했으면 이유를 돌려줘 화면에 경고를 띄운다(조용히 0원 되는 걸 막음).
+async function deductForSchedule(db: any, row: { memberId: number | null; trainerId: number }, targetDate: string, checkin?: { condition: number; sleep: number; nutrition: number; painLevel: number; painNote?: string }) {
+  if (!row.memberId) return { sessionResult: null, skipReason: "no_member" as DeductSkip };
+  const pkg = await pickActivePackage(db, row.memberId);
+  if (!pkg) return { sessionResult: null, skipReason: "no_package" as DeductSkip };
+
+  const [dup] = await db.select({ id: ptSessionLogs.id }).from(ptSessionLogs)
+    .where(and(eq(ptSessionLogs.memberId, row.memberId), eq(ptSessionLogs.trainerId, row.trainerId), eq(ptSessionLogs.sessionDate, targetDate)))
+    .limit(1);
+  if (dup) return { sessionResult: null, skipReason: "duplicate" as DeductSkip };
+
+  const newUsed = pkg.usedSessions + 1;
+  const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
+  const isFullService = pkg.packageName === "서비스세션" || (pkg.serviceSessions ?? 0) >= pkg.totalSessions;
+  const paidSessions = isFullService ? 0 : pkg.totalSessions - (pkg.serviceSessions ?? 0);
+  const isService = isFullService || pkg.usedSessions >= paidSessions ? 1 : 0;
+
+  await db.update(ptPackages).set({ usedSessions: newUsed, status: newStatus as any }).where(eq(ptPackages.id, pkg.id));
+  await db.insert(ptSessionLogs).values({
+    memberId: row.memberId,
+    trainerId: row.trainerId,
+    packageId: pkg.id,
+    sessionDate: targetDate,
+    isServiceSession: isService,
+    ...(checkin ? {
+      checkinCondition: checkin.condition,
+      checkinSleep: checkin.sleep,
+      checkinNutrition: checkin.nutrition,
+      checkinPainLevel: checkin.painLevel,
+      checkinPainNote: checkin.painNote ?? null,
+    } : {}),
+  });
+  return { sessionResult: { remaining: pkg.totalSessions - newUsed }, skipReason: null as DeductSkip };
+}
+
+// 고정(반복) 수업 템플릿은 "매주 이 시간" 이라는 틀일 뿐 특정 날짜의 수업이 아니다.
+// 템플릿 자체를 완료 처리하면 매주 '완료'로 보여 체크 버튼이 사라지고 차감이 영영 안 된다(2026-09 사고).
+function assertNotRecurringTemplate(isRecurring: number | null | undefined) {
+  if (isRecurring === 1)
+    throw new TRPCError({ code: "BAD_REQUEST", message: "고정 수업은 해당 날짜 칸에서 체크해 주세요." });
+}
+
 // 스케줄은 본인 것만 건드릴 수 있다. 예전엔 scheduleId만 알면 남의 일정도 지워졌다.
 async function requireOwnSchedule(ctx: any, scheduleId: number) {
   if (!canUseSchedule(ctx.user)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
@@ -2679,6 +2736,8 @@ const schedulesRouter = t.router({
     .input(z.object({ scheduleId: z.number(), status: z.enum(["pending", "done", "cancelled", "noshow"]) }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);
+      const [row] = await db.select({ isRecurring: schedules.isRecurring }).from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
+      if (input.status !== "pending") assertNotRecurringTemplate(row?.isRecurring);
       await db.update(schedules).set({ status: input.status }).where(eq(schedules.id, input.scheduleId));
       return { success: true };
     }),
@@ -2702,79 +2761,25 @@ const schedulesRouter = t.router({
 
       // 스케줄 정보 조회
       const [row] = await db
-        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType })
+        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType, isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate })
         .from(schedules)
         .where(eq(schedules.id, input.scheduleId))
         .limit(1);
 
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      assertNotRecurringTemplate(row.isRecurring);
       if (row.status === "done")
         throw new TRPCError({ code: "BAD_REQUEST", message: "이미 완료 처리된 수업입니다." });
 
-      // 서명 저장(있을 때만) + 완료 처리
       await db.update(schedules)
         .set({ status: "done", ...(input.signature ? { signature: input.signature } : {}) })
         .where(eq(schedules.id, input.scheduleId));
 
-      // PT 세션 차감 — PT 수업이고 memberId가 있는 경우만. 상담/체험/회의는 차감 안 함.
+      // 상담/체험/회의는 차감 안 함. 수업일은 스케줄 날짜가 원본(완료 취소도 이 날짜로 로그를 찾는다).
       const isPt = !row.eventType || row.eventType === "pt";
-      let sessionResult: { remaining: number } | null = null;
-      if (isPt && row.memberId) {
-        const targetDate = input.sessionDate ?? kstDate();
-        const activePkgs = await db
-          .select({ id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName })
-          .from(ptPackages)
-          .where(and(eq(ptPackages.memberId, row.memberId), eq(ptPackages.status, "active")))
-          .limit(1);
-
-        if (activePkgs[0]) {
-          const pkg = activePkgs[0];
-          if (pkg.usedSessions < pkg.totalSessions) {
-            // 중복 방지: 같은 날 같은 회원 세션 로그 확인
-            const [dup] = await db
-              .select({ id: ptSessionLogs.id })
-              .from(ptSessionLogs)
-              .where(and(
-                eq(ptSessionLogs.memberId, row.memberId),
-                eq(ptSessionLogs.trainerId, row.trainerId),
-                eq(ptSessionLogs.sessionDate, targetDate),
-              ))
-              .limit(1);
-
-            if (!dup) {
-              const newUsed = pkg.usedSessions + 1;
-              const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
-              const isFullService = pkg.packageName === "서비스세션" || (pkg.serviceSessions ?? 0) >= pkg.totalSessions;
-              const paidSessions = isFullService ? 0 : pkg.totalSessions - (pkg.serviceSessions ?? 0);
-              const isService = isFullService || pkg.usedSessions >= paidSessions ? 1 : 0;
-
-              await db.update(ptPackages)
-                .set({ usedSessions: newUsed, status: newStatus as any })
-                .where(eq(ptPackages.id, pkg.id));
-
-              const ci = input.checkin;
-              await db.insert(ptSessionLogs).values({
-                memberId: row.memberId,
-                trainerId: row.trainerId,
-                packageId: pkg.id,
-                sessionDate: targetDate,
-                isServiceSession: isService,
-                ...(ci ? {
-                  checkinCondition: ci.condition,
-                  checkinSleep: ci.sleep,
-                  checkinNutrition: ci.nutrition,
-                  checkinPainLevel: ci.painLevel,
-                  checkinPainNote: ci.painNote ?? null,
-                } : {}),
-              });
-
-              sessionResult = { remaining: pkg.totalSessions - newUsed };
-            }
-          }
-        }
-      }
-
-      return { success: true, sessionResult };
+      if (!isPt) return { success: true, sessionResult: null, skipReason: null };
+      const { sessionResult, skipReason } = await deductForSchedule(db, row, row.scheduledDate, input.checkin);
+      return { success: true, sessionResult, skipReason };
     }),
 
   // 완료 취소: 세션 로그 삭제 + usedSessions 복구 + 스케줄 pending 복원
@@ -2784,12 +2789,18 @@ const schedulesRouter = t.router({
       const db = await requireOwnSchedule(ctx, input.scheduleId);
 
       const [row] = await db
-        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, scheduledDate: schedules.scheduledDate, status: schedules.status })
+        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, scheduledDate: schedules.scheduledDate, status: schedules.status, isRecurring: schedules.isRecurring })
         .from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
 
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
       if (row.status !== "done")
         throw new TRPCError({ code: "BAD_REQUEST", message: "완료 상태인 수업만 취소할 수 있습니다." });
+
+      // 템플릿에 잘못 박힌 완료 상태는 상태만 되돌린다. 그때 생긴 로그는 날짜가 엉켜 있어 자동으로 지우지 않는다.
+      if (row.isRecurring === 1) {
+        await db.update(schedules).set({ status: "pending", signature: null }).where(eq(schedules.id, input.scheduleId));
+        return { success: true };
+      }
 
       if (row.memberId) {
         const logs = await db
@@ -2835,50 +2846,20 @@ const schedulesRouter = t.router({
       const db = await requireOwnSchedule(ctx, input.scheduleId);
 
       const [row] = await db
-        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType })
+        .select({ memberId: schedules.memberId, trainerId: schedules.trainerId, status: schedules.status, eventType: schedules.eventType, isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate })
         .from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
 
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      assertNotRecurringTemplate(row.isRecurring);
       if (row.status === "done" || row.status === "noshow")
         throw new TRPCError({ code: "BAD_REQUEST", message: "이미 처리된 수업입니다." });
 
       await db.update(schedules).set({ status: "noshow" }).where(eq(schedules.id, input.scheduleId));
 
-      // PT 수업 + 회원 있는 경우만 차감
       const isPt = !row.eventType || row.eventType === "pt";
-      if (isPt && row.memberId) {
-        const targetDate = input.sessionDate ?? kstDate();
-        const [pkg] = await db
-          .select({ id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName })
-          .from(ptPackages)
-          .where(and(eq(ptPackages.memberId, row.memberId), eq(ptPackages.status, "active")))
-          .limit(1);
-
-        if (pkg && pkg.usedSessions < pkg.totalSessions) {
-          const [dup] = await db.select({ id: ptSessionLogs.id }).from(ptSessionLogs)
-            .where(and(
-              eq(ptSessionLogs.memberId, row.memberId),
-              eq(ptSessionLogs.trainerId, row.trainerId),
-              eq(ptSessionLogs.sessionDate, targetDate),
-            )).limit(1);
-
-          if (!dup) {
-            const newUsed = pkg.usedSessions + 1;
-            const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
-            const isFullService = pkg.packageName === "서비스세션" || (pkg.serviceSessions ?? 0) >= pkg.totalSessions;
-            const paidSessions = isFullService ? 0 : pkg.totalSessions - (pkg.serviceSessions ?? 0);
-            const isService = isFullService || pkg.usedSessions >= paidSessions ? 1 : 0;
-
-            await db.update(ptPackages).set({ usedSessions: newUsed, status: newStatus as any }).where(eq(ptPackages.id, pkg.id));
-            await db.insert(ptSessionLogs).values({
-              memberId: row.memberId, trainerId: row.trainerId, packageId: pkg.id,
-              sessionDate: targetDate, isServiceSession: isService,
-            });
-          }
-        }
-      }
-
-      return { success: true };
+      if (!isPt) return { success: true, sessionResult: null, skipReason: null };
+      const { sessionResult, skipReason } = await deductForSchedule(db, row, row.scheduledDate);
+      return { success: true, sessionResult, skipReason };
     }),
 
   // 회원 패키지 현황 + 주로 이용하는 요일·시간 (SlotEditor 인포 카드용)
@@ -5876,7 +5857,8 @@ const dashboardRouter = t.router({
     const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll
       .filter(r => (new Date(r.scheduledDate + "T00:00:00").getDay() + 6) % 7 === todayDow)
-      .filter(r => !oneOffTimes.has(r.scheduledTime)); // one-off가 덮은 슬롯 제외
+      .filter(r => !oneOffTimes.has(r.scheduledTime)) // one-off가 덮은 슬롯 제외
+      .map(r => ({ ...r, status: "pending" })); // 템플릿 상태는 특정 날짜의 결과가 아니다 — 오늘 체크 전이면 항상 예정
 
     const all = [...oneOffs, ...recurringToday];
     return { total: all.length, done: all.filter(r => r.status === "done").length };
@@ -5908,7 +5890,8 @@ const dashboardRouter = t.router({
     const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll
       .filter(r => (new Date(r.scheduledDate + "T00:00:00").getDay() + 6) % 7 === todayDow)
-      .filter(r => !oneOffTimes.has(r.scheduledTime));
+      .filter(r => !oneOffTimes.has(r.scheduledTime))
+      .map(r => ({ ...r, status: "pending" }));
 
     return [...oneOffs, ...recurringToday]
       .sort((a, b) => (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? ""));

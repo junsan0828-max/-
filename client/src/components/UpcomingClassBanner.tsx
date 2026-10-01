@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback, useLayoutEffect } from "react
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { SKIP_REASON_LABEL } from "@/lib/utils";
 import { Bell, CheckCircle, XCircle, CalendarDays, Pen, RotateCcw, ChevronRight } from "lucide-react";
 
 // ─── KST 시간 유틸 ─────────────────────────────────────────────────────────────
@@ -330,13 +331,14 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
   const [step, setStep] = useState<ModalStep>(isPt ? "checkin" : "confirm");
   const [checkin, setCheckin] = useState<Checkin | null>(null);
   const [sigDataUrl, setSigDataUrl] = useState<string | null>(null);
-  const [doneData, setDoneData] = useState<{ remaining: number | null } | null>(null);
+  const [doneData, setDoneData] = useState<{ remaining: number | null; skipReason: string | null } | null>(null);
 
   const completeMutation = trpc.schedules.completeWithSignature.useMutation({
     onSuccess: (res) => {
       utils.schedules.todayUpcoming.invalidate();
       utils.dashboard.getStats.invalidate();
-      setDoneData({ remaining: res.sessionResult?.remaining ?? null });
+      utils.dashboard.todayScheduleSummary.invalidate();
+      setDoneData({ remaining: res.sessionResult?.remaining ?? null, skipReason: res.skipReason ?? null });
       setStep("done");
     },
     onError: (e) => toast.error(e.message || "완료 처리 실패"),
@@ -461,6 +463,11 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
               {doneData.remaining !== null && (
                 <p className="text-sm text-muted-foreground mt-0.5">
                   {slot.memberName} 잔여 <span className="text-foreground font-medium">{doneData.remaining}회</span>
+                </p>
+              )}
+              {doneData.skipReason && (
+                <p className="text-xs text-amber-400 mt-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
+                  ⚠ PT 차감 안 됨: {SKIP_REASON_LABEL[doneData.skipReason] ?? doneData.skipReason}
                 </p>
               )}
             </div>

@@ -146,10 +146,12 @@ function calcPricePerSession(paymentAmount: number, sessions: number, paymentMet
 // 대시보드 통계 (async)
 export async function getDashboardStats(trainerId: number) {
   try {
-    const today = new Date().toISOString().split("T")[0];
-    const todayDate = new Date();
-    const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).toISOString().split("T")[0];
-    const monthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 1).toISOString().split("T")[0];
+    // KST 기준. UTC로 계산하면 매일 오전 9시 전엔 '어제', 매달 1일 오전엔 '지난달'로 집계됐다.
+    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const today = kst.toISOString().split("T")[0];
+    const y = kst.getUTCFullYear(), mo = kst.getUTCMonth();
+    const monthStart = `${y}-${String(mo + 1).padStart(2, "0")}-01`;
+    const monthEnd = mo === 11 ? `${y + 1}-01-01` : `${y}-${String(mo + 2).padStart(2, "0")}-01`;
 
     const [totalMembersResult, activeMembersResult, todayAttendancesResult, trainerSettingsResult] =
       await Promise.all([
