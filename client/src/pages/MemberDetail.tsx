@@ -276,6 +276,8 @@ export default function MemberDetail({ memberId }: Props) {
   const [sessionMemoContent, setSessionMemoContent] = useState("");
   const [trainerChangeOpen, setTrainerChangeOpen] = useState(false);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>("");
+  const [branchChangeOpen, setBranchChangeOpen] = useState(false);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
   const [shareOpen, setShareOpen] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -648,6 +650,17 @@ export default function MemberDetail({ memberId }: Props) {
       utils.access.getMemberPrograms.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "활성화 처리 실패"),
+  });
+
+  // 지점 변경
+  const { data: branchList } = trpc.admin.listBranches.useQuery(undefined, { enabled: currentUser?.role === "admin" });
+  const assignBranchMutation = trpc.members.assignBranch.useMutation({
+    onSuccess: () => {
+      toast.success("지점이 변경되었습니다.");
+      setBranchChangeOpen(false);
+      utils.members.getById.invalidate({ id: memberId });
+    },
+    onError: (err) => toast.error(err.message || "변경 실패"),
   });
 
   // 담당 트레이너 변경
@@ -1327,6 +1340,25 @@ export default function MemberDetail({ memberId }: Props) {
                     </div>
                   </div>
                 </div>
+                {currentUser?.role === "admin" && (
+                  <div className="flex items-start gap-3">
+                    <div className="text-muted-foreground mt-0.5"><MapPin className="h-4 w-4" /></div>
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground">지점</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {(member as any).branchId ? (branchList?.find(b => b.id === (member as any).branchId)?.name ?? `지점 #${(member as any).branchId}`) : "-"}
+                        </p>
+                        <button
+                          onClick={() => { setSelectedBranchId(String((member as any).branchId ?? "")); setBranchChangeOpen(true); }}
+                          className="text-xs text-primary underline hover:text-primary/70"
+                        >
+                          변경
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
@@ -3302,6 +3334,38 @@ export default function MemberDetail({ memberId }: Props) {
                 })}
               >
                 {updateMemberMutation.isPending ? "변경 중..." : "변경"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 지점 변경 다이얼로그 */}
+      <Dialog open={branchChangeOpen} onOpenChange={setBranchChangeOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>지점 변경</DialogTitle>
+            <DialogDescription>{member?.name}님의 소속 지점을 변경합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="지점 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {branchList?.map((b) => (
+                  <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setBranchChangeOpen(false)}>취소</Button>
+              <Button
+                className="flex-1"
+                disabled={!selectedBranchId || assignBranchMutation.isPending}
+                onClick={() => assignBranchMutation.mutate({ memberId, branchId: parseInt(selectedBranchId) })}
+              >
+                {assignBranchMutation.isPending ? "변경 중..." : "변경"}
               </Button>
             </div>
           </div>
