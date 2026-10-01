@@ -5898,17 +5898,19 @@ const dashboardRouter = t.router({
     const today = kstDate();
     const todayDow = (new Date(today + "T00:00:00").getDay() + 6) % 7; // 월=0
 
-    // 오늘 one-off 수업
+    const isClass = sql`${schedules.eventType} NOT IN ('meeting', 'other')`;
+
+    // 오늘 one-off 수업 (회의·기타 제외)
     const oneOffs = await db
       .select({ status: schedules.status, scheduledTime: schedules.scheduledTime })
       .from(schedules)
-      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0)));
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0), isClass));
 
-    // 오늘 요일에 해당하는 고정 수업 (시작일 ≤ 오늘)
+    // 오늘 요일에 해당하는 고정 수업 (시작일 ≤ 오늘, 회의·기타 제외)
     const recurringAll = await db
       .select({ status: schedules.status, scheduledTime: schedules.scheduledTime, scheduledDate: schedules.scheduledDate })
       .from(schedules)
-      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today)));
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass));
 
     const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll
@@ -5937,11 +5939,13 @@ const dashboardRouter = t.router({
       eventType: schedules.eventType, notes: schedules.notes,
     } as const;
 
+    const isClass = sql`${schedules.eventType} NOT IN ('meeting', 'other')`;
+
     const oneOffs = await db.select(cols).from(schedules)
-      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0)));
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0), isClass));
 
     const recurringAll = await db.select(cols).from(schedules)
-      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today)));
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass));
 
     const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll
