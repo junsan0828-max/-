@@ -141,12 +141,13 @@ const LB: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#475569
 const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 18, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" };
 
 /* ── TopBar ── */
-function TopBar({ kakaoUser, onLogin, onLogout }: { kakaoUser: KakaoUser | null; onLogin: () => void; onLogout: () => void }) {
+function TopBar({ kakaoUser, onLogin, onLogout, syncing }: { kakaoUser: KakaoUser | null; onLogin: () => void; onLogout: () => void; syncing?: boolean }) {
   return (
     <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 20 }}>
       <span style={{ fontSize: 15, fontWeight: 900, color: "#2563eb", letterSpacing: "-0.5px" }}>FIT STEP · 시퀀스</span>
       {kakaoUser ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {syncing && <span style={{ fontSize: 11, color: "#94a3b8" }}>동기화 중…</span>}
           {kakaoUser.thumbnail && <img src={kakaoUser.thumbnail} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} />}
           <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{kakaoUser.name}</span>
           <button onClick={onLogout} style={{ fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: "4px 6px" }}>로그아웃</button>
@@ -335,16 +336,23 @@ export default function SequenceMaker() {
     });
   }, []);
 
-  // 서버에서 내 시퀀스 불러와서 로컬과 병합
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  // 서버 ↔ 로컬 양방향 동기화
   const fetchMine = useCallback(async () => {
     if (!API_URL || !getKakaoToken()) return;
+    setSyncError(null);
+    setSyncing(true);
     try {
+      // 1. 서버에서 내 시퀀스 가져오기
       const remote: Array<{
         id: number; title: string; description: string; category: string;
         bodyParts: string; targetAudience: string; difficulty: string;
         estimatedMinutes: string; equipment: string; coachingNotes: string;
         exercisesJson: string; isPublic: boolean; createdAt: string; updatedAt: string;
       }> = await apiAuth("/mine", "GET");
+
       const remoteSeqs: Sequence[] = remote.map(r => ({
         id: `remote_${r.id}`, title: r.title, description: r.description,
         category: r.category, bodyParts: r.bodyParts, targetAudience: r.targetAudience,
@@ -354,16 +362,51 @@ export default function SequenceMaker() {
         author: "", isPublic: r.isPublic, remoteId: r.id,
         createdAt: r.createdAt, updatedAt: r.updatedAt,
       }));
-      // 로컬에 없는 서버 항목만 추가 (remoteId 기준 병합)
+
+      // 2. 로컬에서 remoteId 없는 시퀀스를 서버로 업로드
+      const currentLocal = loadAll();
+      const unsynced = currentLocal.filter(s => !s.remoteId && s.title.trim());
+      const uploaded: Sequence[] = [];
+      for (const seq of unsynced) {
+        try {
+          const payload = {
+            title: seq.title, description: seq.description, category: seq.category,
+            bodyParts: seq.bodyParts, targetAudience: seq.targetAudience,
+            difficulty: seq.difficulty, estimatedMinutes: seq.estimatedMinutes,
+            equipment: seq.equipment, classGoal: seq.classGoal,
+            coachingNotes: seq.coachingNotes, exercises: seq.exercises,
+            isPublic: !!seq.isPublic, price: 0,
+          };
+          const res = await apiAuth("/", "POST", payload);
+          uploaded.push({ ...seq, remoteId: res.id });
+        } catch { /* 개별 업로드 실패 무시 */ }
+      }
+
+      // 3. 병합: 서버 항목 추가 + 업로드된 항목에 remoteId 반영
       setList(local => {
-        const localRemoteIds = new Set(local.map(s => s.remoteId).filter(Boolean));
+        let merged = local.map(s => {
+          const up = uploaded.find(u => u.id === s.id);
+          return up ? up : s;
+        });
+        const localRemoteIds = new Set(merged.map(s => s.remoteId).filter(Boolean));
         const toAdd = remoteSeqs.filter(r => !localRemoteIds.has(r.remoteId));
-        if (toAdd.length === 0) return local;
-        const merged = [...local, ...toAdd];
+        merged = [...merged, ...toAdd];
         saveAll(merged);
         return merged;
       });
-    } catch { /* ignore */ }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[fetchMine] error:", msg);
+      if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+        localStorage.removeItem("dp_kakao_at");
+        localStorage.removeItem("dp_kakao_user");
+        setKakaoUser(null);
+        setSyncError("로그인이 만료되었습니다. 다시 로그인해주세요.");
+      } else {
+        setSyncError(`서버 동기화 실패: ${msg}`);
+      }
+    }
+    setSyncing(false);
   }, []);
 
   useEffect(() => { if (kakaoUser && API_URL) fetchMine(); }, [kakaoUser, fetchMine]);
@@ -547,7 +590,7 @@ export default function SequenceMaker() {
   if (mode === "edit" && draft) {
     return (
       <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-        <TopBar kakaoUser={kakaoUser} onLogin={handleKakaoLogin} onLogout={handleKakaoLogout} />
+        <TopBar kakaoUser={kakaoUser} onLogin={handleKakaoLogin} onLogout={handleKakaoLogout} syncing={syncing} />
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "16px 16px 80px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <button onClick={() => setMode("list")} style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", color: "#475569", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
@@ -678,7 +721,7 @@ export default function SequenceMaker() {
   /* ─── 목록 뷰 ─── */
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-      <TopBar kakaoUser={kakaoUser} onLogin={handleKakaoLogin} onLogout={handleKakaoLogout} />
+      <TopBar kakaoUser={kakaoUser} onLogin={handleKakaoLogin} onLogout={handleKakaoLogout} syncing={syncing} />
 
       {/* 탭 */}
       <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", display: "flex" }}>
@@ -712,6 +755,12 @@ export default function SequenceMaker() {
                 );
               } catch { return null; }
             })()}
+            {syncError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", marginBottom: 12, fontSize: 13, color: "#b91c1c", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span>{syncError}</span>
+                <button onClick={() => setSyncError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#b91c1c", fontSize: 16, lineHeight: 1 }}>×</button>
+              </div>
+            )}
             {list.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 20px", color: "#94a3b8" }}>
                 <Dumbbell size={40} style={{ margin: "0 auto 12px", display: "block", opacity: 0.3 }} />
