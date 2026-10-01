@@ -67,33 +67,40 @@ function MemberSelect({
   members: any[];
 }) {
   const [search, setSearch] = useState("");
-  const filtered = members.filter(m =>
-    !search || m.name.includes(search)
-  );
+  const filtered = search ? members.filter(m => m.name.includes(search)) : [];
+  const selected = value ? members.find(m => m.id === value) : null;
   return (
     <div className="space-y-2">
       <Input
-        placeholder="회원 검색"
+        placeholder="이름으로 검색"
         value={search}
         onChange={e => setSearch(e.target.value)}
         className="h-9 text-sm"
       />
-      <div className="max-h-48 overflow-y-auto space-y-1 border border-border rounded-xl p-1">
-        {filtered.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-3">회원 없음</p>
-        )}
-        {filtered.map((m: any) => (
-          <button
-            key={m.id}
-            onClick={() => onChange(m.id)}
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-              value === m.id ? "bg-primary text-primary-foreground" : "hover:bg-accent/40"
-            }`}
-          >
-            {m.name}
-          </button>
-        ))}
-      </div>
+      {selected && !search && (
+        <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border border-primary/20 rounded-xl">
+          <span className="text-sm font-medium text-primary">{selected.name}</span>
+          <button onClick={() => onChange(0)} className="text-xs text-muted-foreground">변경</button>
+        </div>
+      )}
+      {search && (
+        <div className="max-h-48 overflow-y-auto space-y-1 border border-border rounded-xl p-1">
+          {filtered.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-3">검색 결과 없음</p>
+          )}
+          {filtered.map((m: any) => (
+            <button
+              key={m.id}
+              onClick={() => { onChange(m.id); setSearch(""); }}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                value === m.id ? "bg-primary text-primary-foreground" : "hover:bg-accent/40"
+              }`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

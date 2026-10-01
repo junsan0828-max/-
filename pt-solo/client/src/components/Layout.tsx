@@ -288,9 +288,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
       </div>
-      {!isAdmin && user?.username && (
-        <QuickAskFloat trainerName={user.username} />
-      )}
     </div>
   );
 }
