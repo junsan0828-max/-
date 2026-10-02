@@ -17,6 +17,7 @@ import {
   Clock, XCircle, CheckSquare, Square, CalendarPlus, X, UserPlus,
   Pencil, RefreshCw, AlertTriangle,
 } from "lucide-react";
+import { useHasMembership, useHasSessions } from "@/hooks/useOperationMode";
 
 const AVATAR_GRADIENTS = [
   "from-amber-400 to-orange-500",
@@ -390,6 +391,8 @@ function MembersTab() {
   const [infoEditOpen, setInfoEditOpen] = useState(false);
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const [renewalSelected, setRenewalSelected] = useState<Set<number>>(new Set());
+  const hasMembership = useHasMembership();
+  const hasSessions = useHasSessions();
   const [extendOpen, setExtendOpen] = useState(false);
   const [extendDays, setExtendDays] = useState(30);
   const [extendCustom, setExtendCustom] = useState("");
@@ -493,16 +496,16 @@ function MembersTab() {
   };
 
   const quickActions = [
-    { label: "정보 수정", icon: Pencil, color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20", onClick: () => setInfoEditOpen(true) },
-    { label: "만료 임박", icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", badge: counts.expiring || null, onClick: () => { setSpecialFilter(f => f === "expiring" ? "none" : "expiring"); } },
-    { label: "미수금", icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", badge: counts.unpaid || null, onClick: () => { setSpecialFilter(f => f === "unpaid" ? "none" : "unpaid"); } },
-    { label: "재등록 예정자", icon: RefreshCw, color: "text-cyan-500", bg: "bg-cyan-500/10", border: "border-cyan-500/20", badge: lowSessions?.length || null, onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); } },
-  ];
+    { label: "정보 수정", icon: Pencil, color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20", onClick: () => setInfoEditOpen(true), show: true },
+    { label: "만료 임박", icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", badge: counts.expiring || null, onClick: () => { setSpecialFilter(f => f === "expiring" ? "none" : "expiring"); }, show: hasMembership },
+    { label: "미수금", icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", badge: counts.unpaid || null, onClick: () => { setSpecialFilter(f => f === "unpaid" ? "none" : "unpaid"); }, show: true },
+    { label: "재등록 예정자", icon: RefreshCw, color: "text-cyan-500", bg: "bg-cyan-500/10", border: "border-cyan-500/20", badge: lowSessions?.length || null, onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, show: hasSessions },
+  ].filter(a => a.show);
 
   return (
     <div className="space-y-4">
       {/* 퀵 액션 */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className={`grid gap-2 ${quickActions.length <= 3 ? "grid-cols-3" : "grid-cols-4"}`}>
         {quickActions.map((a) => (
           <button key={a.label} onClick={a.onClick}
             className={`relative flex flex-col items-center gap-1.5 py-3 rounded-2xl border ${a.bg} ${a.border} active:scale-95 transition-transform`}>
@@ -611,12 +614,12 @@ function MembersTab() {
 
       {/* 특수 필터 */}
       <div className="grid grid-cols-2 gap-2">
-        {[
-          { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" /> },
-          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" /> },
-          { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" /> },
-          { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" /> },
-        ].map((f) => (
+        {([
+          { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" />, show: true },
+          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, show: hasSessions },
+          { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" />, show: hasMembership },
+          { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" />, show: hasMembership },
+        ] as const).filter(f => f.show).map((f) => (
           <button
             key={f.key}
             onClick={() => toggleSpecial(f.key)}

@@ -170,6 +170,7 @@ export default function Profile() {
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
   const [ext, setExt] = useState({ jobType: "", careerRange: "", activityArea: "", profileImage: "", educationNeeds: "" });
   const [journalType, setJournalTypeState] = useState<"weight" | "pilates">("weight");
+  const [operationMode, setOperationMode] = useState<"membership" | "sessions" | "both">("both");
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
@@ -187,6 +188,7 @@ export default function Profile() {
         educationNeeds: (profile as any).educationNeeds ?? "",
       });
       setJournalTypeState(((profile as any).journalType ?? "weight") as "weight" | "pilates");
+      setOperationMode(((profile as any).operationMode ?? "both") as "membership" | "sessions" | "both");
     }
   }, [profile]);
 
@@ -220,6 +222,7 @@ export default function Profile() {
       activityArea: ext.activityArea || undefined,
       profileImage: ext.profileImage || undefined,
       educationNeeds: ext.educationNeeds || undefined,
+      operationMode,
     });
     updateProfile.mutate({ trainerName: info.trainerName, phone: info.phone || undefined, email: info.email || undefined });
   };
@@ -424,6 +427,40 @@ export default function Profile() {
                 placeholder="예: 서울 강남구, 서초구"
                 className="bg-input border-border"
               />
+            </div>
+
+            {/* 운영 방식 */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">운영 방식</Label>
+              <p className="text-xs text-muted-foreground">선택한 방식에 따라 앱 기능이 최적화됩니다</p>
+              <div className="grid grid-cols-1 gap-2">
+                {([
+                  { value: "membership", title: "기간 회원권", desc: "만료일 기반 운영 · 세션 관리 없음" },
+                  { value: "sessions",   title: "횟수 수업권", desc: "수업 횟수 기반 운영 · 만료일 없음" },
+                  { value: "both",       title: "회원권 + 수업권", desc: "기간과 횟수를 함께 관리" },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setOperationMode(opt.value)}
+                    className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${
+                      operationMode === opt.value
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-input border-border text-foreground hover:border-primary/40"
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                      operationMode === opt.value ? "border-primary" : "border-muted-foreground"
+                    }`}>
+                      {operationMode === opt.value && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{opt.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <Button type="submit" className="w-full" disabled={updateExtended.isPending}>

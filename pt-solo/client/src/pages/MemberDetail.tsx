@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAutoPoints, pointLabel } from "@/hooks/useAutoPoints";
+import { useHasMembership, useHasSessions } from "@/hooks/useOperationMode";
 import {
   ArrowLeft,
   Crown,
@@ -171,6 +172,8 @@ export default function MemberDetail({ memberId }: Props) {
   }, [search]);
   const utils = trpc.useUtils();
   const autoPoints = useAutoPoints();
+  const hasMembership = useHasMembership();
+  const hasSessions = useHasSessions();
 
   // 일지 → 시퀀스로 저장 (빈 화면에서 다시 만들지 않도록, 이미 기록한 운동을 바로 개인 시퀀스로)
   const createSeqDraft = trpc.sequenceLab.createDraft.useMutation();
@@ -720,12 +723,12 @@ export default function MemberDetail({ memberId }: Props) {
       </div>
 
       {/* 요약 통계 카드 */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${hasSessions ? "grid-cols-3" : "grid-cols-2"}`}>
         {[
-          { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 수업 수" },
+          hasSessions ? { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 수업 수" } : null,
           { icon: <CheckCircle className="h-5 w-5 text-green-400" />, value: totalAttendance, label: "총 출석 횟수" },
           { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: logCount, label: "수업 일지" },
-        ].map((item) => (
+        ].filter(Boolean).map((item: any) => (
           <Card key={item.label} className="bg-card border-border">
             <CardContent className="p-3 flex flex-col items-start gap-1">
               {item.icon}
@@ -860,24 +863,28 @@ export default function MemberDetail({ memberId }: Props) {
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">총 횟수 <span className="text-primary">*</span></Label>
-                      <Input
-                        type="number" min="1" placeholder="20"
-                        value={pkgForm.totalSessions}
-                        onChange={(e) => setPkgForm((p) => ({ ...p, totalSessions: e.target.value }))}
-                        className="h-9 text-sm"
-                      />
-                    </div>
+                    {hasSessions && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">총 횟수 <span className="text-primary">*</span></Label>
+                        <Input
+                          type="number" min="1" placeholder="20"
+                          value={pkgForm.totalSessions}
+                          onChange={(e) => setPkgForm((p) => ({ ...p, totalSessions: e.target.value }))}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs">시작일</Label>
                         <Input type="date" value={pkgForm.startDate} onChange={(e) => setPkgForm((p) => ({ ...p, startDate: e.target.value }))} className="h-9 text-sm" />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">만료일</Label>
-                        <Input type="date" value={pkgForm.expiryDate} onChange={(e) => setPkgForm((p) => ({ ...p, expiryDate: e.target.value }))} className="h-9 text-sm" />
-                      </div>
+                      {hasMembership && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">만료일</Label>
+                          <Input type="date" value={pkgForm.expiryDate} onChange={(e) => setPkgForm((p) => ({ ...p, expiryDate: e.target.value }))} className="h-9 text-sm" />
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
@@ -1004,7 +1011,7 @@ export default function MemberDetail({ memberId }: Props) {
                         </div>
 
                         {/* 세션 사용 버튼 */}
-                        {isActive && (
+                        {isActive && hasSessions && (
                           <div className="mt-3">
                             <Button
                               size="sm"

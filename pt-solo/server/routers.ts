@@ -294,14 +294,16 @@ const authRouter = t.router({
     const row = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
     let jobType: string | null = null;
     let trainerName: string | null = null;
+    let operationMode: string = "both";
     if (ctx.user.trainerId) {
-      const tRow = await pool.query<{ jobType: string | null; trainerName: string }>(
-        `SELECT "jobType", "trainerName" FROM trainers WHERE id=$1 LIMIT 1`, [ctx.user.trainerId]
+      const tRow = await pool.query<{ jobType: string | null; trainerName: string; operationMode: string | null }>(
+        `SELECT "jobType", "trainerName", "operationMode" FROM trainers WHERE id=$1 LIMIT 1`, [ctx.user.trainerId]
       );
       jobType = tRow.rows[0]?.jobType ?? null;
       trainerName = tRow.rows[0]?.trainerName ?? null;
+      operationMode = tRow.rows[0]?.operationMode ?? "both";
     }
-    return { ...ctx.user, plan: row[0]?.plan ?? "free", jobType, trainerName };
+    return { ...ctx.user, plan: row[0]?.plan ?? "free", jobType, trainerName, operationMode };
   }),
 
   sendVerificationCode: publicProcedure
@@ -1128,9 +1130,9 @@ const trainersRouter = t.router({
       employmentType: string | null; workplaceName: string | null;
       workYears: number | null; specialties: string | null; profileBonusGranted: number;
       jobType: string | null; careerRange: string | null; activityArea: string | null; profileImage: string | null;
-      journalType: string | null;
-    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage","educationNeeds","onboardingSurveyDone","journalType" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
-    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null, educationNeeds: null, onboardingSurveyDone: 0, journalType: null };
+      journalType: string | null; operationMode: string | null;
+    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage","educationNeeds","onboardingSurveyDone","journalType","operationMode" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
+    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null, educationNeeds: null, onboardingSurveyDone: 0, journalType: null, operationMode: "both" };
     return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50, ...ext };
   }),
 
@@ -1151,6 +1153,7 @@ const trainersRouter = t.router({
       profileImage: z.string().optional(),
       educationNeeds: z.string().optional(),
       journalType: z.enum(["weight", "pilates"]).optional(),
+      operationMode: z.enum(["membership", "sessions", "both"]).optional(),
       // legacy fields kept for backward compat
       employmentType: z.enum(["freelancer", "employed"]).optional(),
       workplaceName: z.string().optional(),
@@ -1160,12 +1163,12 @@ const trainersRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       await pool.query(
-        `UPDATE trainers SET "jobType"=$1,"careerRange"=$2,"activityArea"=$3,"profileImage"=$4,"employmentType"=$5,"workplaceName"=$6,"workYears"=$7,"specialties"=$8,"educationNeeds"=$9,"journalType"=COALESCE($10,"journalType",'weight') WHERE id=$11`,
+        `UPDATE trainers SET "jobType"=$1,"careerRange"=$2,"activityArea"=$3,"profileImage"=$4,"employmentType"=$5,"workplaceName"=$6,"workYears"=$7,"specialties"=$8,"educationNeeds"=$9,"journalType"=COALESCE($10,"journalType",'weight'),"operationMode"=COALESCE($12,"operationMode",'both') WHERE id=$11`,
         [
           input.jobType ?? null, input.careerRange ?? null, input.activityArea ?? null, input.profileImage ?? null,
           input.employmentType ?? null, input.workplaceName ?? null, input.workYears ?? null, input.specialties ?? null,
           input.educationNeeds ?? null, input.journalType ?? null,
-          ctx.user.trainerId,
+          ctx.user.trainerId, input.operationMode ?? null,
         ]
       );
       // 프로필 완성 보너스 자동 지급 (최초 1회)
