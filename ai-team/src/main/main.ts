@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, powerMonitor } from "electron";
 import { join } from "node:path";
-import { readFileSync } from "node:fs";
+import { readFileSync, appendFileSync } from "node:fs";
 import * as dotenv from "dotenv";
 import cron from "node-cron";
 import { runOrchestrator, saveResult, loadTodaysResult, OrchestratorResult } from "./orchestrator";
@@ -33,6 +33,16 @@ let running = false;
 
 function send(channel: string, payload?: unknown) {
   win?.webContents.send(channel, payload);
+  if (channel === "log" && typeof payload === "string") fileLog(payload);
+}
+
+// 로그를 화면에만 띄우면 앱을 닫거나 지나간 뒤에는 원인을 못 찾는다(2026-10-02 자동문자 누락 조사 때 실측).
+// 사용자 데이터 폴더(ai-team.log)에도 남긴다. 로그 실패가 작업을 막으면 안 되므로 조용히 무시.
+function fileLog(message: string) {
+  try {
+    const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Seoul" });
+    appendFileSync(join(app.getPath("userData"), "ai-team.log"), `${stamp} ${message}\n`);
+  } catch {}
 }
 
 function createWindow() {
@@ -309,20 +319,22 @@ async function runBlogEventJobWrapper(reason: string) {
   }
 }
 
-async function runAutoMessageJobWrapper(reason: string) {
+async function runAutoMessageJobWrapper(reason: string): Promise<boolean> {
   send("log", `자동 문자(만료 D-10/D-5·관리상담 D+1) 발송을 시작했어요 (${reason})`);
   try {
     const result = await runAutoMessageJob();
     if (!result.ok) {
       send("log", `자동 문자 발송 실패: ${result.error}`);
-      return;
+      return false;
     }
     const line = (result.summary ?? [])
       .map((s) => `${s.category} 대상${s.targeted}/발송${s.sent}/실패${s.failed}`)
       .join(", ");
     send("log", `자동 문자 발송 완료 — ${line}`);
+    return true;
   } catch (err: any) {
     send("log", `자동 문자 발송 오류: ${err?.message ?? err}`);
+    return false;
   }
 }
 
@@ -412,16 +424,34 @@ function maybeCatchUpNaverAdsMonthlyReport(reason: string) {
 // 통째로 씹혀서 그날 발송이 전부 누락된다(2026-08-30/31 실측 확인). 절전에서 깨어날 때와
 // 앱 시작 시 "오늘 13시가 지났는데 아직 안 돌았으면" 보정 실행한다. runAutoMessageJob은
 // auto_message_log 성공 이력으로 대상별 중복발송을 막으므로 여러 번 걸려도 안전하다.
+// 절전 복귀 직후에는 Wi-Fi가 아직 안 붙어 DB 접속이 실패할 수 있다(2026-10-02 실측: 복귀 14:58:07,
+// 네트워크 연결 14:58:06~11). 그래서 "성공했을 때만" 오늘 보정 완료로 표시하고, 실패하면 1분 간격으로
+// 최대 5번 재시도한다. 첫 시도 전에도 20초 기다려 네트워크가 붙을 시간을 준다.
 let autoMessageCaughtUpDate: string | null = null;
-function maybeCatchUpAutoMessage(reason: string) {
-  const now = new Date();
+let autoMessageCatchUpRunning = false;
+async function maybeCatchUpAutoMessage(reason: string) {
   const kstHour = Number(
-    now.toLocaleString("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false })
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false })
   );
-  const today = todayStr();
-  if (kstHour < 13 || autoMessageCaughtUpDate === today) return;
-  autoMessageCaughtUpDate = today;
-  runAutoMessageJobWrapper(`보정 실행 — ${reason}`);
+  if (kstHour < 13 || autoMessageCaughtUpDate === todayStr() || autoMessageCatchUpRunning) return;
+  autoMessageCatchUpRunning = true;
+  try {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    await sleep(20_000);
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const today = todayStr();
+      if (autoMessageCaughtUpDate === today) return;
+      const ok = await runAutoMessageJobWrapper(`보정 실행 — ${reason} (${attempt}/5회)`);
+      if (ok) {
+        autoMessageCaughtUpDate = today;
+        return;
+      }
+      if (attempt < 5) await sleep(60_000);
+    }
+    send("log", "자동 문자 보정 실행 5회 모두 실패 — 다음 절전 복귀나 앱 재시작 때 다시 시도합니다");
+  } finally {
+    autoMessageCatchUpRunning = false;
+  }
 }
 
 async function runPointClaimsJobWrapper() {
