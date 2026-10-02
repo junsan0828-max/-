@@ -397,7 +397,7 @@ export default function SequenceMaker() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[fetchMine] error:", msg);
-      if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+      if (msg.includes("401") || msg.toLowerCase().includes("unauthorized") || msg.includes("토큰 검증 실패")) {
         localStorage.removeItem("dp_kakao_at");
         localStorage.removeItem("dp_kakao_user");
         setKakaoUser(null);
