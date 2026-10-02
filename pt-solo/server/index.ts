@@ -7,6 +7,7 @@ import fs from "fs";
 import cron from "node-cron";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
+import communitySequenceRoutes from "./communitySequenceRoutes";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
 import {
@@ -195,6 +196,9 @@ app.get("/.well-known/assetlinks.json", (_req, res) => {
     },
   ]);
 });
+
+// 시퀀스 커뮤니티 API (standalone SPA용)
+app.use("/api/sequences", communitySequenceRoutes);
 
 app.get("/api/test-smtp", async (_req, res) => {
   const apiKey = process.env.RESEND_API_KEY;
