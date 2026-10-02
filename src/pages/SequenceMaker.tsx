@@ -115,8 +115,10 @@ async function fetchKakaoProfile(token: string): Promise<KakaoUser | null> {
 }
 
 /* ── API 헬퍼 ── */
-async function apiGet(path: string) {
-  const res = await fetch(`${API_URL}/api/sequences${path}`);
+async function apiGet(path: string, params?: Record<string, string>) {
+  const url = new URL(`${API_URL}/api/sequences${path}`, window.location.origin);
+  if (params) Object.entries(params).forEach(([k, v]) => v && url.searchParams.set(k, v));
+  const res = await fetch(url.toString());
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -312,6 +314,12 @@ export default function SequenceMaker() {
   // 커뮤니티
   const [communitySeqs, setCommunitySeqs] = useState<CommunitySeq[]>([]);
   const [commLoading, setCommLoading] = useState(false);
+  const [commHasMore, setCommHasMore] = useState(false);
+  const [commPage, setCommPage] = useState(1);
+  const [commQ, setCommQ] = useState("");
+  const [commCategory, setCommCategory] = useState("");
+  const [commDifficulty, setCommDifficulty] = useState("");
+  const [commSort, setCommSort] = useState("latest");
   const [likedIds, setLikedIds] = useState<Set<number>>(new Set());
   const [viewingRemote, setViewingRemote] = useState<CommunitySeq | null>(null);
   const [remoteDetail, setRemoteDetail] = useState<Sequence | null>(null);
@@ -414,17 +422,23 @@ export default function SequenceMaker() {
 
   useEffect(() => { if (kakaoUser && API_URL) fetchMine(); }, [kakaoUser, fetchMine]);
 
-  const fetchCommunity = useCallback(async () => {
+  const fetchCommunity = useCallback(async (page = 1, append = false) => {
     if (!API_URL) return;
     setCommLoading(true);
     try {
-      const rows: CommunitySeq[] = await apiGet("/");
-      setCommunitySeqs(rows);
+      const params: Record<string, string> = { sort: commSort, page: String(page), limit: "20" };
+      if (commQ) params.q = commQ;
+      if (commCategory) params.category = commCategory;
+      if (commDifficulty) params.difficulty = commDifficulty;
+      const data: { items: CommunitySeq[]; hasMore: boolean } = await apiGet("/", params);
+      setCommunitySeqs(prev => append ? [...prev, ...data.items] : data.items);
+      setCommHasMore(data.hasMore);
+      setCommPage(page);
     } catch { /* ignore */ }
     setCommLoading(false);
-  }, []);
+  }, [commQ, commCategory, commDifficulty, commSort]);
 
-  useEffect(() => { if (tab === "community") fetchCommunity(); }, [tab, fetchCommunity]);
+  useEffect(() => { if (tab === "community") fetchCommunity(1); }, [tab, fetchCommunity]);
 
   async function handleKakaoLogin() {
     const appKey = import.meta.env.VITE_KAKAO_APP_KEY as string | undefined;
@@ -813,18 +827,49 @@ export default function SequenceMaker() {
               <div style={{ textAlign: "center", padding: "60px 20px", color: "#94a3b8" }}>
                 <p style={{ fontSize: 14 }}>VITE_API_URL 환경변수가 설정되지 않았습니다.</p>
               </div>
-            ) : commLoading ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", color: "#94a3b8", fontSize: 14 }}>불러오는 중...</div>
-            ) : communitySeqs.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", color: "#94a3b8" }}>
-                <Users size={40} style={{ margin: "0 auto 12px", display: "block", opacity: 0.3 }} />
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>아직 공개된 시퀀스가 없어요</p>
-                <p style={{ margin: "6px 0 0", fontSize: 13 }}>내 시퀀스를 공개해 커뮤니티와 나눠보세요</p>
-              </div>
             ) : (
               <>
-                {/* 명예의 전당 — 좋아요 상위 3 */}
+                {/* 검색 + 필터 */}
+                <div style={{ marginBottom: 14 }}>
+                  <input
+                    type="text"
+                    placeholder="시퀀스 검색..."
+                    value={commQ}
+                    onChange={e => setCommQ(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && fetchCommunity(1)}
+                    style={{ ...IS, marginBottom: 8 }}
+                  />
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <select value={commCategory} onChange={e => setCommCategory(e.target.value)} style={{ ...IS, flex: 1, minWidth: 120 }}>
+                      <option value="">전체 카테고리</option>
+                      {CATEGORY_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <select value={commDifficulty} onChange={e => setCommDifficulty(e.target.value)} style={{ ...IS, flex: 1, minWidth: 100 }}>
+                      <option value="">전체 난이도</option>
+                      {DIFFICULTY_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <select value={commSort} onChange={e => setCommSort(e.target.value)} style={{ ...IS, flex: 1, minWidth: 100 }}>
+                      <option value="latest">최신순</option>
+                      <option value="likes">좋아요순</option>
+                      <option value="views">조회수순</option>
+                    </select>
+                    <button onClick={() => fetchCommunity(1)} style={{ padding: "0 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", height: 40 }}>검색</button>
+                  </div>
+                </div>
+
+                {commLoading && communitySeqs.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "60px 20px", color: "#94a3b8", fontSize: 14 }}>불러오는 중...</div>
+                ) : communitySeqs.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "60px 20px", color: "#94a3b8" }}>
+                    <Users size={40} style={{ margin: "0 auto 12px", display: "block", opacity: 0.3 }} />
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>검색 결과가 없어요</p>
+                    <p style={{ margin: "6px 0 0", fontSize: 13 }}>다른 키워드로 검색해보세요</p>
+                  </div>
+                ) : (
+              <>
+                {/* 명예의 전당 — 좋아요 상위 3 (필터 없을 때만) */}
                 {(() => {
+                  if (commQ || commCategory || commDifficulty) return null;
                   const top3 = [...communitySeqs].sort((a, b) => b.likeCount - a.likeCount).slice(0, 3).filter(s => s.likeCount > 0);
                   if (top3.length === 0) return null;
                   const RANK = [
@@ -874,6 +919,17 @@ export default function SequenceMaker() {
                     />
                   </div>
                 ))}
+                {commHasMore && (
+                  <button
+                    onClick={() => fetchCommunity(commPage + 1, true)}
+                    disabled={commLoading}
+                    style={{ width: "100%", padding: "12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer", marginTop: 4 }}
+                  >
+                    {commLoading ? "불러오는 중..." : "더보기"}
+                  </button>
+                )}
+              </>
+                )}
               </>
             )}
           </>
