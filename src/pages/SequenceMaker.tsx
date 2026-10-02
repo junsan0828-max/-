@@ -272,12 +272,15 @@ function CommunityCard({ seq, onView, likedIds, onLike }: { seq: CommunitySeq; o
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#94a3b8" }}><Eye size={11} /> {seq.viewCount}</span>
-          <button
-            onClick={e => { e.stopPropagation(); onLike(); }}
-            style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: liked ? "#dc2626" : "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-          >
-            <Heart size={11} fill={liked ? "#dc2626" : "none"} /> {seq.likeCount}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button
+              onClick={e => { e.stopPropagation(); onLike(); }}
+              style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: liked ? "#dc2626" : "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <Heart size={11} fill={liked ? "#dc2626" : "none"} /> {seq.likeCount}
+            </button>
+            {seq.likeCount > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: "#f59e0b", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>{seq.likeCount}P</span>}
+          </div>
         </div>
       </div>
     </div>
@@ -819,16 +822,59 @@ export default function SequenceMaker() {
                 <p style={{ margin: "6px 0 0", fontSize: 13 }}>내 시퀀스를 공개해 커뮤니티와 나눠보세요</p>
               </div>
             ) : (
-              communitySeqs.map(seq => (
-                <div key={seq.id} style={{ marginBottom: 12 }}>
-                  <CommunityCard
-                    seq={seq}
-                    onView={() => openRemoteDetail(seq)}
-                    likedIds={likedIds}
-                    onLike={() => toggleLike(seq.id)}
-                  />
-                </div>
-              ))
+              <>
+                {/* 명예의 전당 — 좋아요 상위 3 */}
+                {(() => {
+                  const top3 = [...communitySeqs].sort((a, b) => b.likeCount - a.likeCount).slice(0, 3).filter(s => s.likeCount > 0);
+                  if (top3.length === 0) return null;
+                  const RANK = [
+                    { label: "1위", bg: "#FEF9C3", border: "#FDE047", color: "#854D0E", badge: "#EAB308" },
+                    { label: "2위", bg: "#F1F5F9", border: "#CBD5E1", color: "#475569", badge: "#94A3B8" },
+                    { label: "3위", bg: "#FFF7ED", border: "#FED7AA", color: "#9A3412", badge: "#EA580C" },
+                  ];
+                  return (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>명예의 전당</span>
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>좋아요 TOP 3</span>
+                      </div>
+                      {top3.map((seq, i) => {
+                        const r = RANK[i];
+                        return (
+                          <div key={seq.id}
+                            onClick={() => openRemoteDetail(seq)}
+                            style={{ display: "flex", alignItems: "center", gap: 12, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: r.badge, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <span style={{ fontSize: 11, fontWeight: 900, color: "#fff" }}>{r.label}</span>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{seq.title}</div>
+                              <div style={{ fontSize: 11, color: r.color, marginTop: 2 }}>{seq.authorName}</div>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: "#dc2626" }}>
+                                <Heart size={12} fill="#dc2626" /> {seq.likeCount}
+                              </div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: r.badge, background: "#fff", borderRadius: 4, padding: "1px 6px" }}>{seq.likeCount}P</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ borderTop: "1px solid #e2e8f0", marginBottom: 16 }} />
+                    </div>
+                  );
+                })()}
+                {communitySeqs.map(seq => (
+                  <div key={seq.id} style={{ marginBottom: 12 }}>
+                    <CommunityCard
+                      seq={seq}
+                      onView={() => openRemoteDetail(seq)}
+                      likedIds={likedIds}
+                      onLike={() => toggleLike(seq.id)}
+                    />
+                  </div>
+                ))}
+              </>
             )}
           </>
         )}
