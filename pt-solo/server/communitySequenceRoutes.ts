@@ -64,9 +64,32 @@ async function upsertAuthor(accessToken: string) {
   return r.rows[0];
 }
 
-// 공개 시퀀스 목록
-router.get("/", async (_req, res) => {
+// 공개 시퀀스 목록 (검색/필터/정렬/페이지네이션)
+router.get("/", async (req, res) => {
   try {
+    const { q, category, difficulty, audience, sort = "latest", page = "1", limit = "20" } = req.query as Record<string, string>;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const conditions: string[] = ["s.is_public = true"];
+    const params: any[] = [];
+
+    if (q) {
+      params.push(`%${q}%`);
+      conditions.push(`(s.title ILIKE $${params.length} OR s.description ILIKE $${params.length})`);
+    }
+    if (category) { params.push(category); conditions.push(`s.category = $${params.length}`); }
+    if (difficulty) { params.push(difficulty); conditions.push(`s.difficulty = $${params.length}`); }
+    if (audience) { params.push(audience); conditions.push(`s.target_audience = $${params.length}`); }
+
+    const orderBy = sort === "likes" ? "s.like_count DESC, s.created_at DESC"
+                  : sort === "views" ? "s.view_count DESC, s.created_at DESC"
+                  : "s.created_at DESC";
+
+    const where = conditions.join(" AND ");
+    params.push(parseInt(limit) + 1, offset); // +1 for hasMore check
+    const limitIdx = params.length - 1;
+    const offsetIdx = params.length;
+
     const rows = await pool.query(`
       SELECT s.id, s.title, s.description, s.category, s.difficulty, s.target_audience as "targetAudience",
              s.estimated_minutes as "estimatedMinutes", s.price, s.view_count as "viewCount",
@@ -74,10 +97,14 @@ router.get("/", async (_req, res) => {
              a.name as "authorName", a.thumbnail as "authorThumbnail"
       FROM community_sequences s
       JOIN community_sequence_authors a ON s.author_id = a.id
-      WHERE s.is_public = true
-      ORDER BY s.created_at DESC LIMIT 50
-    `);
-    res.json(rows.rows);
+      WHERE ${where}
+      ORDER BY ${orderBy}
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, params);
+
+    const items = rows.rows;
+    const hasMore = items.length > parseInt(limit);
+    res.json({ items: hasMore ? items.slice(0, parseInt(limit)) : items, hasMore });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
