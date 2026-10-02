@@ -560,23 +560,36 @@ export default function UpcomingClassBanner() {
                 </p>
               </div>
               <div className="flex gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveSlot(slot as Slot)}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors font-medium"
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  완료
-                </button>
-                <button
-                  type="button"
-                  onClick={() => cancelMutation.mutate({ scheduleId: slot.id, status: "cancelled" })}
-                  disabled={cancelMutation.isPending}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors font-medium disabled:opacity-50"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  취소
-                </button>
+                {(!slot.eventType || slot.eventType === "pt") ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSlot(slot as Slot)}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors font-medium"
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      완료
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cancelMutation.mutate({ scheduleId: slot.id, status: "cancelled" })}
+                      disabled={cancelMutation.isPending}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors font-medium disabled:opacity-50"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      취소
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActiveSlot(slot as Slot)}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-slate-500/20 text-slate-300 hover:bg-slate-500/30 transition-colors font-medium"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    확인
+                  </button>
+                )}
               </div>
             </div>
           );
