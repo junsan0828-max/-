@@ -1031,8 +1031,8 @@ function GettingStarted({
 
   const steps = [
     { done: step1Done, num: 1, title: "상담 기록하기", desc: "첫 상담 고객을 상담 관리에 등록하세요", actionLabel: "상담 등록 →", action: () => onNavigate("/leads") },
-    { done: step2Done, num: 2, title: "회원·계약 등록", desc: "PT 회원과 계약 내역을 추가하세요", actionLabel: "회원 등록 →", action: onRegisterMember },
-    { done: step3Done, num: 3, title: "수업 일지 작성", desc: "첫 PT 수업을 출석·일지로 기록하세요", actionLabel: "수업 기록 →", action: () => onNavigate("/attendance") },
+    { done: step2Done, num: 2, title: "회원·계약 등록", desc: "회원과 계약 내역을 추가하세요", actionLabel: "회원 등록 →", action: onRegisterMember },
+    { done: step3Done, num: 3, title: "수업 일지 작성", desc: "첫 수업을 출석·일지로 기록하세요", actionLabel: "수업 기록 →", action: () => onNavigate("/attendance") },
     { done: step4Done, num: 4, title: "매출 확인하기", desc: "정산 화면에서 내 수입을 확인하세요", actionLabel: "매출 보기 →",
       action: onViewSettlement },
   ];
@@ -1376,8 +1376,8 @@ function TrainerDashboard() {
           <button onClick={() => setPtStatsModalOpen(true)}
             className="rounded-2xl bg-card border border-border p-4 text-left active:scale-95 transition-transform">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs text-muted-foreground">이번달 PT 세션</span>
-              <Dumbbell className="h-4 w-4 text-violet-500" />
+              <span className="text-xs text-muted-foreground">이번달 수업</span>
+              <CalendarDays className="h-4 w-4 text-violet-500" />
             </div>
             <p className="text-2xl font-bold">{stats?.monthPtSessions ?? 0}<span className="text-sm font-normal text-muted-foreground ml-1">회</span></p>
           </button>
