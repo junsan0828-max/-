@@ -2,6 +2,8 @@
 // 만료 후 재등록 유도(D+3~14).
 // 문구·대상·중복방지 규칙은 노션 협의실에서 대표가 2026-08-11 확정한 스펙을 그대로 따른다.
 // 재등록 유도 문구·타이밍(D+3~14, 1개월 서비스 혜택)은 2026-08-17 대표 확정.
+// VIP 등급(members.grade='vip') 회원은 모든 자동 문자 대상에서 제외한다(2026-09-15 대표 지시) —
+// 운영시스템 데이터관리>고객>VIP 회원 목록과 동일한 기준.
 // 클라우드 예약실행에서도 동작해야 해서 pg Pool이 아니라 neon() HTTP 방식을 쓴다(다른 잡들과 동일).
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { sendSms, sendAlimtalk, type AlimtalkButton } from "./aligo";
@@ -154,6 +156,7 @@ export async function findExpiryCandidates(sql: NeonQueryFunction<false, false>,
     `SELECT m.id, m.name, m.phone, m."branchId" AS "branchId", m."membershipEnd" AS "membershipEnd"
      FROM members m
      WHERE m.status = 'active'
+       AND m.grade <> 'vip'
        AND m."membershipEnd" = $1
        AND NOT EXISTS (
          SELECT 1 FROM refund_contracts r WHERE r."memberId" = m.id AND r.status IN ('completed', 'pending')
@@ -179,6 +182,7 @@ export async function findLapsedCandidates(
     `SELECT m.id, m.name, m.phone, m."branchId" AS "branchId", m."membershipEnd" AS "membershipEnd"
      FROM members m
      WHERE m.status = 'active'
+       AND m.grade <> 'vip'
        AND m."membershipEnd" >= $1 AND m."membershipEnd" <= $2
        AND NOT EXISTS (
          SELECT 1 FROM refund_contracts r WHERE r."memberId" = m.id AND r.status IN ('completed', 'pending')
@@ -251,7 +255,8 @@ export async function findSignupCompleteCandidates(
   return (await sql.query(
     `SELECT re."memberId" AS id, re."customerName" AS name, re.phone, re."branchId" AS "branchId"
      FROM revenue_entries re
-     WHERE re.type = '헬스' AND re."subType" = '신규' AND re."paymentDate" = $1 AND re."memberId" IS NOT NULL`,
+     WHERE re.type = '헬스' AND re."subType" = '신규' AND re."paymentDate" = $1 AND re."memberId" IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM members m WHERE m.id = re."memberId" AND m.grade = 'vip')`,
     [targetDate]
   )) as { id: number; name: string; phone: string | null; branchId: number | null }[];
 }
