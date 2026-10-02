@@ -566,7 +566,7 @@ export default function MemberDetail({ memberId }: Props) {
   // PT 패키지 추가
   const addPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
-      toast.success("PT 패키지가 추가되었습니다.");
+      toast.success("수업 프로그램이 추가되었습니다.");
       setAddPkgOpen(false);
       setPkgForm({
         ptProgram: "",
@@ -844,7 +844,7 @@ export default function MemberDetail({ memberId }: Props) {
                         className="h-9 text-sm"
                       />
                       <div className="flex gap-1.5 flex-wrap">
-                        {["피티", "필라테스", "이벤트 세션"].map((preset) => (
+                        {["PT", "필라테스", "이벤트 세션"].map((preset) => (
                           <button
                             key={preset}
                             type="button"
@@ -934,7 +934,7 @@ export default function MemberDetail({ memberId }: Props) {
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
               {!ptPackages?.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">등록된 PT 프로그램이 없습니다.</p>
+                <p className="text-muted-foreground text-sm text-center py-8">등록된 수업 프로그램이 없습니다.</p>
               ) : (
                 <div className="space-y-3">
                   {ptPackages.map((pkg) => {
@@ -946,7 +946,7 @@ export default function MemberDetail({ memberId }: Props) {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="font-medium text-foreground text-sm truncate">
-                                {pkg.packageName || "PT 프로그램"}
+                                {pkg.packageName || "수업 프로그램"}
                               </p>
                               <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
                                 pkg.status === "active"
@@ -1015,7 +1015,7 @@ export default function MemberDetail({ memberId }: Props) {
                               }}
                             >
                               <Dumbbell className="h-3.5 w-3.5" />
-                              세션 1회 사용
+                              수업 1회 사용
                             </Button>
                           </div>
                         )}
@@ -1354,11 +1354,11 @@ export default function MemberDetail({ memberId }: Props) {
         </TabsContent>
       </Tabs>
 
-      {/* PT 패키지 수정 다이얼로그 */}
+      {/* 수업 프로그램 수정 다이얼로그 */}
       <Dialog open={editPkgOpen} onOpenChange={setEditPkgOpen}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>PT 패키지 수정</DialogTitle>
+            <DialogTitle>수업 프로그램 수정</DialogTitle>
             <DialogDescription>패키지 정보를 수정합니다.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -2058,7 +2058,7 @@ export default function MemberDetail({ memberId }: Props) {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 {([
-                  { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+                  { label: "프로그램명", key: "programName", placeholder: "수업 10회" },
                   { label: "결제 금액(원)", key: "programPrice", placeholder: "500000" },
                   { label: "총 횟수", key: "programSessions", placeholder: "10" },
                   { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
@@ -2139,7 +2139,7 @@ export default function MemberDetail({ memberId }: Props) {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 {([
-                  { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+                  { label: "프로그램명", key: "programName", placeholder: "수업 10회" },
                   { label: "총 횟수", key: "totalSessions", placeholder: "10" },
                   { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
                   { label: "잔여 횟수", key: "remainingSessions", placeholder: "7" },
