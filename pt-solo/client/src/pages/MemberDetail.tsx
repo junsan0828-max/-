@@ -754,12 +754,7 @@ export default function MemberDetail({ memberId }: Props) {
             className="gap-1.5 w-full border-primary/40 text-primary hover:bg-primary/10"
             onClick={() => setLocation(`/members/${memberId}/parq`)}
           >
-            <span className="flex items-center gap-1.5">
-              PAR-Q 사전건강검사
-              {pointLabel(autoPoints("parq_submit")) && (
-                <span className="text-xs text-green-400 font-normal">{pointLabel(autoPoints("parq_submit"))} 최초</span>
-              )}
-            </span>
+            PAR-Q 사전건강검사
           </Button>
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
@@ -1239,14 +1234,7 @@ export default function MemberDetail({ memberId }: Props) {
             }}
           >
             <CheckCircle className="h-4 w-4" />
-            {checkedInToday ? "오늘 출석 완료 ✓" : (
-              <span className="flex items-center gap-1.5">
-                오늘 출석 체크
-                {pointLabel(autoPoints("attendance_check")) && (
-                  <span className="text-xs text-green-400 font-normal">{pointLabel(autoPoints("attendance_check"))}</span>
-                )}
-              </span>
-            )}
+            {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
           </Button>
 
           {/* 달력 카드 */}
@@ -1691,14 +1679,7 @@ export default function MemberDetail({ memberId }: Props) {
                   notes: journalForm.notes || undefined,
                   sequenceVersionId: journalForm.sequenceVersionId,
                 })}>
-                {createLogMutation.isPending ? "저장 중..." : (
-                  <span className="flex items-center gap-1.5">
-                    저장
-                    {pointLabel(autoPoints("session_log")) && (
-                      <span className="text-xs text-green-400 font-normal">{pointLabel(autoPoints("session_log"))}</span>
-                    )}
-                  </span>
-                )}
+                {createLogMutation.isPending ? "저장 중..." : "저장"}
               </Button>
             </div>
           </div>
