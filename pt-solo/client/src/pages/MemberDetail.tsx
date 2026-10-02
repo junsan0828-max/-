@@ -1194,7 +1194,7 @@ export default function MemberDetail({ memberId }: Props) {
                               <span key={bp} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{bp}</span>
                             ))}
                             {log.packageId && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">세션</span>
                             )}
                           </div>
                           {(log as any).goal && (

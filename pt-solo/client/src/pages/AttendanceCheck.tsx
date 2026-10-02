@@ -513,7 +513,7 @@ export default function AttendanceCheck({ memberId }: Props) {
 
         {/* PT 세션 차감 */}
         {activePkgs.length > 0 && status === "attended" && (
-          <Section title="PT 세션 차감">
+          <Section title="수업 세션 차감">
             <div className="space-y-3">
               {alreadyDeducted ? (
                 <div className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border border-green-500/30 bg-green-500/10 text-sm text-green-400">
@@ -531,7 +531,7 @@ export default function AttendanceCheck({ memberId }: Props) {
                 }`}
               >
                 <Dumbbell className="h-4 w-4 shrink-0" />
-                PT 세션 1회 차감
+                수업 1회 차감
                 <span className="ml-auto text-xs opacity-70">
                   {deductSession ? "ON" : "OFF"}
                 </span>
