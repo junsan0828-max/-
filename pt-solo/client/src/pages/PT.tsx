@@ -15,7 +15,17 @@ import {
 import {
   Search, ChevronRight, Dumbbell, Calendar, AlertCircle,
   Clock, XCircle, CheckSquare, Square, CalendarPlus, X, UserPlus,
+  Pencil, RefreshCw, AlertTriangle,
 } from "lucide-react";
+
+const AVATAR_GRADIENTS = [
+  "from-amber-400 to-orange-500",
+  "from-emerald-400 to-teal-500",
+  "from-blue-400 to-indigo-500",
+  "from-pink-400 to-rose-500",
+  "from-violet-400 to-purple-500",
+  "from-cyan-400 to-blue-500",
+];
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
 
@@ -314,6 +324,61 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+function MemberPickModal({
+  open, onClose, title, subtitle, allMembers, onPick,
+}: {
+  open: boolean; onClose: () => void; title: string; subtitle: string;
+  allMembers: { id: number; name: string; phone?: string | null }[] | undefined;
+  onPick: (id: number) => void;
+}) {
+  const [q, setQ] = useState("");
+  const filtered = (allMembers ?? []).filter(m =>
+    !q.trim() || m.name.toLowerCase().includes(q.toLowerCase()) || (m.phone ?? "").includes(q)
+  );
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onClose(); if (!o) setQ(""); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-indigo-500" />
+            {title}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <input
+            autoFocus
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="회원 이름 검색..."
+            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
+          />
+        </div>
+        <div className="space-y-1 max-h-72 overflow-y-auto -mx-1 px-1">
+          {!allMembers ? (
+            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">회원을 찾을 수 없습니다.</p>
+          ) : filtered.map(m => (
+            <button key={m.id} onClick={() => { onClose(); onPick(m.id); }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors text-left">
+              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{m.name}</p>
+                {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MembersTab() {
   const [, setLocation] = useLocation();
   const search_ = useSearch();
@@ -322,6 +387,9 @@ function MembersTab() {
   const [specialFilter, setSpecialFilter] = useState<SpecialFilter>("none");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [infoEditOpen, setInfoEditOpen] = useState(false);
+  const [renewalModalOpen, setRenewalModalOpen] = useState(false);
+  const [renewalSelected, setRenewalSelected] = useState<Set<number>>(new Set());
   const [extendOpen, setExtendOpen] = useState(false);
   const [extendDays, setExtendDays] = useState(30);
   const [extendCustom, setExtendCustom] = useState("");
@@ -337,6 +405,15 @@ function MembersTab() {
   const utils = trpc.useUtils();
   const { data: members, isLoading } = trpc.members.list.useQuery();
   const { data: ptPackages } = trpc.pt.list.useQuery();
+  const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
+
+  const sendRenewalPushMutation = trpc.fitStepPlus.trainer_sendRenewalPush.useMutation({
+    onSuccess: () => {
+      toast.success("재등록 안내를 발송했습니다.");
+      setRenewalModalOpen(false);
+    },
+    onError: () => toast.error("발송 중 오류가 발생했습니다."),
+  });
 
   const bulkExtendMutation = trpc.members.bulkExtend.useMutation({
     onSuccess: (data) => {
@@ -415,8 +492,88 @@ function MembersTab() {
     bulkExtendMutation.mutate({ memberIds: Array.from(selectedIds), days: effectiveDays });
   };
 
+  const quickActions = [
+    { label: "정보 수정", icon: Pencil, color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20", onClick: () => setInfoEditOpen(true) },
+    { label: "만료 임박", icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", badge: counts.expiring || null, onClick: () => { setSpecialFilter(f => f === "expiring" ? "none" : "expiring"); } },
+    { label: "미수금", icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", badge: counts.unpaid || null, onClick: () => { setSpecialFilter(f => f === "unpaid" ? "none" : "unpaid"); } },
+    { label: "재등록 예정자", icon: RefreshCw, color: "text-cyan-500", bg: "bg-cyan-500/10", border: "border-cyan-500/20", badge: lowSessions?.length || null, onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); } },
+  ];
+
   return (
     <div className="space-y-4">
+      {/* 퀵 액션 */}
+      <div className="grid grid-cols-4 gap-2">
+        {quickActions.map((a) => (
+          <button key={a.label} onClick={a.onClick}
+            className={`relative flex flex-col items-center gap-1.5 py-3 rounded-2xl border ${a.bg} ${a.border} active:scale-95 transition-transform`}>
+            {a.badge != null && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {a.badge}
+              </span>
+            )}
+            <a.icon className={`h-4 w-4 ${a.color}`} />
+            <span className={`text-[10px] font-medium ${a.color} leading-tight text-center`}>{a.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* 정보 수정 모달 */}
+      <MemberPickModal open={infoEditOpen} onClose={() => setInfoEditOpen(false)}
+        title="회원 정보 수정" subtitle="이름으로 검색해 회원을 선택하세요"
+        allMembers={members}
+        onPick={(id) => setLocation(`/members/${id}`)} />
+
+      {/* 재등록 안내 모달 */}
+      <Dialog open={renewalModalOpen} onOpenChange={setRenewalModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-cyan-500" />
+              재등록 안내 보내기
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              잔여 수업 5회 이하 회원 · FIT STEP+ 앱으로 재등록 안내 푸시를 보내요
+            </p>
+          </DialogHeader>
+          <div className="space-y-1 max-h-72 overflow-y-auto">
+            {!lowSessions || lowSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">재등록 안내가 필요한 회원이 없습니다.</p>
+            ) : (
+              lowSessions.map(m => {
+                const remaining = m.totalSessions - m.usedSessions;
+                const checked = renewalSelected.has(m.id);
+                return (
+                  <label key={m.id} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors cursor-pointer">
+                    <input type="checkbox" className="accent-primary" checked={checked}
+                      onChange={() => setRenewalSelected(prev => {
+                        const next = new Set(prev);
+                        checked ? next.delete(m.id) : next.add(m.id);
+                        return next;
+                      })} />
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                      <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-semibold truncate">{m.name}</p>
+                      {m.packageName && <p className="text-xs text-muted-foreground truncate">{m.packageName}</p>}
+                    </div>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${remaining <= 0 ? "bg-red-500/15 text-red-500" : "bg-cyan-500/15 text-cyan-600"}`}>
+                      {remaining <= 0 ? "소진" : `${remaining}회 남음`}
+                    </span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          {lowSessions && lowSessions.length > 0 && (
+            <Button className="w-full" disabled={renewalSelected.size === 0 || sendRenewalPushMutation.isPending}
+              onClick={() => sendRenewalPushMutation.mutate({ memberIds: Array.from(renewalSelected) })}>
+              {sendRenewalPushMutation.isPending ? "발송 중..." : `선택한 ${renewalSelected.size}명에게 알림 보내기`}
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           총 {members?.length ?? 0}명
