@@ -581,7 +581,12 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
   };
 
   const createMutation = trpc.schedules.create.useMutation({
-    onSuccess: () => { toast.success(assigningToFixed ? "이 주 수업이 배정되었습니다" : "수업이 추가되었습니다"); onSaved(); },
+    onSuccess: (_data, variables) => {
+      if (variables.status === "cancelled") toast.success("이 수업이 취소됐습니다");
+      else if (assigningToFixed) toast.success("이 주 수업이 배정되었습니다");
+      else toast.success("수업이 추가되었습니다");
+      onSaved();
+    },
     onError: e => toast.error(e.message),
   });
   const updateMutation = trpc.schedules.update.useMutation({
@@ -1053,7 +1058,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
                 }}
                 className="flex-1 py-2 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-sm font-medium disabled:opacity-50"
               >
-                {busy ? "처리 중..." : "확인"}
+                {deleteBusy ? "처리 중..." : deleteDialog === "one" ? "취소 처리" : "삭제"}
               </button>
             </div>
           </div>
