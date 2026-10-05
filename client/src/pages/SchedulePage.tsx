@@ -647,6 +647,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
   };
 
   const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || cancelCompletionMutation.isPending || checkPastMutation.isPending || noShowMutation.isPending || createThenCheckMutation.isPending || createThenNoShowMutation.isPending;
+  // 삭제 버튼은 삭제/취소 관련 mutation이 진행 중일 때만 막음 (저장 중에는 삭제 가능)
+  const deleteBusy = deleteMutation.isPending || createMutation.isPending;
 
   const save = () => {
     // 시간을 직접 고쳐서 영업시간 밖으로 나가는 것도 막는다(칸 잠금만으론 못 막힘).
@@ -973,7 +975,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
           {!isNew && (
             <button
               onClick={() => setDeleteDialog("none") === undefined && setDeleteDialog("one")}
-              disabled={busy}
+              disabled={deleteBusy}
               className="px-3 py-2 rounded-lg border border-red-500/40 text-red-400 text-sm disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" />
@@ -1028,7 +1030,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
                 취소
               </button>
               <button
-                disabled={busy}
+                disabled={deleteBusy}
                 onClick={() => {
                   if (target.isRecurring === 1) {
                     if (deleteDialog === "one") {
