@@ -5938,7 +5938,8 @@ const dashboardRouter = t.router({
 
     const cols = {
       id: schedules.id, status: schedules.status, scheduledTime: schedules.scheduledTime,
-      memberName: schedules.memberName, memberId: schedules.memberId,
+      memberName: sql<string | null>`COALESCE(${members.name}, ${schedules.memberName})`,
+      memberId: schedules.memberId,
       isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate,
       eventType: schedules.eventType, notes: schedules.notes,
     } as const;
@@ -5946,9 +5947,11 @@ const dashboardRouter = t.router({
     const isClass = sql`${schedules.eventType} NOT IN ('meeting', 'other')`;
 
     const oneOffs = await db.select(cols).from(schedules)
+      .leftJoin(members, eq(schedules.memberId, members.id))
       .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0), isClass));
 
     const recurringAll = await db.select(cols).from(schedules)
+      .leftJoin(members, eq(schedules.memberId, members.id))
       .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass));
 
     const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
