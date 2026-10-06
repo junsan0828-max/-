@@ -1281,6 +1281,10 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.update(members).set({ branchId: input.branchId }).where(eq(members.id, input.memberId));
+      // 해당 회원의 미배정 매출도 같은 지점으로 자동 배정
+      await db.update(revenueEntries)
+        .set({ branchId: input.branchId })
+        .where(and(eq(revenueEntries.memberId, input.memberId), isNull(revenueEntries.branchId)));
       return { ok: true };
     }),
 
