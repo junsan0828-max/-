@@ -61,6 +61,15 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
 }) {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const [assigningEntryId, setAssigningEntryId] = useState<number | null>(null);
+  const { data: branches } = trpc.schedules.branches.useQuery();
+  const utils = trpc.useUtils();
+  const assignBranchToRevenue = trpc.gym.assignBranchToRevenue.useMutation({
+    onSuccess: () => { utils.gym.revenue.list.invalidate(); setAssigningEntryId(null); },
+  });
+  const assignBranchMember = trpc.members.assignBranch.useMutation({
+    onSuccess: () => { utils.gym.revenue.list.invalidate(); setAssigningEntryId(null); },
+  });
   const { data: entries, isLoading: revenueLoading } = trpc.gym.revenue.list.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: leads, isLoading: leadsLoading } = trpc.gym.leads.list.useQuery();
   const { data: unpaidRows, isLoading: unpaidLoading } = trpc.gym.kpi.unpaidList.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
@@ -98,7 +107,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
     return [...parts, ...extras].filter(Boolean).join(" · ");
   }
 
-  const configs: Record<NonNullable<ModalType>, { title: string; rows: { label: string; value: string; sub?: string; warn?: boolean }[]; detail?: React.ReactNode }> = {
+  const configs: Record<NonNullable<ModalType>, { title: string; rows: { label: string; value: string; sub?: string; warn?: boolean; entryId?: number; memberId?: number | null }[]; detail?: React.ReactNode }> = {
     today: {
       title: "오늘 매출 내역",
       rows: todayEntries.map(r => ({
@@ -106,6 +115,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.type, r.entry.subType ?? ""]),
         warn: !r.entry.branchId,
+        entryId: r.entry.id,
+        memberId: r.entry.memberId,
       })),
       detail: todayEntries.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">오늘 매출 내역이 없습니다</p> : null,
     },
@@ -115,7 +126,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type, r.entry.subType ?? ""]),
-        warn: !r.entry.branchId,
+        warn: !r.entry.branchId, entryId: r.entry.id, memberId: r.entry.memberId,
       })),
       detail: refundEntries.length > 0 ? (
         <div className="mt-4 space-y-2">
@@ -142,7 +153,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
-        warn: !r.entry.branchId,
+        warn: !r.entry.branchId, entryId: r.entry.id, memberId: r.entry.memberId,
       })),
       detail: null,
     },
@@ -152,7 +163,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
-        warn: !r.entry.branchId,
+        warn: !r.entry.branchId, entryId: r.entry.id, memberId: r.entry.memberId,
       })),
       detail: null,
     },
@@ -162,7 +173,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
-        warn: !r.entry.branchId,
+        warn: !r.entry.branchId, entryId: r.entry.id, memberId: r.entry.memberId,
       })),
       detail: null,
     },
@@ -172,7 +183,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
-        warn: !r.entry.branchId,
+        warn: !r.entry.branchId, entryId: r.entry.id, memberId: r.entry.memberId,
       })),
       detail: null,
     },
@@ -237,12 +248,38 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
           ) : (
             <>
               {cfg.rows.length > 0 && cfg.rows.map((row, i) => (
-                <div key={i} className={`flex justify-between items-start py-2 border-b border-border/40 ${(row as any).warn ? "bg-orange-500/5 rounded-lg px-2 -mx-2" : ""}`}>
-                  <div className="min-w-0 flex-1 pr-3">
-                    <p className="text-sm font-medium truncate">{row.label}</p>
-                    {row.sub && <p className={`text-xs mt-0.5 ${(row as any).warn ? "text-orange-400" : "text-muted-foreground"}`}>{row.sub}</p>}
+                <div key={i} className={`py-2 border-b border-border/40 ${(row as any).warn ? "bg-orange-500/5 rounded-lg px-2 -mx-2" : ""}`}>
+                  <div
+                    className="flex justify-between items-start"
+                    onClick={() => (row as any).warn && (row as any).entryId && setAssigningEntryId(assigningEntryId === (row as any).entryId ? null : (row as any).entryId)}
+                    style={(row as any).warn ? { cursor: "pointer" } : undefined}
+                  >
+                    <div className="min-w-0 flex-1 pr-3">
+                      <p className="text-sm font-medium truncate">{row.label}</p>
+                      {row.sub && <p className={`text-xs mt-0.5 ${(row as any).warn ? "text-orange-400" : "text-muted-foreground"}`}>{row.sub}</p>}
+                    </div>
+                    <p className="text-sm font-semibold text-foreground shrink-0">{row.value}</p>
                   </div>
-                  <p className="text-sm font-semibold text-foreground shrink-0">{row.value}</p>
+                  {(row as any).warn && assigningEntryId === (row as any).entryId && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(branches ?? []).map(b => (
+                        <button
+                          key={b.id}
+                          disabled={assignBranchToRevenue.isPending || assignBranchMember.isPending}
+                          onClick={() => {
+                            if ((row as any).memberId) {
+                              assignBranchMember.mutate({ memberId: (row as any).memberId, branchId: b.id });
+                            } else {
+                              assignBranchToRevenue.mutate({ revenueId: (row as any).entryId, branchId: b.id });
+                            }
+                          }}
+                          className="px-3 py-1 text-xs rounded-full bg-primary/20 hover:bg-primary/40 text-primary border border-primary/30 disabled:opacity-50"
+                        >
+                          {b.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               {cfg.rows.length === 0 && !cfg.detail && (
