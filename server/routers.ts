@@ -4796,6 +4796,15 @@ ${dataContext}
       return { success: true };
     }),
 
+  recordAppInstall: gymPlusProtected.mutation(async ({ ctx }) => {
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+    await pool.query(
+      `UPDATE gym_plus_members SET "appInstalledAt" = $1 WHERE id = $2 AND "appInstalledAt" IS NULL`,
+      [kstNow, ctx.gymPlusMemberId]
+    );
+    return { success: true };
+  }),
+
   // ─── 구매신청 ────────────────────────────────────────────────────────────────
 
   requestPurchase: gymPlusProtected

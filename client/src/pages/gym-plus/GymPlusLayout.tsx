@@ -23,6 +23,20 @@ export function setPushOptedOut(v: boolean) {
 function usePushSubscription() {
   const { data: vapidData } = trpc.gymPlus.getPushVapidKey.useQuery();
   const subscribeMut = trpc.gymPlus.subscribePush.useMutation();
+  const recordInstallMut = trpc.gymPlus.recordAppInstall.useMutation();
+
+  useEffect(() => {
+    // 홈화면 추가(PWA install) 이벤트 → 서버에 기록
+    const installedHandler = () => { recordInstallMut.mutate(); };
+    window.addEventListener("appinstalled", installedHandler);
+
+    // 이미 standalone 모드로 실행 중이면 즉시 기록 (이전에 설치했지만 기록 안 된 경우)
+    const isStandalone = (window.navigator as any).standalone === true
+      || window.matchMedia("(display-mode: standalone)").matches;
+    if (isStandalone) { recordInstallMut.mutate(); }
+
+    return () => window.removeEventListener("appinstalled", installedHandler);
+  }, []);
 
   useEffect(() => {
     if (!vapidData?.publicKey) return;
