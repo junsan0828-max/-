@@ -2975,7 +2975,7 @@ const schedulesRouter = t.router({
     const kst = new Date(nowUtc.getTime() + 9 * 60 * 60 * 1000);
     const today = kst.toISOString().split("T")[0];
 
-    const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+    const isAdmin = isScheduleAdmin(ctx.user?.role);
     const trainerId = isAdmin ? null : (ctx.user as any)?.trainerId ?? null;
 
     if (!isAdmin && !trainerId) return [];

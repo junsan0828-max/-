@@ -89,7 +89,8 @@ type Slot = {
 
 export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
-  const [editing, setEditing] = useState<{ weekday: number; hour: number } | null>(null);
+  // trainerId: 전체보기에서 특정 카드를 눌렀으면 그 트레이너, null이면 새 일정(트레이너 선택 필요)
+  const [editing, setEditing] = useState<{ weekday: number; hour: number; slotId?: number; trainerId?: number | null } | null>(null);
   // 관리자 전용: null = 전체 트레이너 보기
   const [trainerFilter, setTrainerFilter] = useState<number | null>(null);
   // 다음 스케줄 잡기에서 넘어온 회원 자동입력
@@ -148,6 +149,13 @@ export default function SchedulePage() {
   const [dragSlotId, setDragSlotId] = useState<number | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStartPos = useRef<{ x: number; y: number } | null>(null);
+  // 꾹 누른 뒤 손을 떼면 click이 따라오는데, 그 click이 이동모드를 바로 취소하지 않게 한 번 삼킨다
+  const longPressFired = useRef(false);
+  const swallowClick = () => {
+    if (!longPressFired.current) return false;
+    longPressFired.current = false;
+    return true;
+  };
 
   const moveMutation = trpc.schedules.update.useMutation({
     onSuccess: () => { toast.success("수업을 이동했습니다"); refresh(); },
@@ -171,6 +179,7 @@ export default function SchedulePage() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     pressStartPos.current = { x, y };
     longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
       setDragSlotId(slotId);
       try { (navigator as any).vibrate?.(40); } catch {}
       longPressTimer.current = null;
@@ -391,7 +400,17 @@ export default function SchedulePage() {
                   }
 
                   if (viewingAll && !top) {
-                    return <div key={wd} className="min-h-[42px] rounded-lg border border-border/30 border-dashed" />;
+                    return (
+                      <button
+                        key={wd}
+                        onClick={() => setEditing({ weekday: wd, hour: h, trainerId: null })}
+                        className={`min-h-[42px] rounded-lg border border-dashed flex items-center justify-center ${
+                          hol ? "border-red-500/25 hover:border-red-500/50" : "border-border/30 hover:border-border/70 hover:bg-accent/30"
+                        }`}
+                      >
+                        <Plus className="h-3 w-3 text-muted-foreground/30" />
+                      </button>
+                    );
                   }
 
                   const et = (top?.eventType ?? "pt") as EventType;
@@ -411,34 +430,63 @@ export default function SchedulePage() {
                       o.isRecurring === 0 && o.trainerId === s.trainerId && o.scheduledTime === s.scheduledTime))
                   );
 
-                  if (viewingAll && visible.length > 1) {
+                  // 관리자·FC 전체보기, 또는 한 칸에 여러 수업: 카드마다 따로 보여주고 따로 누르고 따로 옮긴다
+                  if (viewingAll || visible.length > 1) {
                     return (
-                      <button
-                        key={wd}
-                        onClick={() => {
-                          if (isMoveActive) { commitMove(dragSlotId!, wd, h); return; }
-                          setEditing({ weekday: wd, hour: h });
-                        }}
-                        className="min-h-[42px] rounded-lg border border-border/40 p-0.5 text-left transition-all hover:border-border/70 select-none w-full"
-                      >
-                        <div className="flex flex-col gap-0.5">
-                          {visible.map(s => {
-                            const p = TRAINER_PALETTE[trainerColorMap.get(s.trainerId) ?? 0];
-                            const sEt = (s.eventType ?? "pt") as EventType;
-                            return (
-                              <div key={s.id} className={`px-1 py-0.5 rounded border leading-tight ${
-                                s.status === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
-                                : s.status === "done" ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
-                                : p.cell
-                              }`}>
-                                <span className="block truncate text-[9px] text-amber-300/80">{s.trainerName ?? "담당없음"}</span>
-                                {sEt !== "pt" && <span className="block text-[8px] opacity-60">{EVENT_LABELS[sEt]}</span>}
-                                <span className="block truncate text-[9px] font-medium">{s.memberName ?? s.notes ?? "미배정"}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </button>
+                      <div key={wd} className="min-h-[42px] rounded-lg flex flex-col gap-[3px]">
+                        {visible.map(s => {
+                          const p = TRAINER_PALETTE[trainerColorMap.get(s.trainerId) ?? 0];
+                          const sEt = (s.eventType ?? "pt") as EventType;
+                          const sDone = s.status === "done";
+                          const sSelected = dragSlotId === s.id;
+                          return (
+                            <button
+                              key={s.id}
+                              onPointerDown={e => {
+                                if (sDone || isMoveActive) return;
+                                startLongPress(s.id, e.clientX, e.clientY);
+                              }}
+                              onPointerMove={e => cancelLongPress(e.clientX, e.clientY)}
+                              onPointerUp={() => cancelLongPress()}
+                              onPointerCancel={() => cancelLongPress()}
+                              onContextMenu={e => e.preventDefault()}
+                              onClick={() => {
+                                if (swallowClick()) return;
+                                if (sSelected) { cancelMove(); return; }
+                                if (isMoveActive) { commitMove(dragSlotId!, wd, h); return; }
+                                setEditing({ weekday: wd, hour: h, slotId: s.id, trainerId: s.trainerId });
+                              }}
+                              className={`relative w-full rounded-lg border px-1 py-1 text-left text-[11px] leading-tight transition-all select-none ${
+                                sSelected ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
+                                : s.status === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
+                                : sDone ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
+                                : viewingAll ? p.cell
+                                : (EVENT_COLORS[sEt] ?? EVENT_COLORS.pt).filled
+                              }`}
+                            >
+                              {sDone && <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />}
+                              {viewingAll && (
+                                <span className="block truncate text-[10px] text-amber-300/90">{s.trainerName ?? "담당없음"}</span>
+                              )}
+                              {sEt !== "pt" && <span className="block text-[9px] opacity-60 font-medium">{EVENT_LABELS[sEt]}</span>}
+                              <span className="block truncate font-medium">{s.memberName ?? s.notes ?? "미배정"}</span>
+                              <span className="opacity-70 flex items-center gap-0.5">
+                                {s.scheduledTime}
+                                {s.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                        {/* 같은 시간에 다른 트레이너 일정 추가 */}
+                        {viewingAll && !isMoveActive && open && (
+                          <button
+                            onClick={() => setEditing({ weekday: wd, hour: h, trainerId: null })}
+                            className="rounded border border-dashed border-border/30 hover:border-border/70 flex items-center justify-center py-0.5"
+                          >
+                            <Plus className="h-2.5 w-2.5 text-muted-foreground/40" />
+                          </button>
+                        )}
+                      </div>
                     );
                   }
 
@@ -452,7 +500,9 @@ export default function SchedulePage() {
                       onPointerMove={e => cancelLongPress(e.clientX, e.clientY)}
                       onPointerUp={() => cancelLongPress()}
                       onPointerCancel={() => cancelLongPress()}
+                      onContextMenu={e => e.preventDefault()}
                       onClick={() => {
+                        if (swallowClick()) return;
                         if (isSelected) { cancelMove(); return; }
                         if (isMoveActive && top) { commitMove(dragSlotId!, wd, h); return; }
                         if (!isMoveActive) setEditing({ weekday: wd, hour: h });
@@ -506,7 +556,6 @@ export default function SchedulePage() {
                             {top.scheduledTime}
                             {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
                           </span>
-                          {visible.length > 1 && <span className="opacity-60">+{visible.length - 1}</span>}
                         </>
                       ) : (
                         <Plus className="h-3 w-3 text-muted-foreground/40" />
@@ -527,29 +576,41 @@ export default function SchedulePage() {
         </div>
       )}
 
-      {editing && (
+      {editing && (() => {
+        const all = grid[`${editing.weekday}-${editing.hour}`] ?? [];
+        const picked = editing.slotId != null ? all.find(s => s.id === editing.slotId) : undefined;
+        // 카드를 골랐으면 그 일정(+그것이 덮은 고정 템플릿)만, 새 일정이면 빈 칸으로 연다
+        const cell = picked
+          ? all.filter(s => s.id === picked.id || (s.trainerId === picked.trainerId && s.scheduledTime === picked.scheduledTime))
+          : editing.trainerId === null ? [] : all;
+        const targeted = editing.trainerId !== undefined;
+        return (
         <SlotEditor
-          cell={grid[`${editing.weekday}-${editing.hour}`] ?? []}
+          key={`${editing.weekday}-${editing.hour}-${editing.slotId ?? "new"}`}
+          cell={cell}
           date={toYmd(weekDates[editing.weekday])}
           hour={editing.hour}
-          viewingAll={viewingAll}
-          trainerId={trainerFilter}
+          viewingAll={targeted ? false : viewingAll}
+          trainerId={targeted ? (editing.trainerId ?? null) : trainerFilter}
+          trainerOptions={isAdmin ? [...(trainerOptions ?? [])].sort((a, b) => a.id - b.id) : []}
           branchList={branchList ?? []}
           prefillMember={prefillMember}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); setPrefillMember(null); refresh(); }}
         />
-      )}
+        );
+      })()}
     </div>
   );
 }
 
-function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefillMember, onClose, onSaved }: {
+function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = [], branchList, prefillMember, onClose, onSaved }: {
   cell: Slot[];
   date: string;
   hour: number;
   viewingAll: boolean;
   trainerId: number | null;
+  trainerOptions?: { id: number; trainerName: string | null }[];
   branchList: { id: number; name: string }[];
   prefillMember?: { memberName: string; memberId: number | null } | null;
   onClose: () => void;
@@ -563,6 +624,11 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
   const target = oneOff ?? fixed ?? null;
   const isNew = !target;
   const assigningToFixed = false; // 레거시 참조 호환용
+
+  // 관리자·FC가 전체보기 빈 칸에서 새로 만들 때는 트레이너를 직접 고른다
+  const needsTrainerPick = isNew && !trainerId && trainerOptions.length > 0;
+  const [pickedTrainerId, setPickedTrainerId] = useState<number | null>(trainerId);
+  const effTrainerId = pickedTrainerId ?? target?.trainerId ?? null;
 
   // 지점: 저장된 값 → localStorage 마지막값 → 첫 번째 지점(기본)
   const defaultBranchId = (() => {
@@ -678,7 +744,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
       isRecurring: false,
       eventType,
       branchId: selectedBranchId ?? undefined,
-      ...(trainerId ? { trainerId } : {}),
+      ...(effTrainerId ? { trainerId: effTrainerId } : {}),
     };
     if (mode === "done") createThenCheckMutation.mutate(payload);
     else createThenNoShowMutation.mutate(payload);
@@ -700,6 +766,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
     const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
     // localStorage에 마지막 선택 지점 저장
     try { if (selectedBranchId) localStorage.setItem("lastBranchId", String(selectedBranchId)); } catch {}
+    if (needsTrainerPick && !pickedTrainerId) { toast.error("담당 트레이너를 선택해 주세요."); return; }
     if (isNew) {
       createMutation.mutate({
         memberId, memberName: freeText,
@@ -708,7 +775,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
         isRecurring: assigningToFixed ? false : isRecurring,
         eventType,
         branchId: selectedBranchId ?? undefined,
-        ...(trainerId ? { trainerId } : {}),
+        ...(effTrainerId ? { trainerId: effTrainerId } : {}),
       });
     } else {
       updateMutation.mutate({
@@ -795,6 +862,29 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
             </button>
           ))}
         </div>
+
+        {/* 담당 트레이너: 새로 만들 땐 고르고, 기존 일정은 누구 것인지 보여준다 */}
+        {needsTrainerPick ? (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-muted-foreground shrink-0 pt-1">트레이너</span>
+            <div className="flex gap-1 flex-wrap">
+              {trainerOptions.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setPickedTrainerId(t.id)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    pickedTrainerId === t.id ? "bg-amber-500/80 text-white" : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.trainerName}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : trainerOptions.length > 0 && target?.trainerName ? (
+          <p className="text-xs text-amber-300/90">담당: {target.trainerName}</p>
+        ) : null}
 
         {/* 지점 선택 — 지점이 2개 이상일 때만 표시 */}
         {branchList.length > 1 && (
@@ -902,7 +992,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
                   if (target.isRecurring === 1) {
                     if (confirm(`${date} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`)) {
                       const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
-                      createMutation.mutate({ memberId, memberName: freeText, scheduledDate: date, scheduledTime: time, notes: notes || undefined, isRecurring: false, eventType, branchId: selectedBranchId ?? undefined, ...(trainerId ? { trainerId } : {}), status: "cancelled" });
+                      createMutation.mutate({ memberId, memberName: freeText, scheduledDate: date, scheduledTime: time, notes: notes || undefined, isRecurring: false, eventType, branchId: selectedBranchId ?? undefined, ...(effTrainerId ? { trainerId: effTrainerId } : {}), status: "cancelled" });
                     }
                   } else {
                     if (confirm(`${target.scheduledDate} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`))
@@ -1078,7 +1168,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
                         scheduledDate: date, scheduledTime: target.scheduledTime ?? undefined,
                         isRecurring: false, eventType: (target.eventType ?? "pt") as any,
                         branchId: target.branchId ?? undefined, status: "cancelled",
-                        ...(trainerId ? { trainerId } : {}),
+                        ...(effTrainerId ? { trainerId: effTrainerId } : {}),
                       });
                     } else {
                       // 향후 / 전체: 반복 템플릿 삭제
