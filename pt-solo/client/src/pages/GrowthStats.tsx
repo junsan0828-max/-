@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import GrowthAnalysis from "@/components/GrowthAnalysis";
 import { ChevronLeft, ChevronRight, TrendingUp, Users, RefreshCw, BarChart3, MapPin, UserRound } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -27,10 +28,11 @@ export default function GrowthStats() {
   const [year, setYear] = useState(currentYear);
   const [period, setPeriod] = useState<"H1" | "H2" | "annual" | "month">(defaultPeriod);
   const [month, setMonth] = useState(currentMonth);
+  const [tab, setTab] = useState<"stats" | "analysis">("stats");
 
   const { data, isLoading } = trpc.dashboard.getGrowthStats.useQuery(
     { year, period, month },
-    { refetchOnWindowFocus: false }
+    { refetchOnWindowFocus: false, enabled: tab === "stats" }
   );
 
   const summary = data?.summary ?? { newCount: 0, reregCount: 0, reregRate: 0, totalRevenue: 0 };
@@ -53,10 +55,10 @@ export default function GrowthStats() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <TrendingUp className="h-4 w-4 text-primary" />
-        <span className="font-semibold text-sm flex-1">성장 통계</span>
+        <span className="font-semibold text-sm flex-1">성장 분석</span>
 
         {/* 연도 */}
-        <div className="flex items-center gap-1">
+        {tab === "stats" && <div className="flex items-center gap-1">
           <button onClick={() => setYear(y => y - 1)} className="p-1 hover:bg-accent/40 rounded-lg">
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground rotate-180" />
           </button>
@@ -68,10 +70,25 @@ export default function GrowthStats() {
           >
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
-        </div>
+        </div>}
       </div>
 
       <div className="px-4 pt-4 space-y-5">
+        <div className="grid grid-cols-2 gap-1 bg-muted/50 rounded-xl p-1">
+          {([["stats", "통계"], ["analysis", "분석"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`text-sm font-semibold py-2 rounded-lg transition-colors ${
+                tab === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "analysis" ? <GrowthAnalysis /> : (<>
         {/* 기간 탭 */}
         <div className="flex gap-1 bg-muted/50 rounded-xl p-1">
           {(["H1", "H2", "annual", "month"] as const).map(p => (
@@ -302,6 +319,7 @@ export default function GrowthStats() {
             )}
           </>
         )}
+        </>)}
       </div>
     </div>
   );

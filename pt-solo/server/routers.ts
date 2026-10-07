@@ -1609,6 +1609,322 @@ const dashboardRouter = t.router({
     }));
   }),
 
+  // 운영 시간 설정 (분석용) — dow 0=월 ~ 6=일, end는 마지막 수업 시작 시각 + 1
+  setWorkHours: protectedProcedure
+    .input(z.object({
+      days: z.array(z.object({ dow: z.number().int().min(0).max(6), open: z.boolean(), start: z.number().int().min(0).max(23), end: z.number().int().min(1).max(24) })).length(7),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const days = input.days.map(d => ({ ...d, end: Math.max(d.end, d.start + 1) }));
+      await pool.query(`UPDATE trainers SET "workHours"=$1 WHERE id=$2`, [JSON.stringify(days), tid]);
+      return { success: true };
+    }),
+
+  // 성장 분석 — 시간표 가동률·수용 여력·매출 전망·이탈 위험·추천
+  getGrowthAnalysis: protectedProcedure.query(async ({ ctx }) => {
+    const tid = ctx.user.trainerId;
+    if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+
+    const DAY = 86400000;
+    const kstToday = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+    const todayMs = Date.parse(kstToday + "T00:00:00Z");
+    const dateStr = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const dowOf = (d: string) => (new Date(d + "T00:00:00Z").getUTCDay() + 6) % 7;
+    const hourOf = (t: string | null) => {
+      const h = parseInt(String(t ?? "").slice(0, 2), 10);
+      return Number.isFinite(h) && h >= 0 && h < 24 ? h : null;
+    };
+    const from28 = dateStr(todayMs - 28 * DAY);
+    const from56 = dateStr(todayMs - 56 * DAY);
+    const from180 = dateStr(todayMs - 180 * DAY);
+
+    const [trRes, datedRes, recurRes, pkgPriceRes, renewRes, revRes, activePkgRes, lastSeenRes, futureRes] = await Promise.all([
+      pool.query<{ workHours: string | null; bookingEnabled: number | null }>(
+        `SELECT "workHours", "bookingEnabled" FROM trainers WHERE id=$1`, [tid]),
+      pool.query<{ scheduledDate: string; scheduledTime: string; status: string; memberId: number }>(
+        `SELECT "scheduledDate", "scheduledTime", status, "memberId" FROM trainer_schedules
+         WHERE "trainerId"=$1 AND "isRecurring"=0 AND "scheduledDate">=$2 AND "scheduledDate"<$3`,
+        [tid, from56, kstToday]),
+      pool.query<{ dayOfWeek: number; scheduledTime: string; memberId: number }>(
+        `SELECT ts."dayOfWeek", ts."scheduledTime", ts."memberId" FROM trainer_schedules ts
+         JOIN members m ON m.id=ts."memberId"
+         WHERE ts."trainerId"=$1 AND ts."isRecurring"=1 AND m.status='active'`, [tid]),
+      pool.query<{ unit: string | null; avg_pkg: string | null; avg_pps: string | null }>(
+        `SELECT
+           SUM("paymentAmount")::float / NULLIF(SUM("totalSessions") FILTER (WHERE "paymentAmount">0),0) AS unit,
+           AVG("paymentAmount") FILTER (WHERE "paymentAmount">0) AS avg_pkg,
+           AVG("pricePerSession") FILTER (WHERE "pricePerSession">0) AS avg_pps
+         FROM pt_packages WHERE "trainerId"=$1 AND "createdAt">=$2 AND "totalSessions">0`, [tid, from180]),
+      pool.query<{ renewed: string; eligible: string }>(
+        `SELECT COUNT(*) FILTER (WHERE cnt>=2) AS renewed, COUNT(*) FILTER (WHERE cnt>=2 OR ended) AS eligible
+         FROM (SELECT "memberId", COUNT(*) cnt, BOOL_OR(status<>'active') ended
+               FROM pt_packages WHERE "trainerId"=$1 GROUP BY 1) x`, [tid]),
+      pool.query<{ ym: string; total: string }>(
+        `SELECT LEFT("createdAt",7) AS ym, COALESCE(SUM("paymentAmount"),0) AS total
+         FROM pt_packages WHERE "trainerId"=$1 AND "createdAt">=$2 GROUP BY 1`, [tid, dateStr(todayMs - 120 * DAY).slice(0, 7) + "-01"]),
+      pool.query<{ memberId: number; name: string; remaining: number; expiryDate: string | null }>(
+        `SELECT p."memberId", m.name, SUM(p."totalSessions"-p."usedSessions")::int AS remaining, MAX(p."expiryDate") AS "expiryDate"
+         FROM pt_packages p JOIN members m ON m.id=p."memberId"
+         WHERE p."trainerId"=$1 AND p.status='active' AND m.status='active'
+         GROUP BY 1,2`, [tid]),
+      pool.query<{ memberId: number; last: string | null }>(
+        `SELECT "memberId", MAX(d) AS last FROM (
+           SELECT "memberId", "sessionDate" AS d FROM pt_session_logs WHERE "trainerId"=$1
+           UNION ALL SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId"=$1 AND status='attended'
+           UNION ALL SELECT "memberId", "scheduledDate" FROM trainer_schedules WHERE "trainerId"=$1 AND status='completed' AND "scheduledDate"<>''
+         ) x GROUP BY 1`, [tid]),
+      pool.query<{ memberId: number }>(
+        `SELECT DISTINCT "memberId" FROM trainer_schedules
+         WHERE "trainerId"=$1 AND (("isRecurring"=0 AND "scheduledDate">=$2 AND status='pending') OR "isRecurring"=1)`, [tid, kstToday]),
+    ]);
+
+    // ── 1. 시간표 점유 (최근 4주, 1시간 = 1슬롯) ──
+    const dated = datedRes.rows.filter(r => r.status !== "cancelled");
+    const recur = recurRes.rows.filter(r => r.dayOfWeek != null && hourOf(r.scheduledTime) != null);
+    const recurCells = new Set(recur.map(r => `${r.dayOfWeek}-${hourOf(r.scheduledTime)}`));
+    const occ: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+    const datedByDayHour = new Set<string>();
+    for (const r of dated) {
+      const h = hourOf(r.scheduledTime);
+      if (h == null || r.scheduledDate < from28) continue;
+      datedByDayHour.add(`${r.scheduledDate}-${h}`);
+    }
+    for (let i = 1; i <= 28; i++) {
+      const d = dateStr(todayMs - i * DAY);
+      const dow = dowOf(d);
+      for (let h = 0; h < 24; h++) {
+        if (datedByDayHour.has(`${d}-${h}`) || recurCells.has(`${dow}-${h}`)) occ[dow][h] += 0.25;
+      }
+    }
+
+    // ── 2. 운영 시간 (설정값 또는 최근 8주 기록으로 추정) ──
+    type DayHours = { dow: number; open: boolean; start: number; end: number };
+    let workHours: DayHours[] | null = null;
+    try { const parsed = JSON.parse(trRes.rows[0]?.workHours ?? "null"); if (Array.isArray(parsed) && parsed.length === 7) workHours = parsed; } catch {}
+    const hoursEstimated = !workHours;
+    if (!workHours) {
+      const minH = Array(7).fill(24), maxH = Array(7).fill(-1);
+      const mark = (dow: number, h: number) => { minH[dow] = Math.min(minH[dow], h); maxH[dow] = Math.max(maxH[dow], h); };
+      for (const r of dated) { const h = hourOf(r.scheduledTime); if (h != null) mark(dowOf(r.scheduledDate), h); }
+      for (const r of recur) mark(r.dayOfWeek, hourOf(r.scheduledTime)!);
+      const anyData = maxH.some(h => h >= 0);
+      // 평일은 하나의 공통 시간대로, 주말은 요일별로 최소 4시간 폭으로 추정
+      const wd = [0, 1, 2, 3, 4].filter(d => maxH[d] >= 0);
+      const wdStart = wd.length ? Math.min(...wd.map(d => minH[d])) : 9;
+      const wdEnd = wd.length ? Math.max(...wd.map(d => maxH[d])) + 1 : 21;
+      workHours = Array.from({ length: 7 }, (_, dow) => {
+        if (!anyData) return dow < 5 ? { dow, open: true, start: 9, end: 21 } : dow === 5 ? { dow, open: true, start: 10, end: 16 } : { dow, open: false, start: 10, end: 16 };
+        if (dow < 5) return { dow, open: wd.length >= 3 || maxH[dow] >= 0, start: wdStart, end: wdEnd };
+        if (maxH[dow] < 0) return { dow, open: false, start: 10, end: 16 };
+        const start = minH[dow];
+        return { dow, open: true, start, end: Math.min(24, Math.max(maxH[dow] + 1, start + 4)) };
+      });
+    }
+    const isOpen = (dow: number, h: number) => { const w = workHours![dow]; return w.open && h >= w.start && h < w.end; };
+
+    let capacity = 0, bookedIn = 0, bookedOut = 0;
+    const cells: { dow: number; hour: number; occ: number; open: boolean }[] = [];
+    const usedHours = new Set<number>();
+    for (let dow = 0; dow < 7; dow++) for (let h = 0; h < 24; h++) {
+      const open = isOpen(dow, h);
+      if (open) { capacity++; bookedIn += occ[dow][h]; } else bookedOut += occ[dow][h];
+      if (open || occ[dow][h] > 0) usedHours.add(h);
+    }
+    const hourList = Array.from(usedHours).sort((a, b) => a - b);
+    const hMin = hourList[0] ?? 9, hMax = hourList[hourList.length - 1] ?? 20;
+    for (let dow = 0; dow < 7; dow++) for (let h = hMin; h <= hMax; h++) cells.push({ dow, hour: h, occ: occ[dow][h], open: isOpen(dow, h) });
+
+    const utilization = capacity > 0 ? bookedIn / capacity : 0;
+    const freeSlots = Math.max(0, Math.round((capacity - bookedIn) * 10) / 10);
+
+    // 회원당 주 평균 수업
+    const weeklyByMember = new Map<number, number>();
+    for (const r of dated) if (r.scheduledDate >= from28 && r.status !== "noshow") weeklyByMember.set(r.memberId, (weeklyByMember.get(r.memberId) ?? 0) + 0.25);
+    for (const r of recur) weeklyByMember.set(r.memberId, Math.max(weeklyByMember.get(r.memberId) ?? 0, recur.filter(x => x.memberId === r.memberId).length));
+    const activeScheduled = weeklyByMember.size;
+    const totalWeekly = Array.from(weeklyByMember.values()).reduce((a, b) => a + b, 0);
+    const freqPerMember = activeScheduled > 0 ? Math.max(1, Math.round((totalWeekly / activeScheduled) * 10) / 10) : 2;
+    const TARGET_UTIL = 0.85;
+    const maxAdditionalMembers = Math.floor(freeSlots / freqPerMember);
+    const recommendedExtraSlots = Math.max(0, capacity * TARGET_UTIL - bookedIn);
+    const recommendedAdditionalMembers = Math.floor(recommendedExtraSlots / freqPerMember);
+
+    // 빈 시간대 (점유 25% 미만이 연속된 구간) & 피크
+    const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
+    const emptyRanges: { dow: number; label: string; start: number; end: number; hours: number }[] = [];
+    for (let dow = 0; dow < 7; dow++) {
+      let s: number | null = null;
+      for (let h = 0; h <= 24; h++) {
+        const empty = h < 24 && isOpen(dow, h) && occ[dow][h] < 0.25;
+        if (empty && s == null) s = h;
+        if (!empty && s != null) { emptyRanges.push({ dow, label: `${DAYS[dow]} ${s}~${h}시`, start: s, end: h, hours: h - s }); s = null; }
+      }
+    }
+    emptyRanges.sort((a, b) => b.hours - a.hours || a.dow - b.dow);
+    const peakCells = cells.filter(c => c.open && c.occ >= 0.75);
+    const daytimeEmptyHours = emptyRanges.filter(r => r.dow < 5).reduce((s, r) => s + Math.max(0, Math.min(r.end, 17) - Math.max(r.start, 10)), 0);
+    const eveningEmptyHours = emptyRanges.reduce((s, r) => s + Math.max(0, Math.min(r.end, 23) - Math.max(r.start, 18)), 0);
+
+    // ── 3. 매출 ──
+    const p = pkgPriceRes.rows[0];
+    const unitPrice = Math.round(Number(p?.unit) || Number(p?.avg_pps) || 0);
+    const avgPackagePrice = Math.round(Number(p?.avg_pkg) || 0);
+    const WEEKS_PER_MONTH = 4.345;
+    const potentialMonthly = Math.round(freeSlots * WEEKS_PER_MONTH * unitPrice);
+    const recommendedMonthly = Math.round(recommendedExtraSlots * WEEKS_PER_MONTH * unitPrice);
+    const thisYm = kstToday.slice(0, 7);
+    const pastMonths = revRes.rows.filter(r => r.ym < thisYm).sort((a, b) => b.ym.localeCompare(a.ym)).slice(0, 3);
+    const avgMonthlyRevenue = pastMonths.length ? Math.round(pastMonths.reduce((s, r) => s + Number(r.total), 0) / pastMonths.length) : 0;
+    const thisMonthRevenue = Number(revRes.rows.find(r => r.ym === thisYm)?.total ?? 0);
+
+    // ── 4. 재등록 예측 (30일 내 종료 예정) ──
+    const renewed = Number(renewRes.rows[0]?.renewed ?? 0), eligible = Number(renewRes.rows[0]?.eligible ?? 0);
+    const renewalRate = eligible >= 3 ? renewed / eligible : 0.5;
+    const renewalRateReliable = eligible >= 3;
+    const ending = activePkgRes.rows.map(r => {
+      const freq = weeklyByMember.get(r.memberId) || freqPerMember;
+      const bySessions = r.remaining > 0 ? Math.ceil((r.remaining / freq) * 7) : 0;
+      const daysToExpiry = r.expiryDate ? Math.round((Date.parse(r.expiryDate.slice(0, 10) + "T00:00:00Z") - todayMs) / DAY) : null;
+      const daysLeft = daysToExpiry != null ? Math.min(daysToExpiry, bySessions || daysToExpiry) : bySessions;
+      return { memberId: r.memberId, name: r.name, remaining: r.remaining, daysLeft };
+    }).filter(r => r.daysLeft >= 0 && r.daysLeft <= 30).sort((a, b) => a.daysLeft - b.daysLeft);
+    const expectedRenewals = Math.round(ending.length * renewalRate * 10) / 10;
+    const expectedRenewalRevenue = Math.round(ending.length * renewalRate * avgPackagePrice);
+
+    // ── 5. 이탈 위험 (잔여가 있는데 14일 이상 수업 기록·예정 없음) ──
+    const lastSeen = new Map(lastSeenRes.rows.map(r => [r.memberId, r.last]));
+    const hasFuture = new Set(futureRes.rows.map(r => r.memberId));
+    const atRisk = activePkgRes.rows
+      .filter(r => r.remaining > 0 && !hasFuture.has(r.memberId))
+      .map(r => {
+        const last = lastSeen.get(r.memberId);
+        const days = last ? Math.round((todayMs - Date.parse(last.slice(0, 10) + "T00:00:00Z")) / DAY) : null;
+        return { memberId: r.memberId, name: r.name, remaining: r.remaining, daysSince: days };
+      })
+      .filter(r => r.daysSince == null || r.daysSince >= 14)
+      .sort((a, b) => (b.daysSince ?? 999) - (a.daysSince ?? 999));
+
+    // ── 6. 수업 지표 ──
+    const recent = dated.filter(r => r.scheduledDate >= from56);
+    const doneCnt = recent.filter(r => r.status === "completed").length;
+    const noshowCnt = recent.filter(r => r.status === "noshow").length;
+    const noShowRate = doneCnt + noshowCnt > 0 ? noshowCnt / (doneCnt + noshowCnt) : 0;
+    const recurringShare = bookedIn + bookedOut > 0 ? Math.min(1, recur.length / (bookedIn + bookedOut)) : 0;
+    const totalBooked = bookedIn + bookedOut;
+
+    // ── 7. 추천 예약 방식 ──
+    const bookingEnabled = Number(trRes.rows[0]?.bookingEnabled ?? 0) === 1;
+    let bookingMethod: { title: string; reason: string; steps: string[] };
+    if (totalBooked === 0) {
+      bookingMethod = {
+        title: "정기 고정 예약제로 시작",
+        reason: "아직 스케줄 기록이 없어요. 처음부터 회원마다 매주 같은 요일·시간을 정해 두면 시간표 빈칸과 매출을 예측하기 쉬워요.",
+        steps: ["스케줄 관리에서 회원별 '반복 일정' 등록", "운영 시간 설정 (이 화면의 '운영 시간')", "남는 시간은 수업 예약 페이지로 신규·체험에 공개"],
+      };
+    } else if (utilization >= TARGET_UTIL) {
+      bookingMethod = {
+        title: "고정 예약 + 대기 명단",
+        reason: `가동률이 ${Math.round(utilization * 100)}%로 거의 찼어요. 새 회원보다 단가와 유지율을 올릴 시점이에요.`,
+        steps: ["기존 회원은 매주 같은 요일·시간으로 고정", "신규 문의는 대기 명단으로 받고 빈자리가 나면 순서대로 연락", "다음 재등록부터 회당 단가 5~10% 인상 검토"],
+      };
+    } else if (recurringShare < 0.5 && activeScheduled >= 3) {
+      bookingMethod = {
+        title: "정기 고정 예약제",
+        reason: `수업의 ${Math.round(recurringShare * 100)}%만 매주 고정이에요. 고정 시간이 있는 회원이 노쇼·이탈이 적고 시간표 빈칸도 예측하기 쉬워요.`,
+        steps: ["회원마다 주 " + freqPerMember + "회 고정 요일·시간 정하기", "스케줄 관리에서 '반복 일정'으로 등록", "변경은 24시간 전까지만 허용"],
+      };
+    } else {
+      bookingMethod = {
+        title: "고정 예약 유지 + 빈 시간만 온라인 공개",
+        reason: emptyRanges[0]
+          ? `기존 회원은 고정 시간이 잘 잡혀 있어요. ${emptyRanges.slice(0, 2).map(r => r.label).join(", ")} 같은 빈 시간을 신규·체험 수업용으로 열어 두세요.`
+          : "기존 회원은 고정 시간이 잘 잡혀 있어요. 남는 시간만 신규·체험 수업용으로 열어 두세요.",
+        steps: [bookingEnabled ? "수업 예약 페이지에 빈 시간대만 공개" : "수업 예약 기능 켜고 빈 시간대만 공개", "체험·상담은 빈 시간대로만 받기", "브랜드 페이지 링크를 프로필·SNS에 걸기"],
+      };
+    }
+    if (noShowRate >= 0.1) bookingMethod.steps.push(`노쇼율 ${Math.round(noShowRate * 100)}% — 24시간 전 취소 규정과 노쇼 시 1회 차감 안내`);
+
+    // ── 8. 실행 추천 (예상 효과순) ──
+    type Rec = { level: "high" | "mid" | "low"; title: string; detail: string; impact: number };
+    const recs: Rec[] = [];
+    if (unitPrice > 0 && recommendedAdditionalMembers > 0) recs.push({
+      level: utilization < 0.5 ? "high" : "mid",
+      title: `신규 ${recommendedAdditionalMembers}명 더 받기`,
+      detail: `가동률 ${Math.round(TARGET_UTIL * 100)}%까지 채우면 월 ${Math.round(recommendedMonthly / 10000).toLocaleString()}만원 추가 매출이 가능해요. 회원 1명당 주 ${freqPerMember}회 기준.`,
+      impact: recommendedMonthly,
+    });
+    if (daytimeEmptyHours >= 6 && unitPrice > 0) {
+      const fill = Math.round(daytimeEmptyHours * 0.3);
+      const v = Math.round(fill * WEEKS_PER_MONTH * unitPrice * 0.85);
+      recs.push({
+        level: "mid",
+        title: "평일 낮 전용 상품 만들기",
+        detail: `평일 10~17시에 주 ${daytimeEmptyHours}시간이 비어 있어요. 15% 할인한 낮 시간 전용 수업권으로 30%만 채워도 월 약 ${Math.round(v / 10000).toLocaleString()}만원이에요.`,
+        impact: v,
+      });
+    }
+    if (ending.length > 0) {
+      const lost = Math.round(ending.length * (1 - renewalRate) * avgPackagePrice);
+      recs.push({
+        level: "high",
+        title: `30일 내 종료 ${ending.length}명 재등록 상담`,
+        detail: `지금 재등록률이면 ${Math.round(ending.length * (1 - renewalRate))}명이 끝날 수 있어요. 잔여 3~5회 시점에 성과 리포트와 함께 다음 목표를 제안하세요.`,
+        impact: lost,
+      });
+    }
+    if (atRisk.length > 0) recs.push({
+      level: "high",
+      title: `${atRisk.length}명 2주 이상 수업 없음`,
+      detail: "잔여 수업이 남았는데 예정된 일정이 없어요. 이탈 전에 일정부터 다시 잡아 주세요.",
+      impact: Math.round(atRisk.reduce((s, r) => s + r.remaining, 0) * unitPrice * renewalRate),
+    });
+    if (noShowRate >= 0.1 && unitPrice > 0) {
+      const v = Math.round(noshowCnt / 2 * WEEKS_PER_MONTH / 4 * unitPrice);
+      recs.push({
+        level: "mid",
+        title: `노쇼율 ${Math.round(noShowRate * 100)}% 줄이기`,
+        detail: "전날 알림과 노쇼 시 1회 차감 규정을 계약서에 명시하세요. 비는 시간을 다른 회원에게 줄 수 있어요.",
+        impact: v,
+      });
+    }
+    if (utilization >= TARGET_UTIL && avgMonthlyRevenue > 0) recs.push({
+      level: "mid",
+      title: "단가 인상 검토",
+      detail: `시간표가 ${Math.round(utilization * 100)}% 찼어요. 신규·재등록 단가를 10% 올리면 월 약 ${Math.round(avgMonthlyRevenue * 0.1 / 10000).toLocaleString()}만원 늘어요.`,
+      impact: Math.round(avgMonthlyRevenue * 0.1),
+    });
+    if (renewalRateReliable && renewalRate < 0.4) recs.push({
+      level: "mid",
+      title: `재등록률 ${Math.round(renewalRate * 100)}% 개선`,
+      detail: "업계 평균보다 낮아요. 첫 4주 안에 눈에 보이는 변화(중량·자세)를 기록해 리포트로 보여주세요.",
+      impact: Math.round(eligible > 0 ? (0.5 - renewalRate) * avgPackagePrice * Math.max(1, ending.length) : 0),
+    });
+    recs.sort((a, b) => b.impact - a.impact);
+
+    return {
+      hoursEstimated,
+      workHours,
+      schedule: {
+        cells, hourRange: [hMin, hMax] as [number, number],
+        capacity, booked: Math.round(bookedIn * 10) / 10, bookedOutside: Math.round(bookedOut * 10) / 10,
+        utilization, freeSlots, freqPerMember, activeScheduled,
+        maxAdditionalMembers, recommendedAdditionalMembers, targetUtilization: TARGET_UTIL,
+        emptyRanges: emptyRanges.slice(0, 6).map(({ label, hours }) => ({ label, hours })),
+        peaks: peakCells.slice(0, 6).map(c => `${DAYS[c.dow]} ${c.hour}시`),
+        daytimeEmptyHours, eveningEmptyHours,
+        hasData: totalBooked > 0,
+      },
+      revenue: { unitPrice, avgPackagePrice, potentialMonthly, recommendedMonthly, avgMonthlyRevenue, thisMonthRevenue },
+      renewal: { rate: renewalRate, reliable: renewalRateReliable, endingCount: ending.length, expectedRenewals, expectedRevenue: expectedRenewalRevenue, ending: ending.slice(0, 10) },
+      atRisk: atRisk.slice(0, 10),
+      metrics: { noShowRate, recurringShare, freqPerMember, activeScheduled, totalWeekly: Math.round(totalBooked * 10) / 10 },
+      bookingMethod,
+      recommendations: recs.slice(0, 6),
+    };
+  }),
+
   // 나의 성과 리포트 — 기간(상반기/하반기/연간) × 연도
   // 성장 통계 — 프로그램별·유입경로·성별 심층 데이터
   getGrowthStats: protectedProcedure
