@@ -1610,6 +1610,104 @@ const dashboardRouter = t.router({
   }),
 
   // 나의 성과 리포트 — 기간(상반기/하반기/연간) × 연도
+  // 성장 통계 — 프로그램별·유입경로·성별 심층 데이터
+  getGrowthStats: protectedProcedure
+    .input(z.object({ year: z.number(), period: z.enum(["H1", "H2", "annual", "month"]), month: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const tid = ctx.user.trainerId;
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const { year, period, month } = input;
+
+      let months: number[];
+      if (period === "month") months = [month ?? (new Date().getMonth() + 1)];
+      else if (period === "H1") months = [1,2,3,4,5,6];
+      else if (period === "H2") months = [7,8,9,10,11,12];
+      else months = [1,2,3,4,5,6,7,8,9,10,11,12];
+
+      const periodStart = `${year}-${String(months[0]).padStart(2,"0")}-01`;
+      const lastM = months[months.length - 1];
+      const periodEnd = new Date(year, lastM, 1).toISOString().split("T")[0];
+
+      const [pkgRows, memberRows, visitRows, genderRows, monthlyRows] = await Promise.all([
+        // 프로그램별 현황
+        pool.query<{ packageName: string; cnt: string; revenue: string; rereg: string }>(`
+          SELECT
+            COALESCE(NULLIF(p."packageName",''), '수업 프로그램') AS "packageName",
+            COUNT(*) AS cnt,
+            COALESCE(SUM(p."paymentAmount"),0) AS revenue,
+            COUNT(*) FILTER (WHERE mem."createdAt" < $2) AS rereg
+          FROM pt_packages p
+          INNER JOIN members mem ON mem.id = p."memberId"
+          WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3
+          GROUP BY 1 ORDER BY SUM(p."paymentAmount") DESC NULLS LAST
+        `, [tid, periodStart, periodEnd]),
+
+        // 신규/재등록 총계
+        pool.query<{ new_cnt: string; rereg_cnt: string; total_revenue: string }>(`
+          SELECT
+            COUNT(*) FILTER (WHERE mem."createdAt" >= $2) AS new_cnt,
+            COUNT(*) FILTER (WHERE mem."createdAt" < $2) AS rereg_cnt,
+            COALESCE(SUM(p."paymentAmount"),0) AS total_revenue
+          FROM pt_packages p
+          INNER JOIN members mem ON mem.id = p."memberId"
+          WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3
+        `, [tid, periodStart, periodEnd]),
+
+        // 유입경로 분포 (기간 내 신규 회원)
+        pool.query<{ route: string; cnt: string }>(`
+          SELECT COALESCE(NULLIF("visitRoute",''), '미입력') AS route, COUNT(*) AS cnt
+          FROM members
+          WHERE "trainerId"=$1 AND "createdAt">=$2 AND "createdAt"<$3
+          GROUP BY 1 ORDER BY 2 DESC
+        `, [tid, periodStart, periodEnd]),
+
+        // 성별 분포 (전체 활성 회원)
+        pool.query<{ gender: string; cnt: string }>(`
+          SELECT COALESCE(NULLIF(gender,''), '미입력') AS gender, COUNT(*) AS cnt
+          FROM members WHERE "trainerId"=$1 AND status='active' GROUP BY 1
+        `, [tid]),
+
+        // 월별 신규·재등록 추이 (마지막 6개월 고정)
+        Promise.all(Array.from({length:6},(_,i) => {
+          const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (5-i));
+          const ms = d.toISOString().split("T")[0];
+          const me = new Date(d.getFullYear(), d.getMonth()+1, 1).toISOString().split("T")[0];
+          return pool.query<{ new_cnt: string; rereg_cnt: string }>(`
+            SELECT
+              COUNT(*) FILTER (WHERE mem."createdAt" >= $2) AS new_cnt,
+              COUNT(*) FILTER (WHERE mem."createdAt" < $2) AS rereg_cnt
+            FROM pt_packages p
+            INNER JOIN members mem ON mem.id = p."memberId"
+            WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3
+          `, [tid, ms, me]).then(r => ({
+            label: `${d.getMonth()+1}월`,
+            신규: Number(r.rows[0]?.new_cnt ?? 0),
+            재등록: Number(r.rows[0]?.rereg_cnt ?? 0),
+          }));
+        })),
+      ]);
+
+      const summary = memberRows.rows[0] ?? { new_cnt: "0", rereg_cnt: "0", total_revenue: "0" };
+      const newCount = Number(summary.new_cnt);
+      const reregCount = Number(summary.rereg_cnt);
+      const totalRevenue = Number(summary.total_revenue);
+      const reregRate = (newCount + reregCount) > 0 ? Math.round(reregCount / (newCount + reregCount) * 100) : 0;
+
+      return {
+        summary: { newCount, reregCount, reregRate, totalRevenue },
+        programs: pkgRows.rows.map(r => ({
+          name: r.packageName,
+          total: Number(r.cnt),
+          신규: Number(r.cnt) - Number(r.rereg),
+          재등록: Number(r.rereg),
+          revenue: Number(r.revenue),
+        })),
+        visitRoutes: visitRows.rows.map(r => ({ route: r.route, count: Number(r.cnt) })),
+        genders: genderRows.rows.map(r => ({ gender: r.gender, count: Number(r.cnt) })),
+        monthly: monthlyRows,
+      };
+    }),
+
   myPeriodReport: protectedProcedure
     .input(z.object({ year: z.number(), period: z.enum(["H1", "H2", "annual"]) }))
     .query(async ({ ctx, input }) => {

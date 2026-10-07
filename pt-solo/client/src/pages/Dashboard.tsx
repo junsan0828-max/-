@@ -1099,6 +1099,7 @@ import {
 } from "recharts";
 
 function MyPerformanceCard() {
+  const [, setLocation] = useLocation();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const defaultPeriod: "H1" | "H2" | "annual" = currentMonth <= 6 ? "H1" : "H2";
@@ -1202,6 +1203,16 @@ function MyPerformanceCard() {
           )}
         </>
       )}
+
+      {/* 심층 통계 버튼 */}
+      <button
+        onClick={() => setLocation("/growth-stats")}
+        className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 py-1 transition-colors"
+      >
+        <BarChart3 className="h-3.5 w-3.5" />
+        성장 통계 보기
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

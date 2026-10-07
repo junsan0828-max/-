@@ -47,6 +47,7 @@ import AdminSequenceReview from "./pages/AdminSequenceReview";
 import AdminSequenceReviewDetail from "./pages/AdminSequenceReviewDetail";
 import ImportDiet from "./pages/ImportDiet";
 import SalesBookPublic from "./pages/SalesBook";
+import GrowthStats from "./pages/GrowthStats";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -223,6 +224,7 @@ function App() {
           <Route path="/fitstep-plus-manage">{() => <FitStepPlusManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/import-diet">{() => <ImportDiet />}</Route>
+          <Route path="/growth-stats">{() => <GrowthStats />}</Route>
 
           <Route path="/feedback">{() => <TrainerFeedback />}</Route>
           <Route path="/admin/trainers/:id">
