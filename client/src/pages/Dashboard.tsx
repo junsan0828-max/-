@@ -438,10 +438,14 @@ function AdminDashboard() {
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
-  const { data: todayScheduleSummary } = trpc.dashboard.todayScheduleSummary.useQuery();
+  const ST3 = 3 * 60 * 1000; // 3분 stale
+  const ST10 = 10 * 60 * 1000; // 10분 stale
+  const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery(undefined, { staleTime: ST3 });
+  const { data: todayScheduleSummary } = trpc.dashboard.todayScheduleSummary.useQuery(undefined, { staleTime: ST3 });
   const { data: me } = trpc.auth.me.useQuery();
-  const { data: allMembers } = trpc.members.list.useQuery();
+  // 수업일지 모달이 열릴 때만 전체 회원 목록 로드 (초기 로딩 병목 제거)
+  const [journalOpen, setJournalOpen] = useState(false);
+  const { data: allMembers } = trpc.members.list.useQuery(undefined, { enabled: journalOpen, staleTime: ST10 });
 
   // 성과 리포트
   const nowYear = new Date().getFullYear();
@@ -452,9 +456,8 @@ function TrainerDashboard() {
     { year: reportYear, period: reportPeriod },
     { staleTime: 5 * 60 * 1000 }
   );
-  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
+  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true }, { staleTime: ST10 });
 
-  const [journalOpen, setJournalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
 
   const { data: memberSessionLogs } = trpc.pt.sessionLogs.useQuery(
@@ -492,12 +495,12 @@ function TrainerDashboard() {
     onError: (err) => toast.error(err.message || "기록 실패"),
     onSettled: () => { sessionSubmittingRef.current = false; },
   });
-  const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
-  const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
-  const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
-  const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5 });
+  const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 }, { staleTime: ST3 });
+  const { data: unpaid } = trpc.members.getWithUnpaid.useQuery(undefined, { staleTime: ST3 });
+  const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 }, { staleTime: ST3 });
+  const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5 }, { staleTime: ST3 });
   const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
-  const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({});
+  const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({}, { staleTime: ST3 });
   const [rolloverOpen, setRolloverOpen] = useState(false);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   // 낙관적 업데이트: {memberId → {intent, intentDate}}
@@ -562,7 +565,7 @@ function TrainerDashboard() {
     undefined,
     { enabled: ptStatsModalOpen }
   );
-  const { data: myTasks } = trpc.gym.work.tasks.list.useQuery();
+  const { data: myTasks } = trpc.gym.work.tasks.list.useQuery(undefined, { staleTime: ST3 });
   const [dismissedCardKeys, setDismissedCardKeys] = useState<Set<string>>(() => new Set());
   const taskCompleteMutation = trpc.gym.work.tasks.complete.useMutation({ onSuccess: () => utils.gym.work.tasks.invalidate() });
 
