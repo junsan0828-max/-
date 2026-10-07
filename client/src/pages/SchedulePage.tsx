@@ -374,6 +374,22 @@ export default function SchedulePage() {
                   if (!open && !top) {
                     return <div key={wd} className="min-h-[42px] rounded-lg bg-muted/20 border border-border/30" />;
                   }
+
+                  const isMoveActive = dragSlotId != null;
+
+                  // 이동 모드: 빈 칸 → 이동 대상 표시 (viewingAll보다 먼저 체크해야 클릭 가능)
+                  if (isMoveActive && !top && open && !hol) {
+                    return (
+                      <button
+                        key={wd}
+                        onClick={() => commitMove(dragSlotId!, wd, h)}
+                        className="min-h-[42px] rounded-lg border-2 border-dashed border-primary/50 hover:border-primary hover:bg-primary/15 transition-colors cursor-pointer flex items-center justify-center"
+                      >
+                        <span className="text-[10px] text-primary/60 font-medium">여기로</span>
+                      </button>
+                    );
+                  }
+
                   if (viewingAll && !top) {
                     return <div key={wd} className="min-h-[42px] rounded-lg border border-border/30 border-dashed" />;
                   }
@@ -386,21 +402,7 @@ export default function SchedulePage() {
                     ? TRAINER_PALETTE[trainerColorMap.get(top.trainerId) ?? 0]
                     : null;
 
-                  const isMoveActive = dragSlotId != null;
                   const isSelected = top != null && dragSlotId === top.id;
-
-                  // 이동 모드: 빈 칸 → 이동 대상 표시
-                  if (isMoveActive && !top && open && !hol) {
-                    return (
-                      <button
-                        key={wd}
-                        onClick={() => commitMove(dragSlotId!, wd, h)}
-                        className="min-h-[42px] rounded-lg border-2 border-dashed border-primary/50 hover:border-primary hover:bg-primary/15 transition-colors cursor-pointer flex items-center justify-center"
-                      >
-                        <span className="text-[10px] text-primary/60 font-medium">여기로</span>
-                      </button>
-                    );
-                  }
 
                   return (
                     <button
@@ -582,9 +584,9 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
 
   const createMutation = trpc.schedules.create.useMutation({
     onSuccess: (_data, variables) => {
-      if (variables.status === "cancelled") toast.success("이 수업이 취소됐습니다");
-      else if (assigningToFixed) toast.success("이 주 수업이 배정되었습니다");
-      else toast.success("수업이 추가되었습니다");
+      const lbl = EVENT_LABELS[variables.eventType ?? "pt"];
+      if (variables.status === "cancelled") toast.success("이 일정이 취소됐습니다");
+      else toast.success(`${lbl}이 추가되었습니다`);
       onSaved();
     },
     onError: e => toast.error(e.message),
@@ -732,7 +734,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, branchList, prefi
     );
   }
 
-  const title = assigningToFixed ? "이 주 수업 배정" : isNew ? "수업 추가" : "수업 수정";
+  const title = isNew ? `${EVENT_LABELS[eventType]} 추가` : `${EVENT_LABELS[eventType]} 수정`;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
