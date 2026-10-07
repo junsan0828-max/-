@@ -750,6 +750,15 @@ async function initDatabase() {
       "processedAt" TEXT
     )`,
     `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "membershipPeriodMonths" INTEGER`,
+    // 푸시 알림 중복 방지 로그
+    `CREATE TABLE IF NOT EXISTS push_notification_log (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      "sentAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS push_notification_log_daily_uniq
+       ON push_notification_log ("gymPlusMemberId", type, LEFT("sentAt", 10))`,
   ];
   for (const stmt of alterStatements) {
     try {
@@ -927,6 +936,91 @@ async function start() {
 
   sendSchedulePushNotifications();
   setInterval(sendSchedulePushNotifications, 30 * 60 * 1000);
+
+  // 만료 임박 재등록 안내 푸시 (매일 10시 KST)
+  async function sendExpiringMembershipPush() {
+    try {
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const kstToday = kstNow.toISOString().slice(0, 10);
+
+      // D-30, D-14, D-7에 해당하는 만료일 계산
+      const targets = [30, 14, 7].map((d) => {
+        const t = new Date(kstNow.getTime() + d * 24 * 60 * 60 * 1000);
+        return { days: d, date: t.toISOString().slice(0, 10) };
+      });
+
+      for (const { days, date } of targets) {
+        const notifType = `expiring_d${days}`;
+
+        // 해당 만료일 회원 중 푸시 구독이 있고 오늘 아직 발송 안 된 회원 조회
+        // 이미 재등록 신청(pending/approved)이 있는 회원은 제외
+        const res = await pool.query(`
+          SELECT DISTINCT
+            gm.id AS "gymPlusMemberId",
+            gm.name,
+            ps.endpoint, ps.p256dh, ps.auth
+          FROM members m
+          JOIN gym_plus_members gm ON gm.phone = m.phone
+          JOIN push_subscriptions ps ON ps."gymPlusMemberId" = gm.id
+          WHERE m."membershipEnd" = $1
+            AND (m."membershipStatus" IS NULL OR m."membershipStatus" != 'paused')
+            AND NOT EXISTS (
+              SELECT 1 FROM gym_plus_membership_renewals r
+              WHERE r."gymPlusMemberId" = gm.id
+                AND r.status IN ('pending', 'approved')
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM push_notification_log pnl
+              WHERE pnl."gymPlusMemberId" = gm.id
+                AND pnl.type = $2
+                AND LEFT(pnl."sentAt", 10) = $3
+            )
+        `, [date, notifType, kstToday]);
+
+        for (const row of res.rows) {
+          const body = days === 7
+            ? `회원권이 ${days}일 후 만료됩니다. 지금 재등록하시면 혜택이 있어요 💪`
+            : `회원권이 ${days}일 후 만료됩니다. 공백 없이 계속 이용해 보세요!`;
+
+          try {
+            await webpush.sendNotification(
+              { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
+              JSON.stringify({ title: "ZIANTGYM+ 재등록 안내", body, url: "/gym-plus/profile" })
+            );
+            // 발송 성공 기록 (중복 방지)
+            await pool.query(
+              `INSERT INTO push_notification_log ("gymPlusMemberId", type, "sentAt")
+               VALUES ($1, $2, $3)
+               ON CONFLICT DO NOTHING`,
+              [row.gymPlusMemberId, notifType, kstNow.toISOString()]
+            );
+          } catch (e: any) {
+            if (e?.statusCode === 410) {
+              await pool.query(`DELETE FROM push_subscriptions WHERE endpoint = $1`, [row.endpoint]).catch(() => {});
+            }
+          }
+        }
+
+        if (res.rows.length > 0) console.log(`🔔 만료 임박 푸시 (D-${days}): ${res.rows.length}건`);
+      }
+    } catch (e) {
+      console.error("만료 임박 푸시 오류:", e);
+    }
+  }
+
+  // 매일 10시 KST에 실행 (서버 시작 후 다음 10시까지 대기)
+  function scheduleDailyAt10KST(fn: () => Promise<void>) {
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const next10 = new Date(kstNow);
+    next10.setHours(10, 0, 0, 0);
+    if (kstNow >= next10) next10.setDate(next10.getDate() + 1);
+    const msUntil = next10.getTime() - kstNow.getTime();
+    setTimeout(() => {
+      fn();
+      setInterval(fn, 24 * 60 * 60 * 1000);
+    }, msUntil);
+  }
+  scheduleDailyAt10KST(sendExpiringMembershipPush);
 }
 
 start().catch(console.error);
