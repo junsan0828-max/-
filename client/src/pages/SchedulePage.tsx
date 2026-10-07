@@ -404,6 +404,44 @@ export default function SchedulePage() {
 
                   const isSelected = top != null && dragSlotId === top.id;
 
+                  // 전체보기: 같은 시간대 여러 수업 → 미니 카드 스택으로 전부 표시
+                  // 같은 트레이너·같은 시각의 one-off가 덮은 고정 템플릿은 중복이므로 제외
+                  const visible = cell.filter(s =>
+                    !(s.isRecurring === 1 && cell.some(o =>
+                      o.isRecurring === 0 && o.trainerId === s.trainerId && o.scheduledTime === s.scheduledTime))
+                  );
+
+                  if (viewingAll && visible.length > 1) {
+                    return (
+                      <button
+                        key={wd}
+                        onClick={() => {
+                          if (isMoveActive) { commitMove(dragSlotId!, wd, h); return; }
+                          setEditing({ weekday: wd, hour: h });
+                        }}
+                        className="min-h-[42px] rounded-lg border border-border/40 p-0.5 text-left transition-all hover:border-border/70 select-none w-full"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          {visible.map(s => {
+                            const p = TRAINER_PALETTE[trainerColorMap.get(s.trainerId) ?? 0];
+                            const sEt = (s.eventType ?? "pt") as EventType;
+                            return (
+                              <div key={s.id} className={`px-1 py-0.5 rounded border leading-tight ${
+                                s.status === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
+                                : s.status === "done" ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
+                                : p.cell
+                              }`}>
+                                <span className="block truncate text-[9px] text-amber-300/80">{s.trainerName ?? "담당없음"}</span>
+                                {sEt !== "pt" && <span className="block text-[8px] opacity-60">{EVENT_LABELS[sEt]}</span>}
+                                <span className="block truncate text-[9px] font-medium">{s.memberName ?? s.notes ?? "미배정"}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </button>
+                    );
+                  }
+
                   return (
                     <button
                       key={wd}
@@ -468,14 +506,7 @@ export default function SchedulePage() {
                             {top.scheduledTime}
                             {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
                           </span>
-                          {(() => {
-                            // one-off가 커버하는 반복 템플릿은 추가 카운트에서 제외
-                            const extra = cell.filter(s =>
-                              s !== top &&
-                              !(s.isRecurring === 1 && top?.isRecurring === 0 && s.scheduledTime === top?.scheduledTime)
-                            ).length;
-                            return extra > 0 ? <span className="opacity-60">+{extra}</span> : null;
-                          })()}
+                          {visible.length > 1 && <span className="opacity-60">+{visible.length - 1}</span>}
                         </>
                       ) : (
                         <Plus className="h-3 w-3 text-muted-foreground/40" />
