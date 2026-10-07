@@ -1624,9 +1624,18 @@ const dashboardRouter = t.router({
       else if (period === "H2") months = [7,8,9,10,11,12];
       else months = [1,2,3,4,5,6,7,8,9,10,11,12];
 
-      const periodStart = `${year}-${String(months[0]).padStart(2,"0")}-01`;
-      const lastM = months[months.length - 1];
-      const periodEnd = new Date(year, lastM, 1).toISOString().split("T")[0];
+      const ymd = (y: number, m: number) => `${y}-${String(m).padStart(2,"0")}-01`;
+      const nextMonth = (y: number, m: number) => (m === 12 ? ymd(y + 1, 1) : ymd(y, m + 1));
+      const periodStart = ymd(year, months[0]);
+      const periodEnd = nextMonth(year, months[months.length - 1]);
+      // 같은 회원의 이전 계약이 있으면 재등록
+      const REREG = `EXISTS (SELECT 1 FROM pt_packages p2 WHERE p2."memberId"=p."memberId" AND p2.id<>p.id AND (p2."createdAt"<p."createdAt" OR (p2."createdAt"=p."createdAt" AND p2.id<p.id)))`;
+
+      const now = new Date();
+      const recentMonths = Array.from({ length: 6 }, (_, i) => {
+        const idx = now.getUTCFullYear() * 12 + now.getUTCMonth() - (5 - i);
+        return { y: Math.floor(idx / 12), m: (idx % 12) + 1 };
+      });
 
       const [pkgRows, memberRows, visitRows, genderRows, monthlyRows] = await Promise.all([
         // 프로그램별 현황
@@ -1635,18 +1644,18 @@ const dashboardRouter = t.router({
             COALESCE(NULLIF(p."packageName",''), '수업 프로그램') AS "packageName",
             COUNT(*) AS cnt,
             COALESCE(SUM(p."paymentAmount"),0) AS revenue,
-            COUNT(*) FILTER (WHERE mem."createdAt" < $2) AS rereg
+            COUNT(*) FILTER (WHERE ${REREG}) AS rereg
           FROM pt_packages p
           INNER JOIN members mem ON mem.id = p."memberId"
           WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3
-          GROUP BY 1 ORDER BY SUM(p."paymentAmount") DESC NULLS LAST
+          GROUP BY 1 ORDER BY COALESCE(SUM(p."paymentAmount"),0) DESC, COUNT(*) DESC
         `, [tid, periodStart, periodEnd]),
 
         // 신규/재등록 총계
         pool.query<{ new_cnt: string; rereg_cnt: string; total_revenue: string }>(`
           SELECT
-            COUNT(*) FILTER (WHERE mem."createdAt" >= $2) AS new_cnt,
-            COUNT(*) FILTER (WHERE mem."createdAt" < $2) AS rereg_cnt,
+            COUNT(*) FILTER (WHERE NOT ${REREG}) AS new_cnt,
+            COUNT(*) FILTER (WHERE ${REREG}) AS rereg_cnt,
             COALESCE(SUM(p."paymentAmount"),0) AS total_revenue
           FROM pt_packages p
           INNER JOIN members mem ON mem.id = p."memberId"
@@ -1664,27 +1673,23 @@ const dashboardRouter = t.router({
         // 성별 분포 (전체 활성 회원)
         pool.query<{ gender: string; cnt: string }>(`
           SELECT COALESCE(NULLIF(gender,''), '미입력') AS gender, COUNT(*) AS cnt
-          FROM members WHERE "trainerId"=$1 AND status='active' GROUP BY 1
+          FROM members WHERE "trainerId"=$1 AND status='active' GROUP BY 1 ORDER BY 2 DESC
         `, [tid]),
 
-        // 월별 신규·재등록 추이 (마지막 6개월 고정)
-        Promise.all(Array.from({length:6},(_,i) => {
-          const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (5-i));
-          const ms = d.toISOString().split("T")[0];
-          const me = new Date(d.getFullYear(), d.getMonth()+1, 1).toISOString().split("T")[0];
-          return pool.query<{ new_cnt: string; rereg_cnt: string }>(`
+        // 월별 신규·재등록 추이 (최근 6개월 고정)
+        Promise.all(recentMonths.map(({ y, m }) =>
+          pool.query<{ new_cnt: string; rereg_cnt: string }>(`
             SELECT
-              COUNT(*) FILTER (WHERE mem."createdAt" >= $2) AS new_cnt,
-              COUNT(*) FILTER (WHERE mem."createdAt" < $2) AS rereg_cnt
+              COUNT(*) FILTER (WHERE NOT ${REREG}) AS new_cnt,
+              COUNT(*) FILTER (WHERE ${REREG}) AS rereg_cnt
             FROM pt_packages p
-            INNER JOIN members mem ON mem.id = p."memberId"
             WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3
-          `, [tid, ms, me]).then(r => ({
-            label: `${d.getMonth()+1}월`,
+          `, [tid, ymd(y, m), nextMonth(y, m)]).then(r => ({
+            label: `${m}월`,
             신규: Number(r.rows[0]?.new_cnt ?? 0),
             재등록: Number(r.rows[0]?.rereg_cnt ?? 0),
-          }));
-        })),
+          }))
+        )),
       ]);
 
       const summary = memberRows.rows[0] ?? { new_cnt: "0", rereg_cnt: "0", total_revenue: "0" };
@@ -1718,13 +1723,12 @@ const dashboardRouter = t.router({
       const months: number[] = period === "H1" ? [1,2,3,4,5,6] : period === "H2" ? [7,8,9,10,11,12] : [1,2,3,4,5,6,7,8,9,10,11,12];
       const periodStart = `${year}-${String(months[0]).padStart(2,"0")}-01`;
       const lastM = months[months.length - 1];
-      const periodEndDate = new Date(year, lastM, 1);
-      const periodEnd = periodEndDate.toISOString().split("T")[0];
+      const periodEnd = lastM === 12 ? `${year + 1}-01-01` : `${year}-${String(lastM + 1).padStart(2,"0")}-01`;
 
       // 월별 데이터
       const monthly = await Promise.all(months.map(async (m) => {
         const mStart = `${year}-${String(m).padStart(2,"0")}-01`;
-        const mEnd = new Date(year, m, 1).toISOString().split("T")[0];
+        const mEnd = m === 12 ? `${year + 1}-01-01` : `${year}-${String(m + 1).padStart(2,"0")}-01`;
         const [sessRes, reregRes] = await Promise.all([
           pool.query<{ count: string }>(
             `SELECT COUNT(*) AS count FROM pt_session_logs WHERE "trainerId"=$1 AND "sessionDate">=$2 AND "sessionDate"<$3`,
@@ -1733,7 +1737,7 @@ const dashboardRouter = t.router({
           pool.query<{ count: string }>(
             `SELECT COUNT(*) AS count FROM pt_packages p
              INNER JOIN members mem ON mem.id = p."memberId"
-             WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3 AND mem."createdAt"<$2`,
+             WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3 AND EXISTS (SELECT 1 FROM pt_packages p2 WHERE p2."memberId"=p."memberId" AND p2.id<>p.id AND (p2."createdAt"<p."createdAt" OR (p2."createdAt"=p."createdAt" AND p2.id<p.id)))`,
             [tid, mStart, mEnd]
           ),
         ]);
@@ -1752,7 +1756,7 @@ const dashboardRouter = t.router({
         pool.query<{ count: string }>(
           `SELECT COUNT(*) AS count FROM pt_packages p
            INNER JOIN members mem ON mem.id = p."memberId"
-           WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3 AND mem."createdAt"<$2`,
+           WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3 AND EXISTS (SELECT 1 FROM pt_packages p2 WHERE p2."memberId"=p."memberId" AND p2.id<>p.id AND (p2."createdAt"<p."createdAt" OR (p2."createdAt"=p."createdAt" AND p2.id<p.id)))`,
           [tid, periodStart, periodEnd]
         ),
         pool.query<{ count: string }>(

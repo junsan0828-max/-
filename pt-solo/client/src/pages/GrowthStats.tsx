@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, TrendingUp, Users, RefreshCw, BarChart3, MapPin, UserRound } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 
 const PERIOD_LABELS: Record<string, string> = { H1: "상반기", H2: "하반기", annual: "연간", month: "월간" };
 const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
-const GENDER_LABELS: Record<string, string> = { male: "남성", female: "여성", 미입력: "미입력" };
+const GENDER_LABELS: Record<string, string> = { male: "남성", female: "여성", other: "기타", 미입력: "미입력" };
 
 const COLORS = ["#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899","#6366f1"];
 
@@ -23,8 +22,7 @@ export default function GrowthStats() {
   const [, setLocation] = useLocation();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
-  const defaultPeriod: "H1" | "H2" | "annual" | "month" =
-    (new Date().getMonth() + 1) <= 6 ? "H1" : "H2";
+  const defaultPeriod: "H1" | "H2" | "annual" | "month" = currentMonth <= 6 ? "H1" : "H2";
 
   const [year, setYear] = useState(currentYear);
   const [period, setPeriod] = useState<"H1" | "H2" | "annual" | "month">(defaultPeriod);
@@ -117,10 +115,10 @@ export default function GrowthStats() {
               <div className="rounded-2xl bg-card border border-border p-4">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Users className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-[11px] text-muted-foreground font-medium">신규 회원</span>
+                  <span className="text-[11px] text-muted-foreground font-medium">신규 등록</span>
                 </div>
                 <p className="text-2xl font-bold text-primary">
-                  {summary.newCount}<span className="text-sm font-normal ml-1">명</span>
+                  {summary.newCount}<span className="text-sm font-normal ml-1">건</span>
                 </p>
               </div>
 
@@ -166,7 +164,6 @@ export default function GrowthStats() {
               ) : (
                 <div className="space-y-3">
                   {programs.map((prog, i) => {
-                    const barPct = Math.round((prog.total / maxProgTotal) * 100);
                     return (
                       <div key={i} className="space-y-1">
                         <div className="flex items-center justify-between">
@@ -175,25 +172,14 @@ export default function GrowthStats() {
                             {fmt(prog.revenue)}원
                           </span>
                         </div>
-                        {/* 진행 바 */}
-                        <div className="relative h-5 rounded-full overflow-hidden bg-muted/40">
-                          {/* 신규 */}
+                        <div className="h-5 rounded-full overflow-hidden bg-muted/40 flex">
                           <div
-                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${barPct}%`,
-                              background: COLORS[i % COLORS.length],
-                              opacity: 0.9,
-                            }}
+                            className="h-full transition-all duration-500"
+                            style={{ width: `${(prog.신규 / maxProgTotal) * 100}%`, background: COLORS[i % COLORS.length] }}
                           />
-                          {/* 재등록 overlay (어두운 부분) */}
                           <div
-                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${Math.round((prog.재등록 / maxProgTotal) * 100)}%`,
-                              background: COLORS[i % COLORS.length],
-                              opacity: 0.4,
-                            }}
+                            className="h-full transition-all duration-500"
+                            style={{ width: `${(prog.재등록 / maxProgTotal) * 100}%`, background: COLORS[i % COLORS.length], opacity: 0.45 }}
                           />
                         </div>
                         <div className="flex gap-3 text-[10px] text-muted-foreground">
