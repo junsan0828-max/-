@@ -423,12 +423,16 @@ export default function SchedulePage() {
 
                   const isSelected = top != null && dragSlotId === top.id;
 
-                  // 전체보기: 같은 시간대 여러 수업 → 미니 카드 스택으로 전부 표시
-                  // 같은 트레이너·같은 시각의 one-off가 덮은 고정 템플릿은 중복이므로 제외
-                  const visible = cell.filter(s =>
-                    !(s.isRecurring === 1 && cell.some(o =>
-                      o.isRecurring === 0 && o.trainerId === s.trainerId && o.scheduledTime === s.scheduledTime))
-                  );
+                  // 전체보기: 트레이너마다 one-off가 있으면 recurring template 제거(Set 기반 dedup)
+                  // 다른 트레이너의 슬롯은 반드시 모두 표시한다.
+                  // cell은 이미 isRecurring 오름차순(one-off 먼저) 정렬되어 있어 첫 hit만 남기면 됨.
+                  const _seenKey = new Set<string>();
+                  const visible = cell.filter(s => {
+                    const key = `${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`;
+                    if (_seenKey.has(key)) return false;
+                    _seenKey.add(key);
+                    return true;
+                  });
 
                   // 관리자·FC 전체보기, 또는 한 칸에 여러 수업: 카드마다 따로 보여주고 따로 누르고 따로 옮긴다
                   if (viewingAll || visible.length > 1) {
@@ -469,7 +473,10 @@ export default function SchedulePage() {
                                 <span className="block truncate text-[10px] text-amber-300/90">{s.trainerName ?? "담당없음"}</span>
                               )}
                               {sEt !== "pt" && <span className="block text-[9px] opacity-60 font-medium">{EVENT_LABELS[sEt]}</span>}
-                              <span className="block truncate font-medium">{s.memberName ?? s.notes ?? "미배정"}</span>
+                              <span className="font-medium flex items-baseline gap-0.5 min-w-0">
+                                <span className="block truncate">{s.memberName ?? s.notes ?? "미배정"}</span>
+                                {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className="text-[9px] text-orange-300/80 font-bold shrink-0">{bi + 1}</span> : null; })()}
+                              </span>
                               <span className="opacity-70 flex items-center gap-0.5">
                                 {s.scheduledTime}
                                 {s.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
