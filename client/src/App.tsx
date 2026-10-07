@@ -186,7 +186,7 @@ function App() {
       <ErrorBoundary>
       <Switch>
         <Route path="/landing">{() => <Landing />}</Route>
-        <Route path="/">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <GymDashboard /> : user?.role === "consultant" ? <LeadsPage /> : <Dashboard />}</Route>
+        <Route path="/">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <GymDashboard /> : user?.role === "consultant" ? <SchedulePage /> : <Dashboard />}</Route>
         <Route path="/gym-dashboard">{() => <GymDashboard />}</Route>
         <Route path="/my-work">{() => <MyWorkPage />}</Route>
         <Route path="/leads">{() => <LeadsPage />}</Route>

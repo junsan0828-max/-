@@ -2531,12 +2531,16 @@ const ptRouter = t.router({
 const SCHEDULE_BETA_DEFAULT = "all";
 function canUseSchedule(user?: { id: number; username?: string; role?: string } | null): boolean {
   if (!user) return false;
-  if (user.role === "admin" || user.role === "sub_admin") return true;
+  if (user.role === "admin" || user.role === "sub_admin" || user.role === "consultant") return true;
   const raw = (process.env.SCHEDULE_BETA_USERS ?? SCHEDULE_BETA_DEFAULT).trim();
   if (!raw) return false;
   if (raw.toLowerCase() === "all") return true;
   const allow = raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
   return allow.includes(String(user.username ?? "").toLowerCase()) || allow.includes(String(user.id));
+}
+// 스케줄 전체 조회·수정 권한: 관리자 + FC(컨설턴트)
+function isScheduleAdmin(role?: string) {
+  return role === "admin" || role === "sub_admin" || role === "consultant";
 }
 
 // 차감 대상 패키지 선택 — attendanceChecks.upsert와 같은 기준(기타 뒤로, 시작된 것, 오래된 것 먼저).
@@ -2629,7 +2633,7 @@ async function requireOwnSchedule(ctx: any, scheduleId: number) {
   const [row] = await db.select({ trainerId: schedules.trainerId })
     .from(schedules).where(eq(schedules.id, scheduleId)).limit(1);
   if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "일정을 찾을 수 없습니다." });
-  const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+  const isAdmin = isScheduleAdmin(ctx.user?.role);
   if (!isAdmin && row.trainerId !== ctx.user?.trainerId)
     throw new TRPCError({ code: "FORBIDDEN", message: "본인 일정만 수정할 수 있습니다." });
   return db;
@@ -2639,7 +2643,7 @@ const schedulesRouter = t.router({
   // 사이드바 노출 여부 + 관리자 여부(전체 트레이너 조회 가능)
   myAccess: protectedProcedure.query(({ ctx }) => ({
     allowed: canUseSchedule(ctx.user as any),
-    isAdmin: ctx.user?.role === "admin" || ctx.user?.role === "sub_admin",
+    isAdmin: isScheduleAdmin(ctx.user?.role),
   })),
 
   // 지점 목록 — 스케줄 등록 시 지점 선택용 (트레이너도 접근 가능)
@@ -2651,7 +2655,7 @@ const schedulesRouter = t.router({
 
   // 관리자가 트레이너를 골라 볼 수 있도록 — 일정이 있든 없든 전체 트레이너 목록
   trainerOptions: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") return [];
+    if (!isScheduleAdmin(ctx.user?.role)) return [];
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     return db.select({ id: trainers.id, trainerName: trainers.trainerName })
@@ -2671,8 +2675,8 @@ const schedulesRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
-      // 트레이너는 항상 본인 것만. 입력으로 남의 일정을 들여다볼 수 없게 관리자만 필터를 쓴다.
+      const isAdmin = isScheduleAdmin(ctx.user?.role);
+      // 트레이너는 항상 본인 것만. 입력으로 남의 일정을 들여다볼 수 없게 관리자/FC만 필터를 쓴다.
       const scopeTrainerId = isAdmin ? (input.trainerId ?? null) : ctx.user.trainerId;
       if (!isAdmin && !scopeTrainerId)
         throw new TRPCError({ code: "FORBIDDEN", message: "트레이너 계정만 사용할 수 있습니다." });
@@ -2717,7 +2721,7 @@ const schedulesRouter = t.router({
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+      const isAdmin = isScheduleAdmin(ctx.user?.role);
       const trainerId = (isAdmin && input.trainerId) ? input.trainerId : ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "어느 트레이너의 일정인지 지정해야 합니다." });
       const memberId = input.memberId ?? (input.eventType === "pt" ? await resolveMemberByName(db, input.memberName, trainerId) : null);

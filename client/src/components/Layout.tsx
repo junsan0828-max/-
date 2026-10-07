@@ -70,6 +70,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   const consultantNavItems = [
+    { path: "/", label: "스케줄 홈", icon: CalendarDays },
     { path: "/my-work", label: "나의 업무", icon: ListChecks },
     { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
@@ -97,7 +98,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const baseNavItems = isAdmin ? adminNavItems
     : user?.role === "consultant" ? consultantNavItems
     : trainerNavItems;
-  const navItems = scheduleAccess?.allowed
+  // 컨설턴트(FC)는 홈 자체가 스케줄이므로 /schedule 메뉴를 중복 추가하지 않는다
+  const navItems = scheduleAccess?.allowed && user?.role !== "consultant"
     ? [baseNavItems[0], { path: "/schedule", label: "스케줄 관리", icon: CalendarDays }, ...baseNavItems.slice(1)]
     : baseNavItems;
 
