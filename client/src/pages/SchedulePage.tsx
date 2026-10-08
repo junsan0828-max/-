@@ -463,7 +463,7 @@ export default function SchedulePage() {
                               className={`relative w-full rounded-lg border px-1 py-1 text-left text-[11px] leading-tight transition-all select-none ${
                                 sSelected ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
                                 : s.status === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
-                                : sDone ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
+                                : sDone ? `${p.cell} opacity-60`
                                 : p.cell
                               }`}
                             >
@@ -520,7 +520,7 @@ export default function SchedulePage() {
                             ? top.status === "noshow"
                               ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
                               : isDone
-                              ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
+                              ? `${tColor ? tColor.cell : colors.filled} opacity-60`
                               : tColor
                                 ? tColor.cell
                                 : colors.filled
