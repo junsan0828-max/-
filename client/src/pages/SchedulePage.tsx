@@ -416,8 +416,8 @@ export default function SchedulePage() {
                   const et = (top?.eventType ?? "pt") as EventType;
                   const colors = EVENT_COLORS[et] ?? EVENT_COLORS.pt;
                   const isDone = top?.status === "done";
-                  // 어드민 전체보기: 트레이너 색상 우선. 개인보기: 일정 유형 색상
-                  const tColor = (viewingAll && top?.trainerId != null)
+                  // 트레이너가 배정된 슬롯은 항상 트레이너 색상 (고정/유동 무관)
+                  const tColor = top?.trainerId != null
                     ? TRAINER_PALETTE[trainerColorMap.get(top.trainerId) ?? 0]
                     : null;
 
@@ -464,8 +464,7 @@ export default function SchedulePage() {
                                 sSelected ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
                                 : s.status === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
                                 : sDone ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
-                                : viewingAll ? p.cell
-                                : (EVENT_COLORS[sEt] ?? EVENT_COLORS.pt).filled
+                                : p.cell
                               }`}
                             >
                               {sDone && <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />}
@@ -524,9 +523,7 @@ export default function SchedulePage() {
                               ? "bg-emerald-950/50 border-emerald-700/40 text-emerald-100/80"
                               : tColor
                                 ? tColor.cell
-                                : top.isRecurring
-                                  ? "bg-slate-100/7 border-slate-300/25 hover:bg-slate-100/12 text-slate-200/85"
-                                  : colors.filled
+                                : colors.filled
                             : hol
                               ? "border-red-500/25 border-dashed hover:border-red-500/50 hover:bg-red-500/5"
                               : colors.empty
