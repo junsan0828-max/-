@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, LogOut, RefreshCw, ExternalLink,
-  Eye, EyeOff, Users, Share2, TrendingUp, Activity, CreditCard, Check, Bell,
-  BarChart3, MousePointerClick, Coins,
+  Eye, EyeOff, Users, CreditCard, Check, Bell,
+  BarChart3, Coins,
 } from "lucide-react";
 
 const ADMIN_ID = (import.meta.env.VITE_ADMIN_ID as string | undefined) ?? "admin";
@@ -304,8 +304,6 @@ export default function AdminPage() {
   }
 
   /* ── Dashboard ── */
-  const sum = (field: keyof ReturnType<typeof K>) =>
-    SERVICES.reduce((acc, svc) => acc + (stats[K(svc.prefix)[field]] ?? 0), 0);
   const fmtN = (n: number) => (loading ? "…" : n.toLocaleString());
   const card: React.CSSProperties = {
     background: "#ffffff", borderRadius: 16, padding: 24, border: "1px solid #e2e8f0",
@@ -349,7 +347,7 @@ export default function AdminPage() {
         {tab === "overview" && (
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
-              <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: 0 }}>전체 현황</h2>
+              <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: 0 }}>프로그램별 현황</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {lastRefresh && <span style={{ color: "#94a3b8", fontSize: 12 }}>갱신: {lastRefresh.toLocaleTimeString("ko-KR")}</span>}
                 <button onClick={fetchStats} disabled={loading} style={{ display: "flex", alignItems: "center", gap: 5, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 12px", color: "#475569", fontSize: 12, cursor: "pointer" }}>
@@ -358,25 +356,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12, marginBottom: 32 }}>
-              {[
-                { label: "오늘 방문", v: sum("visitToday"), color: "#2563eb", Icon: Activity },
-                { label: "오늘 사용", v: sum("useToday"), color: "#0d9488", Icon: MousePointerClick },
-                { label: "누적 방문", v: sum("visitTotal"), color: "#2563eb", Icon: Users },
-                { label: "누적 사용", v: sum("useTotal"), color: "#0d9488", Icon: TrendingUp },
-              ].map(({ label, v, color, Icon }) => (
-                <div key={label} style={{ ...card, padding: "16px 18px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{ color: "#475569", fontSize: 12 }}>{label}</span>
-                    <Icon size={14} color={color} />
-                  </div>
-                  <p style={{ color: "#0f172a", fontSize: 26, fontWeight: 800, margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{fmtN(v)}</p>
-                  <p style={{ color: "#94a3b8", fontSize: 11, margin: "6px 0 0" }}>프로그램 {SERVICES.length}개 합계</p>
-                </div>
-              ))}
-            </div>
-
-            <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: "0 0 16px" }}>프로그램별 현황</h2>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20 }}>
               {SERVICES.map((svc) => {
                 const k = K(svc.prefix);
@@ -456,7 +435,7 @@ async function loadSeries(prefix: string, kind: string): Promise<Daily> {
 
 function DataPanel({ isMobile }: { isMobile: boolean }) {
   const [days, setDays] = useState<7 | 14 | 30>(14);
-  const [svcId, setSvcId] = useState<string>("all");
+  const [svcId, setSvcId] = useState<string>(SERVICES[0].id);
   const [series, setSeries] = useState<Record<string, SvcSeries>>({});
   const [loading, setLoading] = useState(false);
 
@@ -474,9 +453,8 @@ function DataPanel({ isMobile }: { isMobile: boolean }) {
   useEffect(() => { load(); }, []);
 
   const dates = lastNDates(days);
-  const picked = svcId === "all" ? SERVICES : SERVICES.filter((s) => s.id === svcId);
-  const val = (d: string, kind: keyof SvcSeries) =>
-    picked.reduce((acc, svc) => acc + (series[svc.prefix]?.[kind][d] ?? 0), 0);
+  const cur = SERVICES.find((s) => s.id === svcId) ?? SERVICES[0];
+  const val = (d: string, kind: keyof SvcSeries) => series[cur.prefix]?.[kind][d] ?? 0;
   const rows = dates.map((d) => ({ d, v: val(d, "v"), u: val(d, "u"), s: val(d, "s") }));
   const total = rows.reduce((a, r) => ({ v: a.v + r.v, u: a.u + r.u, s: a.s + r.s }), { v: 0, u: 0, s: 0 });
   const maxY = Math.max(4, ...rows.map((r) => Math.max(r.v, r.u)));
@@ -511,7 +489,7 @@ function DataPanel({ isMobile }: { isMobile: boolean }) {
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        {[{ id: "all", name: "전체" }, ...SERVICES].map((s) => (
+        {SERVICES.map((s) => (
           <button key={s.id} onClick={() => setSvcId(s.id)} style={pill(svcId === s.id)}>{s.name}</button>
         ))}
       </div>
@@ -537,7 +515,7 @@ function DataPanel({ isMobile }: { isMobile: boolean }) {
 
       <div style={card}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10, fontSize: 12, color: "#475569" }}>
-          <span style={{ fontWeight: 700, color: "#0f172a" }}>일별 추이</span>
+          <span style={{ fontWeight: 700, color: "#0f172a" }}>{cur.name} · 일별 추이</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ width: 10, height: 10, borderRadius: 2, background: "#2563eb", display: "inline-block" }} />방문</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ width: 10, height: 10, borderRadius: 2, background: "#0d9488", display: "inline-block" }} />사용</span>
         </div>
@@ -566,33 +544,31 @@ function DataPanel({ isMobile }: { isMobile: boolean }) {
         </svg>
       </div>
 
-      {svcId === "all" && (
-        <div style={card}>
-          <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: "0 0 10px" }}>프로그램별 비교 · 최근 {days}일</p>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
-              <thead><tr>
-                <th style={{ ...th, textAlign: "left" }}>프로그램</th><th style={th}>방문</th><th style={th}>사용</th><th style={th}>공유</th><th style={th}>사용률</th>
-              </tr></thead>
-              <tbody>
-                {SERVICES.map((svc) => {
-                  const sv = series[svc.prefix];
-                  const t = dates.reduce((a, d) => ({ v: a.v + (sv?.v[d] ?? 0), u: a.u + (sv?.u[d] ?? 0), s: a.s + (sv?.s[d] ?? 0) }), { v: 0, u: 0, s: 0 });
-                  return (
-                    <tr key={svc.id}>
-                      <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{svc.name}<span style={{ display: "block", color: "#94a3b8", fontSize: 11, fontWeight: 400 }}>사용 = {svc.usage}</span></td>
-                      <td style={td}>{t.v.toLocaleString()}</td><td style={td}>{t.u.toLocaleString()}</td><td style={td}>{t.s.toLocaleString()}</td><td style={td}>{rate(t.u, t.v)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+      <div style={card}>
+        <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: "0 0 10px" }}>프로그램별 비교 · 최근 {days}일</p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
+            <thead><tr>
+              <th style={{ ...th, textAlign: "left" }}>프로그램</th><th style={th}>방문</th><th style={th}>사용</th><th style={th}>공유</th><th style={th}>사용률</th>
+            </tr></thead>
+            <tbody>
+              {SERVICES.map((svc) => {
+                const sv = series[svc.prefix];
+                const t = dates.reduce((a, d) => ({ v: a.v + (sv?.v[d] ?? 0), u: a.u + (sv?.u[d] ?? 0), s: a.s + (sv?.s[d] ?? 0) }), { v: 0, u: 0, s: 0 });
+                return (
+                  <tr key={svc.id}>
+                    <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{svc.name}<span style={{ display: "block", color: "#94a3b8", fontSize: 11, fontWeight: 400 }}>사용 = {svc.usage}</span></td>
+                    <td style={td}>{t.v.toLocaleString()}</td><td style={td}>{t.u.toLocaleString()}</td><td style={td}>{t.s.toLocaleString()}</td><td style={td}>{rate(t.u, t.v)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
       <div style={card}>
-        <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: "0 0 10px" }}>날짜별 상세</p>
+        <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: "0 0 10px" }}>{cur.name} · 날짜별 상세</p>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 300 }}>
             <thead><tr>
