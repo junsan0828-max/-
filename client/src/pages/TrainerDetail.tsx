@@ -167,12 +167,9 @@ export default function TrainerDetail({ trainerId }: Props) {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold shrink-0">
-            {trainer.trainerName.charAt(0)}
-          </div>
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold truncate">{trainer.trainerName}</h1>
+            <h1 className="text-lg font-bold">{trainer.trainerName}</h1>
             <p className="text-xs text-muted-foreground">트레이너</p>
           </div>
         </div>
