@@ -15,13 +15,20 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
+const BRANCH_TABS = [
+  { label: "전체", value: undefined as number | undefined },
+  { label: "1호점", value: 1 },
+  { label: "2호점", value: 2 },
+];
+
 export default function SettlementReport() {
   const today = new Date();
   const [yearMonth, setYearMonth] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
+  const [branchId, setBranchId] = useState<number | undefined>(undefined);
 
-  const { data, isLoading } = trpc.admin.getSettlementReport.useQuery({ yearMonth });
+  const { data, isLoading } = trpc.admin.getSettlementReport.useQuery({ yearMonth, branchId });
 
   return (
     <div className="space-y-5">
@@ -36,6 +43,23 @@ export default function SettlementReport() {
           onChange={(e) => setYearMonth(e.target.value)}
           className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-foreground"
         />
+      </div>
+
+      {/* 지점 필터 */}
+      <div className="flex gap-2">
+        {BRANCH_TABS.map(tab => (
+          <button
+            key={String(tab.value)}
+            onClick={() => setBranchId(tab.value)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              branchId === tab.value
+                ? "bg-primary text-primary-foreground"
+                : "bg-accent/30 text-muted-foreground hover:bg-accent/50"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {isLoading ? (
