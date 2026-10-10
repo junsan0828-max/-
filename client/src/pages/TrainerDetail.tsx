@@ -48,6 +48,7 @@ export default function TrainerDetail({ trainerId }: Props) {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [settlementBranchId, setSettlementBranchId] = useState<number | undefined>(undefined);
   const moveSettlementMonth = (delta: number) => {
     setSettlementMonth((prev) => {
       const [y, m] = prev.split("-").map(Number);
@@ -58,7 +59,7 @@ export default function TrainerDetail({ trainerId }: Props) {
 
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
-  const { data: settlement, refetch: refetchSettlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
+  const { data: settlement, refetch: refetchSettlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth, branchId: settlementBranchId });
   const deleteLogMutation = trpc.pt.deleteLog.useMutation({
     onSuccess: () => { toast.success("세션이 삭제되었습니다."); refetchSettlement(); },
     onError: (err) => toast.error(err.message || "삭제 실패"),
@@ -535,6 +536,22 @@ export default function TrainerDetail({ trainerId }: Props) {
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
+          </div>
+          {/* 지점 필터 */}
+          <div className="flex gap-1.5 mt-3">
+            {([{ label: "전체", value: undefined }, { label: "1호점", value: 1 }, { label: "2호점", value: 2 }] as const).map(tab => (
+              <button
+                key={String(tab.value)}
+                onClick={() => setSettlementBranchId(tab.value as number | undefined)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  settlementBranchId === tab.value
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-accent/30 text-muted-foreground hover:bg-accent/50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </CardHeader>
         <CardContent>
