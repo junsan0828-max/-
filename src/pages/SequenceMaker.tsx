@@ -4,6 +4,7 @@ import {
   ArrowLeft, Dumbbell, Youtube, Check, Clock, Copy, Heart, Eye,
   Globe, Lock, Users, ListChecks,
 } from "lucide-react";
+import { track } from "../lib/counter";
 
 /* ────────────────────────────────────────────────────────────────────────
    시퀀스 메이커 — 작성/저장/공유 + 커뮤니티 피드
@@ -326,6 +327,13 @@ export default function SequenceMaker() {
 
   useEffect(() => { document.title = "시퀀스 메이커 · FIT STEP"; }, []);
 
+  useEffect(() => {
+    if (!sessionStorage.getItem("sq-visited")) {
+      sessionStorage.setItem("sq-visited", "1");
+      track("sq", "v");
+    }
+  }, []);
+
   // 카카오 PKCE 콜백 처리
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -532,6 +540,7 @@ export default function SequenceMaker() {
     setList(next); saveAll(next);
     setDraft(updated);
     setSaving(false);
+    track("sq", "u");
     setSavedFlash(true);
     setTimeout(() => {
       setSavedFlash(false);
@@ -544,6 +553,7 @@ export default function SequenceMaker() {
     if (!draft) return;
     const encoded = encodeSeq(draft);
     const url = `${window.location.origin}/sequence?view=${encoded}`;
+    track("sq", "s");
     if (navigator.share) {
       try { await navigator.share({ title: `${draft.title} · 수업 시퀀스`, url }); return; } catch (e) {
         if ((e as DOMException)?.name === "AbortError") return;
@@ -808,6 +818,7 @@ export default function SequenceMaker() {
                     <button onClick={async () => {
                       const encoded = encodeSeq(seq);
                       const url = `${window.location.origin}/sequence?view=${encoded}`;
+                      track("sq", "s");
                       if (navigator.share) { try { await navigator.share({ title: seq.title, url }); return; } catch {} }
                       navigator.clipboard.writeText(url);
                     }} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", color: "#475569", cursor: "pointer" }}>

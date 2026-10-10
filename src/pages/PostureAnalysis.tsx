@@ -717,6 +717,7 @@ export default function PostureAnalysis() {
     link.download = "posture-analysis.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
+    paInc("pa_uc"); paInc(`pa_ud_${_paTodayKey()}`);
   }
 
   function confirmText() {

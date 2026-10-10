@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard, LogOut, RefreshCw, ExternalLink,
   Eye, EyeOff, Users, Share2, TrendingUp, Activity, CreditCard, Check, Bell,
+  BarChart3, MousePointerClick, Coins,
 } from "lucide-react";
 
 const ADMIN_ID = (import.meta.env.VITE_ADMIN_ID as string | undefined) ?? "admin";
@@ -56,47 +57,30 @@ function todayKey() {
 
 interface ServiceDef {
   id: string;
+  prefix: string;
   name: string;
   desc: string;
+  usage: string;
   link: string;
-  vcKey: string;
-  vtKey: string;
-  scKey: string;
-  stKey: string;
 }
 
 const SERVICES: ServiceDef[] = [
-  {
-    id: "diet-planner",
-    name: "FIT STEP 맞춤 식단 플래너",
-    desc: "개인 맞춤형 AI 식단 생성 서비스. 식단 목적 · 현실식/건강식 스타일 지원.",
-    link: "/",
-    vcKey: "dp_vc",
-    vtKey: `dp_vt_${todayKey()}`,
-    scKey: "dp_sc",
-    stKey: `dp_st_${todayKey()}`,
-  },
-  {
-    id: "posture-line",
-    name: "FIT STEP 체형 분석 라인 드로잉",
-    desc: "사진 위에 수평·수직·각도선을 그어 체형을 분석하는 도구. PNG 저장 지원.",
-    link: "/posture",
-    vcKey: "pa_vc",
-    vtKey: `pa_vt_${todayKey()}`,
-    scKey: "pa_sc",
-    stKey: `pa_st_${todayKey()}`,
-  },
-  {
-    id: "contract",
-    name: "FIT STEP 전자 회원 계약서",
-    desc: "URL 파라미터로 계약 정보를 전달해 계약서를 생성·인쇄·공유. 서명 이미지 지원.",
-    link: "/contract",
-    vcKey: "ct_vc",
-    vtKey: `ct_vt_${todayKey()}`,
-    scKey: "ct_sc",
-    stKey: `ct_st_${todayKey()}`,
-  },
+  { id: "diet-planner", prefix: "dp", name: "맞춤 식단 플래너", desc: "개인 맞춤 식단 생성 · 공유", usage: "식단 생성", link: "/" },
+  { id: "posture-line", prefix: "pa", name: "체형 분석 라인 드로잉", desc: "사진 위 수평·수직·각도선 분석 · PNG 저장", usage: "PNG 저장", link: "/posture" },
+  { id: "contract", prefix: "ct", name: "전자 회원 계약서", desc: "계약서 작성 · 서명 · 출력", usage: "계약서 생성", link: "/contract" },
+  { id: "sequence", prefix: "sq", name: "시퀀스 랩", desc: "수업 시퀀스 작성 · 공유", usage: "시퀀스 저장", link: "/sequence" },
 ];
+
+const K = (p: string) => ({
+  visitTotal: `${p}_vc`, visitToday: `${p}_vt_${todayKey()}`,
+  useTotal: `${p}_uc`, useToday: `${p}_ud_${todayKey()}`,
+  shareTotal: `${p}_sc`, shareToday: `${p}_st_${todayKey()}`,
+});
+
+const MAX_FAILS = 5;
+const LOCK_MS = 5 * 60 * 1000;
+
+type Tab = "overview" | "data" | "points";
 
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState(
@@ -110,6 +94,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 700);
+  const [tab, setTab] = useState<Tab>("overview");
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 700);
@@ -119,12 +104,27 @@ export default function AdminPage() {
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    const lockUntil = Number(sessionStorage.getItem("dp_admin_lock") || 0);
+    if (lockUntil > Date.now()) {
+      const min = Math.ceil((lockUntil - Date.now()) / 60000);
+      setLoginError(`로그인 시도가 너무 많습니다. ${min}분 후 다시 시도하세요.`);
+      return;
+    }
     if (id === ADMIN_ID && pw === ADMIN_PW) {
       sessionStorage.setItem("dp_admin", "1");
+      sessionStorage.removeItem("dp_admin_fail");
       setLoggedIn(true);
       setLoginError("");
     } else {
-      setLoginError("아이디 또는 비밀번호가 올바르지 않습니다.");
+      const fails = Number(sessionStorage.getItem("dp_admin_fail") || 0) + 1;
+      if (fails >= MAX_FAILS) {
+        sessionStorage.setItem("dp_admin_lock", String(Date.now() + LOCK_MS));
+        sessionStorage.removeItem("dp_admin_fail");
+        setLoginError("비밀번호를 5회 틀려 5분 동안 로그인이 제한됩니다.");
+      } else {
+        sessionStorage.setItem("dp_admin_fail", String(fails));
+        setLoginError(`아이디 또는 비밀번호가 올바르지 않습니다. (${fails}/${MAX_FAILS})`);
+      }
     }
   }
 
@@ -137,7 +137,7 @@ export default function AdminPage() {
 
   async function fetchStats() {
     setLoading(true);
-    const keys = SERVICES.flatMap((s) => [s.vcKey, s.vtKey, s.scKey, s.stKey]);
+    const keys = SERVICES.flatMap((s) => Object.values(K(s.prefix)));
     const results: Record<string, number> = {};
     await Promise.all(keys.map(async (k) => { results[k] = await sbGet(k); }));
     setStats(results);
@@ -304,200 +304,313 @@ export default function AdminPage() {
   }
 
   /* ── Dashboard ── */
+  const sum = (field: keyof ReturnType<typeof K>) =>
+    SERVICES.reduce((acc, svc) => acc + (stats[K(svc.prefix)[field]] ?? 0), 0);
+  const fmtN = (n: number) => (loading ? "…" : n.toLocaleString());
+  const card: React.CSSProperties = {
+    background: "#ffffff", borderRadius: 16, padding: 24, border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
+  };
+  const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
+    { id: "overview", label: "대시보드", Icon: LayoutDashboard },
+    { id: "data", label: "데이터", Icon: BarChart3 },
+    { id: "points", label: "포인트 관리", Icon: Coins },
+  ];
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f8fafc",
-        fontFamily: "'Noto Sans KR', sans-serif",
-      }}
-    >
-      {/* Header */}
-      <header
-        style={{
-          background: "#ffffff",
-          borderBottom: "1px solid #e2e8f0",
-          padding: "0 28px",
-          height: 60,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <LayoutDashboard size={20} color="#2563eb" />
-          <span style={{ color: "#0f172a", fontSize: 17, fontWeight: 700 }}>
-            어드민 대시보드
-          </span>
-          <span
-            style={{
-              background: "#eff6ff",
-              color: "#2563eb",
-              fontSize: 10,
-              padding: "2px 8px",
-              borderRadius: 20,
-              fontWeight: 700,
-              letterSpacing: "0.05em",
-              border: "1px solid #bfdbfe",
-            }}
-          >
-            BETA
-          </span>
+    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Noto Sans KR', sans-serif" }}>
+      <header style={{ background: "#ffffff", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: isMobile ? "0 16px" : "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <LayoutDashboard size={20} color="#2563eb" />
+            <span style={{ color: "#0f172a", fontSize: 17, fontWeight: 700 }}>FIT STEP 어드민</span>
+          </div>
+          <button onClick={handleLogout} style={{ display: "flex", alignItems: "center", gap: 6, background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 14px", color: "#475569", fontSize: 13, cursor: "pointer" }}>
+            <LogOut size={14} /> 로그아웃
+          </button>
         </div>
-        <button
-          onClick={handleLogout}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "#f1f5f9",
-            border: "1px solid #e2e8f0",
-            borderRadius: 8,
-            padding: "8px 14px",
-            color: "#475569",
-            fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          <LogOut size={14} />
-          로그아웃
-        </button>
+        <nav style={{ maxWidth: 1000, margin: "0 auto", padding: isMobile ? "0 8px" : "0 16px", display: "flex", gap: 4, overflowX: "auto" }}>
+          {TABS.map(({ id: tid, label, Icon }) => {
+            const on = tab === tid;
+            return (
+              <button key={tid} onClick={() => setTab(tid)} style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "12px 14px", background: "none", border: "none",
+                borderBottom: `2px solid ${on ? "#2563eb" : "transparent"}`, color: on ? "#2563eb" : "#64748b",
+                fontSize: 14, fontWeight: on ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap",
+              }}>
+                <Icon size={15} /> {label}
+              </button>
+            );
+          })}
+        </nav>
       </header>
 
-      <main style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 24px" }}>
-        {/* Stats Section */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 16,
-          }}
-        >
-          <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: 0 }}>
-            통계 현황
-          </h2>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {lastRefresh && (
-              <span style={{ color: "#94a3b8", fontSize: 12 }}>
-                갱신: {lastRefresh.toLocaleTimeString("ko-KR")}
-              </span>
-            )}
-            <button
-              onClick={fetchStats}
-              disabled={loading}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                padding: "6px 12px",
-                color: "#475569",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              <RefreshCw
-                size={12}
-                style={{
-                  transition: "transform 0.3s",
-                  transform: loading ? "rotate(360deg)" : "none",
-                }}
-              />
-              새로고침
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20, marginBottom: 40 }}>
-          {SERVICES.map((svc) => (
-            <div
-              key={svc.id}
-              style={{
-                background: "#ffffff",
-                borderRadius: 16,
-                padding: 24,
-                border: "1px solid #e2e8f0",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
-              }}
-            >
-              {/* Service header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <div>
-                  <h3 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
-                    {svc.name}
-                  </h3>
-                  <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>{svc.desc}</p>
-                </div>
-                <a
-                  href={svc.link}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5,
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    textDecoration: "none",
-                    borderRadius: 8,
-                    padding: "6px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                    marginLeft: 12,
-                    border: "1px solid #bfdbfe",
-                  }}
-                >
-                  <ExternalLink size={12} />
-                  열기
-                </a>
-              </div>
-
-              {/* Per-service stat grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-                {[
-                  { key: svc.vcKey, label: "누적 방문", color: "#2563eb", Icon: Users },
-                  { key: svc.vtKey, label: "오늘 방문", color: "#2563eb", Icon: Activity },
-                  { key: svc.scKey, label: "누적 공유", color: "#f472b6", Icon: Share2 },
-                  { key: svc.stKey, label: "오늘 공유", color: "#fb923c", Icon: TrendingUp },
-                ].map(({ key, label, color, Icon }) => (
-                  <div
-                    key={key}
-                    style={{
-                      background: "#f8fafc",
-                      borderRadius: 12,
-                      padding: "14px 12px",
-                      border: "1px solid #e2e8f0",
-                      borderTop: `3px solid ${color}`,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ color: "#475569", fontSize: 11 }}>{label}</span>
-                      <Icon size={13} color={color} />
-                    </div>
-                    <p style={{ color, fontSize: 22, fontWeight: 700, margin: 0, lineHeight: 1 }}>
-                      {loading ? "…" : (stats[key] ?? 0).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
+      <main style={{ maxWidth: 1000, margin: "0 auto", padding: isMobile ? "24px 16px" : "32px 24px" }}>
+        {tab === "overview" && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
+              <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: 0 }}>전체 현황</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {lastRefresh && <span style={{ color: "#94a3b8", fontSize: 12 }}>갱신: {lastRefresh.toLocaleTimeString("ko-KR")}</span>}
+                <button onClick={fetchStats} disabled={loading} style={{ display: "flex", alignItems: "center", gap: 5, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 12px", color: "#475569", fontSize: 12, cursor: "pointer" }}>
+                  <RefreshCw size={12} /> 새로고침
+                </button>
               </div>
             </div>
-          ))}
-        </div>
 
-        {/* 포인트 지급 */}
-        <PointPanel sbGet={sbGet} sbSet={sbSet} />
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12, marginBottom: 32 }}>
+              {[
+                { label: "오늘 방문", v: sum("visitToday"), color: "#2563eb", Icon: Activity },
+                { label: "오늘 사용", v: sum("useToday"), color: "#0d9488", Icon: MousePointerClick },
+                { label: "누적 방문", v: sum("visitTotal"), color: "#2563eb", Icon: Users },
+                { label: "누적 사용", v: sum("useTotal"), color: "#0d9488", Icon: TrendingUp },
+              ].map(({ label, v, color, Icon }) => (
+                <div key={label} style={{ ...card, padding: "16px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <span style={{ color: "#475569", fontSize: 12 }}>{label}</span>
+                    <Icon size={14} color={color} />
+                  </div>
+                  <p style={{ color: "#0f172a", fontSize: 26, fontWeight: 800, margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{fmtN(v)}</p>
+                  <p style={{ color: "#94a3b8", fontSize: 11, margin: "6px 0 0" }}>프로그램 {SERVICES.length}개 합계</p>
+                </div>
+              ))}
+            </div>
 
-        {/* 충전 신청 목록 */}
-        <ChargeRequestPanel sbList={sbList} sbGet={sbGet} sbSet={sbSet} />
+            <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: "0 0 16px" }}>프로그램별 현황</h2>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20 }}>
+              {SERVICES.map((svc) => {
+                const k = K(svc.prefix);
+                return (
+                  <div key={svc.id} style={card}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h3 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>{svc.name}</h3>
+                        <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>{svc.desc} · 사용 기준: {svc.usage}</p>
+                      </div>
+                      <a href={svc.link} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#eff6ff", color: "#2563eb", textDecoration: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, flexShrink: 0, border: "1px solid #bfdbfe" }}>
+                        <ExternalLink size={12} /> 열기
+                      </a>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                      {[
+                        { key: k.visitToday, label: "오늘 방문", color: "#2563eb" },
+                        { key: k.useToday, label: "오늘 사용", color: "#0d9488" },
+                        { key: k.shareToday, label: "오늘 공유", color: "#f59e0b" },
+                        { key: k.visitTotal, label: "누적 방문", color: "#2563eb" },
+                        { key: k.useTotal, label: "누적 사용", color: "#0d9488" },
+                        { key: k.shareTotal, label: "누적 공유", color: "#f59e0b" },
+                      ].map(({ key, label, color }) => (
+                        <div key={key} style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 10px", border: "1px solid #e2e8f0", borderTop: `3px solid ${color}` }}>
+                          <span style={{ color: "#64748b", fontSize: 11 }}>{label}</span>
+                          <p style={{ color: "#0f172a", fontSize: 19, fontWeight: 700, margin: "6px 0 0", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{fmtN(stats[key] ?? 0)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
-        {/* Footer hint */}
+        {tab === "data" && <DataPanel isMobile={isMobile} />}
+
+        {tab === "points" && (
+          <>
+            <PointPanel sbGet={sbGet} sbSet={sbSet} />
+            <ChargeRequestPanel sbList={sbList} sbGet={sbGet} sbSet={sbSet} />
+          </>
+        )}
+
         <p style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 48 }}>
           Railway 환경변수 VITE_ADMIN_ID · VITE_ADMIN_PW 설정으로 계정을 변경할 수 있습니다
         </p>
       </main>
     </div>
+  );
+}
+
+// ── 데이터 탭 ────────────────────────────────────────────────────────────────
+type Daily = Record<string, number>;
+interface SvcSeries { v: Daily; u: Daily; s: Daily }
+
+function lastNDates(n: number): string[] {
+  const out: string[] = [];
+  const d = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const x = new Date(d.getTime() - i * 86400000);
+    out.push(x.toISOString().slice(0, 10).replace(/-/g, ""));
+  }
+  return out;
+}
+
+async function loadSeries(prefix: string, kind: string): Promise<Daily> {
+  const rows = await sbList(`${prefix}_${kind}_`);
+  const out: Daily = {};
+  for (const r of rows) {
+    const date = r.key.slice(prefix.length + kind.length + 2);
+    if (/^\d{8}$/.test(date)) out[date] = r.value;
+  }
+  return out;
+}
+
+function DataPanel({ isMobile }: { isMobile: boolean }) {
+  const [days, setDays] = useState<7 | 14 | 30>(14);
+  const [svcId, setSvcId] = useState<string>("all");
+  const [series, setSeries] = useState<Record<string, SvcSeries>>({});
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    const entries = await Promise.all(SERVICES.map(async (svc) => {
+      const [v, u, s] = await Promise.all([
+        loadSeries(svc.prefix, "vt"), loadSeries(svc.prefix, "ud"), loadSeries(svc.prefix, "st"),
+      ]);
+      return [svc.prefix, { v, u, s }] as const;
+    }));
+    setSeries(Object.fromEntries(entries));
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  const dates = lastNDates(days);
+  const picked = svcId === "all" ? SERVICES : SERVICES.filter((s) => s.id === svcId);
+  const val = (d: string, kind: keyof SvcSeries) =>
+    picked.reduce((acc, svc) => acc + (series[svc.prefix]?.[kind][d] ?? 0), 0);
+  const rows = dates.map((d) => ({ d, v: val(d, "v"), u: val(d, "u"), s: val(d, "s") }));
+  const total = rows.reduce((a, r) => ({ v: a.v + r.v, u: a.u + r.u, s: a.s + r.s }), { v: 0, u: 0, s: 0 });
+  const maxY = Math.max(4, ...rows.map((r) => Math.max(r.v, r.u)));
+  const niceMax = Math.ceil(maxY / 4) * 4;
+  const W = isMobile ? 360 : 640, H = isMobile ? 230 : 220, padL = 30, padB = 26, padT = 10, padR = 6;
+  const cw = (W - padL - padR) / rows.length;
+  const bw = Math.max(2, Math.min(14, cw / 2 - 2));
+  const y = (n: number) => padT + (H - padT - padB) * (1 - n / niceMax);
+  const md = (d: string) => `${Number(d.slice(4, 6))}/${Number(d.slice(6, 8))}`;
+  const labelEvery = days === 30 ? (isMobile ? 7 : 5) : days === 14 ? (isMobile ? 3 : 2) : 1;
+
+  const card: React.CSSProperties = {
+    background: "#ffffff", borderRadius: 16, padding: isMobile ? 16 : 24, border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)", marginBottom: 20,
+  };
+  const pill = (on: boolean): React.CSSProperties => ({
+    padding: "6px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+    border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#ffffff", color: on ? "#2563eb" : "#475569",
+  });
+  const cellPad = isMobile ? "8px 6px" : "8px 10px";
+  const th: React.CSSProperties = { textAlign: "right", padding: cellPad, color: "#64748b", fontWeight: 600, fontSize: 12, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" };
+  const td: React.CSSProperties = { textAlign: "right", padding: cellPad, color: "#0f172a", fontSize: 13, borderBottom: "1px solid #f1f5f9", fontVariantNumeric: "tabular-nums" };
+  const rate = (u: number, v: number) => (v ? `${Math.round((u / v) * 100)}%` : "—");
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+        <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: 0 }}>방문 · 사용 데이터</h2>
+        <button onClick={load} disabled={loading} style={{ display: "flex", alignItems: "center", gap: 5, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 12px", color: "#475569", fontSize: 12, cursor: "pointer" }}>
+          <RefreshCw size={12} /> {loading ? "불러오는 중…" : "새로고침"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        {[{ id: "all", name: "전체" }, ...SERVICES].map((s) => (
+          <button key={s.id} onClick={() => setSvcId(s.id)} style={pill(svcId === s.id)}>{s.name}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {([7, 14, 30] as const).map((n) => (
+          <button key={n} onClick={() => setDays(n)} style={pill(days === n)}>최근 {n}일</button>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+        {[
+          { label: "방문", v: total.v.toLocaleString(), color: "#2563eb" },
+          { label: "사용", v: total.u.toLocaleString(), color: "#0d9488" },
+          { label: "공유", v: total.s.toLocaleString(), color: "#f59e0b" },
+          { label: "사용률", v: rate(total.u, total.v), color: "#7c3aed" },
+        ].map((c) => (
+          <div key={c.label} style={{ background: "#ffffff", borderRadius: 12, padding: isMobile ? "12px 10px" : "14px 16px", border: "1px solid #e2e8f0", borderTop: `3px solid ${c.color}` }}>
+            <span style={{ color: "#64748b", fontSize: 11 }}>{c.label} · {days}일</span>
+            <p style={{ color: "#0f172a", fontSize: isMobile ? 18 : 22, fontWeight: 800, margin: "6px 0 0", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.v}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={card}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10, fontSize: 12, color: "#475569" }}>
+          <span style={{ fontWeight: 700, color: "#0f172a" }}>일별 추이</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ width: 10, height: 10, borderRadius: 2, background: "#2563eb", display: "inline-block" }} />방문</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ width: 10, height: 10, borderRadius: 2, background: "#0d9488", display: "inline-block" }} />사용</span>
+        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="일별 방문과 사용 막대 그래프">
+          {[0, 1, 2, 3, 4].map((i) => {
+            const n = (niceMax / 4) * i;
+            return (
+              <g key={i}>
+                <line x1={padL} x2={W - padR} y1={y(n)} y2={y(n)} stroke="#e2e8f0" strokeWidth={1} />
+                <text x={padL - 6} y={y(n) + 4} textAnchor="end" fontSize={10} fill="#94a3b8">{n}</text>
+              </g>
+            );
+          })}
+          {rows.map((r, i) => {
+            const cx = padL + cw * i + cw / 2;
+            return (
+              <g key={r.d}>
+                <rect x={cx - bw - 1} y={y(r.v)} width={bw} height={y(0) - y(r.v)} rx={2} fill="#2563eb"><title>{`${md(r.d)} 방문 ${r.v}`}</title></rect>
+                <rect x={cx + 1} y={y(r.u)} width={bw} height={y(0) - y(r.u)} rx={2} fill="#0d9488"><title>{`${md(r.d)} 사용 ${r.u}`}</title></rect>
+                {(rows.length - 1 - i) % labelEvery === 0 && (
+                  <text x={cx} y={H - 8} textAnchor="middle" fontSize={10} fill="#64748b">{md(r.d)}</text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {svcId === "all" && (
+        <div style={card}>
+          <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: "0 0 10px" }}>프로그램별 비교 · 최근 {days}일</p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
+              <thead><tr>
+                <th style={{ ...th, textAlign: "left" }}>프로그램</th><th style={th}>방문</th><th style={th}>사용</th><th style={th}>공유</th><th style={th}>사용률</th>
+              </tr></thead>
+              <tbody>
+                {SERVICES.map((svc) => {
+                  const sv = series[svc.prefix];
+                  const t = dates.reduce((a, d) => ({ v: a.v + (sv?.v[d] ?? 0), u: a.u + (sv?.u[d] ?? 0), s: a.s + (sv?.s[d] ?? 0) }), { v: 0, u: 0, s: 0 });
+                  return (
+                    <tr key={svc.id}>
+                      <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{svc.name}<span style={{ display: "block", color: "#94a3b8", fontSize: 11, fontWeight: 400 }}>사용 = {svc.usage}</span></td>
+                      <td style={td}>{t.v.toLocaleString()}</td><td style={td}>{t.u.toLocaleString()}</td><td style={td}>{t.s.toLocaleString()}</td><td style={td}>{rate(t.u, t.v)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div style={card}>
+        <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: "0 0 10px" }}>날짜별 상세</p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 300 }}>
+            <thead><tr>
+              <th style={{ ...th, textAlign: "left" }}>날짜</th><th style={th}>방문</th><th style={th}>사용</th><th style={th}>공유</th><th style={th}>사용률</th>
+            </tr></thead>
+            <tbody>
+              {[...rows].reverse().map((r) => (
+                <tr key={r.d}>
+                  <td style={{ ...td, textAlign: "left" }}>{`${r.d.slice(0, 4)}.${r.d.slice(4, 6)}.${r.d.slice(6, 8)}`}</td>
+                  <td style={td}>{r.v.toLocaleString()}</td><td style={td}>{r.u.toLocaleString()}</td><td style={td}>{r.s.toLocaleString()}</td><td style={td}>{rate(r.u, r.v)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p style={{ color: "#94a3b8", fontSize: 11, margin: "12px 0 0" }}>방문은 브라우저 세션당 1회로 집계됩니다. 날짜는 한국 시간 오전 9시에 바뀝니다 (UTC 기준).</p>
+      </div>
+    </>
   );
 }
 

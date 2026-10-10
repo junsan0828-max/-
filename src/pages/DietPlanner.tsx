@@ -1956,6 +1956,7 @@ export default function DietPlanner() {
           snack:     buildRealMeal("snack",     (base * pctSnack)     / 100, mealStyle, dietGoal),
         };
     setMealPlan(plan);
+    remoteInc("dp_uc"); remoteInc(`dp_ud_${_todayKey()}`);
     const newCount = incGenCount();
     setTodayCount(newCount);
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);

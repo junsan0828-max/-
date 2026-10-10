@@ -379,8 +379,8 @@ export default function ContractForm() {
       return;
     }
 
-    await dbInc("ct_vc");
-    await dbInc(`ct_vt_${t}`);
+    await dbInc("ct_uc");
+    await dbInc(`ct_ud_${t}`);
 
     const p = new URLSearchParams();
     (Object.entries(form) as [keyof F, string][]).forEach(([k, v]) => { if (v) p.set(k, v); });
