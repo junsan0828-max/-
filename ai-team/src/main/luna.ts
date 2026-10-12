@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { GymContext } from "./data";
 import { buildDataSummary } from "./orchestrator";
 import { FunnelResult } from "./dataAgent";
+import { askClaudeCode, claudeCodeEnabled } from "./claudeCli";
 
 const MODEL = process.env.AI_TEAM_MODEL || "claude-sonnet-4-6";
 
@@ -94,40 +95,54 @@ function fallbackIdeas(c: GymContext, funnel?: FunnelResult): ContentIdea[] {
   ];
 }
 
-export async function generateContentIdeas(context: GymContext, funnel?: FunnelResult): Promise<ContentResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { isAI: false, ideas: fallbackIdeas(context, funnel) };
+function parseIdeas(text: string): ContentIdea[] {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = fenced ? fenced[1] : text;
+  const s = body.indexOf("[");
+  const e = body.lastIndexOf("]");
+  if (s === -1 || e === -1) throw new Error("JSON 배열 파싱 실패");
+  return JSON.parse(body.slice(s, e + 1));
+}
 
+// 글쓰기 순서: ① Claude Code 구독(Pro) → ② API 키 → ③ 템플릿
+export async function generateContentIdeas(context: GymContext, funnel?: FunnelResult): Promise<ContentResult> {
   const team = loadTeam();
   const persona = team.team.find((t: any) => t.id === "luna")?.persona ?? "너는 자이언트짐 마케팅 담당 AI 루나다.";
+  const system = `${persona} 블로그 1개, 인스타그램 1개의 콘텐츠 초안을 만든다.
+블로그는 800~1200자, 정보/후기 중심으로 자연스럽게. 인스타는 짧은 캡션+해시태그 5개 내외.
+반드시 다른 설명 없이 JSON 배열 하나만 출력한다. 코드블록으로 감싸지 않는다.`;
+  const userPrompt = `${buildDataSummary(context)}
+${funnel ? `\n[퍼널 진단]\n${funnel.insight}\n효율 좋은 채널: ${funnel.bestChannel ?? "없음"}` : ""}
+
+이 데이터를 참고해 이번 주 콘텐츠 초안을 만들어줘. 아래 JSON 배열 형식으로만 답해:
+[{ "platform": "블로그", "title": "제목", "draft": "본문" }, { "platform": "인스타그램", "title": "주제", "draft": "캡션+해시태그" }]`;
+
+  // ① 대표님의 Claude 구독(Pro)으로 작성
+  if (claudeCodeEnabled()) {
+    try {
+      const text = await askClaudeCode({ system, prompt: userPrompt });
+      console.log("[루나] Claude Code(구독)로 작성");
+      return { isAI: true, ideas: parseIdeas(text) };
+    } catch (err) {
+      console.error("[루나] Claude Code 작성 실패, API 키 방식으로 전환:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  // ② API 키 (구독 사용이 꺼져 있거나 실패했을 때)
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { isAI: false, ideas: fallbackIdeas(context, funnel) };
 
   try {
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
       max_tokens: 2000,
-      system: `${persona} 블로그 1개, 인스타그램 1개의 콘텐츠 초안을 만든다.
-블로그는 800~1200자, 정보/후기 중심으로 자연스럽게. 인스타는 짧은 캡션+해시태그 5개 내외.
-반드시 다른 설명 없이 JSON 배열 하나만 출력한다. 코드블록으로 감싸지 않는다.`,
-      messages: [
-        {
-          role: "user",
-          content: `${buildDataSummary(context)}
-${funnel ? `\n[퍼널 진단]\n${funnel.insight}\n효율 좋은 채널: ${funnel.bestChannel ?? "없음"}` : ""}
-
-이 데이터를 참고해 이번 주 콘텐츠 초안을 만들어줘. 아래 JSON 배열 형식으로만 답해:
-[{ "platform": "블로그", "title": "제목", "draft": "본문" }, { "platform": "인스타그램", "title": "주제", "draft": "캡션+해시태그" }]`,
-        },
-      ],
+      system,
+      messages: [{ role: "user", content: userPrompt }],
     });
     const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const body = fenced ? fenced[1] : text;
-    const s = body.indexOf("[");
-    const e = body.lastIndexOf("]");
-    if (s === -1 || e === -1) throw new Error("JSON 배열 파싱 실패");
-    const parsed = JSON.parse(body.slice(s, e + 1));
-    return { isAI: true, ideas: parsed };
+    console.log("[루나] API 키로 작성");
+    return { isAI: true, ideas: parseIdeas(text) };
   } catch (err) {
     console.error("[루나] 콘텐츠 생성 실패, 템플릿으로 전환:", err instanceof Error ? err.message : err);
     return { isAI: false, ideas: fallbackIdeas(context, funnel) };

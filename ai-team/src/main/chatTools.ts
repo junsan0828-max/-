@@ -6,6 +6,7 @@ import { findOrCreateFolder } from "./drive/archive";
 import { createNotionPage } from "./notion";
 import { uploadVideo } from "./youtube/upload";
 import { generateVideoMetadata } from "./youtube/metadata";
+import { findPaperCandidates, resolvePmcid, fetchFullText, draftFromPaper } from "./paperBlog";
 
 export const CHAT_TOOLS = [
   {
@@ -98,6 +99,32 @@ export const CHAT_TOOLS = [
       required: ["filePath"],
     },
   },
+  {
+    name: "paper_find_candidates",
+    description:
+      "블로그 글감용 논문 후보를 찾는다 (루나의 논문 리뷰 블로그 업무). 최근 5년, 제목에 체계적 문헌고찰/메타분석, 무료 본문이 있는 논문만 최대 5편을 돌려준다. " +
+      "주제는 한국어로 줘도 된다. 사장님이 후보 중 하나를 고르기 전에는 초안 도구를 호출하지 않는다.",
+    input_schema: {
+      type: "object",
+      properties: { topic: { type: "string", description: "논문 주제 (예: 요통에 대한 코어 안정화 운동)" } },
+      required: ["topic"],
+    },
+  },
+  {
+    name: "paper_blog_draft",
+    description:
+      "사장님이 고른 논문(pmcid / pmid / doi 중 하나, 또는 pdfPath)으로 논문 리뷰 블로그 글 초안을 만들어 '바탕화면/블로그 초안' 폴더에 저장한다. " +
+      "1~3분 걸린다. 발행/에디터 입력은 하지 않는다. 결과의 검증 메모(논문 숫자 모순, 읽지 못한 부분)를 반드시 사장님께 함께 알린다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        pmcid: { type: "string" },
+        pmid: { type: "string" },
+        doi: { type: "string" },
+        pdfPath: { type: "string", description: "사장님이 준 PDF 파일의 로컬 경로" },
+      },
+    },
+  },
 ];
 
 export async function executeChatTool(name: string, input: any): Promise<string> {
@@ -139,6 +166,24 @@ export async function executeChatTool(name: string, input: any): Promise<string>
         privacyStatus: input.privacyStatus,
       });
       return JSON.stringify(result);
+    }
+    case "paper_find_candidates": {
+      const { query, items } = await findPaperCandidates(String(input.topic ?? ""));
+      return JSON.stringify({
+        searchQuery: query,
+        note: items.length ? "후보 중 하나를 사장님이 고르면 paper_blog_draft로 초안을 만든다." : "후보 없음 — 주제를 바꾸거나 논문(PDF/PMID/DOI)을 직접 받는다.",
+        candidates: items.map((c, i) => ({ no: i + 1, title: c.title, authors: c.authors.split(",").slice(0, 3).join(","), journal: c.journal, year: c.year, cited: c.cited, pmcid: c.pmcid, pmid: c.pmid, doi: c.doi })),
+      });
+    }
+    case "paper_blog_draft": {
+      if (input.pdfPath) {
+        const r = await draftFromPaper({ pdf: String(input.pdfPath) }, String(input.pdfPath).split(/[\\/]/).pop() ?? "pdf");
+        return JSON.stringify({ savedTo: r.file, head: r.preview });
+      }
+      const pmcid = await resolvePmcid({ pmcid: input.pmcid, pmid: input.pmid, doi: input.doi });
+      const { text, meta } = await fetchFullText(pmcid);
+      const r = await draftFromPaper({ text, meta }, pmcid);
+      return JSON.stringify({ savedTo: r.file, head: r.preview });
     }
     default:
       return `알 수 없는 도구: ${name}`;

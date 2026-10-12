@@ -33,7 +33,9 @@ function buildHistoryBlock(agentId: string): string {
   const history = getRecentCommands(agentId, 8);
   if (history.length === 0) return "";
   const lines = history.map((h, i) => {
-    const replySnippet = h.reply.length > 300 ? h.reply.slice(0, 300) + "…" : h.reply;
+    // 논문 후보 목록처럼 뒤에 PMCID가 붙는 답은 잘리면 다음 지시에서 쓸 수 없어서 넉넉히 남긴다.
+    const limit = /PMC\d{6,}/.test(h.reply) ? 1800 : 300;
+    const replySnippet = h.reply.length > limit ? h.reply.slice(0, limit) + "…" : h.reply;
     return `${i + 1}. [${formatKST(h.at)}] 지시: ${h.instruction}\n   답변: ${replySnippet}`;
   });
   return `\n[최근 지시 이력 (오래된 순, 마지막이 가장 최근)]\n${lines.join("\n")}\n`;
@@ -92,6 +94,11 @@ export async function runCommand(instruction: string, agentId = "jay"): Promise<
   올려줘", "유튜브에 올려줘"처럼 실제 작업을 요청하면 도구를 사용해 진짜로 수행하고, 다 끝난 뒤에
   결과(만든 파일 링크, 영상 URL 등)를 알려준다.
   유튜브 업로드는 사장님이 공개(public)로 명확히 요청하지 않는 한 항상 비공개(private)로 올린다.
+  논문 리뷰 블로그(루나 담당): "논문 찾아줘/후보 알려줘"면 paper_find_candidates로 후보를 보여주고, 사장님이 하나를 고른 뒤에만
+  paper_blog_draft로 초안을 만든다(사장님이 논문 PMID/DOI/PDF를 직접 주면 바로 초안 도구를 쓴다).
+  후보를 보여줄 때는 각 항목에 반드시 번호와 PMCID(예: PMC12571568)를 함께 적는다 — 다음 지시("2번으로 써줘")에서
+  [최근 지시 이력]에 남은 PMCID로 해당 논문을 찾아 쓰기 때문이다. 이력에 PMCID가 없으면 다시 후보를 검색한다. 초안 저장 위치와 검증 메모의
+  핵심(논문 숫자 모순, 한계, 읽지 못한 부분)을 함께 알린다. 블로그 발행·에디터 입력은 하지 않는다 (사장님이 직접 발행).
   도구를 쓰지 않고 "했다"고 말로만 답하지 않는다 — 실제로 실행한 것만 완료했다고 말한다.
   도구 실행이 실패하면(권한, 파일 못 찾음 등) 실패했다고 정확히 알리고 원인을 설명한다.
 - 필요한 데이터는 운영시스템(자이언트짐+)과 구글 드라이브에서 이미 자동으로 조회해 아래에 넣어뒀다.
