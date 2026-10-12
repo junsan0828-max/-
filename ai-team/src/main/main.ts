@@ -493,7 +493,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (win) {
+    // 창을 닫아 트레이로 내려간 뒤에는 win이 destroyed 상태라 접근하면 예외가 난다
+    if (win && !win.isDestroyed()) {
       if (win.isMinimized()) win.restore();
       win.show();
       win.focus();
