@@ -54,9 +54,17 @@ async function doFullTransfer(
 ): Promise<string[]> {
   const transferred: string[] = [];
 
-  // 1. 활성 PT 패키지 전체 이전 (양도수령 패키지는 재이전 불가)
+  // 1. PT 패키지 전체 이전
+  // - active: 정상 진행 중인 패키지
+  // - completed이어도 잔여 세션이 있으면 이전 대상 (서명 지연 사이에 세션이 소진돼 completed로 전환된 경우)
+  // - transferredFromMemberId IS NULL: 이미 양도 수령한 패키지는 재이전 불가
+  // - status = 'transferred' 패키지는 제외 (이미 양도 완료된 패키지)
   const activePkgs = (await pool.query(
-    `SELECT * FROM pt_packages WHERE "memberId" = $1 AND status = 'active' AND "transferredFromMemberId" IS NULL`,
+    `SELECT * FROM pt_packages
+     WHERE "memberId" = $1
+       AND status IN ('active', 'completed')
+       AND "transferredFromMemberId" IS NULL
+       AND COALESCE("totalSessions", 0) > COALESCE("usedSessions", 0)`,
     [transferorMemberId]
   )).rows;
 
