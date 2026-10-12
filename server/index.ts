@@ -3099,6 +3099,7 @@ async function start() {
         AND p."transferredFromMemberId" IS NULL
         AND COALESCE(p."unpaidAmount", 0) = 0
         AND COALESCE(p."paymentMethod", '') != '혼합'
+        AND r."paidAmount" > 0
         AND ABS(COALESCE(p."paymentAmount", 0) - COALESCE(r."paidAmount", 0)) > 1000
       RETURNING p.id, p."memberId", p."paymentAmount"
     `);
