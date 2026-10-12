@@ -3112,6 +3112,41 @@ async function start() {
     console.error("매출↔패키지 금액 보정 오류:", e);
   }
 
+  // 미수금 수납 완료 패키지 paymentAmount 보정 (멱등)
+  // collectUnpaidPayment가 paymentAmount를 갱신하지 않던 이전 버전 데이터 복구.
+  // 조건: unpaidAmount=0, 미수금 수납 행이 존재, paymentAmount가 합산액과 불일치.
+  try {
+    const fixUnpaidRes = await pool.query(`
+      UPDATE pt_packages p
+      SET "paymentAmount" = r."paidAmount" + collected.total,
+          "pricePerSession" = CASE
+            WHEN COALESCE(p."totalSessions", 0) > 0
+            THEN ROUND((r."paidAmount" + collected.total)::numeric / p."totalSessions")
+            ELSE p."pricePerSession"
+          END,
+          "updatedAt" = NOW()::text
+      FROM revenue_entries r
+      JOIN (
+        SELECT "relatedEntryId", SUM(COALESCE("paidAmount", 0)) AS total
+        FROM revenue_entries
+        WHERE "subType" = '미수금'
+        GROUP BY "relatedEntryId"
+      ) collected ON collected."relatedEntryId" = r.id
+      WHERE p."revenueEntryId" = r.id
+        AND p."transferredFromMemberId" IS NULL
+        AND COALESCE(p."unpaidAmount", 0) = 0
+        AND COALESCE(p."paymentMethod", '') != '혼합'
+        AND collected.total > 0
+        AND ABS(COALESCE(p."paymentAmount", 0) - (r."paidAmount" + collected.total)) > 1000
+      RETURNING p.id, p."memberId", p."paymentAmount"
+    `);
+    if (fixUnpaidRes.rowCount && fixUnpaidRes.rowCount > 0) {
+      console.log(`🔧 미수금 수납 paymentAmount 보정: ${fixUnpaidRes.rowCount}건`);
+    }
+  } catch (e) {
+    console.error("미수금 수납 보정 오류:", e);
+  }
+
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
     try {
