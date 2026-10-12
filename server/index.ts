@@ -3080,6 +3080,37 @@ async function start() {
     console.error("paymentDate 교정 오류:", e);
   }
 
+  // 매출↔패키지 결제금액 불일치 자동 보정 (멱등)
+  // 원칙: 매출(revenue_entries)이 원본 → 패키지 paymentAmount를 매출에 맞춤.
+  // 제외: 양도수령(transferredFromMemberId IS NOT NULL) · 미수금 있는 패키지 · 혼합결제
+  try {
+    const fixRes = await pool.query(`
+      UPDATE pt_packages p
+      SET "paymentAmount" = r."paidAmount",
+          "pricePerSession" = CASE
+            WHEN COALESCE(p."totalSessions", 0) > 0
+            THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
+            ELSE p."pricePerSession"
+          END,
+          "updatedAt" = NOW()::text
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" = r.id
+        AND p.status = 'active'
+        AND p."transferredFromMemberId" IS NULL
+        AND COALESCE(p."unpaidAmount", 0) = 0
+        AND COALESCE(p."paymentMethod", '') != '혼합'
+        AND ABS(COALESCE(p."paymentAmount", 0) - COALESCE(r."paidAmount", 0)) > 1000
+      RETURNING p.id, p."memberId", p."paymentAmount"
+    `);
+    if (fixRes.rowCount && fixRes.rowCount > 0) {
+      console.log(`🔧 매출↔패키지 금액 자동 보정: ${fixRes.rowCount}건`);
+    } else {
+      console.log("✅ 매출↔패키지 금액 이상 없음");
+    }
+  } catch (e) {
+    console.error("매출↔패키지 금액 보정 오류:", e);
+  }
+
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
     try {

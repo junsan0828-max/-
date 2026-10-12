@@ -513,7 +513,7 @@ export default function GymDashboard() {
                   {a.reasons.map((r, i) => (
                     <p key={i} className="text-red-300 mt-0.5">⚠ {r}</p>
                   ))}
-                  <p className="text-[11px] text-primary mt-0.5">→ 눌러서 등록관리에서 수정</p>
+                  <p className="text-[11px] text-primary mt-0.5">→ 눌러서 등록관리에서 확인</p>
                 </button>
               ))}
               {(anomalyData?.revenueMismatches ?? []).map((m) => (
@@ -536,10 +536,10 @@ export default function GymDashboard() {
                       ⚠ 받을 금액 {(m.amount - m.discount - m.unpaid).toLocaleString()}원(정가 {m.amount.toLocaleString()} − 할인 {m.discount.toLocaleString()} − 미수 {m.unpaid.toLocaleString()})인데 실결제가 {m.paid.toLocaleString()}원으로 적게 기록됨
                     </p>
                   )}
-                  <p className="text-[11px] text-primary mt-0.5">→ 눌러서 등록관리에서 수정</p>
+                  <p className="text-[11px] text-primary mt-0.5">→ 눌러서 등록관리에서 확인</p>
                 </button>
               ))}
-              <p className="text-[11px] text-muted-foreground pt-1">자동 수정하지 않습니다 — 확인 후 직접 수정해주세요.</p>
+              <p className="text-[11px] text-muted-foreground pt-1">매출↔패키지 금액 불일치는 서버가 자동 수정합니다. 위 항목은 의도인지 오류인지 사람 확인이 필요한 경우입니다.</p>
             </div>
           )}
         </div>
