@@ -16,6 +16,7 @@ import { startNotionBriefingScheduler } from "./notionBriefing";
 import { generateHealthReportHTML } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
 import { createBranchManagerMcpRouter, getBranchManagerProtectedResourceMetadata } from "./branchManagerMcp";
+import { autoCompleteExpiredTransfers } from "./transferRouter";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -3091,6 +3092,20 @@ async function start() {
 
   // 노션 일일/주간/월간 브리핑 자동 발송 (NOTION_API_TOKEN/NOTION_BRIEFING_PAGE_ID 설정 시에만 동작)
   startNotionBriefingScheduler();
+
+  // 양도 계약 자동 완료: 서버 시작 시 1회 + 매일 1회 (자정 KST)
+  try {
+    await autoCompleteExpiredTransfers();
+  } catch (e) {
+    console.error("양도 자동 완료 오류:", e);
+  }
+  setInterval(async () => {
+    try {
+      await autoCompleteExpiredTransfers();
+    } catch (e) {
+      console.error("양도 자동 완료 오류:", e);
+    }
+  }, 24 * 60 * 60 * 1000);
 }
 
 start().catch(console.error);

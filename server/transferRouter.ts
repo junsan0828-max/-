@@ -570,3 +570,86 @@ export const transferRouter = t.router({
     return { fixed, errors };
   }),
 });
+
+// ── 만료 양도 계약 자동 완료 (서버 시작 시 + 매일 1회) ──────────────────────
+// 생성 후 DAYS_UNTIL_AUTO_COMPLETE 일이 지나도 서명 미완료인 계약을 자동 적용한다.
+// 양수인을 특정할 수 없는 계약(transfereeMemberId·phone·name 전부 없음)은 건너뛴다.
+const DAYS_UNTIL_AUTO_COMPLETE = 7;
+
+export async function autoCompleteExpiredTransfers(): Promise<void> {
+  const cutoff = new Date(Date.now() - DAYS_UNTIL_AUTO_COMPLETE * 24 * 60 * 60 * 1000).toISOString();
+
+  const { rows: pending } = await pool.query<{
+    id: number; status: string;
+    transferorMemberId: number; transferorName: string | null;
+    transfereeMemberId: number | null; transfereeName: string | null;
+    transfereePhone: string | null; transfereeBirthDate: string | null;
+    createdAt: string;
+  }>(
+    `SELECT id, status, "transferorMemberId", "transferorName",
+            "transfereeMemberId", "transfereeName", "transfereePhone", "transfereeBirthDate", "createdAt"
+     FROM transfer_contracts
+     WHERE status IN ('pending_transferor', 'pending_transferee')
+       AND "createdAt" < $1
+     ORDER BY "transferorMemberId", "createdAt"`,
+    [cutoff]
+  );
+
+  if (pending.length === 0) return;
+
+  // transferorMemberId 별로 묶어 양수인 정보를 공유
+  const byTransferor = new Map<number, typeof pending>();
+  for (const c of pending) {
+    if (!c.transferorMemberId) continue;
+    if (!byTransferor.has(c.transferorMemberId)) byTransferor.set(c.transferorMemberId, []);
+    byTransferor.get(c.transferorMemberId)!.push(c);
+  }
+
+  for (const [, contracts] of byTransferor) {
+    // 양수인 정보가 있는 계약을 우선 찾음 (같은 양도인 묶음 내에서 공유)
+    const withTransferee = contracts.find(
+      c => c.transfereeMemberId != null || (c.transfereeName && c.transfereePhone)
+    );
+
+    for (const contract of contracts) {
+      const resolveSource = (contract.transfereeMemberId || contract.transfereeName)
+        ? contract
+        : withTransferee;
+
+      if (!resolveSource) {
+        console.log(`[AutoTransfer] 계약 #${contract.id}: 양수인 정보 없음, 건너뜀`);
+        continue;
+      }
+
+      try {
+        const now = new Date().toISOString();
+        const { transfereeMemberId, transfereeName } = await resolveTransferee({
+          transfereeMemberId: resolveSource.transfereeMemberId,
+          transfereeName: resolveSource.transfereeName,
+          transfereePhone: resolveSource.transfereePhone,
+          transfereeBirthDate: resolveSource.transfereeBirthDate,
+          transferorMemberId: contract.transferorMemberId,
+          contractId: contract.id,
+          now,
+        });
+
+        await doFullTransfer(
+          contract.transferorMemberId,
+          transfereeMemberId,
+          contract.transferorName ?? "양도인",
+          transfereeName,
+          now
+        );
+
+        await pool.query(
+          `UPDATE transfer_contracts SET status = 'completed', "completedAt" = $1, "transfereeMemberId" = $2 WHERE id = $3`,
+          [now, transfereeMemberId, contract.id]
+        );
+
+        console.log(`[AutoTransfer] 계약 #${contract.id} 자동 완료 → ${transfereeName}(id=${transfereeMemberId}), 생성일: ${contract.createdAt.substring(0, 10)}`);
+      } catch (e: any) {
+        console.error(`[AutoTransfer] 계약 #${contract.id} 자동 완료 실패:`, e?.message ?? e);
+      }
+    }
+  }
+}
