@@ -7,6 +7,7 @@ import { createNotionPage } from "./notion";
 import { uploadVideo } from "./youtube/upload";
 import { generateVideoMetadata } from "./youtube/metadata";
 import { findPaperCandidates, resolvePmcid, fetchFullText, draftFromPaper } from "./paperBlog";
+import { fillBlogEditor } from "./blogEditor";
 
 export const CHAT_TOOLS = [
   {
@@ -114,7 +115,7 @@ export const CHAT_TOOLS = [
     name: "paper_blog_draft",
     description:
       "사장님이 고른 논문(pmcid / pmid / doi 중 하나, 또는 pdfPath)으로 논문 리뷰 블로그 글 초안을 만들어 '바탕화면/블로그 초안' 폴더에 저장한다. " +
-      "1~3분 걸린다. 발행/에디터 입력은 하지 않는다. 결과의 검증 메모(논문 숫자 모순, 읽지 못한 부분)를 반드시 사장님께 함께 알린다.",
+      "1~3분 걸린다. 에디터 입력은 이 도구가 하지 않는다(blog_editor_fill 별도). 결과의 검증 메모(논문 숫자 모순, 읽지 못한 부분)를 반드시 사장님께 함께 알린다.",
     input_schema: {
       type: "object",
       properties: {
@@ -123,6 +124,17 @@ export const CHAT_TOOLS = [
         doi: { type: "string" },
         pdfPath: { type: "string", description: "사장님이 준 PDF 파일의 로컬 경로" },
       },
+    },
+  },
+  {
+    name: "blog_editor_fill",
+    description:
+      "가장 최근 논문 리뷰 초안(또는 지정한 초안 파일)을 네이버 블로그 에디터 창(전용 크롬)을 띄워 제목·본문·이미지·장소까지 채운다 (루나 업무). " +
+      "발행/예약/저장 버튼은 절대 누르지 않는다 — 최종 발행은 사장님이 직접 한다. 로그인·보안확인 화면이거나 에디터에 이미 내용이 있으면 중단하고 사유를 알린다. " +
+      "사장님이 '에디터에 써줘/채워줘/올려줘' 등 요청할 때만 호출한다. 몇 분 걸릴 수 있다.",
+    input_schema: {
+      type: "object",
+      properties: { draftFile: { type: "string", description: "(선택) 초안 파일 경로. 비우면 가장 최근 초안" } },
     },
   },
 ];
@@ -184,6 +196,10 @@ export async function executeChatTool(name: string, input: any): Promise<string>
       const { text, meta } = await fetchFullText(pmcid);
       const r = await draftFromPaper({ text, meta }, pmcid);
       return JSON.stringify({ savedTo: r.file, head: r.preview });
+    }
+    case "blog_editor_fill": {
+      const r = await fillBlogEditor(input.draftFile ? String(input.draftFile) : undefined);
+      return JSON.stringify({ title: r.title, draftFile: r.draftFile, images: r.images, places: r.places, notes: r.notes, published: false });
     }
     default:
       return `알 수 없는 도구: ${name}`;
