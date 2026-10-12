@@ -32,7 +32,11 @@ export default function TrainerDetail({ trainerId }: Props) {
 
   // 정산 비율 수정
   const [settlementRate, setSettlementRate] = useState(50);
+  const [settlementRateMax, setSettlementRateMax] = useState<number | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  // 회원별 정산 비율 인라인 편집
+  const [editingMemberRate, setEditingMemberRate] = useState<number | null>(null);
+  const [memberRateInput, setMemberRateInput] = useState("");
 
   // 트레이너 정보 수정
   const [editOpen, setEditOpen] = useState(false);
@@ -96,6 +100,14 @@ export default function TrainerDetail({ trainerId }: Props) {
     onError: (err) => toast.error(err.message || "저장 실패"),
   });
 
+  const updateMemberRateMutation = trpc.trainers.updateMemberSettlementRate.useMutation({
+    onSuccess: () => {
+      toast.success("회원 정산 비율이 저장되었습니다.");
+      setEditingMemberRate(null);
+    },
+    onError: (err) => toast.error(err.message || "저장 실패"),
+  });
+
   const updateInfoMutation = trpc.trainers.updateInfo.useMutation({
     onSuccess: () => {
       toast.success("트레이너 정보가 수정되었습니다.");
@@ -133,6 +145,7 @@ export default function TrainerDetail({ trainerId }: Props) {
   useEffect(() => {
     if (trainer) {
       setSettlementRate(trainer.settlementRate);
+      setSettlementRateMax((trainer as any).settlementRateMax ?? null);
       setEditForm({
         trainerName: trainer.trainerName,
         phone: trainer.phone ?? "",
@@ -202,7 +215,7 @@ export default function TrainerDetail({ trainerId }: Props) {
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">정산 비율 (%)</label>
+                  <label className="block text-sm font-medium mb-2">기본 정산 비율 (%)</label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -214,8 +227,26 @@ export default function TrainerDetail({ trainerId }: Props) {
                     />
                     <span className="text-sm font-medium">%</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    예: 50%로 설정하면 PT 결제 금액의 50%를 정산받습니다.
+                  <p className="text-xs text-muted-foreground mt-1">
+                    회원별 비율이 없을 때 사용되는 기본값
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">최대 정산 비율 (선택, %)</label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settlementRateMax ?? ""}
+                      onChange={(e) => setSettlementRateMax(e.target.value === "" ? null : parseInt(e.target.value) || 0)}
+                      placeholder="미입력 시 단일 비율"
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium">%</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    입력 시 정산 비율이 "기본~최대%" 범위로 표시됩니다.
                   </p>
                 </div>
                 <div className="flex gap-2 justify-end">
@@ -227,6 +258,7 @@ export default function TrainerDetail({ trainerId }: Props) {
                       updateSettlementRateMutation.mutate({
                         trainerId,
                         settlementRate,
+                        settlementRateMax,
                       });
                     }}
                     disabled={updateSettlementRateMutation.isPending}
@@ -305,7 +337,11 @@ export default function TrainerDetail({ trainerId }: Props) {
             <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground">정산 비율</p>
-              <p className="text-sm font-medium text-primary">{trainer.settlementRate}%</p>
+              <p className="text-sm font-medium text-primary">
+                {(trainer as any).settlementRateMax != null
+                  ? `${trainer.settlementRate}~${(trainer as any).settlementRateMax}%`
+                  : `${trainer.settlementRate}%`}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -734,67 +770,134 @@ export default function TrainerDetail({ trainerId }: Props) {
               const today = new Date();
               const daysLeft = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
               const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+              const customRate = (m as any).memberSettlementRate as number | null;
+              const isEditingThis = editingMemberRate === m.id;
               return (
-                <div
-                  key={m.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setLocation(`/members/${m.id}`)}
-                  onKeyDown={(e) => e.key === "Enter" && setLocation(`/members/${m.id}`)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
-                      m.grade === "vvip"
-                        ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
-                        : m.grade === "vip"
-                        ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40"
-                        : m.grade === "premium"
-                        ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
-                        : "bg-primary/20 text-primary border border-primary/20"
-                    }`}>
-                      {m.grade === "vvip" ? "VVIP" : m.grade === "vip" ? "VIP" : m.grade === "premium" ? "특별" : "일반"}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-sm font-medium">{m.name}</p>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
-                          daysLeft !== null && daysLeft < 0
-                            ? (m.remainingPt > 0
-                                ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                                : "bg-gray-500/20 text-gray-400 border-gray-500/30")
-                            : m.status === "active"
-                            ? "bg-green-500/20 text-green-400 border-green-500/30"
-                            : m.status === "paused"
-                            ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
-                            : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                        }`}>
-                          {daysLeft !== null && daysLeft < 0
-                            ? (m.remainingPt > 0 ? "기간만료" : "마감")
-                            : m.status === "active" ? "활성"
-                            : m.status === "paused" ? "정지"
-                            : "비활성"}
-                        </span>
-                        {isExpiringSoon && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                            D-{daysLeft}
-                          </span>
-                        )}
-                        {m.hasUnpaid && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                            미수금
-                          </span>
-                        )}
+                <div key={m.id} className="rounded-lg bg-accent/20 border border-border overflow-hidden">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setLocation(`/members/${m.id}`)}
+                    onKeyDown={(e) => e.key === "Enter" && setLocation(`/members/${m.id}`)}
+                    className="w-full flex items-center justify-between p-3 hover:border-primary/40 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                        m.grade === "vvip"
+                          ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                          : m.grade === "vip"
+                          ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40"
+                          : m.grade === "premium"
+                          ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
+                          : "bg-primary/20 text-primary border border-primary/20"
+                      }`}>
+                        {m.grade === "vvip" ? "VVIP" : m.grade === "vip" ? "VIP" : m.grade === "premium" ? "특별" : "일반"}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {m.membershipEnd
-                          ? `종료 ${format(new Date(m.membershipEnd), "yyyy.MM.dd", { locale: ko })}`
-                          : "종료일 없음"}
-                        {m.remainingPt > 0 && ` · PT ${m.remainingPt}회`}
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium">{m.name}</p>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
+                            daysLeft !== null && daysLeft < 0
+                              ? (m.remainingPt > 0
+                                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                  : "bg-gray-500/20 text-gray-400 border-gray-500/30")
+                              : m.status === "active"
+                              ? "bg-green-500/20 text-green-400 border-green-500/30"
+                              : m.status === "paused"
+                              ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                              : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                          }`}>
+                            {daysLeft !== null && daysLeft < 0
+                              ? (m.remainingPt > 0 ? "기간만료" : "마감")
+                              : m.status === "active" ? "활성"
+                              : m.status === "paused" ? "정지"
+                              : "비활성"}
+                          </span>
+                          {isExpiringSoon && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                              D-{daysLeft}
+                            </span>
+                          )}
+                          {m.hasUnpaid && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                              미수금
+                            </span>
+                          )}
+                          {customRate != null && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
+                              정산 {customRate}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {m.membershipEnd
+                            ? `종료 ${format(new Date(m.membershipEnd), "yyyy.MM.dd", { locale: ko })}`
+                            : "종료일 없음"}
+                          {m.remainingPt > 0 && ` · PT ${m.remainingPt}회`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      {user?.role === "admin" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isEditingThis) {
+                              setEditingMemberRate(null);
+                            } else {
+                              setEditingMemberRate(m.id);
+                              setMemberRateInput(customRate != null ? String(customRate) : String(trainer.settlementRate));
+                            }
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+                  {/* 인라인 정산 비율 편집 */}
+                  {isEditingThis && user?.role === "admin" && (
+                    <div className="px-3 pb-3 flex items-center gap-2 border-t border-border pt-2.5" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-xs text-muted-foreground shrink-0">정산 비율</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={memberRateInput}
+                        onChange={(e) => setMemberRateInput(e.target.value)}
+                        className="h-7 text-xs w-20"
+                        autoFocus
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs px-3"
+                        disabled={updateMemberRateMutation.isPending}
+                        onClick={() => {
+                          const rate = parseInt(memberRateInput);
+                          if (isNaN(rate) || rate < 0 || rate > 100) {
+                            toast.error("0~100 사이 숫자를 입력하세요."); return;
+                          }
+                          updateMemberRateMutation.mutate({ memberId: m.id, trainerId, settlementRate: rate });
+                        }}
+                      >
+                        저장
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-3"
+                        onClick={() => {
+                          updateMemberRateMutation.mutate({ memberId: m.id, trainerId, settlementRate: null });
+                        }}
+                        disabled={updateMemberRateMutation.isPending}
+                      >
+                        기본값
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
               };

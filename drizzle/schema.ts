@@ -46,6 +46,7 @@ export const trainerSettings = pgTable("trainer_settings", {
   id: serial("id").primaryKey(),
   trainerId: integer("trainerId").notNull().unique(),
   settlementRate: integer("settlementRate").default(50).notNull(),
+  settlementRateMax: integer("settlementRateMax"),               // 회원별 비율 범위 상한 (없으면 단일 비율)
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -101,6 +102,7 @@ export const ptPackages = pgTable("pt_packages", {
   cardAmount: integer("cardAmount"),
   transferredFromMemberId: integer("transferredFromMemberId"), // 양도수령 패키지: 원래 양도자의 memberId
   sessionsLocked: integer("sessionsLocked").default(0).notNull(), // 1이면 관리자가 수동 수정 → startup 동기화 제외
+  settlementRate: integer("settlementRate"),                     // 회원별 정산 비율 (NULL이면 트레이너 기본 비율 사용)
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

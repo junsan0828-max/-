@@ -1807,6 +1807,8 @@ async function initDatabase() {
 
   await pool.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntentDate" TEXT`);
   await pool.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntentAt" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "settlementRateMax" INTEGER`);
+  await pool.query(`ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "settlementRate" INTEGER`);
 
   console.log("✅ 테이블 준비 완료");
 

@@ -3137,6 +3137,7 @@ const trainersRouter = t.router({
         ...trainerResult[0],
         username: userResult[0]?.username ?? "",
         settlementRate: settingsResult[0]?.settlementRate ?? 50,
+        settlementRateMax: settingsResult[0]?.settlementRateMax ?? null,
         memberCount,
       };
     }),
@@ -3146,6 +3147,7 @@ const trainersRouter = t.router({
       z.object({
         trainerId: z.number(),
         settlementRate: z.number().min(0).max(100),
+        settlementRateMax: z.number().min(0).max(100).nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -3156,6 +3158,9 @@ const trainersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const patch: Record<string, unknown> = { settlementRate: input.settlementRate };
+      if (input.settlementRateMax !== undefined) patch.settlementRateMax = input.settlementRateMax;
+
       const existing = await db
         .select({ id: trainerSettings.id })
         .from(trainerSettings)
@@ -3165,15 +3170,28 @@ const trainersRouter = t.router({
       if (existing[0]) {
         await db
           .update(trainerSettings)
-          .set({ settlementRate: input.settlementRate })
+          .set(patch)
           .where(eq(trainerSettings.trainerId, input.trainerId));
       } else {
         await db.insert(trainerSettings).values({
           trainerId: input.trainerId,
           settlementRate: input.settlementRate,
+          ...(input.settlementRateMax != null ? { settlementRateMax: input.settlementRateMax } : {}),
         });
       }
 
+      return { success: true };
+    }),
+
+  updateMemberSettlementRate: protectedProcedure
+    .input(z.object({ memberId: z.number(), trainerId: z.number(), settlementRate: z.number().min(0).max(100).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(ptPackages)
+        .set({ settlementRate: input.settlementRate } as any)
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.trainerId, input.trainerId), inArray(ptPackages.status, ["active", "pending"])));
       return { success: true };
     }),
 
@@ -3467,6 +3485,7 @@ const trainersRouter = t.router({
           serviceSessionPrice: ptPackages.serviceSessionPrice,
           serviceSamePrice: ptPackages.serviceSamePrice,
           serviceSessions: ptPackages.serviceSessions,
+          pkgSettlementRate: ptPackages.settlementRate,
         })
           .from(ptSessionLogs)
           .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -3620,15 +3639,19 @@ const trainersRouter = t.router({
 
       const logsWithPrice = logs
         .filter(l => l.memberNameSnapshot != null || l.memberNameJoined != null)  // 탈퇴회원 제외
-        .map(l => ({
-          ...l,
-          effectivePrice: calcPrice(l),
-          packageName: l.packageName ?? memberPkgMap[l.memberId]?.packageName ?? null,
-          memberName: l.memberNameJoined ?? l.memberNameSnapshot ?? "",
-        }));
+        .map(l => {
+          const effectiveRate = (l as any).pkgSettlementRate ?? settlementRate;
+          return {
+            ...l,
+            effectivePrice: calcPrice(l),
+            effectiveSettlementRate: effectiveRate,
+            packageName: l.packageName ?? memberPkgMap[l.memberId]?.packageName ?? null,
+            memberName: l.memberNameJoined ?? l.memberNameSnapshot ?? "",
+          };
+        });
       const sessionCount = logsWithPrice.length;
       const revenue = logsWithPrice.reduce((s, l) => s + l.effectivePrice, 0);
-      const settlementAmount = Math.round(revenue * settlementRate / 100);
+      const settlementAmount = logsWithPrice.reduce((s, l) => s + Math.round(l.effectivePrice * l.effectiveSettlementRate / 100), 0);
       const afterTax = Math.round(settlementAmount * (1 - 0.033));
 
       return { sessionCount, revenue, settlementAmount, afterTax, settlementRate, logs: logsWithPrice };
@@ -5115,7 +5138,8 @@ const adminRouter = t.router({
           SELECT "memberId",
                  COALESCE(SUM("totalSessions"),0)::int AS ts,
                  COALESCE(SUM("usedSessions"),0)::int  AS us,
-                 COALESCE(SUM("unpaidAmount"),0)::int  AS unpaid
+                 COALESCE(SUM("unpaidAmount"),0)::int  AS unpaid,
+                 MAX("settlementRate") AS "settlementRate"
           FROM pt_packages
           WHERE "memberId" IN (${sql.join(memberIds.map(id => sql`${id}`), sql`,`)})
             AND status = 'active'
@@ -5155,7 +5179,8 @@ const adminRouter = t.router({
         const hasUnpaid    = pkg ? Number(pkg.unpaid) > 0 : false;
         // 항상 실제 누적결제 기준으로 등급 결정 (DB grade 무시)
         const grade        = totalPayment >= 5000000 ? "vvip" : totalPayment >= 3000000 ? "vip" : (m.grade === "vip" || m.grade === "vvip" ? "basic" : (m.grade ?? "basic"));
-        return { ...m, grade, remainingPt, hasUnpaid, totalPayment };
+        const memberSettlementRate = pkg?.settlementRate != null ? Number(pkg.settlementRate) : null;
+        return { ...m, grade, remainingPt, hasUnpaid, totalPayment, memberSettlementRate };
       });
     }),
 
