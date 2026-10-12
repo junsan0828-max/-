@@ -5828,6 +5828,7 @@ const adminRouter = t.router({
       WHERE p.status = 'active'
         AND COALESCE(p."totalSessions", 0) > 0
         AND m.id IS NOT NULL
+        AND p."transferredFromMemberId" IS NULL
     `);
 
     // 정상 단가 분포의 중앙값을 기준으로 삼는다 (트레이너/프로그램마다 가격이 달라 절대값 기준은 부정확).
