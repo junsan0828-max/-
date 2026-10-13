@@ -323,7 +323,7 @@ export default function SchedulePage() {
       {/* 이동 모드 안내 배너 */}
       {dragSlotId != null && (
         <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-primary/15 border border-primary/30 text-xs text-primary">
-          <span>이동할 빈 칸을 누르세요 — 카드를 다시 누르면 취소</span>
+          <span>이동할 칸을 누르세요 (빈 칸 또는 기존 수업 칸 모두 가능) — 카드를 다시 누르면 취소</span>
           <button onClick={cancelMove} className="text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border/40">취소</button>
         </div>
       )}
@@ -398,6 +398,19 @@ export default function SchedulePage() {
                       </button>
                     );
                   }
+                  // 이동 모드: 수업 있는 칸도 이동 가능 — "여기로" 오버레이 표시
+                  if (isMoveActive && top && open && !hol) {
+                    return (
+                      <button
+                        key={wd}
+                        onClick={() => commitMove(dragSlotId!, wd, h)}
+                        className="min-h-[42px] rounded-lg border-2 border-dashed border-primary/50 hover:border-primary hover:bg-primary/10 transition-colors cursor-pointer flex flex-col items-center justify-center gap-0.5 relative"
+                      >
+                        <span className="text-[10px] text-primary/80 font-medium">+ 여기로</span>
+                        <span className="text-[9px] text-muted-foreground/60 truncate px-1">{cell.map(s => s.memberName ?? "미배정").join(", ")}</span>
+                      </button>
+                    );
+                  }
 
                   if (viewingAll && !top) {
                     return (
@@ -423,15 +436,17 @@ export default function SchedulePage() {
 
                   const isSelected = top != null && dragSlotId === top.id;
 
-                  // 전체보기: 트레이너마다 one-off가 있으면 recurring template 제거(Set 기반 dedup)
-                  // 다른 트레이너의 슬롯은 반드시 모두 표시한다.
-                  // cell은 이미 isRecurring 오름차순(one-off 먼저) 정렬되어 있어 첫 hit만 남기면 됨.
-                  const _seenKey = new Set<string>();
+                  // 트레이너마다 one-off가 있으면 recurring template만 제거.
+                  // one-off 2개가 같은 시간에 있으면 둘 다 표시한다.
+                  // cell은 이미 isRecurring 오름차순(one-off 먼저) 정렬되어 있다.
+                  const _oneOffKeys = new Set<string>();
+                  cell.forEach(s => {
+                    if (s.isRecurring !== 1) _oneOffKeys.add(`${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`);
+                  });
                   const visible = cell.filter(s => {
-                    const key = `${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`;
-                    if (_seenKey.has(key)) return false;
-                    _seenKey.add(key);
-                    return true;
+                    if (s.isRecurring !== 1) return true; // one-off는 항상 표시
+                    // recurring은 같은 트레이너·시간에 one-off가 없을 때만 표시
+                    return !_oneOffKeys.has(`${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`);
                   });
 
                   // 관리자·FC 전체보기, 또는 한 칸에 여러 수업: 카드마다 따로 보여주고 따로 누르고 따로 옮긴다
