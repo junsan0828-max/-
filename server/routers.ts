@@ -94,14 +94,14 @@ function kstDate(offsetDays = 0): string {
 // PT 이력이 한 번이라도 있으면(완료된 패키지 포함) 담당 회원으로 본다.
 const hasPtPackage = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id})`;
 
-// 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체는 그대로, 혼합은 이체분+카드분(VAT제외) 합산
+// 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체/현금(영수증 미발행)은 그대로, 혼합은 이체분+카드분(VAT제외) 합산
 function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string, transferAmount?: number, cardAmount?: number): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
   if (paymentMethod === "혼합" && transferAmount != null && cardAmount != null) {
     const base = transferAmount + Math.round(cardAmount / 1.1);
     return Math.round(base / sessions);
   }
-  const base = (paymentMethod === "이체" || paymentMethod === "계좌이체") ? paymentAmount : Math.round(paymentAmount / 1.1);
+  const base = (paymentMethod === "이체" || paymentMethod === "계좌이체" || paymentMethod === "현금") ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
 // 로그인 시도 횟수 제한 (메모리 기반, 서버 재시작 시 초기화)

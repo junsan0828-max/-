@@ -1091,7 +1091,7 @@ const revenueRouter = t.router({
             newPricePerSession = Math.round((tAmt + Math.round(cAmt / 1.1)) / newSessions);
           }
           if (newPricePerSession === undefined) {
-            const isTransfer = row.paymentMethod === "이체" || row.paymentMethod === "계좌이체";
+            const isTransfer = row.paymentMethod === "이체" || row.paymentMethod === "계좌이체" || row.paymentMethod === "현금";
             const base = isTransfer ? newAmount : Math.round(newAmount / 1.1);
             newPricePerSession = Math.round(base / newSessions);
           }
@@ -4423,7 +4423,7 @@ const registerMutation = protectedProcedure
       if (input.paymentMethod === "혼합" && input.ptTransferAmount != null && input.ptCardAmount != null && sessionCount > 0) {
         ptPricePerSession = Math.round((input.ptTransferAmount + Math.round(input.ptCardAmount / 1.1)) / sessionCount);
       } else if (ptPaid && sessionCount > 0) {
-        const isTransfer = input.paymentMethod === "이체" || input.paymentMethod === "계좌이체";
+        const isTransfer = input.paymentMethod === "이체" || input.paymentMethod === "계좌이체" || input.paymentMethod === "현금";
         const base = isTransfer ? ptPaid : Math.round(ptPaid / 1.1);
         ptPricePerSession = Math.round(base / sessionCount);
       }

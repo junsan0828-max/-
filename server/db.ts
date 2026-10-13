@@ -139,7 +139,7 @@ function calcPricePerSession(paymentAmount: number, sessions: number, paymentMet
     const base = transferAmount + Math.round(cardAmount / 1.1);
     return Math.round(base / sessions);
   }
-  const base = (paymentMethod === "이체" || paymentMethod === "계좌이체") ? paymentAmount : Math.round(paymentAmount / 1.1);
+  const base = (paymentMethod === "이체" || paymentMethod === "계좌이체" || paymentMethod === "현금") ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
 

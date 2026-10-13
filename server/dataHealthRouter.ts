@@ -99,6 +99,31 @@ export const dataHealthRouter = t.router({
       rows: badPrice.rows,
     });
 
+    // ②-b 결제방법이 비어 있는 PT 패키지 — 정산은 결제방법으로 부가세 제외 여부를 정하는데,
+    //    비어 있으면 카드로 간주돼 ÷1.1이 적용된다. 이체·현금 결제였다면 정산이 10% 덜 나간다.
+    const noMethod = await pool.query(`
+      SELECT p.id AS "패키지ID", m.name AS "회원", t."trainerName" AS "트레이너",
+             p."packageName" AS "프로그램", p.status AS "상태",
+             p."paymentAmount" AS "결제금액", r."paymentMethod" AS "매출 결제방법",
+             COALESCE(p."paymentDate", r."paymentDate") AS "결제일"
+      FROM pt_packages p
+      JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers t ON t.id = p."trainerId"
+      LEFT JOIN revenue_entries r ON r.id = p."revenueEntryId"
+      WHERE COALESCE(p."paymentMethod", '') = ''
+        AND COALESCE(p."paymentAmount", 0) > 0
+        AND COALESCE(p."totalSessions", 0) > 0
+      ORDER BY p.status = 'active' DESC, p.id DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "package_no_payment_method",
+      title: "PT 패키지 결제방법 미입력",
+      severity: "critical",
+      description: "결제방법이 없으면 카드로 간주해 부가세(÷1.1)를 빼고 정산합니다. 이체·현금(영수증 미발행)이었다면 정산이 10% 적게 나갑니다. 등록관리에서 결제방법을 입력해주세요.",
+      rows: noMethod.rows,
+    });
+
     // ③ 수업일지가 패키지에 연결 안 됨 — 정산 0원 사고의 직접 원인.
     const orphanLogs = await pool.query(`
       SELECT sl.id AS "일지ID", COALESCE(m.name, sl."memberName") AS "회원",

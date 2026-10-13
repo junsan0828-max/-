@@ -2500,7 +2500,7 @@ async function initDatabase() {
       SET "paymentAmount" = GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0)),
           "unpaidAmount" = COALESCE(r."unpaidAmount", p."unpaidAmount"),
           "pricePerSession" = CASE
-            WHEN p."paymentMethod" IN ('이체','계좌이체')
+            WHEN p."paymentMethod" IN ('이체','계좌이체','현금')
               THEN ROUND(GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / p."totalSessions")
             ELSE ROUND((GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / 1.1) / p."totalSessions")
           END,
@@ -2514,6 +2514,18 @@ async function initDatabase() {
         AND COALESCE(p."paymentAmount",0) <> GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))
     `);
     if ((resynced.rowCount ?? 0) > 0) console.log(`💰 매출-패키지 결제금액 재동기화: ${resynced.rowCount}건`);
+
+    // 2-b-1) 결제방법이 빈 패키지는 연결된 매출의 결제방법으로 채운다 (빈 칸만, 멱등).
+    //   비어 있으면 정산이 카드로 간주해 부가세를 빼므로 이체·현금 회원 정산이 10% 덜 나간다.
+    const filledMethod = await pool.query(`
+      UPDATE pt_packages p
+      SET "paymentMethod" = r."paymentMethod", "updatedAt" = now()::text
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" = r.id
+        AND COALESCE(p."paymentMethod", '') = ''
+        AND COALESCE(r."paymentMethod", '') <> ''
+    `);
+    if ((filledMethod.rowCount ?? 0) > 0) console.log(`💳 패키지 결제방법 매출에서 채움: ${filledMethod.rowCount}건`);
 
     // 2-b-2) 세션수가 명백히 다른 매출에 잘못 연결된 revenueEntryId 해제.
     // 과거 "패키지↔매출 연결" 백필이 회원별로 날짜가 가장 가까운 매출을 고르는 방식이라,
@@ -2544,7 +2556,7 @@ async function initDatabase() {
       SET "paymentAmount" = GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0)),
           "unpaidAmount" = COALESCE(r."unpaidAmount", p."unpaidAmount"),
           "pricePerSession" = CASE
-            WHEN p."paymentMethod" IN ('이체','계좌이체')
+            WHEN p."paymentMethod" IN ('이체','계좌이체','현금')
               THEN ROUND(GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / p."totalSessions")
             ELSE ROUND((GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))::numeric / 1.1) / p."totalSessions")
           END,
