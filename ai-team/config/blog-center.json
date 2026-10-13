@@ -1,0 +1,33 @@
+{
+  "centerName": "자이언트짐",
+  "centerType": "맞춤운동센터",
+  "region": "시흥시 정왕동",
+  "ownerName": "이준산",
+  "ownerTitle": "대표",
+  "aiName": "루나",
+  "titlePrefix": "정왕동헬스장",
+  "keywords": ["정왕동피티", "정왕동헬스장", "정왕동자세교정피티"],
+  "methodSteps": ["체성분 분석과 체형분석기로 체형 분석", "가동성·안정성 확인", "기능 회복 운동", "바른 움직임 연습", "웨이트트레이닝 추가"],
+  "methodStepsShort": ["체성분 · 체형 분석", "가동성 · 안정성 확인", "기능 회복 운동", "바른 움직임 연습", "웨이트트레이닝 추가"],
+  "footer": {
+    "homepageTitle": "맞춤운동센터 자이언트짐 공식 홈페이지",
+    "homepageUrl": "https://ziantgym.com",
+    "introLines": [
+      "📌차의과학대학교 의학 박사생 대표",
+      "📌자이언트짐만의 ‘개인맞춤 트레이닝’ 기술 MPT 특허 인증",
+      "📌맞춤운동센터(자세교정, 통증관리, 산전산후관리, 재활전문)",
+      "📌PT & 기구필라테스 통합 맞춤 트레이닝 제공",
+      "📌통합기능운동학협회 교육기관 본 교육지점"
+    ],
+    "bookingTitle": "💚정왕동헬스장 자이언트짐 네이버 예약💚",
+    "bookingUrl": "https://booking.naver.com/booking/12/bizes/795037",
+    "addressTitle": "🏠정왕동헬스장 자이언트짐 1호점 오시는 길🏠",
+    "address": "경기도 시흥시 함송로29번길 5. 2층",
+    "talkTitle": "정왕동 헬스장 자이언트짐 문의",
+    "talkUrl": "https://talk.naver.com/profile/wsu8te4",
+    "phone": "📞 문의:0507-1482-3349"
+  },
+  "places": ["맞춤운동센터 자이언트짐 정왕배곧점", "맞춤운동센터 자이언트짐 2호점"],
+  "bannerFile": "banner_ziant_blue.png",
+  "bannerLink": "https://ziant.com"
+}

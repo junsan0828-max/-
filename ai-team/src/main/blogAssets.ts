@@ -58,7 +58,12 @@ class Filter {
   }
 }
 
-export function renderCards(card: CardData, outDir: string): { overview: string; evidence: string; steps: string } {
+export interface CenterCardInfo {
+  centerName: string;
+  steps: string[]; // 정확히 5개
+}
+
+export function renderCards(card: CardData, outDir: string, center: CenterCardInfo): { overview: string; evidence: string; steps: string } {
   mkdirSync(outDir, { recursive: true });
   const work = join(tmpdir(), "ai-team-cards");
   mkdirSync(work, { recursive: true });
@@ -102,8 +107,8 @@ export function renderCards(card: CardData, outDir: string): { overview: string;
   // 카드 C: 센터 방식 5단계 (고정)
   const c = new Filter(work);
   base(c);
-  c.text("자이언트짐 트레이닝 5단계", "white", 58, CENTER, 60);
-  ["체성분 · 체형 분석", "가동성 · 안정성 확인", "기능 회복 운동", "바른 움직임 연습", "웨이트트레이닝 추가"].forEach((s, i) => {
+  c.text(`${center.centerName} 트레이닝 5단계`, "white", 58, CENTER, 60);
+  center.steps.slice(0, 5).forEach((s, i) => {
     const y = 170 + i * 140;
     c.box(70, y, 860, 110, "white");
     c.box(70, y, 110, 110, "0x8DBBFF");

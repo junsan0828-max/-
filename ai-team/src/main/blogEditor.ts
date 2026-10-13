@@ -10,6 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type Frame, type Page } from "playwright";
 import { latestDraftFile, parseDraft } from "./paperBlog";
+import { loadBlogCenter } from "./blogCenter";
 import { parseCardData, pickPhotos, markPhotosUsed, renderCards, PHOTO_DIR } from "./blogAssets";
 
 const CDP = "http://127.0.0.1:9222";
@@ -17,10 +18,6 @@ const CHROME = process.env.CHROME_PATH || "C:\\Program Files\\Google\\Chrome\\Ap
 const PROFILE = process.env.BLOG_CHROME_PROFILE || join(homedir(), "chrome-ai-profile");
 const WRITE_URL = "https://blog.naver.com/GoBlogWrite.naver";
 const BODY_FONT_SIZE = process.env.BLOG_BODY_FONT_SIZE === undefined ? 16 : Number(process.env.BLOG_BODY_FONT_SIZE); // 네이버 기본 15보다 한 단계 크게. 끄려면 BLOG_BODY_FONT_SIZE=0
-const BANNER_FILE = join(PHOTO_DIR, "banner_ziant_blue.png");
-const BANNER_LINK = process.env.BLOG_BANNER_URL || "https://ziant.com";
-const PLACES = ["맞춤운동센터 자이언트짐 정왕배곧점", "맞춤운동센터 자이언트짐 2호점"];
-const KEYWORDS = ["정왕동피티 자이언트짐", "정왕동 자세교정피티", "정왕동헬스장 자이언트짐"];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const rnd = (a: number, b: number) => a + Math.floor(Math.random() * (b - a));
@@ -343,18 +340,23 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
   const draft = parseDraft(md);
   const card = parseCardData(md);
   const notes: string[] = [];
+  const center = loadBlogCenter();
+  const KEYWORDS = center.keywords.map((k) => `${k} ${center.centerName}`);
+  const PLACES = center.places;
+  const BANNER_FILE = join(PHOTO_DIR, center.bannerFile);
+  const BANNER_LINK = process.env.BLOG_BANNER_URL || center.bannerLink;
 
   // 1) 이미지 준비
   const { tmpdir } = await import("node:os");
   const cardDir = join(tmpdir(), "ai-team-blog-cards");
-  const cards = renderCards(card, cardDir);
+  const cards = renderCards(card, cardDir, { centerName: center.centerName, steps: center.methodStepsShort });
   const photos = pickPhotos(3);
   const kw = (i: number) => KEYWORDS[(i + rnd(0, KEYWORDS.length)) % KEYWORDS.length];
   const slots = [
     { file: photos[0].file, caption: `${kw(0)}, ${photos[0].scene}`, ai: false },
     { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true },
     { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true },
-    { file: cards.steps, caption: `AI 제작 이미지 | 자이언트짐 트레이닝 5단계 (${kw(0)})`, ai: true },
+    { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true },
     { file: photos[1].file, caption: `${kw(1)}, ${photos[1].scene}`, ai: false },
     { file: photos[2].file, caption: `${kw(2)}, ${photos[2].scene}`, ai: false },
   ];
@@ -397,8 +399,8 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
 
     // 5) 배너(맨 위, 링크, AI 표시)
     const first = lines.find(Boolean)!;
-    await ed.insertImage(first, BANNER_FILE, "AI 제작 이미지 | 정왕동피티 정왕동헬스장 맞춤운동센터 자이언트짐 안내 배너", true);
-    await ed.linkImage("banner_ziant_blue", BANNER_LINK);
+    await ed.insertImage(first, BANNER_FILE, `AI 제작 이미지 | ${center.keywords.join(" ")} ${center.centerType} ${center.centerName} 안내 배너`, true);
+    await ed.linkImage(center.bannerFile.replace(/\.[a-z]+$/i, ""), BANNER_LINK);
     notes.push(`배너 링크: ${BANNER_LINK} (접속 가능한 주소인지 발행 전 미리보기에서 눌러 확인하세요)`);
 
     // 6) 대표 이미지는 센터 사진, 장소 2곳은 맨 아래

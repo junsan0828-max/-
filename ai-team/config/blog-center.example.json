@@ -1,0 +1,27 @@
+{
+  "centerName": "[센터 이름]",
+  "centerType": "[센터 종류 예: 맞춤운동센터]",
+  "region": "[지역 예: ○○시 ○○동]",
+  "ownerName": "[대표 이름]",
+  "ownerTitle": "대표",
+  "aiName": "루나",
+  "titlePrefix": "[제목 앞 키워드 예: ○○동헬스장]",
+  "keywords": ["[키워드1 예: ○○동피티]", "[키워드2]", "[키워드3]"],
+  "methodSteps": ["[센터 진행 1단계 상세]", "[2단계]", "[3단계]", "[4단계]", "[5단계]"],
+  "methodStepsShort": ["[1단계 짧게]", "[2단계]", "[3단계]", "[4단계]", "[5단계]"],
+  "footer": {
+    "homepageTitle": "[센터 이름] 공식 홈페이지",
+    "homepageUrl": "https://",
+    "introLines": ["📌[센터 소개 1줄]", "📌[2줄]", "📌[3줄]"],
+    "bookingTitle": "💚[센터 이름] 네이버 예약💚",
+    "bookingUrl": "https://booking.naver.com/",
+    "addressTitle": "🏠[센터 이름] 오시는 길🏠",
+    "address": "[도로명 주소]",
+    "talkTitle": "[센터 이름] 문의",
+    "talkUrl": "https://talk.naver.com/",
+    "phone": "📞 문의:[전화번호]"
+  },
+  "places": ["[네이버 장소 검색어 1 (지점 이름 그대로)]"],
+  "bannerFile": "banner.png",
+  "bannerLink": "https://"
+}
