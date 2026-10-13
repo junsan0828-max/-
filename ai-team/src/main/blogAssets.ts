@@ -117,7 +117,7 @@ export function renderCards(card: CardData, outDir: string): { overview: string;
   return { overview, evidence, steps };
 }
 
-/** 승인된 사진 중 최근에 덜 쓴 것 위주로 무작위로 n장을 고른다 (한 글 안에서 중복 없음). */
+/** 승인된 사진 중 가장 오래전에 쓴(안 쓴) 것부터 n장을 고른다. 직전 글과는 사진이 겹치지 않는다. 사용 기록은 글 입력이 성공한 뒤 markPhotosUsed 로 남긴다. */
 export function pickPhotos(n = 3): PhotoPick[] {
   const lib: Record<string, { scene: string }> = JSON.parse(readFileSync(join(PHOTO_DIR, "library.json"), "utf-8"));
   const usedPath = join(PHOTO_DIR, "used.json");
@@ -126,8 +126,14 @@ export function pickPhotos(n = 3): PhotoPick[] {
   if (files.length < n) throw new Error(`승인된 사진이 ${files.length}장뿐입니다 (필요 ${n}장). '사진' 폴더에 모자이크가 끝난 사진을 더 넣어 주세요.`);
   const shuffled = files.map((f) => ({ f, r: Math.random() })).sort((a, b) => (used[a.f] ?? 0) - (used[b.f] ?? 0) || a.r - b.r);
   const picks = shuffled.slice(0, n).map((x) => x.f);
-  const now = Date.now();
-  picks.forEach((f) => (used[f] = now));
-  writeFileSync(usedPath, JSON.stringify(used, null, 1), "utf-8");
   return picks.map((f) => ({ file: join(PHOTO_DIR, f), scene: lib[f].scene }));
+}
+
+/** 이번 글에 실제로 쓴 사진을 기록한다 (실패한 시도가 순번을 소모하지 않도록 성공 후에만 호출). */
+export function markPhotosUsed(picks: PhotoPick[]): void {
+  const usedPath = join(PHOTO_DIR, "used.json");
+  const used: Record<string, number> = existsSync(usedPath) ? JSON.parse(readFileSync(usedPath, "utf-8")) : {};
+  const now = Date.now();
+  for (const p of picks) used[p.file.replace(/^.*[\\/]/, "")] = now;
+  writeFileSync(usedPath, JSON.stringify(used, null, 1), "utf-8");
 }

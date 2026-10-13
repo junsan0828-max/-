@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type Frame, type Page } from "playwright";
 import { latestDraftFile, parseDraft } from "./paperBlog";
-import { parseCardData, pickPhotos, renderCards, PHOTO_DIR } from "./blogAssets";
+import { parseCardData, pickPhotos, markPhotosUsed, renderCards, PHOTO_DIR } from "./blogAssets";
 
 const CDP = "http://127.0.0.1:9222";
 const CHROME = process.env.CHROME_PATH || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
@@ -347,6 +347,7 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
     await ed.insertPlaces(PLACES);
     notes.push(`대표 이미지: ${photos[0].file.replace(/^.*[\\/]/, "")} (실제 센터 사진)`, "장소 2곳 하단 삽입");
 
+    markPhotosUsed(photos); // 성공한 글에서만 사진 사용 기록을 남긴다
     const finalCount = await ed.imageCount();
     return { draftFile: file, title: draft.title, images: finalCount, places: PLACES.length, notes };
   } finally {
