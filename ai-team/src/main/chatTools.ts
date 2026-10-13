@@ -8,6 +8,7 @@ import { uploadVideo } from "./youtube/upload";
 import { generateVideoMetadata } from "./youtube/metadata";
 import { findPaperCandidates, resolvePmcid, fetchFullText, draftFromPaper } from "./paperBlog";
 import { fillBlogEditor } from "./blogEditor";
+import { savePhotos } from "./blogPhotos";
 
 export const CHAT_TOOLS = [
   {
@@ -137,6 +138,23 @@ export const CHAT_TOOLS = [
       properties: { draftFile: { type: "string", description: "(선택) 초안 파일 경로. 비우면 가장 최근 초안" } },
     },
   },
+  {
+    name: "blog_photo_save",
+    description:
+      "사장님이 직접 촬영한 사진을 규칙대로 저장한다 (루나 업무). 원본은 항상 '블로그 초안/사진_원본'에 보관하고, " +
+      "사장님이 '얼굴 모자이크를 끝낸 사진'이라고 확인해 준 경우에만 approved=true 로 '블로그 초안/사진'에 photo_N 으로 넣고 library.json 에 등록한다(글에 쓰이는 사진). " +
+      "모자이크 여부를 모르면 approved 를 켜지 말고 원본만 저장한 뒤 사장님께 물어본다. approved=true 일 때는 장면 설명(scene)이 필수다 (예: '렛풀다운 자세를 손으로 잡아주는 지도 모습'). " +
+      "paths 는 사진 파일 경로 또는 사진이 든 폴더 경로. 같은 사진은 중복 저장하지 않는다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        paths: { type: "array", items: { type: "string" }, description: "사진 파일 또는 폴더의 로컬 경로" },
+        approved: { type: "boolean", description: "모자이크가 끝난 사진이라고 사장님이 확인했을 때만 true" },
+        scene: { type: "string", description: "approved=true 일 때 필수. 사진 속 장면 한 줄 설명" },
+      },
+      required: ["paths"],
+    },
+  },
 ];
 
 export async function executeChatTool(name: string, input: any): Promise<string> {
@@ -196,6 +214,10 @@ export async function executeChatTool(name: string, input: any): Promise<string>
       const { text, meta } = await fetchFullText(pmcid);
       const r = await draftFromPaper({ text, meta }, pmcid);
       return JSON.stringify({ savedTo: r.file, head: r.preview });
+    }
+    case "blog_photo_save": {
+      const results = savePhotos((input.paths ?? []).map(String), { approved: input.approved === true, scene: input.scene ? String(input.scene) : undefined });
+      return JSON.stringify(results);
     }
     case "blog_editor_fill": {
       const r = await fillBlogEditor(input.draftFile ? String(input.draftFile) : undefined);
