@@ -16,6 +16,7 @@ const CDP = "http://127.0.0.1:9222";
 const CHROME = process.env.CHROME_PATH || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const PROFILE = process.env.BLOG_CHROME_PROFILE || join(homedir(), "chrome-ai-profile");
 const WRITE_URL = "https://blog.naver.com/GoBlogWrite.naver";
+const BODY_FONT_SIZE = process.env.BLOG_BODY_FONT_SIZE === undefined ? 16 : Number(process.env.BLOG_BODY_FONT_SIZE); // 네이버 기본 15보다 한 단계 크게. 끄려면 BLOG_BODY_FONT_SIZE=0
 const BANNER_FILE = join(PHOTO_DIR, "banner_ziant_blue.png");
 const BANNER_LINK = process.env.BLOG_BANNER_URL || "https://ziant.com";
 const PLACES = ["맞춤운동센터 자이언트짐 정왕배곧점", "맞춤운동센터 자이언트짐 2호점"];
@@ -47,7 +48,7 @@ async function ensureBrowser(): Promise<void> {
   throw new Error("전용 크롬 창에 연결하지 못했습니다. 바탕화면의 open-blog-editor.bat 을 실행해 주세요.");
 }
 
-async function getEditor(browser: Browser): Promise<{ page: Page; f: Frame }> {
+export async function getEditor(browser: Browser): Promise<{ page: Page; f: Frame }> {
   // 이미 열려 있는 글쓰기 탭(작성 중인 다른 글일 수 있다)은 건드리지 않고, 항상 새 탭에서 새 글로 시작한다.
   const ctx = browser.contexts()[0];
   const page = await ctx.newPage();
@@ -76,7 +77,7 @@ export interface FillResult {
   notes: string[];
 }
 
-class Editor {
+export class Editor {
   constructor(public page: Page, public f: Frame) {}
   paras() {
     return this.f.locator(".se-component.se-text:not(.se-documentTitle) .se-text-paragraph");
@@ -146,23 +147,36 @@ class Editor {
         await sleep(rnd(200, 400));
         continue;
       }
+      const plain = l.replace(/\*\*/g, "");
+      const segs = l.split(/(\*\*[^*]+\*\*)/).filter(Boolean);
       let ok = false;
       for (let a = 0; a < 2 && !ok; a++) {
         await this.paras().last().click();
         await this.page.keyboard.press("Control+End");
         await sleep(250);
-        // 이모지가 글자와 한 번에 들어가면 네이버 에디터가 글자를 날리고 이모지만 남기므로, 이모지는 따로 입력한다
-        for (const chunk of l.split(/(\p{Extended_Pictographic}️?(?:‍\p{Extended_Pictographic}️?)*)/u)) {
-          if (!chunk) continue;
-          await this.page.keyboard.insertText(chunk);
-          await sleep(/\p{Extended_Pictographic}/u.test(chunk) ? 350 : 120);
+        for (const seg of segs) {
+          const bold = /^\*\*[^*]+\*\*$/.test(seg);
+          const text = bold ? seg.slice(2, -2) : seg;
+          if (bold) await this.toggleBold(); // 중요한 부분만 굵게
+          // 이모지가 글자와 한 번에 들어가면 네이버 에디터가 글자를 날리고 이모지만 남기므로, 이모지는 따로 입력한다
+          for (const chunk of text.split(/(\p{Extended_Pictographic}️?(?:‍\p{Extended_Pictographic}️?)*)/u)) {
+            if (!chunk) continue;
+            await this.page.keyboard.insertText(chunk);
+            await sleep(/\p{Extended_Pictographic}/u.test(chunk) ? 350 : 120);
+          }
+          // 서식(굵게)을 바꾸기 전에 입력 중인 글자를 확정한다 — 안 하면 앞에 쓴 글자가 새 조각에 다시 들어간다
+          if (segs.length > 1) {
+            await this.page.keyboard.press("End");
+            await sleep(200);
+          }
+          if (bold) await this.toggleBold();
         }
         await sleep(450);
         const all = await this.bodyText();
         const lastNonEmpty = [...all].reverse().find(Boolean) ?? "";
-        ok = lastNonEmpty.includes(l.slice(0, 8));
+        ok = lastNonEmpty.includes(plain.slice(0, 8));
       }
-      if (!ok) throw new Error(`본문 입력 확인 실패, 중단: ${l.slice(0, 20)}`);
+      if (!ok) throw new Error(`본문 입력 확인 실패, 중단: ${plain.slice(0, 20)}`);
       await this.page.keyboard.press("Enter");
       await sleep(rnd(300, 650));
       this.guard();
@@ -176,6 +190,45 @@ class Editor {
     }).catch(() => {});
     await sleep(500);
   }
+  /** 굵게 켜기/끄기 — 도구 모음 버튼을 직접 누른다 (단축키는 에디터에서 먹지 않는 경우가 있다). */
+  async toggleBold(): Promise<void> {
+    const ok = await this.f.evaluate(() => {
+      const b = document.querySelector("button.se-bold-toolbar-button, .se-toolbar-item-bold button") as HTMLElement | null;
+      b?.click();
+      return !!b;
+    });
+    if (!ok) await this.page.keyboard.press("Control+B");
+    await sleep(150);
+  }
+  /** 본문 전체 글자 크기를 바꾼다 (기본 15 → 16). 제목·이미지는 건드리지 않는다. */
+  async setBodyFontSize(size: number): Promise<void> {
+    await this.closeSidebar();
+    await this.paras().first().click();
+    await this.page.keyboard.press("Control+A");
+    await sleep(400);
+    const opened = await this.f.evaluate(() => {
+      const b = document.querySelector(".se-font-size-code-toolbar-button, .se-toolbar-item-font-size-code button") as HTMLElement | null;
+      b?.click();
+      return !!b;
+    });
+    if (!opened) throw new Error("글자 크기 버튼을 찾지 못했습니다.");
+    await sleep(600);
+    const picked = await this.f.evaluate((sz) => {
+      const direct = document.querySelector(`.se-toolbar-option-font-size-code-fs${sz}-button`) as HTMLElement | null;
+      const any = direct ?? (Array.from(document.querySelectorAll("[class*='font-size-code'] button, [class*='font-size-code'] li")).find((e) => (e.textContent ?? "").trim() === String(sz)) as HTMLElement | undefined);
+      any?.click();
+      return !!any;
+    }, size);
+    if (!picked) throw new Error(`글자 크기 ${size} 항목을 찾지 못했습니다.`);
+    await sleep(700);
+    await this.page.keyboard.press("Control+End"); // 선택 해제
+  }
+  /** 굵게 처리된 글자 조각 수 (확인용). */
+  boldCount(): Promise<number> {
+    // 네이버 에디터는 굵은 글자를 <span><b>글자</b></span> 로 저장한다
+    return this.f.evaluate(() => Array.from(document.querySelectorAll(".se-component.se-text:not(.se-documentTitle) .se-text-paragraph b")).filter((e) => (e.textContent ?? "").replace(/[​\s]/g, "").length > 0).length);
+  }
+
   /** 특정 문단 '앞'에 이미지를 올리고 사진 설명/AI 표시를 설정한다. */
   async insertImage(beforeText: string, file: string, caption: string, ai: boolean) {
     const base = file.replace(/^.*[\\/]/, "").replace(/\.[a-z]+$/i, "");
@@ -325,7 +378,13 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
     lines.push("", draft.tags);
     await ed.typeTitle(draft.title);
     await ed.typeLines(lines);
-    notes.push(`본문 ${lines.filter(Boolean).length}개 문단 입력`);
+    notes.push(`본문 ${lines.filter(Boolean).length}개 문단 입력, 굵은 글씨 ${await ed.boldCount()}곳`);
+    if (BODY_FONT_SIZE) try {
+      await ed.setBodyFontSize(BODY_FONT_SIZE);
+      notes.push(`본문 글자 크기 ${BODY_FONT_SIZE}`);
+    } catch (e) {
+      notes.push(`⚠️ 글자 크기는 직접 바꿔 주세요: ${e instanceof Error ? e.message : e}`);
+    }
 
     // 4) 이미지: 소제목 앞에 순서대로 (소제목이 모자라면 '※' 안내 문구 앞)
     const headings = findHeadings(lines);
