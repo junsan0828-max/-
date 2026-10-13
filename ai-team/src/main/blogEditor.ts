@@ -106,7 +106,11 @@ class Editor {
     }
     const state = await this.f.evaluate(() => ({
       titleEmpty: document.querySelector(".se-documentTitle .se-module-text")?.classList.contains("se-is-empty") ?? true,
-      body: Array.from(document.querySelectorAll(".se-component.se-text:not(.se-documentTitle) .se-text-paragraph")).map((p) => (p as HTMLElement).innerText).join("").replace(/[​\s]/g, ""),
+      body: Array.from(document.querySelectorAll(".se-component.se-text:not(.se-documentTitle) .se-text-paragraph")).map((p) => {
+        const c = p.cloneNode(true) as HTMLElement;
+        c.querySelectorAll(".se-placeholder").forEach((x) => x.remove()); // '글감과 함께…' 안내 문구는 내용이 아니다
+        return c.textContent ?? "";
+      }).join("").replace(/[​\s]/g, ""),
       images: document.querySelectorAll(".se-component.se-image").length,
     }));
     if (!state.titleEmpty || state.images > 0 || (state.body && !/^[tㅅ]+$/.test(state.body))) {
@@ -147,7 +151,12 @@ class Editor {
         await this.paras().last().click();
         await this.page.keyboard.press("Control+End");
         await sleep(250);
-        await this.page.keyboard.insertText(l);
+        // 이모지가 글자와 한 번에 들어가면 네이버 에디터가 글자를 날리고 이모지만 남기므로, 이모지는 따로 입력한다
+        for (const chunk of l.split(/(\p{Extended_Pictographic}️?(?:‍\p{Extended_Pictographic}️?)*)/u)) {
+          if (!chunk) continue;
+          await this.page.keyboard.insertText(chunk);
+          await sleep(/\p{Extended_Pictographic}/u.test(chunk) ? 350 : 120);
+        }
         await sleep(450);
         const all = await this.bodyText();
         const lastNonEmpty = [...all].reverse().find(Boolean) ?? "";
@@ -159,10 +168,19 @@ class Editor {
       this.guard();
     }
   }
+  /** 이미지를 올리면 오른쪽 '라이브러리' 패널이 열려 클릭을 가로막는다 — 열려 있으면 닫는다. */
+  async closeSidebar() {
+    await this.f.evaluate(() => {
+      const btn = document.querySelector(".se-sidebar-panel-header button, .se-sidebar-panel-header .se-sidebar-close, .se-sidebar button[class*='close']") as HTMLElement | null;
+      btn?.click();
+    }).catch(() => {});
+    await sleep(500);
+  }
   /** 특정 문단 '앞'에 이미지를 올리고 사진 설명/AI 표시를 설정한다. */
   async insertImage(beforeText: string, file: string, caption: string, ai: boolean) {
     const base = file.replace(/^.*[\\/]/, "").replace(/\.[a-z]+$/i, "");
     const before = await this.imageCount();
+    await this.closeSidebar();
     const target = this.paras().filter({ hasText: new RegExp(`^${esc(beforeText)}$`) }).first();
     if (!(await target.count())) throw new Error(`이미지 위치 문단을 찾지 못했습니다: ${beforeText.slice(0, 20)}`);
     await target.scrollIntoViewIfNeeded();
@@ -177,10 +195,12 @@ class Editor {
     ]);
     await chooser.setFiles(file);
     await sleep(4500);
+    await this.closeSidebar();
     if ((await this.imageCount()) !== before + 1) throw new Error(`이미지가 들어가지 않았습니다: ${base}`);
     await this.decorateImage(base, caption, ai);
   }
   async decorateImage(base: string, caption: string, ai: boolean) {
+    await this.closeSidebar();
     const comp = this.imgComp(base);
     await comp.scrollIntoViewIfNeeded();
     await comp.locator("img").first().click(); // 선택해야 사진 설명 칸이 나타난다
@@ -256,7 +276,7 @@ function findHeadings(lines: string[]): string[] {
   const out: string[] = [];
   lines.forEach((l, i) => {
     if (!l || l.length > 30) return;
-    if (/^(•|※|#|\d+\.\s)/.test(l)) return;
+    if (/^(•|※|#|✔|📌|📞|💚|🏠|\d+\.\s)/.test(l)) return;
     if ((lines[i - 1] ?? "") !== "" && i !== 0) return;
     if ((lines[i + 1] ?? "") !== "") return;
     out.push(l);
