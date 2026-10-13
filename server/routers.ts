@@ -2150,7 +2150,7 @@ const ptRouter = t.router({
     .input(z.object({
       packageId: z.number(),
       packageName: z.string().optional(),
-      totalSessions: z.number().min(1).optional(),
+      totalSessions: z.number().min(0).optional(),
       usedSessions: z.number().min(0).optional(),
       startDate: z.string().optional(),
       expiryDate: z.string().optional(),
