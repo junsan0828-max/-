@@ -2508,6 +2508,7 @@ async function initDatabase() {
       FROM revenue_entries r
       WHERE p."revenueEntryId" = r.id
         AND r.type = 'PT'
+        AND p."transferredFromMemberId" IS NULL
         AND COALESCE(p."totalSessions",0) > 0
         AND COALESCE(p."paymentMethod",'') <> '혼합'
         AND COALESCE(p."paymentAmount",0) <> GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))
@@ -2551,6 +2552,7 @@ async function initDatabase() {
       FROM revenue_entries r
       WHERE p."revenueEntryId" IS NULL
         AND r.type = 'PT'
+        AND p."transferredFromMemberId" IS NULL
         AND r."memberId" = p."memberId"
         AND r."startDate" = p."startDate"
         AND r.sessions = p."totalSessions" - COALESCE(p."serviceSessions", 0)
@@ -3078,73 +3080,6 @@ async function start() {
     if (badDates.rows.length === 0) console.log("✅ paymentDate 포맷 이상 없음");
   } catch (e) {
     console.error("paymentDate 교정 오류:", e);
-  }
-
-  // 매출↔패키지 결제금액 불일치 자동 보정 (멱등)
-  // 원칙: 매출(revenue_entries)이 원본 → 패키지 paymentAmount를 매출에 맞춤.
-  // 제외: 양도수령(transferredFromMemberId IS NOT NULL) · 미수금 있는 패키지 · 혼합결제
-  try {
-    const fixRes = await pool.query(`
-      UPDATE pt_packages p
-      SET "paymentAmount" = r."paidAmount",
-          "pricePerSession" = CASE
-            WHEN COALESCE(p."totalSessions", 0) > 0
-            THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
-            ELSE p."pricePerSession"
-          END,
-          "updatedAt" = NOW()::text
-      FROM revenue_entries r
-      WHERE p."revenueEntryId" = r.id
-        AND p.status = 'active'
-        AND p."transferredFromMemberId" IS NULL
-        AND COALESCE(p."unpaidAmount", 0) = 0
-        AND COALESCE(p."paymentMethod", '') != '혼합'
-        AND r."paidAmount" > 0
-        AND ABS(COALESCE(p."paymentAmount", 0) - COALESCE(r."paidAmount", 0)) > 1000
-      RETURNING p.id, p."memberId", p."paymentAmount"
-    `);
-    if (fixRes.rowCount && fixRes.rowCount > 0) {
-      console.log(`🔧 매출↔패키지 금액 자동 보정: ${fixRes.rowCount}건`);
-    } else {
-      console.log("✅ 매출↔패키지 금액 이상 없음");
-    }
-  } catch (e) {
-    console.error("매출↔패키지 금액 보정 오류:", e);
-  }
-
-  // 미수금 수납 완료 패키지 paymentAmount 보정 (멱등)
-  // collectUnpaidPayment가 paymentAmount를 갱신하지 않던 이전 버전 데이터 복구.
-  // 조건: unpaidAmount=0, 미수금 수납 행이 존재, paymentAmount가 합산액과 불일치.
-  try {
-    const fixUnpaidRes = await pool.query(`
-      UPDATE pt_packages p
-      SET "paymentAmount" = r."paidAmount" + collected.total,
-          "pricePerSession" = CASE
-            WHEN COALESCE(p."totalSessions", 0) > 0
-            THEN ROUND((r."paidAmount" + collected.total)::numeric / p."totalSessions")
-            ELSE p."pricePerSession"
-          END,
-          "updatedAt" = NOW()::text
-      FROM revenue_entries r
-      JOIN (
-        SELECT "relatedEntryId", SUM(COALESCE("paidAmount", 0)) AS total
-        FROM revenue_entries
-        WHERE "subType" = '미수금'
-        GROUP BY "relatedEntryId"
-      ) collected ON collected."relatedEntryId" = r.id
-      WHERE p."revenueEntryId" = r.id
-        AND p."transferredFromMemberId" IS NULL
-        AND COALESCE(p."unpaidAmount", 0) = 0
-        AND COALESCE(p."paymentMethod", '') != '혼합'
-        AND collected.total > 0
-        AND ABS(COALESCE(p."paymentAmount", 0) - (r."paidAmount" + collected.total)) > 1000
-      RETURNING p.id, p."memberId", p."paymentAmount"
-    `);
-    if (fixUnpaidRes.rowCount && fixUnpaidRes.rowCount > 0) {
-      console.log(`🔧 미수금 수납 paymentAmount 보정: ${fixUnpaidRes.rowCount}건`);
-    }
-  } catch (e) {
-    console.error("미수금 수납 보정 오류:", e);
   }
 
   // 구글시트 자동 동기화 (5분마다)

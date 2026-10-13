@@ -2085,16 +2085,8 @@ const ptRouter = t.router({
       }
       const newUnpaid = currentUnpaid - input.collectedAmount;
 
-      const newPaymentAmount = (pkg.paymentAmount ?? 0) + input.collectedAmount;
-      const newPricePerSession =
-        pkg.totalSessions && pkg.totalSessions > 0
-          ? Math.round(newPaymentAmount / pkg.totalSessions)
-          : pkg.pricePerSession;
-      await db.update(ptPackages).set({
-        unpaidAmount: newUnpaid,
-        paymentAmount: newPaymentAmount,
-        ...(newPricePerSession != null ? { pricePerSession: newPricePerSession } : {}),
-      }).where(eq(ptPackages.id, input.packageId));
+      // paymentAmount는 계약금액(미수금 포함)이라 수납해도 바뀌지 않는다.
+      await db.update(ptPackages).set({ unpaidAmount: newUnpaid }).where(eq(ptPackages.id, input.packageId));
 
       // 원본 매출의 미수금도 같이 줄인다 — "전체 미수금" KPI/목록이 revenue_entries 기준이라
       // 패키지만 고치면 화면상 미수금이 그대로 남는다.
