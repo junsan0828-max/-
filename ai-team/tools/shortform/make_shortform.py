@@ -2,27 +2,26 @@
 #  python make_shortform.py <출력.mp4>
 # 사진 장면: 부드러운 확대 + 화면 이동(Ken Burns), 장면 사이는 0.4초 디졸브.
 # 자막: ffmpeg drawtext (한글 고딕 1종: 맑은 고딕, 굵기로 강조). 자막 문구·시간은 아래 CAPTIONS 에서 고친다.
-# 음악: 이 스크립트가 직접 합성한 자체 제작 배경음 (저작권 문제 없음). 바꾸려면 MUSIC 경로에 파일을 지정한다.
-import math
+# 음악 없음(무음). 클립 앱에서 음원을 직접 넣는다.
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-import wave
 
 import cv2
 import numpy as np
 
 ROOT = r"C:\Users\junsa\OneDrive\바탕 화면\트레이닝 이미지"
+# 회원 얼굴(거울에 비친 모습·뒤쪽 사람 포함)을 모자이크한 사본. 원본은 건드리지 않는다. 트레이너 얼굴은 그대로.
+MOSAIC_DIR = os.path.join(ROOT, "숏폼영상", "_모자이크사진")
 PHOTOS = {
-    "B": "KakaoTalk_20260810_222241491_01.jpg",  # 흰/회색 상의 트레이너가 여성 회원의 덤벨 자세 지도
-    "D": "KakaoTalk_20260731_225857378_01.jpg",  # 회색 상의 트레이너가 벤치 덤벨 보조
-    "C": "KakaoTalk_20260326_213824374_04.jpg",  # 검은 상의 트레이너가 다리를 벌린 회원의 몸통 지도
-    "A": "KakaoTalk_20260707_224650170_08.jpg",  # 회색 상의 트레이너가 벤치에서 옆으로 기운 회원의 어깨 지도
+    "B": "B.jpg",  # 원본 KakaoTalk_20260810_222241491_01.jpg — 트레이너가 여성 회원의 덤벨 자세 지도
+    "D": "D.jpg",  # 원본 KakaoTalk_20260731_225857378_01.jpg — 벤치 덤벨 보조
+    "C": "C.jpg",  # 원본 KakaoTalk_20260326_213824374_04.jpg — 다리를 벌린 회원의 몸통 지도
+    "A": "A.jpg",  # 원본 KakaoTalk_20260707_224650170_08.jpg — 벤치에서 옆으로 기운 회원의 어깨 지도
 }
 BEFORE_AFTER = os.path.join(ROOT, "비포에프터", "14.png")
-MUSIC = None  # 외부 음악 파일 경로를 주면 그것을 쓴다 (None 이면 자체 합성)
 
 W, H, FPS, TOTAL = 1080, 1920, 30, 25.0
 XF = 0.4  # 장면 사이 디졸브(초)
@@ -123,7 +122,7 @@ def build_before_after():
 
 class Renderer:
     def __init__(self):
-        self.imgs = {k: imread(os.path.join(ROOT, v)) for k, v in PHOTOS.items()}
+        self.imgs = {k: imread(os.path.join(MOSAIC_DIR, v)) for k, v in PHOTOS.items()}
         self.bgs = {"C": blurred_bg(self.imgs["C"])}
         self.ea = build_before_after()
 
@@ -150,58 +149,6 @@ class Renderer:
         return self.ea
 
 
-def synth_music(path, dur=TOTAL, sr=44100):
-    """차분하면서 리듬감 있는 자체 제작 배경음 (코드 진행 Am–F–C–G, 패드 + 아르페지오 + 가벼운 킥/하이햇)."""
-    rng = np.random.default_rng(7)
-    n = int(dur * sr)
-    t = np.arange(n) / sr
-    bpm = 96.0
-    beat = 60.0 / bpm
-    mix = np.zeros(n)
-    f = lambda m: 440.0 * 2 ** ((m - 69) / 12)
-    chords = [(57, 60, 64), (53, 57, 60), (48, 52, 55), (55, 59, 62)]  # Am F C G (낮은 옥타브)
-    bar = beat * 4
-    def add(sig, start):
-        i = int(start * sr)
-        j = min(n, i + len(sig))
-        if i < n:
-            mix[i:j] += sig[: j - i]
-    for bi in range(int(dur / bar) + 2):
-        ch = chords[bi % 4]
-        st = bi * bar
-        ln = int(bar * sr)
-        tt = np.arange(ln) / sr
-        env = np.minimum(tt / 0.6, 1) * np.minimum((bar - tt) / 0.5, 1).clip(0, 1)
-        pad = sum(np.sin(2 * math.pi * f(m + 12) * tt) + 0.4 * np.sin(2 * math.pi * f(m + 24) * tt) for m in ch)
-        add(0.045 * pad * env, st)
-        add(0.05 * np.sin(2 * math.pi * f(ch[0] - 12) * tt) * env, st)  # 베이스
-        # 아르페지오: 8분음표
-        arp = [ch[0] + 12, ch[1] + 12, ch[2] + 12, ch[1] + 12, ch[0] + 24, ch[2] + 12, ch[1] + 12, ch[0] + 12]
-        for k, m in enumerate(arp):
-            tt2 = np.arange(int(0.45 * sr)) / sr
-            pl = np.sin(2 * math.pi * f(m) * tt2) * np.exp(-tt2 * 7.5)
-            pl += 0.3 * np.sin(2 * math.pi * 2 * f(m) * tt2) * np.exp(-tt2 * 11)
-            add(0.07 * pl, st + k * beat / 2)
-        for q in range(4):  # 킥(1,3박) / 하이햇(엇박)
-            if q in (0, 2):
-                tk = np.arange(int(0.25 * sr)) / sr
-                kick = np.sin(2 * math.pi * (50 + 90 * np.exp(-tk * 30)) * tk) * np.exp(-tk * 12)
-                add(0.22 * kick, st + q * beat)
-            th = np.arange(int(0.05 * sr)) / sr
-            hat = rng.standard_normal(len(th)) * np.exp(-th * 90)
-            hat = np.diff(hat, prepend=0)
-            add(0.05 * hat, st + q * beat + beat / 2)
-    mix *= np.minimum(t / 0.6, 1) * np.minimum((dur - t) / 2.0, 1).clip(0, 1)  # 페이드 인/아웃
-    mix = np.tanh(mix * 1.6) * 0.55
-    st_ = np.stack([mix, np.roll(mix, 180) * 0.97], 1)  # 아주 약한 스테레오 폭
-    pcm = (st_ * 32767).astype(np.int16)
-    with wave.open(path, "wb") as w:
-        w.setnchannels(2)
-        w.setsampwidth(2)
-        w.setframerate(sr)
-        w.writeframes(pcm.tobytes())
-
-
 def drawtext(work, idx, text, size, bold, y, start, end, box=True, color="white"):
     tf = f"t{idx}.txt"
     open(os.path.join(work, tf), "w", encoding="utf-8", newline="").write(text)
@@ -217,9 +164,6 @@ def main(out):
     work = tempfile.mkdtemp(prefix="shortform_")
     shutil.copy(r"C:\Windows\Fonts\malgunbd.ttf", os.path.join(work, "fb.ttf"))
     shutil.copy(r"C:\Windows\Fonts\malgun.ttf", os.path.join(work, "fr.ttf"))
-    music = MUSIC or os.path.join(work, "bgm.wav")
-    if not MUSIC:
-        synth_music(music)
 
     filters = []
     i = 0
@@ -241,10 +185,9 @@ def main(out):
     cmd = [
         "ffmpeg", "-y", "-loglevel", "error",
         "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-        "-i", music,
         "-/vf", "vf.txt",
         "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS),
-        "-c:a", "aac", "-b:a", "192k", "-t", str(TOTAL), "-movflags", "+faststart", os.path.abspath(out),
+        "-an", "-t", str(TOTAL), "-movflags", "+faststart", os.path.abspath(out),
     ]
     r = Renderer()
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=work)
