@@ -3,3 +3,5 @@ dist/
 .env
 output/
 config/youtube-client-secret.json
+
+tools/.venv/

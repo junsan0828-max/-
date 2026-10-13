@@ -8,7 +8,7 @@ import { uploadVideo } from "./youtube/upload";
 import { generateVideoMetadata } from "./youtube/metadata";
 import { findPaperCandidates, resolvePmcid, fetchFullText, draftFromPaper } from "./paperBlog";
 import { fillBlogEditor } from "./blogEditor";
-import { savePhotos } from "./blogPhotos";
+import { savePhotos, mosaicPhoto } from "./blogPhotos";
 
 export const CHAT_TOOLS = [
   {
@@ -155,6 +155,17 @@ export const CHAT_TOOLS = [
       required: ["paths"],
     },
   },
+  {
+    name: "blog_photo_mosaic",
+    description:
+      "직접 촬영한 사진(모자이크 전 원본)의 얼굴을 자동으로 모자이크한다 (루나 업무). 원본은 '사진_원본'에 보관하고, 결과는 '블로그 초안/사진_모자이크확인' 폴더에만 둔다(글에는 아직 쓰이지 않음). " +
+      "결과 파일 경로와 가린 얼굴 수를 사장님께 알리고, 사장님이 파일을 직접 열어 모든 얼굴(작은 얼굴·옆모습·거울 속)이 가려졌다고 확인해 준 뒤에만 blog_photo_save(approved=true)로 등록한다. 얼굴 0개로 나오면 놓친 것일 수 있다고 반드시 알린다.",
+    input_schema: {
+      type: "object",
+      properties: { paths: { type: "array", items: { type: "string" }, description: "모자이크 전 원본 사진 파일 경로" } },
+      required: ["paths"],
+    },
+  },
 ];
 
 export async function executeChatTool(name: string, input: any): Promise<string> {
@@ -214,6 +225,9 @@ export async function executeChatTool(name: string, input: any): Promise<string>
       const { text, meta } = await fetchFullText(pmcid);
       const r = await draftFromPaper({ text, meta }, pmcid);
       return JSON.stringify({ savedTo: r.file, head: r.preview });
+    }
+    case "blog_photo_mosaic": {
+      return JSON.stringify((input.paths ?? []).map((p: unknown) => mosaicPhoto(String(p))));
     }
     case "blog_photo_save": {
       const results = savePhotos((input.paths ?? []).map(String), { approved: input.approved === true, scene: input.scene ? String(input.scene) : undefined });
