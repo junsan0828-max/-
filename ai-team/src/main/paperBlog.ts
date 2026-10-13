@@ -4,11 +4,18 @@
 //  3) 글 초안 작성            : Claude Code(구독)로 작성, 검증 메모 포함
 // 에디터 입력/발행은 하지 않는다. 최종 발행은 항상 대표님이 한다.
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { askClaudeCode } from "./claudeCli";
 
 const EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest";
-export const DRAFT_DIR = process.env.BLOG_DRAFT_DIR || "C:/Users/junsa/OneDrive/바탕 화면/블로그 초안";
+// 다른 PC에서도 같은 이름으로 쓰도록: BLOG_DRAFT_DIR > (OneDrive) 바탕 화면 > Desktop 아래 '블로그 초안'
+function defaultDraftDir(): string {
+  const home = homedir();
+  const desktops = [join(home, "OneDrive", "바탕 화면"), join(home, "OneDrive", "Desktop"), join(home, "바탕 화면"), join(home, "Desktop")];
+  return join(desktops.find((d) => existsSync(d)) ?? desktops[3], "블로그 초안");
+}
+export const DRAFT_DIR = process.env.BLOG_DRAFT_DIR || defaultDraftDir();
 
 export interface PaperCandidate {
   title: string;
