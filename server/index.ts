@@ -2477,6 +2477,8 @@ async function initDatabase() {
       WHERE COALESCE("pricePerSession",0) = 0
         AND COALESCE("paymentAmount",0) > 0 AND COALESCE("totalSessions",0) > 0
     `);
+    // 서비스 전용 패키지(serviceSessions >= totalSessions)는 무상이라 매출 금액을 복사하지 않는다.
+    // 같은 날 매출에 잘못 연결되면 재등록 금액이 붙어 정산 단가가 폭등한다(양희정·이미자 사례).
     // 2) 결제금액 자체가 없는 패키지: 연결된 매출(revenueEntryId)에서 채우기.
     //    금액 기준은 "계약금액"(정가 − 할인)이다. 실수령액을 쓰면 미수금 있는 회원의 단가가
     //    폭락한다(강문영 사례) — 미수금은 unpaidAmount로 따로 관리하므로 여기서 빼면 안 된다.
@@ -2489,6 +2491,7 @@ async function initDatabase() {
       FROM revenue_entries r
       WHERE p."revenueEntryId" = r.id
         AND COALESCE(p."paymentAmount",0) = 0
+        AND COALESCE(p."serviceSessions",0) < COALESCE(p."totalSessions",0)
         AND GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0)) > 0
     `);
     // 2-b) 매출(원본)과 결제금액이 어긋난 패키지 교정 (매출 수정 시 동기화가 과거에 실패했던 건).
@@ -2509,6 +2512,7 @@ async function initDatabase() {
       WHERE p."revenueEntryId" = r.id
         AND r.type = 'PT'
         AND p."transferredFromMemberId" IS NULL
+        AND COALESCE(p."serviceSessions",0) < COALESCE(p."totalSessions",0)
         AND COALESCE(p."totalSessions",0) > 0
         AND COALESCE(p."paymentMethod",'') <> '혼합'
         AND COALESCE(p."paymentAmount",0) <> GREATEST(0, COALESCE(r.amount,0) - COALESCE(r."discountAmount",0))
@@ -2565,6 +2569,7 @@ async function initDatabase() {
       WHERE p."revenueEntryId" IS NULL
         AND r.type = 'PT'
         AND p."transferredFromMemberId" IS NULL
+        AND COALESCE(p."serviceSessions",0) < COALESCE(p."totalSessions",0)
         AND r."memberId" = p."memberId"
         AND r."startDate" = p."startDate"
         AND r.sessions = p."totalSessions" - COALESCE(p."serviceSessions", 0)

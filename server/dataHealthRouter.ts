@@ -238,9 +238,13 @@ export const dataHealthRouter = t.router({
       FROM pt_packages p
       JOIN members m ON m.id = p."memberId"
       LEFT JOIN trainers t ON t.id = p."trainerId"
-      WHERE p."serviceSessions" > 0
-        AND p."serviceSessions" >= p."totalSessions"
-        AND COALESCE(p."paymentAmount", 0) > 0
+      WHERE COALESCE(p."paymentAmount", 0) > 0
+        AND (
+          (p."serviceSessions" > 0 AND p."serviceSessions" >= p."totalSessions")
+          -- 이름만 "서비스"이고 서비스 횟수가 빠진 패키지는 일반 수업으로 계산돼 더 위험하다
+          -- (양희정 사례: "서비스" 1회에 116만원 → 회당 106만원 정산).
+          OR (p."packageName" LIKE '%서비스%' AND p."revenueEntryId" IS NULL AND COALESCE(p."totalSessions", 0) <= 5)
+        )
       ORDER BY p."paymentAmount" DESC
       LIMIT 50
     `);
