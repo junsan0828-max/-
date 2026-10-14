@@ -327,6 +327,7 @@ function findHeadings(lines: string[]): string[] {
   lines.forEach((l, i) => {
     if (!l || l.length > 30) return;
     if (/^(•|※|#|✔|📌|📞|💚|🏠|\d+\.\s)/.test(l)) return;
+    if (/^안녕하세요/.test(l)) return;
     if ((lines[i - 1] ?? "") !== "" && i !== 0) return;
     if ((lines[i + 1] ?? "") !== "") return;
     out.push(l);
@@ -353,12 +354,12 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
   const photos = pickPhotos(3);
   const kw = (i: number) => KEYWORDS[(i + rnd(0, KEYWORDS.length)) % KEYWORDS.length];
   const slots = [
-    { file: photos[0].file, caption: `${kw(0)}, ${photos[0].scene}`, ai: false },
-    { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true },
-    { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true },
-    { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true },
-    { file: photos[1].file, caption: `${kw(1)}, ${photos[1].scene}`, ai: false },
-    { file: photos[2].file, caption: `${kw(2)}, ${photos[2].scene}`, ai: false },
+    { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true }, // 소제목 1: 논문 배경
+    { file: photos[0].file, caption: `${kw(0)}, ${photos[0].scene}`, ai: false }, // 소제목 2: 결과
+    { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true }, // 소제목 3: 한계
+    { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true }, // 소제목 4: 센터 방식
+    { file: photos[1].file, caption: `${kw(1)}, ${photos[1].scene}`, ai: false }, // 소제목 5: 마무리
+    { file: photos[2].file, caption: `${kw(2)}, ${photos[2].scene}`, ai: false }, // 맨 끝(※ 문구 앞)
   ];
 
   // 2) 브라우저 연결
