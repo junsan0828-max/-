@@ -723,7 +723,7 @@ function TrainerDashboard() {
       const { intent, intentDate, intentAt } = getIntentInfo(m);
       items.push({
         key: `expiredpt-${m.id}`, memberId: m.id, name: m.name,
-        tag: "PT 기간만료", detail: `잔여 ${(m as any).remaining}회`,
+        tag: "PT 재등록 필요", detail: `${(m as any).packageName ?? "PT"} 완료`,
         iconColor: "text-rose-400", tagBg: "bg-rose-500/20 text-rose-600",
         urgency: urgencyOf(-200, intent), intent, intentDate, intentAt,
         actions: [
