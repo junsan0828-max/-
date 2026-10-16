@@ -501,6 +501,7 @@ function TrainerDashboard() {
   const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5 }, { staleTime: ST3 });
   const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
   const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({}, { staleTime: ST3 });
+  const { data: expiredPt } = trpc.members.getExpiredPt.useQuery(undefined, { staleTime: ST3 });
   const [rolloverOpen, setRolloverOpen] = useState(false);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   // 낙관적 업데이트: {memberId → {intent, intentDate}}
@@ -713,6 +714,22 @@ function TrainerDashboard() {
           { label: "이번달 소진", value: "소진", kind: "done", color: "text-purple-400 border-purple-500/30" },
           { label: "다음달 이월", value: "이월", kind: "done", color: "text-blue-400 border-blue-500/30" },
           { label: "일정 확인 필요", value: "일정확인필요", kind: "pending", color: "text-orange-400 border-orange-500/30" },
+        ],
+        onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
+      });
+    });
+
+    expiredPt?.forEach((m) => {
+      const { intent, intentDate, intentAt } = getIntentInfo(m);
+      items.push({
+        key: `expiredpt-${m.id}`, memberId: m.id, name: m.name,
+        tag: "PT 기간만료", detail: `잔여 ${(m as any).remaining}회`,
+        iconColor: "text-rose-400", tagBg: "bg-rose-500/20 text-rose-600",
+        urgency: urgencyOf(-200, intent), intent, intentDate, intentAt,
+        actions: [
+          { label: "재등록 확정", value: "재등록확정", kind: "done", color: "text-emerald-400 border-emerald-500/30" },
+          { label: "상담 예정", value: "상담예정", kind: "scheduled", color: "text-sky-400 border-sky-500/30" },
+          { label: "종료 예정", value: "종료예정", kind: "done", color: "text-gray-400 border-gray-500/30" },
         ],
         onGo: () => { setAlertModalOpen(false); setLocation(`/members/${m.id}`); },
       });

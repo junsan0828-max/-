@@ -2592,6 +2592,37 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
+  // 기간 만료됐지만 잔여 세션이 남은 PT 패키지 회원 (VIP/VVIP 제외)
+  getExpiredPt: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    return db
+      .select({
+        id: members.id,
+        name: members.name,
+        phone: members.phone,
+        grade: members.grade,
+        renewalIntent: members.renewalIntent,
+        renewalIntentDate: members.renewalIntentDate,
+        renewalIntentAt: members.renewalIntentAt,
+        packageName: ptPackages.packageName,
+        remaining: sql<number>`(COALESCE(${ptPackages.totalSessions},0) - COALESCE(${ptPackages.usedSessions},0))`,
+        expiryDate: ptPackages.expiryDate,
+      })
+      .from(members)
+      .innerJoin(ptPackages, eq(ptPackages.memberId, members.id))
+      .where(and(
+        eq(members.trainerId, trainerId),
+        eq(ptPackages.trainerId, trainerId),
+        eq(ptPackages.status, "expired"),
+        sql`COALESCE(${ptPackages.usedSessions},0) < COALESCE(${ptPackages.totalSessions},0)`,
+        sql`${members.grade} NOT IN ('vip','vvip')`,
+      ))
+      .orderBy(ptPackages.expiryDate);
+  }),
+
   // 회원별 이번달 PT 세션 횟수
   memberSessionStats: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
@@ -2647,18 +2678,25 @@ function isScheduleAdmin(role?: string) {
 // 차감 대상 패키지 선택 — attendanceChecks.upsert와 같은 기준(기타 뒤로, 시작된 것, 오래된 것 먼저).
 // 예전엔 정렬 없이 limit(1)이라 활성 패키지가 2개면 어느 쪽이 차감될지 DB 마음이었다.
 async function pickActivePackage(db: any, memberId: number) {
-  const [pkg] = await db
-    .select({ id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName })
-    .from(ptPackages)
+  const cols = { id: ptPackages.id, usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions, serviceSessions: ptPackages.serviceSessions, packageName: ptPackages.packageName };
+  const orderClauses = [
+    sql`CASE WHEN "packageName" = '기타' THEN 1 ELSE 0 END`,
+    sql`CASE WHEN "startDate" IS NULL OR "startDate" <= ${kstDate()} THEN 0 ELSE 1 END`,
+    asc(ptPackages.startDate),
+    asc(ptPackages.id),
+  ] as const;
+  // 1순위: 활성(active) 패키지에서 잔여 있는 것
+  const [active] = await db
+    .select(cols).from(ptPackages)
     .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "active"), sql`${ptPackages.usedSessions} < ${ptPackages.totalSessions}`))
-    .orderBy(
-      sql`CASE WHEN "packageName" = '기타' THEN 1 ELSE 0 END`,
-      sql`CASE WHEN "startDate" IS NULL OR "startDate" <= ${kstDate()} THEN 0 ELSE 1 END`,
-      asc(ptPackages.startDate),
-      asc(ptPackages.id),
-    )
-    .limit(1);
-  return pkg as { id: number; usedSessions: number; totalSessions: number; serviceSessions: number | null; packageName: string | null } | undefined;
+    .orderBy(...orderClauses).limit(1);
+  if (active) return active as { id: number; usedSessions: number; totalSessions: number; serviceSessions: number | null; packageName: string | null };
+  // 2순위: 만료(expired) 패키지에서 잔여 있는 것 — 기간 지났지만 남은 세션은 쓸 수 있게
+  const [expired] = await db
+    .select(cols).from(ptPackages)
+    .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "expired"), sql`${ptPackages.usedSessions} < ${ptPackages.totalSessions}`))
+    .orderBy(...orderClauses).limit(1);
+  return expired as { id: number; usedSessions: number; totalSessions: number; serviceSessions: number | null; packageName: string | null } | undefined;
 }
 
 type DeductSkip = "no_member" | "no_package" | "duplicate" | null;
