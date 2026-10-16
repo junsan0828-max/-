@@ -522,11 +522,17 @@ export default function SchedulePage() {
                               className={`relative w-full rounded-lg border px-1 py-1 text-left text-[11px] leading-tight transition-all select-none ${
                                 sSelected ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
                                 : s.status === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
+                                : s.status === "cancelled" ? "bg-amber-950/30 border-dashed border-amber-600/40 text-amber-200/60"
                                 : sDone ? `${p.cell} opacity-60`
                                 : p.cell
                               }`}
                             >
                               {sDone && <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />}
+                              {(s.status === "cancelled" || s.status === "noshow") && (
+                                <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${s.status === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
+                                  {s.status === "cancelled" ? "캔슬" : "노쇼"}
+                                </span>
+                              )}
                               {viewingAll && (
                                 <span className="block truncate text-[10px] text-amber-300/90">{s.trainerName ?? "담당없음"}</span>
                               )}
@@ -578,6 +584,8 @@ export default function SchedulePage() {
                           : top
                             ? top.status === "noshow"
                               ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
+                              : top.status === "cancelled"
+                              ? "bg-amber-950/30 border-dashed border-amber-600/40 text-amber-200/60"
                               : isDone
                               ? `${tColor ? tColor.cell : colors.filled} opacity-60`
                               : tColor
@@ -592,6 +600,11 @@ export default function SchedulePage() {
                         <>
                           {isDone && (
                             <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />
+                          )}
+                          {(top.status === "cancelled" || top.status === "noshow") && (
+                            <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${top.status === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
+                              {top.status === "cancelled" ? "캔슬" : "노쇼"}
+                            </span>
                           )}
                           {viewingAll && (
                             <span className="block truncate text-[10px] text-amber-300/90">
@@ -1008,6 +1021,26 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
               <RotateCcw className="h-3 w-3" />
               완료 취소
             </button>
+          </div>
+        )}
+
+        {target?.status === "cancelled" && (
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 flex items-center justify-between gap-2">
+            <span>캔슬 처리됨 (당일 취소 · 차감 없음)</span>
+            {target.isRecurring !== 1 && (
+              <button type="button" disabled={busy}
+                onClick={() => {
+                  if (confirm("캔슬을 되돌립니다. 수업 체크·노쇼 처리를 다시 할 수 있습니다.")) updateMutation.mutate({ scheduleId: target.id, status: "pending" });
+                }}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 transition-colors disabled:opacity-50">
+                <RotateCcw className="h-3 w-3" /> 캔슬 취소
+              </button>
+            )}
+          </div>
+        )}
+        {target?.status === "noshow" && (
+          <div className="rounded-lg bg-rose-500/10 border border-rose-500/30 px-3 py-2 text-xs text-rose-300">
+            노쇼 처리됨 (PT 1회 차감)
           </div>
         )}
 
