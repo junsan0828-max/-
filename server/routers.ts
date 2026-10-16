@@ -1745,6 +1745,106 @@ const ptRouter = t.router({
       return row;
     }),
 
+  // 대량 수업 체크 — 날짜 목록을 한 번에 세션 로그로 등록
+  bulkCreateLogs: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      dates: z.array(z.string()).min(1).max(200),
+      packageId: z.number().optional(), // 지정하면 해당 패키지에 귀속; 없으면 날짜별 자동 선택
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      let trainerId: number | null = ctx.user.trainerId ?? null;
+      if (isStaff) {
+        const [mem] = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+        trainerId = mem?.trainerId ?? null;
+      } else if (!trainerId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const [memberRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
+      const memberNameSnapshot = memberRow?.name ?? null;
+
+      // 날짜 정규화 및 중복 제거
+      const uniqueDates = [...new Set(input.dates.map(d => d.trim()).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))];
+      if (!uniqueDates.length) throw new TRPCError({ code: "BAD_REQUEST", message: "유효한 날짜가 없습니다." });
+
+      // 이미 로그가 있는 날짜 확인
+      const existingLogs = await db.select({ sessionDate: ptSessionLogs.sessionDate })
+        .from(ptSessionLogs)
+        .where(and(eq(ptSessionLogs.memberId, input.memberId), sql`"sessionDate" = ANY(${uniqueDates})`));
+      const existingDates = new Set(existingLogs.map(l => l.sessionDate));
+
+      // 패키지 목록 (packageId 미지정 시 날짜별 자동 선택용)
+      const memberPkgs = input.packageId ? [] : await db.select({
+        id: ptPackages.id, pricePerSession: ptPackages.pricePerSession,
+        paymentAmount: ptPackages.paymentAmount, status: ptPackages.status,
+        packageName: ptPackages.packageName, startDate: ptPackages.startDate,
+        usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions,
+      }).from(ptPackages)
+        .where(eq(ptPackages.memberId, input.memberId))
+        .orderBy(asc(ptPackages.startDate), asc(ptPackages.id));
+
+      const priced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
+      const isRealProgram = (p: any) => p.packageName !== "기타";
+
+      let created = 0;
+      const skippedDates: string[] = [];
+      // packageId별 usedSessions 증가분 추적 (패키지가 지정된 경우)
+      const pkgUsedDelta = new Map<number, number>();
+
+      for (const date of uniqueDates.sort()) {
+        if (existingDates.has(date)) { skippedDates.push(date); continue; }
+
+        let resolvedPackageId = input.packageId ?? null;
+        if (!resolvedPackageId) {
+          // 날짜별로 해당 시점에 활성이던 패키지 선택 (startDate <= date 기준)
+          const started = memberPkgs.filter(p => !p.startDate || p.startDate <= date);
+          resolvedPackageId =
+            started.find(p => p.status === "active" && (p.usedSessions ?? 0) < (p.totalSessions ?? 0) && priced(p) && isRealProgram(p))?.id ??
+            started.find(p => p.status === "active" && (p.usedSessions ?? 0) < (p.totalSessions ?? 0) && priced(p))?.id ??
+            started.find(p => p.status === "active" && (p.usedSessions ?? 0) < (p.totalSessions ?? 0))?.id ??
+            started.find(p => p.status === "active" && priced(p))?.id ??
+            started.find(p => p.status === "active")?.id ??
+            started[started.length - 1]?.id ??
+            null;
+        }
+
+        await db.insert(ptSessionLogs).values({
+          memberId: input.memberId,
+          sessionDate: date,
+          packageId: resolvedPackageId ?? undefined,
+          memberName: memberNameSnapshot,
+          trainerId: trainerId ?? 0,
+          notes: input.notes ?? null,
+          isDraft: 0,
+        });
+
+        if (resolvedPackageId) {
+          pkgUsedDelta.set(resolvedPackageId, (pkgUsedDelta.get(resolvedPackageId) ?? 0) + 1);
+        }
+        created++;
+      }
+
+      // 패키지 usedSessions 일괄 업데이트
+      for (const [pkgId, delta] of pkgUsedDelta) {
+        const [pkg] = await db.select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+          .from(ptPackages).where(eq(ptPackages.id, pkgId)).limit(1);
+        if (pkg) {
+          const newUsed = Math.min(pkg.usedSessions + delta, pkg.totalSessions ?? 99999);
+          await db.update(ptPackages)
+            .set({ usedSessions: newUsed, status: newUsed >= (pkg.totalSessions ?? 99999) ? "completed" : "active" })
+            .where(eq(ptPackages.id, pkgId));
+        }
+      }
+
+      return { created, skipped: skippedDates.length, skippedDates };
+    }),
+
   // 트레이닝 일지 수정
   updateLog: protectedProcedure
     .input(z.object({

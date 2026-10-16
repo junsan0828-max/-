@@ -78,6 +78,7 @@ import {
   Send,
   CheckCheck,
   ArrowRightLeft,
+  ListChecks,
 } from "lucide-react";
 import { TransferModal, type MemberBasic } from "./TransferModal";
 
@@ -313,6 +314,10 @@ export default function MemberDetail({ memberId }: Props) {
   // 트레이닝 일지 상태
   const [trainingSubTab, setTrainingSubTab] = useState<"journal" | "memo">("journal");
   const [journalOpen, setJournalOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkDatesText, setBulkDatesText] = useState("");
+  const [bulkPackageId, setBulkPackageId] = useState<number | null>(null);
+  const [bulkNotes, setBulkNotes] = useState("");
   const [journalForm, setJournalForm] = useState({
     sessionDate: new Date().toISOString().split("T")[0],
     goal: "",
@@ -557,6 +562,20 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   // 트레이닝 일지 CRUD
+  const bulkCreateMutation = trpc.pt.bulkCreateLogs.useMutation({
+    onSuccess: (res) => {
+      const msg = `${res.created}건 등록 완료` + (res.skipped > 0 ? ` (${res.skipped}건 중복 건너뜀)` : "");
+      toast.success(msg);
+      setBulkOpen(false);
+      setBulkDatesText("");
+      setBulkPackageId(null);
+      setBulkNotes("");
+      utils.pt.sessionLogs.invalidate({ memberId });
+      utils.pt.listByMember.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "대량 등록 실패"),
+  });
+
   const createLogMutation = trpc.pt.createLog.useMutation({
     onSuccess: () => {
       toast.success("트레이닝 일지가 저장되었습니다.");
@@ -2447,17 +2466,28 @@ export default function MemberDetail({ memberId }: Props) {
           {/* ── 트레이닝 일지 서브탭 ── */}
           {trainingSubTab === "journal" && (
             <div className="space-y-3">
-              <Button
-                size="sm"
-                className="w-full gap-1.5 text-xs"
-                onClick={() => {
-                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", isDraft: false });
-                  setJournalOpen(true);
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                트레이닝 일지 작성
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1 gap-1.5 text-xs"
+                  onClick={() => {
+                    setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", isDraft: false });
+                    setJournalOpen(true);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  트레이닝 일지 작성
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 gap-1.5 text-xs"
+                  onClick={() => setBulkOpen(true)}
+                >
+                  <ListChecks className="h-3.5 w-3.5" />
+                  대량 수업 체크
+                </Button>
+              </div>
 
               {!sessionLogs?.length ? (
                 <p className="text-muted-foreground text-sm text-center py-8">트레이닝 기록이 없습니다.</p>
@@ -3084,6 +3114,90 @@ export default function MemberDetail({ memberId }: Props) {
                 }
               >
                 {updateMemoMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 대량 수업 체크 다이얼로그 */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>대량 수업 체크</DialogTitle>
+            <DialogDescription>날짜를 입력하면 한 번에 수업 이력으로 등록합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">날짜 목록</label>
+              <p className="text-[11px] text-muted-foreground/70">
+                한 줄에 하나씩 또는 쉼표/공백으로 구분해서 입력하세요.<br />
+                형식: YYYY-MM-DD (예: 2026-10-15)
+              </p>
+              <textarea
+                className="w-full min-h-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-y"
+                placeholder={"2026-10-15\n2026-10-13\n2026-10-08"}
+                value={bulkDatesText}
+                onChange={e => setBulkDatesText(e.target.value)}
+              />
+              {(() => {
+                const parsed = bulkDatesText
+                  .split(/[\n,\s]+/)
+                  .map(s => s.trim())
+                  .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
+                const unique = [...new Set(parsed)];
+                return unique.length > 0 ? (
+                  <p className="text-[11px] text-emerald-400">{unique.length}개 날짜 인식됨</p>
+                ) : bulkDatesText.trim() ? (
+                  <p className="text-[11px] text-destructive">유효한 날짜 없음 (YYYY-MM-DD 형식 확인)</p>
+                ) : null;
+              })()}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">패키지 (선택)</label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={bulkPackageId ?? ""}
+                onChange={e => setBulkPackageId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">자동 선택 (날짜별)</option>
+                {ptPackages?.map((p: any) => (
+                  <option key={p.id} value={p.id}>
+                    {p.packageName} ({p.startDate ?? "날짜미정"} / 잔여 {Math.max(0, (p.totalSessions ?? 0) - (p.usedSessions ?? 0))}회)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">메모 (선택)</label>
+              <input
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="예: 기록 누락분 보정"
+                value={bulkNotes}
+                onChange={e => setBulkNotes(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setBulkOpen(false)}>취소</Button>
+              <Button
+                className="flex-1"
+                disabled={bulkCreateMutation.isPending || !bulkDatesText.trim()}
+                onClick={() => {
+                  const dates = bulkDatesText
+                    .split(/[\n,\s]+/)
+                    .map(s => s.trim())
+                    .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
+                  const unique = [...new Set(dates)];
+                  if (!unique.length) { toast.error("유효한 날짜가 없습니다."); return; }
+                  bulkCreateMutation.mutate({
+                    memberId,
+                    dates: unique,
+                    ...(bulkPackageId ? { packageId: bulkPackageId } : {}),
+                    ...(bulkNotes.trim() ? { notes: bulkNotes.trim() } : {}),
+                  });
+                }}
+              >
+                {bulkCreateMutation.isPending ? "등록 중..." : "수업 체크 등록"}
               </Button>
             </div>
           </div>
