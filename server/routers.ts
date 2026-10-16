@@ -3907,7 +3907,7 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
 
   const sessions = Number(rows(sessionsRes)[0]?.c ?? 0);
   const noShows = Number(rows(noShowRes)[0]?.c ?? 0);
-  // 만기 = 패키지를 다 쓴 회원 (재등록 대상). 종료 = 만기 후 진행할 패키지가 없는 회원 (실제 이탈).
+  // 패키지를 다 쓴 회원 중, 진행할 패키지가 없는 회원만 종료. 재등록해 진행 중인 회원은 종료가 아니다.
   const dueMemberIds = Array.from(new Set<number>(rows(completedPkgRes).map((r: any) => Number(r.memberId)).filter(Boolean)));
   const due = dueMemberIds.length;
 
@@ -3933,7 +3933,9 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
     reregAfterExpired = dueMemberIds.filter(id => reregSet.has(id)).length;
     completed = dueMemberIds.filter(id => !ongoingSet.has(id)).length;
   }
-  const reregRate = due > 0 ? Math.round((reregAfterExpired / due) * 100) : null;
+  // 재등록률 = 재등록 ÷ (재등록 + 종료)
+  const reregRate = (reregAfterExpired + completed) > 0
+    ? Math.round((reregAfterExpired / (reregAfterExpired + completed)) * 100) : null;
 
   const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
   for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0 };
@@ -3945,7 +3947,7 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
   const avgMonthly = activeMonths > 0 ? Math.round((sessions / activeMonths) * 10) / 10 : 0;
 
   return {
-    sessions, avgMonthly, noShows, due, completed,
+    sessions, avgMonthly, noShows, completed,
     newMembers: newMemberIds.size,
     reregCount,
     reregMembers: reregMemberIds.size,
@@ -5850,16 +5852,16 @@ const adminRouter = t.router({
       const total = {
         sessions: trainerRows.reduce((s, t) => s + t.sessions, 0),
         noShows: trainerRows.reduce((s, t) => s + t.noShows, 0),
-        due: trainerRows.reduce((s, t) => s + t.due, 0),
         completed: trainerRows.reduce((s, t) => s + t.completed, 0),
         newMembers: trainerRows.reduce((s, t) => s + t.newMembers, 0),
         reregCount: trainerRows.reduce((s, t) => s + t.reregCount, 0),
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      // 합계 재등록률도 동일: 만기 회원 중 재등록한 비율
-      const totalReregRate = total.due > 0
-        ? Math.round((total.reregAfterExpired / total.due) * 100)
+      // 합계 재등록률도 동일: 재등록 ÷ (재등록 + 종료)
+      const totalDenom = total.reregAfterExpired + total.completed;
+      const totalReregRate = totalDenom > 0
+        ? Math.round((total.reregAfterExpired / totalDenom) * 100)
         : null;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
