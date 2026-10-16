@@ -3825,6 +3825,7 @@ function periodBounds(year: number, period: "H1" | "H2" | "annual") {
 
 async function computeTrainerPeriodStats(db: any, tid: number, year: number, period: "H1" | "H2" | "annual") {
   const { periodStart, periodEnd, monthCount, startMonth } = periodBounds(year, period);
+  const yearStart = `${year}-01-01`;
   const trainerUserId = (await db.select({ userId: trainers.userId }).from(trainers).where(eq(trainers.id, tid)).limit(1))[0]?.userId;
   const assignedMemberIds: number[] = (await db.select({ id: members.id }).from(members).where(eq(members.trainerId, tid))).map((m: any) => m.id);
 
@@ -3853,12 +3854,18 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
     db.execute(sql`SELECT COUNT(*)::int AS c FROM (${sessionSet}) combined`),
     db.execute(sql`SELECT COUNT(*)::int AS c FROM attendance_checks
       WHERE "trainerId" = ${tid} AND status = 'noshow' ${atdRange}`),
-    // 종료: 이 기간에 수업이 있었고 지금 세션을 모두 소진한 유료 패키지 (서비스 패키지는 종료 판정에서 제외)
+    // 종료: 그 해에 시작해 이 기간에 세션을 모두 소진한 유료 패키지.
+    // 전년도부터 이어진 패키지는 제외 (서비스 패키지도 제외)
     db.execute(sql`
       SELECT DISTINCT pp."memberId" FROM pt_packages pp
       WHERE pp."trainerId" = ${tid}
         AND pp."totalSessions" > 0 AND pp."usedSessions" >= pp."totalSessions"
         AND COALESCE(pp."paymentAmount", 0) > 0
+        AND (pp."startDate" IS NULL OR pp."startDate" >= ${yearStart})
+        AND NOT EXISTS (
+          SELECT 1 FROM pt_session_logs psl
+          WHERE psl."packageId" = pp.id AND psl."sessionDate" < ${yearStart}
+        )
         AND EXISTS (
           SELECT 1 FROM pt_session_logs psl
           WHERE psl."packageId" = pp.id
