@@ -2619,6 +2619,13 @@ const ptRouter = t.router({
         eq(ptPackages.status, "expired"),
         sql`COALESCE(${ptPackages.usedSessions},0) < COALESCE(${ptPackages.totalSessions},0)`,
         sql`${members.grade} NOT IN ('vip','vvip')`,
+        // 현재 활성 패키지가 있는 회원은 제외 (진행 중이므로 알림 불필요)
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${ptPackages} ap
+          WHERE ap.member_id = ${members.id}
+            AND ap.status = 'active'
+            AND COALESCE(ap.used_sessions,0) < COALESCE(ap.total_sessions,0)
+        )`,
       ))
       .orderBy(ptPackages.expiryDate);
   }),
