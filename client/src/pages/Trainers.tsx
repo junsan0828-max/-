@@ -745,6 +745,88 @@ function ActivityStatsTab() {
   );
 }
 
+type NewRegs = {
+  months: number[];
+  rows: { trainerId: number; trainerName: string; pt: number[]; health: number[] }[];
+  unassigned: { pt: number[]; health: number[] };
+};
+
+function NewRegTable({ newRegs, th, td, tdNum }: {
+  newRegs: NewRegs; th: string; td: string; tdNum: (v: number, color?: string) => string;
+}) {
+  const [mode, setMode] = useState<"all" | "pt" | "health">("all");
+  const pick = (r: { pt: number[]; health: number[] }) =>
+    mode === "pt" ? r.pt : mode === "health" ? r.health : r.pt.map((v, i) => v + r.health[i]);
+  const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
+  const color = mode === "pt" ? "text-cyan-400" : mode === "health" ? "text-emerald-400" : "text-violet-400";
+
+  const rows = newRegs.rows.map(r => ({ ...r, vals: pick(r) })).sort((a, b) => sum(b.vals) - sum(a.vals));
+  const unassigned = pick(newRegs.unassigned);
+  const totals = newRegs.months.map((_, i) => rows.reduce((s, r) => s + r.vals[i], 0) + unassigned[i]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">신규 등록 현황</p>
+        <div className="flex bg-card border border-border rounded-lg p-0.5 gap-0.5">
+          {([["all", "종합"], ["pt", "PT"], ["health", "헬스"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setMode(k)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                mode === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full min-w-[560px]">
+          <thead>
+            <tr>
+              <th className={`${th} text-left pl-3`}>트레이너</th>
+              {newRegs.months.map(m => <th key={m} className={th}>{m}월</th>)}
+              <th className={th}>합계</th>
+              {mode === "all" && <th className={th}>PT / 헬스</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.trainerId} className="hover:bg-muted/10">
+                <td className={`${td} text-left pl-3 font-medium`}>{r.trainerName}</td>
+                {r.vals.map((v, i) => (
+                  <td key={i} className={tdNum(v, v > 0 ? color : "text-muted-foreground")}>{v}</td>
+                ))}
+                <td className={`${td} font-bold ${color}`}>{sum(r.vals)}</td>
+                {mode === "all" && <td className={`${td} text-muted-foreground`}>{sum(r.pt)} / {sum(r.health)}</td>}
+              </tr>
+            ))}
+            {sum(unassigned) > 0 && (
+              <tr className="hover:bg-muted/10">
+                <td className={`${td} text-left pl-3 text-muted-foreground`}>미배정</td>
+                {unassigned.map((v, i) => (
+                  <td key={i} className={tdNum(v, "text-muted-foreground")}>{v}</td>
+                ))}
+                <td className={`${td} font-bold text-muted-foreground`}>{sum(unassigned)}</td>
+                {mode === "all" && <td className={`${td} text-muted-foreground`}>{sum(newRegs.unassigned.pt)} / {sum(newRegs.unassigned.health)}</td>}
+              </tr>
+            )}
+          </tbody>
+          <tfoot>
+            <tr className="bg-muted/20">
+              <td className={`${td} text-left pl-3 font-bold`}>합계</td>
+              {totals.map((v, i) => <td key={i} className={`${td} font-bold`}>{v}</td>)}
+              <td className={`${td} font-bold ${color}`}>{sum(totals)}</td>
+              {mode === "all" && (
+                <td className={`${td} font-bold`}>
+                  {sum(rows.map(r => sum(r.pt))) + sum(newRegs.unassigned.pt)} / {sum(rows.map(r => sum(r.health))) + sum(newRegs.unassigned.health)}
+                </td>
+              )}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function PeriodReportTab() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -916,7 +998,12 @@ function PeriodReportTab() {
               </table>
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground text-center pb-2">* 재등록률 = 재등록 회원 ÷ (신규 배정 + 재등록 회원) · 이 기간 전체 PT 거래 중 재등록 비율 · 재등록 건수는 헬스/PT 전체</p>
+          {data.newRegs && <NewRegTable newRegs={data.newRegs} th={th} td={td} tdNum={tdNum} />}
+
+          <p className="text-[10px] text-muted-foreground text-center pb-2 leading-relaxed">
+            * 재등록률 = 재등록 건 ÷ (재등록 건 + 종료) · 종료 = 패키지를 다 쓰고 진행 중인 패키지가 없는 회원 · 재등록은 PT만<br />
+            * 신규 등록은 매출 건수 기준 · 담당 트레이너 → 상담자 → (PT) 회원 담당 순으로 귀속, 없으면 미배정
+          </p>
         </>
       )}
     </div>

@@ -5864,7 +5864,38 @@ const adminRouter = t.router({
         ? Math.round((total.reregCount / totalDenom) * 100)
         : null;
 
-      return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
+      // 신규 등록 현황 (건수, PT/헬스 구분). 매출 1건은 한 트레이너에게만 귀속:
+      // 매출 담당 트레이너 → 상담자(트레이너 계정) → (PT만) 회원 담당 트레이너 → 미배정
+      const { periodStart, periodEnd, monthCount, startMonth } = periodBounds(year, period);
+      const trainerByUser = new Map<number, number>(
+        (await db.select({ id: trainers.id, userId: trainers.userId }).from(trainers))
+          .filter(t => t.userId != null).map(t => [t.userId as number, t.id]));
+      const trainerIds = new Set(trainerList.map(t => t.id));
+      const newRegRes = await db.execute(sql`
+        SELECT EXTRACT(MONTH FROM r."paymentDate"::date)::int AS m, r.type, r."trainerId", r."consultantId", mb."trainerId" AS "memberTrainerId"
+        FROM revenue_entries r LEFT JOIN members mb ON mb.id = r."memberId"
+        WHERE r."subType" IN ('신규', '신규배정') AND r.type IN ('PT', '헬스')
+          AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}`);
+      const months = Array.from({ length: monthCount }, (_, i) => startMonth + i);
+      const blank = () => ({ pt: months.map(() => 0), health: months.map(() => 0) });
+      const regByTrainer = new Map<number | null, { pt: number[]; health: number[] }>();
+      for (const r of ((newRegRes as any).rows ?? newRegRes) as any[]) {
+        const tr = r.trainerId != null && trainerIds.has(Number(r.trainerId)) ? Number(r.trainerId) : null;
+        const cons = r.consultantId != null ? trainerByUser.get(Number(r.consultantId)) ?? null : null;
+        const mem = r.type === "PT" && r.memberTrainerId != null ? Number(r.memberTrainerId) : null;
+        const owner = tr ?? cons ?? mem ?? null;
+        const idx = months.indexOf(Number(r.m));
+        if (idx < 0) continue;
+        if (!regByTrainer.has(owner)) regByTrainer.set(owner, blank());
+        regByTrainer.get(owner)![r.type === "PT" ? "pt" : "health"][idx]++;
+      }
+      const newRegs = {
+        months,
+        rows: trainerList.map(t => ({ trainerId: t.id, trainerName: t.trainerName, ...(regByTrainer.get(t.id) ?? blank()) })),
+        unassigned: regByTrainer.get(null) ?? blank(),
+      };
+
+      return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate }, newRegs };
     }),
 
   resyncAllSharedLogs: protectedProcedure.mutation(async ({ ctx }) => {
