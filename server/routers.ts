@@ -5723,10 +5723,17 @@ const adminRouter = t.router({
 
         const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes] = await Promise.all([
           db.execute(sql`SELECT COUNT(*)::int AS c FROM (
-            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
-              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd})
+            SELECT "memberId", "checkDate" AS d FROM attendance_checks
+              WHERE "trainerId" = ${tid} AND status = 'attended'
+                AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
             UNION ALL
-            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+            SELECT "memberId", "sessionDate" AS d FROM pt_session_logs
+              WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+                AND ("memberId", "sessionDate") NOT IN (
+                  SELECT "memberId", "checkDate" FROM attendance_checks
+                  WHERE "trainerId" = ${tid} AND status = 'attended'
+                    AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+                )
           ) combined`),
           db.select({ c: sql<number>`COUNT(*)::int` }).from(attendanceChecks).where(and(
             eq(attendanceChecks.trainerId, tid),
@@ -5758,10 +5765,18 @@ const adminRouter = t.router({
           `),
           db.execute(sql`
             SELECT m, COUNT(*)::int AS c FROM (
-              SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, "memberId", "sessionDate" AS d FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
-                AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd})
+              SELECT EXTRACT(MONTH FROM "checkDate"::date)::int AS m, "memberId", "checkDate" AS d
+                FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended'
+                  AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
               UNION ALL
-              SELECT EXTRACT(MONTH FROM "checkDate"::date)::int AS m, "memberId", "checkDate" AS d FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+              SELECT EXTRACT(MONTH FROM "sessionDate"::date)::int AS m, "memberId", "sessionDate" AS d
+                FROM pt_session_logs WHERE "trainerId" = ${tid}
+                  AND "sessionDate" >= ${periodStart} AND "sessionDate" < ${periodEnd}
+                  AND ("memberId", "sessionDate") NOT IN (
+                    SELECT "memberId", "checkDate" FROM attendance_checks
+                    WHERE "trainerId" = ${tid} AND status = 'attended'
+                      AND "checkDate" >= ${periodStart} AND "checkDate" < ${periodEnd}
+                  )
             ) combined GROUP BY m ORDER BY m
           `),
           db.execute(sql`
