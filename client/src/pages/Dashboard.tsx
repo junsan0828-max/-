@@ -1056,10 +1056,10 @@ function TrainerDashboard() {
                 {[
                   { label: "총 수업", value: `${periodReport.sessions}회`, sub: `월평균 ${periodReport.avgMonthly}회`, color: "text-primary" },
                   { label: "신규 배정", value: `${periodReport.newMembers}명`, color: "text-blue-400" },
-                  { label: "재등록", value: `${periodReport.reregMembers}건`, color: "text-emerald-400" },
+                  { label: "재등록", value: `${periodReport.reregCount}건`, sub: `${periodReport.reregMembers}명`, color: "text-emerald-400" },
                   { label: "재등록률", value: periodReport.reregRate !== null ? `${periodReport.reregRate}%` : "-",
                     color: periodReport.reregRate !== null ? (periodReport.reregRate >= 50 ? "text-emerald-400" : periodReport.reregRate >= 30 ? "text-yellow-400" : "text-red-400") : "text-muted-foreground" },
-                  { label: "종료 회원", value: `${periodReport.completed}명`, color: "text-muted-foreground" },
+                  { label: "종료 회원", value: `${periodReport.completed}명`, sub: `만기 ${periodReport.due}명 중 이탈`, color: "text-muted-foreground" },
                   { label: "노쇼", value: `${periodReport.noShows}회`, color: periodReport.noShows > 0 ? "text-orange-400" : "text-muted-foreground" },
                 ].map(c => (
                   <div key={c.label} className="bg-accent/20 rounded-xl p-3 text-center">

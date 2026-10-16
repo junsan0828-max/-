@@ -3907,22 +3907,33 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
 
   const sessions = Number(rows(sessionsRes)[0]?.c ?? 0);
   const noShows = Number(rows(noShowRes)[0]?.c ?? 0);
-  const expiredMemberIds = new Set<number>(rows(completedPkgRes).map((r: any) => Number(r.memberId)).filter(Boolean));
-  const completed = expiredMemberIds.size;
+  // 만기 = 패키지를 다 쓴 회원 (재등록 대상). 종료 = 만기 후 진행할 패키지가 없는 회원 (실제 이탈).
+  const dueMemberIds = Array.from(new Set<number>(rows(completedPkgRes).map((r: any) => Number(r.memberId)).filter(Boolean)));
+  const due = dueMemberIds.length;
 
-  // 재등록률 = 종료자 중 이 기간에 PT 재등록한 비율
   let reregAfterExpired = 0;
-  if (completed > 0) {
-    const expiredList = Array.from(expiredMemberIds);
-    const res = await db.execute(sql`
-      SELECT DISTINCT "memberId" FROM revenue_entries
-      WHERE "memberId" IN (${sql.join(expiredList.map(id => sql`${id}`), sql`, `)})
-        AND type = 'PT' AND "subType" = '재등록'
-        AND "paymentDate" >= ${periodStart} AND "paymentDate" < ${periodEnd}`);
-    const reregSet = new Set<number>(rows(res).map((r: any) => Number(r.memberId)));
-    reregAfterExpired = expiredList.filter(id => reregSet.has(id)).length;
+  let completed = 0;
+  if (due > 0) {
+    const idList = sql.join(dueMemberIds.map(id => sql`${id}`), sql`, `);
+    const [reregRes, ongoingRes] = await Promise.all([
+      db.execute(sql`
+        SELECT DISTINCT "memberId" FROM revenue_entries
+        WHERE "memberId" IN (${idList})
+          AND type = 'PT' AND "subType" = '재등록'
+          AND "paymentDate" >= ${periodStart} AND "paymentDate" < ${periodEnd}`),
+      // 진행·정지·만료 패키지에 잔여가 있으면 아직 PT를 받는 회원
+      db.execute(sql`
+        SELECT DISTINCT "memberId" FROM pt_packages
+        WHERE "memberId" IN (${idList})
+          AND status IN ('active', 'paused', 'expired')
+          AND "usedSessions" < "totalSessions"`),
+    ]);
+    const reregSet = new Set<number>(rows(reregRes).map((r: any) => Number(r.memberId)));
+    const ongoingSet = new Set<number>(rows(ongoingRes).map((r: any) => Number(r.memberId)));
+    reregAfterExpired = dueMemberIds.filter(id => reregSet.has(id)).length;
+    completed = dueMemberIds.filter(id => !ongoingSet.has(id)).length;
   }
-  const reregRate = completed > 0 ? Math.round((reregAfterExpired / completed) * 100) : null;
+  const reregRate = due > 0 ? Math.round((reregAfterExpired / due) * 100) : null;
 
   const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
   for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0 };
@@ -3934,7 +3945,7 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
   const avgMonthly = activeMonths > 0 ? Math.round((sessions / activeMonths) * 10) / 10 : 0;
 
   return {
-    sessions, avgMonthly, noShows, completed,
+    sessions, avgMonthly, noShows, due, completed,
     newMembers: newMemberIds.size,
     reregCount,
     reregMembers: reregMemberIds.size,
@@ -5839,15 +5850,16 @@ const adminRouter = t.router({
       const total = {
         sessions: trainerRows.reduce((s, t) => s + t.sessions, 0),
         noShows: trainerRows.reduce((s, t) => s + t.noShows, 0),
+        due: trainerRows.reduce((s, t) => s + t.due, 0),
         completed: trainerRows.reduce((s, t) => s + t.completed, 0),
         newMembers: trainerRows.reduce((s, t) => s + t.newMembers, 0),
         reregCount: trainerRows.reduce((s, t) => s + t.reregCount, 0),
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      // 합계 재등록률도 동일: 종료자 중 재등록한 비율
-      const totalReregRate = total.completed > 0
-        ? Math.round((total.reregAfterExpired / total.completed) * 100)
+      // 합계 재등록률도 동일: 만기 회원 중 재등록한 비율
+      const totalReregRate = total.due > 0
+        ? Math.round((total.reregAfterExpired / total.due) * 100)
         : null;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };

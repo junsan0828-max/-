@@ -798,7 +798,7 @@ function PeriodReportTab() {
             </CardHeader>
             <CardContent className="grid grid-cols-3 gap-2">
               <StatCard label="총 수업" value={`${fmt(data.total.sessions)}회`} />
-              <StatCard label="종료 회원" value={`${fmt(data.total.completed)}명`} />
+              <StatCard label="종료 회원" value={`${fmt(data.total.completed)}명`} sub={`만기 ${fmt(data.total.due)}명 중 이탈`} />
               <StatCard label="신규 배정" value={`${fmt(data.total.newMembers)}명`} />
               <StatCard label="재등록" value={`${fmt(data.total.reregCount)}건`} sub={`${data.total.reregMembers}명`} />
               <StatCard label="재등록률" value={data.total.reregRate == null ? "-" : `${data.total.reregRate}%`} />
@@ -816,6 +816,7 @@ function PeriodReportTab() {
                     <th className={`${th} text-left pl-3`}>트레이너</th>
                     <th className={th}>총 수업</th>
                     <th className={th}>월평균</th>
+                    <th className={th}>만기</th>
                     <th className={th}>종료</th>
                     <th className={th}>신규</th>
                     <th className={th}>재등록</th>
@@ -829,6 +830,7 @@ function PeriodReportTab() {
                       <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
                       <td className={tdNum(t.sessions, "text-blue-400")}>{fmt(t.sessions)}회</td>
                       <td className={tdNum(t.avgMonthly)}>{t.avgMonthly}회</td>
+                      <td className={tdNum(t.due)}>{t.due}명</td>
                       <td className={tdNum(t.completed, t.completed > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.completed}명</td>
                       <td className={tdNum(t.newMembers, t.newMembers > 0 ? "text-cyan-400" : "text-muted-foreground")}>{t.newMembers}명</td>
                       <td className={tdNum(t.reregCount, "text-primary")}>{t.reregCount}건</td>
@@ -844,6 +846,7 @@ function PeriodReportTab() {
                     <td className={`${td} text-left pl-3 font-bold`}>합계</td>
                     <td className={`${td} font-bold text-blue-400`}>{fmt(data.total.sessions)}회</td>
                     <td className={td}>-</td>
+                    <td className={`${td} font-bold`}>{fmt(data.total.due)}명</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.completed)}명</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.newMembers)}명</td>
                     <td className={`${td} font-bold text-primary`}>{fmt(data.total.reregCount)}건</td>
