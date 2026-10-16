@@ -3933,9 +3933,9 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
     reregAfterExpired = dueMemberIds.filter(id => reregSet.has(id)).length;
     completed = dueMemberIds.filter(id => !ongoingSet.has(id)).length;
   }
-  // 재등록률 = 재등록 ÷ (재등록 + 종료)
-  const reregRate = (reregAfterExpired + completed) > 0
-    ? Math.round((reregAfterExpired / (reregAfterExpired + completed)) * 100) : null;
+  // 재등록률 = 재등록 건 ÷ (재등록 건 + 종료). 같은 회원의 반복 재등록도 매번 갱신 성공으로 센다.
+  const reregRate = (reregCount + completed) > 0
+    ? Math.round((reregCount / (reregCount + completed)) * 100) : null;
 
   const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
   for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0 };
@@ -5858,10 +5858,10 @@ const adminRouter = t.router({
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      // 합계 재등록률도 동일: 재등록 ÷ (재등록 + 종료)
-      const totalDenom = total.reregAfterExpired + total.completed;
+      // 합계 재등록률도 동일: 재등록 건 ÷ (재등록 건 + 종료)
+      const totalDenom = total.reregCount + total.completed;
       const totalReregRate = totalDenom > 0
-        ? Math.round((total.reregAfterExpired / totalDenom) * 100)
+        ? Math.round((total.reregCount / totalDenom) * 100)
         : null;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
