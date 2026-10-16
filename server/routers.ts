@@ -1766,8 +1766,11 @@ const ptRouter = t.router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
-      const [memberRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
-      const memberNameSnapshot = memberRow?.name ?? null;
+      const [memberRow] = await db.select({ name: members.name, trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+      if (!memberRow) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!isStaff && memberRow.trainerId !== trainerId)
+        throw new TRPCError({ code: "FORBIDDEN", message: "담당 회원만 일괄 입력할 수 있습니다." });
+      const memberNameSnapshot = memberRow.name ?? null;
 
       // 날짜 정규화 및 중복 제거
       const uniqueDates = [...new Set(input.dates.map(d => d.trim()).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))];
@@ -1779,70 +1782,67 @@ const ptRouter = t.router({
         .where(and(eq(ptSessionLogs.memberId, input.memberId), inArray(ptSessionLogs.sessionDate, uniqueDates)));
       const existingDates = new Set(existingLogs.map(l => l.sessionDate));
 
-      // 패키지 목록 (packageId 미지정 시 날짜별 자동 선택용)
-      const memberPkgs = input.packageId ? [] : await db.select({
+      // 차감 가능한 패키지 (진행·정지·만료 중 잔여 있는 것). 완료/취소/환불/양도 패키지에는 절대 붙이지 않는다.
+      const pkgs = (await db.select({
         id: ptPackages.id, pricePerSession: ptPackages.pricePerSession,
         paymentAmount: ptPackages.paymentAmount, status: ptPackages.status,
         packageName: ptPackages.packageName, startDate: ptPackages.startDate,
         usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions,
       }).from(ptPackages)
-        .where(eq(ptPackages.memberId, input.memberId))
-        .orderBy(asc(ptPackages.startDate), asc(ptPackages.id));
+        .where(and(
+          eq(ptPackages.memberId, input.memberId),
+          sql`${ptPackages.status} IN ('active', 'paused', 'expired')`,
+          input.packageId ? eq(ptPackages.id, input.packageId) : sql`TRUE`,
+        ))
+        .orderBy(asc(ptPackages.startDate), asc(ptPackages.id)))
+        .map(p => ({ ...p, remaining: Math.max(0, (p.totalSessions ?? 0) - (p.usedSessions ?? 0)) }));
+      if (input.packageId && !pkgs.length)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "선택한 패키지에는 수업을 추가할 수 없습니다 (완료·취소 상태)." });
 
       const priced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
-      const isRealProgram = (p: any) => p.packageName !== "기타";
+      const rank = (p: any) => (p.status === "active" ? 0 : 1) * 2 + (priced(p) ? 0 : 1);
 
       let created = 0;
       const skippedDates: string[] = [];
-      // packageId별 usedSessions 증가분 추적 (패키지가 지정된 경우)
+      const noCapacityDates: string[] = [];
       const pkgUsedDelta = new Map<number, number>();
 
+      // 오래된 날짜부터, 그 날짜에 시작돼 있던 패키지의 잔여를 앞에서부터 채운다
       for (const date of uniqueDates.sort()) {
         if (existingDates.has(date)) { skippedDates.push(date); continue; }
 
-        let resolvedPackageId = input.packageId ?? null;
-        if (!resolvedPackageId) {
-          // 날짜별로 해당 시점에 활성이던 패키지 선택 (startDate <= date 기준)
-          const started = memberPkgs.filter(p => !p.startDate || p.startDate <= date);
-          resolvedPackageId =
-            started.find(p => p.status === "active" && (p.usedSessions ?? 0) < (p.totalSessions ?? 0) && priced(p) && isRealProgram(p))?.id ??
-            started.find(p => p.status === "active" && (p.usedSessions ?? 0) < (p.totalSessions ?? 0) && priced(p))?.id ??
-            started.find(p => p.status === "active" && (p.usedSessions ?? 0) < (p.totalSessions ?? 0))?.id ??
-            started.find(p => p.status === "active" && priced(p))?.id ??
-            started.find(p => p.status === "active")?.id ??
-            started[started.length - 1]?.id ??
-            null;
-        }
+        const candidates = pkgs
+          .filter(p => p.remaining > 0 && (input.packageId || !p.startDate || p.startDate <= date))
+          .sort((a, b) => rank(a) - rank(b));
+        const pkg = candidates[0];
+        if (!pkg) { noCapacityDates.push(date); continue; }
 
         await db.insert(ptSessionLogs).values({
           memberId: input.memberId,
           sessionDate: date,
-          packageId: resolvedPackageId ?? undefined,
+          packageId: pkg.id,
           memberName: memberNameSnapshot,
           trainerId: trainerId ?? 0,
           notes: input.notes ?? null,
           isDraft: 0,
         });
-
-        if (resolvedPackageId) {
-          pkgUsedDelta.set(resolvedPackageId, (pkgUsedDelta.get(resolvedPackageId) ?? 0) + 1);
-        }
+        pkg.remaining--;
+        pkgUsedDelta.set(pkg.id, (pkgUsedDelta.get(pkg.id) ?? 0) + 1);
         created++;
       }
 
-      // 패키지 usedSessions 일괄 업데이트
+      // 사용 횟수는 상향만, 다 쓴 경우에만 completed로 (만료·정지 상태를 진행중으로 되돌리지 않음)
       for (const [pkgId, delta] of pkgUsedDelta) {
-        const [pkg] = await db.select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+        const [cur] = await db.select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
           .from(ptPackages).where(eq(ptPackages.id, pkgId)).limit(1);
-        if (pkg) {
-          const newUsed = Math.min(pkg.usedSessions + delta, pkg.totalSessions ?? 99999);
-          await db.update(ptPackages)
-            .set({ usedSessions: newUsed, status: newUsed >= (pkg.totalSessions ?? 99999) ? "completed" : "active" })
-            .where(eq(ptPackages.id, pkgId));
-        }
+        if (!cur) continue;
+        const newUsed = Math.min((cur.usedSessions ?? 0) + delta, cur.totalSessions ?? 0);
+        await db.update(ptPackages)
+          .set(newUsed >= (cur.totalSessions ?? 0) ? { usedSessions: newUsed, status: "completed" } : { usedSessions: newUsed })
+          .where(eq(ptPackages.id, pkgId));
       }
 
-      return { created, skipped: skippedDates.length, skippedDates };
+      return { created, skipped: skippedDates.length, skippedDates, noCapacity: noCapacityDates.length, noCapacityDates };
     }),
 
   // 트레이닝 일지 수정

@@ -590,6 +590,13 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: (res) => {
       const msg = `${res.created}건 등록 완료` + (res.skipped > 0 ? ` (${res.skipped}건 중복 건너뜀)` : "");
       toast.success(msg);
+      if (res.noCapacity > 0) {
+        // 잔여 횟수가 없어 못 넣은 날짜는 창에 남겨 패키지 등록 후 다시 넣을 수 있게 한다
+        toast.warning(`${res.noCapacity}건은 남은 PT 횟수가 없어 등록하지 않았습니다. 패키지를 확인해 주세요.`, { duration: 8000 });
+        setBulkDatesText(res.noCapacityDates.join("\n"));
+        utils.pt.sessionLogs.invalidate({ memberId });
+        return;
+      }
       setBulkOpen(false);
       setBulkDatesText("");
       setBulkPackageId(null);
