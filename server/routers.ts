@@ -5554,8 +5554,29 @@ const adminRouter = t.router({
 
       const [y, m] = input.yearMonth.split("-").map(Number);
       const monthStart = `${input.yearMonth}-01`;
-      const monthEnd = new Date(y, m, 1).toISOString().split("T")[0];
+      const monthEnd = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
       const today = kstDate();
+
+      // 출석체크 우선, 같은 (회원, 날짜)의 수업일지는 중복 제외
+      const sessionSet = (tid: number, from: string | null, to: string | null) => {
+        const atdRange = from ? sql`AND "checkDate" >= ${from} AND "checkDate" < ${to}` : sql``;
+        const logRange = from ? sql`AND "sessionDate" >= ${from} AND "sessionDate" < ${to}` : sql``;
+        return sql`
+          SELECT "memberId", "checkDate" AS d FROM attendance_checks
+            WHERE "trainerId" = ${tid} AND status = 'attended' ${atdRange}
+          UNION ALL
+          SELECT "memberId", "sessionDate" AS d FROM pt_session_logs
+            WHERE "trainerId" = ${tid} ${logRange}
+              AND ("memberId", "sessionDate") NOT IN (
+                SELECT "memberId", "checkDate" FROM attendance_checks
+                WHERE "trainerId" = ${tid} AND status = 'attended' ${atdRange}
+              )`;
+      };
+      // 기록지 = 운동 내용·메모·피드백이 작성된 수업일지
+      const memoCond = sql`(
+        (s."exercisesJson" IS NOT NULL AND s."exercisesJson" NOT IN ('', '[]'))
+        OR COALESCE(s.notes, '') <> '' OR COALESCE(s.feedback, '') <> ''
+      )`;
 
       const trainerList = await db
         .select({ id: trainers.id, trainerName: trainers.trainerName, createdAt: trainers.createdAt })
@@ -5578,12 +5599,9 @@ const adminRouter = t.router({
           totalVideosRes, monthVideosRes, todayVideosRes,
         ] = await Promise.all([
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), hasPtPackage)),
-          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
-            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid}
-              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended')
-            UNION ALL
-            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended'
-          ) combined`),
+          db.execute(sql`SELECT COUNT(*)::int AS c,
+            COUNT(DISTINCT to_char(d::date, 'YYYY-MM'))::int AS months
+            FROM (${sessionSet(tid, null, null)}) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"))),
           db.execute(sql`
             SELECT COUNT(DISTINCT "memberId")::int AS c FROM pt_packages
@@ -5594,37 +5612,28 @@ const adminRouter = t.router({
                 WHERE "trainerId" = ${tid} AND "usedSessions" < "totalSessions"
               )
           `),
-          db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
-            .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), eq(ptPackages.status, "active"))),
-          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
-            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" >= ${monthStart} AND "sessionDate" < ${monthEnd}
-              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${monthStart} AND "checkDate" < ${monthEnd})
-            UNION ALL
-            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" >= ${monthStart} AND "checkDate" < ${monthEnd}
-          ) combined`),
+          // 잔여 PT: 정지 회원도 받을 수업이 남아 있으므로 포함
+          db.select({ total: sql<number>`COALESCE(SUM(GREATEST(${ptPackages.totalSessions} - ${ptPackages.usedSessions}, 0)), 0)` })
+            .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), sql`${ptPackages.status} IN ('active', 'paused')`)),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (${sessionSet(tid, monthStart, monthEnd)}) combined`),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(
             eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"),
             sql`${attendanceChecks.checkDate} >= ${monthStart}`,
             sql`${attendanceChecks.checkDate} < ${monthEnd}`,
           )),
-          db.execute(sql`SELECT COUNT(*)::int AS c FROM (
-            SELECT "memberId", "sessionDate" FROM pt_session_logs WHERE "trainerId" = ${tid} AND "sessionDate" = ${today}
-              AND "memberId" NOT IN (SELECT DISTINCT "memberId" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" = ${today})
-            UNION ALL
-            SELECT "memberId", "checkDate" FROM attendance_checks WHERE "trainerId" = ${tid} AND status = 'attended' AND "checkDate" = ${today}
-          ) combined`),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM (${sessionSet(tid, today, kstDate(1))}) combined`),
+          // 재등록 집계: 서비스(0원) 패키지는 재등록이 아니므로 제외
           db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
-            .from(ptPackages).where(eq(ptPackages.trainerId, tid)).groupBy(ptPackages.memberId),
-          db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(eq(workoutMemos.trainerId, tid)),
-          db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(and(
-            eq(workoutMemos.trainerId, tid),
-            sql`${workoutMemos.memoDate} >= ${monthStart}`,
-            sql`${workoutMemos.memoDate} < ${monthEnd}`,
-          )),
-          db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(and(
-            eq(workoutMemos.trainerId, tid),
-            sql`${workoutMemos.memoDate} = ${today}`,
-          )),
+            .from(ptPackages).where(and(
+              eq(ptPackages.trainerId, tid),
+              sql`COALESCE(${ptPackages.paymentAmount}, 0) > 0`,
+              sql`${ptPackages.status} NOT IN ('cancelled', 'refunded')`,
+            )).groupBy(ptPackages.memberId),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM pt_session_logs s WHERE s."trainerId" = ${tid} AND ${memoCond}`),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM pt_session_logs s WHERE s."trainerId" = ${tid} AND ${memoCond}
+            AND s."sessionDate" >= ${monthStart} AND s."sessionDate" < ${monthEnd}`),
+          db.execute(sql`SELECT COUNT(*)::int AS c FROM pt_session_logs s WHERE s."trainerId" = ${tid} AND ${memoCond}
+            AND s."sessionDate" = ${today}`),
           db.execute(videoCountSql),
           db.execute(sql`
             SELECT COUNT(*)::int AS c FROM pt_session_logs s,
@@ -5640,13 +5649,14 @@ const adminRouter = t.router({
 
         const totalRereg = pkgCountByMember.reduce((s, r) => s + Math.max(0, Number(r.count) - 1), 0);
         const reregMemberCount = pkgCountByMember.filter(r => Number(r.count) > 1).length;
+        // 재등록률 분모 = 이 트레이너에게 유료 PT를 구매한 회원 (재등록 집계와 같은 기준)
+        const paidMemberCount = pkgCountByMember.length;
         const totalMembers = Number(totalMembersRes[0]?.c ?? 0);
-        const totalSessionsNum = Number(((totalSessionsRes as any).rows ?? totalSessionsRes)[0]?.c ?? 0);
-
-        const trainerCreatedAt = trainer.createdAt;
-        const monthsActive = trainerCreatedAt
-          ? Math.max(1, Math.round((Date.now() - new Date(trainerCreatedAt).getTime()) / (1000 * 60 * 60 * 24 * 30.5)))
-          : 1;
+        const totalRow = ((totalSessionsRes as any).rows ?? totalSessionsRes)[0];
+        const totalSessionsNum = Number(totalRow?.c ?? 0);
+        // 월평균 분모 = 실제 수업 기록이 있는 달 수 (계정 생성일 기준이면 임포트 이전 기록이 한 달에 몰림)
+        const monthsActive = Math.max(1, Number(totalRow?.months ?? 0));
+        const num = (r: any) => Number(((r as any).rows ?? r)[0]?.c ?? 0);
 
         return {
           trainerId: tid,
@@ -5657,14 +5667,14 @@ const adminRouter = t.router({
           totalChurned: Number(((totalChurnedRes as any).rows ?? totalChurnedRes)[0]?.c ?? 0),
           remainingPt: Number(remainingPtRes[0]?.total ?? 0),
           totalRereg,
-          reregRate: totalMembers > 0 ? Math.round((reregMemberCount / totalMembers) * 1000) / 10 : 0,
-          monthSessions: Number(((monthSessionsRes as any).rows ?? monthSessionsRes)[0]?.c ?? 0),
+          reregRate: paidMemberCount > 0 ? Math.round((reregMemberCount / paidMemberCount) * 1000) / 10 : 0,
+          monthSessions: num(monthSessionsRes),
           monthNoShow: Number(monthNoShowRes[0]?.c ?? 0),
-          todaySessions: Number(((todaySessionsRes as any).rows ?? todaySessionsRes)[0]?.c ?? 0),
+          todaySessions: num(todaySessionsRes),
           avgMonthlyPt: Math.round((totalSessionsNum / monthsActive) * 10) / 10,
-          totalMemos: Number(totalMemosRes[0]?.c ?? 0),
-          monthMemos: Number(monthMemosRes[0]?.c ?? 0),
-          todayMemos: Number(todayMemosRes[0]?.c ?? 0),
+          totalMemos: num(totalMemosRes),
+          monthMemos: num(monthMemosRes),
+          todayMemos: num(todayMemosRes),
           totalVideos: Number((totalVideosRes.rows ?? totalVideosRes)[0]?.c ?? 0),
           monthVideos: Number((monthVideosRes.rows ?? monthVideosRes)[0]?.c ?? 0),
           todayVideos: Number((todayVideosRes.rows ?? todayVideosRes)[0]?.c ?? 0),
