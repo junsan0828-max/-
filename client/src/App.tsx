@@ -37,6 +37,7 @@ import SchedulePage from "./pages/SchedulePage";
 import AttendanceCheck from "./pages/AttendanceCheck";
 import MemberReport from "./pages/MemberReport";
 import Trainers from "./pages/Trainers";
+import PerformanceReport from "./pages/PerformanceReport";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
 import Profile from "./pages/Profile";
@@ -234,6 +235,7 @@ function App() {
         <Route path="/admin">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <Admin /> : <Redirect to="/" />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
+        <Route path="/performance-report">{() => <PerformanceReport />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>

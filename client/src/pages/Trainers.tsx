@@ -636,7 +636,7 @@ function ActivityStatsTab() {
                     <th className={th}>이번달 기록지</th>
                     <th className={th}>오늘 영상</th>
                     <th className={th}>이번달 영상</th>
-                    <th className={th}>회원수</th>
+                    <th className={th}>관리 회원</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -668,19 +668,19 @@ function ActivityStatsTab() {
 
           {/* 누적 통계 */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">누적 통계</p>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{ym.slice(0, 4)}년 누적 통계 <span className="normal-case font-normal">(반기 리포트 연간과 같은 기준)</span></p>
             <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full min-w-[560px]">
                 <thead>
                   <tr>
                     <th className={`${th} text-left pl-3`}>트레이너</th>
-                    <th className={th}>누적 수업</th>
+                    <th className={th}>수업</th>
                     <th className={th}>월평균 수업</th>
-                    <th className={th}>누적 기록지</th>
-                    <th className={th}>누적 영상</th>
+                    <th className={th}>기록지</th>
+                    <th className={th}>영상</th>
                     <th className={th}>재등록</th>
                     <th className={th}>재등록률</th>
-                    <th className={th}>이탈</th>
+                    <th className={th}>종료</th>
                     <th className={th}>잔여 PT</th>
                   </tr>
                 </thead>
@@ -692,7 +692,7 @@ function ActivityStatsTab() {
                       <td className={tdNum(t.avgMonthlyPt)}>{t.avgMonthlyPt}회</td>
                       <td className={tdNum(t.totalMemos, "text-teal-400")}>{t.totalMemos}건</td>
                       <td className={tdNum(t.totalVideos, "text-violet-400")}>{t.totalVideos}건</td>
-                      <td className={tdNum(t.totalRereg, "text-primary")}>{t.totalRereg}회</td>
+                      <td className={tdNum(t.totalRereg, "text-primary")}>{t.totalRereg}건</td>
                       <td className={tdNum(t.reregRate, t.reregRate >= 50 ? "text-emerald-400" : t.reregRate >= 30 ? "text-yellow-400" : "text-red-400")}>
                         {t.reregRate}%
                       </td>
@@ -709,13 +709,13 @@ function ActivityStatsTab() {
 
           {/* 노쇼 비교 */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">노쇼 누적</p>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{ym.slice(0, 4)}년 노쇼</p>
             <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full min-w-[360px]">
                 <thead>
                   <tr>
                     <th className={`${th} text-left pl-3`}>트레이너</th>
-                    <th className={th}>누적 노쇼</th>
+                    <th className={th}>노쇼</th>
                     <th className={th}>노쇼율</th>
                   </tr>
                 </thead>
@@ -738,7 +738,7 @@ function ActivityStatsTab() {
               </table>
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground text-center pb-2">* 오늘 수업 = PT 세션 로그 기준</p>
+          <p className="text-[10px] text-muted-foreground text-center pb-2">* 수업 = 출석체크 + 수업일지 (같은 날 중복 제외) · 관리 회원·잔여 PT는 현재 기준 · 모든 누적은 해당 연도 1월 1일부터</p>
         </>
       )}
     </div>
@@ -832,6 +832,9 @@ function PeriodReportTab() {
   const [year, setYear] = useState(now.getFullYear());
   const [period, setPeriod] = useState<"H1" | "H2" | "annual">(now.getMonth() < 6 ? "H1" : "H2");
   const { data, isLoading, error } = trpc.admin.getTrainerPeriodReport.useQuery({ year, period });
+  const [, setLocation] = useLocation();
+  const openReport = (trainerId: number | "all") =>
+    setLocation(`/performance-report?year=${year}&period=${period}&trainerId=${trainerId}`);
 
   const periodLabel = period === "H1" ? "상반기 (1~6월)" : period === "H2" ? "하반기 (7~12월)" : "연간 (1~12월)";
   const th = "px-2 py-2 text-center text-[11px] font-semibold text-muted-foreground whitespace-nowrap bg-muted/40 border-b border-border";
@@ -890,14 +893,19 @@ function PeriodReportTab() {
 
           {/* 트레이너별 종합 */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">트레이너별 성과</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">트레이너별 성과 <span className="normal-case font-normal">· 이름을 누르면 성과 보고서</span></p>
+              <button onClick={() => openReport("all")} className="text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground font-medium">센터 성과 보고서</button>
+            </div>
             <div className="overflow-x-auto rounded-xl border border-border">
-              <table className="w-full min-w-[640px]">
+              <table className="w-full min-w-[760px]">
                 <thead>
                   <tr>
                     <th className={`${th} text-left pl-3`}>트레이너</th>
                     <th className={th}>총 수업</th>
                     <th className={th}>월평균</th>
+                    <th className={th}>관리 회원</th>
+                    <th className={th}>정지</th>
                     <th className={th}>종료</th>
                     <th className={th}>신규</th>
                     <th className={th}>재등록</th>
@@ -908,9 +916,13 @@ function PeriodReportTab() {
                 <tbody>
                   {[...data.trainers].sort((a, b) => b.sessions - a.sessions).map(t => (
                     <tr key={t.trainerId} className="hover:bg-muted/10">
-                      <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
+                      <td className={`${td} text-left pl-3 font-medium`}>
+                        <button onClick={() => openReport(t.trainerId)} className="text-primary underline underline-offset-4 hover:opacity-80">{t.trainerName}</button>
+                      </td>
                       <td className={tdNum(t.sessions, "text-blue-400")}>{fmt(t.sessions)}회</td>
                       <td className={tdNum(t.avgMonthly)}>{t.avgMonthly}회</td>
+                      <td className={tdNum(t.managedMembers, "text-emerald-400")}>{t.managedMembers}명</td>
+                      <td className={tdNum(t.pausedMembers, t.pausedMembers > 0 ? "text-yellow-400" : "text-muted-foreground")}>{t.pausedMembers}명</td>
                       <td className={tdNum(t.completed, t.completed > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.completed}명</td>
                       <td className={tdNum(t.newMembers, t.newMembers > 0 ? "text-cyan-400" : "text-muted-foreground")}>{t.newMembers}명</td>
                       <td className={tdNum(t.reregCount, "text-primary")}>{t.reregCount}건</td>
@@ -926,6 +938,8 @@ function PeriodReportTab() {
                     <td className={`${td} text-left pl-3 font-bold`}>합계</td>
                     <td className={`${td} font-bold text-blue-400`}>{fmt(data.total.sessions)}회</td>
                     <td className={td}>-</td>
+                    <td className={`${td} font-bold text-emerald-400`}>{fmt(data.total.managedMembers)}명</td>
+                    <td className={`${td} font-bold`}>{fmt(data.total.pausedMembers)}명</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.completed)}명</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.newMembers)}명</td>
                     <td className={`${td} font-bold text-primary`}>{fmt(data.total.reregCount)}건</td>
@@ -1002,6 +1016,7 @@ function PeriodReportTab() {
 
           <p className="text-[10px] text-muted-foreground text-center pb-2 leading-relaxed">
             * 재등록률 = 재등록 건 ÷ (재등록 건 + 종료) · 종료 = 패키지를 다 쓰고 진행 중인 패키지가 없는 회원 · 재등록은 PT만<br />
+            * 관리 회원·정지는 기간과 무관한 현재 기준 (잔여 PT가 있는 회원) · 트레이너 이름을 누르면 성과 보고서<br />
             * 신규 등록은 매출 건수 기준 · 담당 트레이너 → 상담자 → (PT) 회원 담당 순으로 귀속, 없으면 미배정
           </p>
         </>
