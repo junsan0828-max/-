@@ -260,6 +260,18 @@ export default function RegistrationManagement() {
   });
   const [uniformMemberSearch, setUniformMemberSearch] = useState("");
 
+  // 서비스 PT 추가 모달 state
+  const [addServicePtOpen, setAddServicePtOpen] = useState(false);
+  const [svcPtSearch, setSvcPtSearch] = useState("");
+  const [svcPtForm, setSvcPtForm] = useState({
+    memberId: 0, memberName: "",
+    sessions: 5,
+    packageName: "서비스세션",
+    startDate: new Date().toISOString().substring(0, 10),
+    expiryDate: "",
+    notes: "",
+  });
+
   // 간편 등록 state
   type QuickModal = null | "locker" | "uniform" | "daypass";
   const [quickModal, setQuickModal] = useState<QuickModal>(null);
@@ -281,6 +293,17 @@ export default function RegistrationManagement() {
   });
 
   const utils = trpc.useUtils();
+
+  const addServicePtMutation = trpc.pt.addPackage.useMutation({
+    onSuccess: () => {
+      toast.success("서비스 PT가 별도 패키지로 등록됐습니다.");
+      setAddServicePtOpen(false);
+      setSvcPtSearch("");
+      setSvcPtForm({ memberId: 0, memberName: "", sessions: 5, packageName: "서비스세션", startDate: new Date().toISOString().substring(0, 10), expiryDate: "", notes: "" });
+      activePtQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message || "서비스 PT 등록 실패"),
+  });
 
   const revListQuery = trpc.gym.revenue.list.useQuery(undefined, { enabled: tab === "members" });
   const orphanPkgQuery = trpc.gym.revenue.listOrphanPackages.useQuery(undefined, { enabled: tab === "members" });
@@ -2432,10 +2455,18 @@ export default function RegistrationManagement() {
 
                   {/* 서비스 PT */}
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                      <span className="text-blue-400">◆</span> 서비스 PT
-                      <span className="text-xs text-muted-foreground font-normal">({totalPt}건)</span>
-                    </h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <span className="text-blue-400">◆</span> 서비스 PT
+                        <span className="text-xs text-muted-foreground font-normal">({totalPt}건)</span>
+                      </h3>
+                      <button
+                        onClick={() => setAddServicePtOpen(true)}
+                        className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors font-medium"
+                      >
+                        <Plus className="h-3 w-3" /> 서비스 추가
+                      </button>
+                    </div>
                     {totalPt === 0 ? (
                       <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
                     ) : (
@@ -2470,6 +2501,123 @@ export default function RegistrationManagement() {
               );
             })()}
           </div>
+        );
+      })()}
+
+      {/* 서비스 PT 추가 모달 */}
+      {addServicePtOpen && (() => {
+        const allMembers = (membersQuery.data ?? []) as { id: number; name: string; phone: string | null }[];
+        const filtered = svcPtSearch.trim()
+          ? allMembers.filter(m =>
+              m.name.includes(svcPtSearch.trim()) ||
+              (m.phone ?? "").replace(/\D/g, "").includes(svcPtSearch.trim().replace(/\D/g, ""))
+            )
+          : [];
+        return (
+          <Portal>
+            <div className="fixed inset-0 z-[210] bg-black/70 flex items-end justify-center" onClick={() => setAddServicePtOpen(false)}>
+              <div className="bg-card border border-border rounded-t-2xl w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-base">서비스 PT 추가</h3>
+                  <button onClick={() => setAddServicePtOpen(false)}><XCircle className="h-5 w-5 text-muted-foreground" /></button>
+                </div>
+                <p className="text-xs text-muted-foreground -mt-2">별도 패키지(결제 0원)로 생성 → 지급 날짜·이력이 분리 보관됩니다.</p>
+
+                {/* 회원 검색 */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">회원 검색</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <input
+                      className="w-full bg-input border border-border rounded-lg pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder="이름 또는 전화번호"
+                      value={svcPtSearch}
+                      onChange={e => { setSvcPtSearch(e.target.value); setSvcPtForm(f => ({ ...f, memberId: 0, memberName: "" })); }}
+                    />
+                  </div>
+                  {svcPtForm.memberName ? (
+                    <div className="text-xs px-3 py-2 rounded-lg bg-blue-500/10 text-blue-400 font-medium flex items-center justify-between">
+                      ✓ {svcPtForm.memberName}
+                      <button className="text-muted-foreground hover:text-foreground" onClick={() => { setSvcPtSearch(""); setSvcPtForm(f => ({ ...f, memberId: 0, memberName: "" })); }}>×</button>
+                    </div>
+                  ) : filtered.length > 0 ? (
+                    <div className="border border-border rounded-lg overflow-hidden max-h-40 overflow-y-auto">
+                      {filtered.slice(0, 8).map(m => (
+                        <button key={m.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent/30 flex items-center justify-between"
+                          onClick={() => { setSvcPtForm(f => ({ ...f, memberId: m.id, memberName: m.name })); setSvcPtSearch(""); }}>
+                          <span>{m.name}</span>
+                          <span className="text-xs text-muted-foreground">{m.phone ?? ""}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : svcPtSearch.trim() ? (
+                    <p className="text-xs text-muted-foreground px-1">검색 결과 없음</p>
+                  ) : null}
+                </div>
+
+                {/* 패키지명 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">패키지명</label>
+                    <input className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      value={svcPtForm.packageName}
+                      onChange={e => setSvcPtForm(f => ({ ...f, packageName: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">서비스 횟수</label>
+                    <input type="number" min={1} max={100} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      value={svcPtForm.sessions}
+                      onChange={e => setSvcPtForm(f => ({ ...f, sessions: Number(e.target.value) }))} />
+                  </div>
+                </div>
+
+                {/* 날짜 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">시작일</label>
+                    <input type="date" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      value={svcPtForm.startDate}
+                      onChange={e => setSvcPtForm(f => ({ ...f, startDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">만료일 (선택)</label>
+                    <input type="date" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      value={svcPtForm.expiryDate}
+                      onChange={e => setSvcPtForm(f => ({ ...f, expiryDate: e.target.value }))} />
+                  </div>
+                </div>
+
+                {/* 메모 */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">메모 (지급 이유)</label>
+                  <input className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    placeholder="예: 재등록 감사, 이벤트 당첨"
+                    value={svcPtForm.notes}
+                    onChange={e => setSvcPtForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button className="flex-1 py-2.5 rounded-xl border border-border text-sm" onClick={() => setAddServicePtOpen(false)}>취소</button>
+                  <button
+                    className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-50"
+                    disabled={!svcPtForm.memberId || svcPtForm.sessions < 1 || addServicePtMutation.isPending}
+                    onClick={() => addServicePtMutation.mutate({
+                      memberId: svcPtForm.memberId,
+                      ptProgram: svcPtForm.packageName || "서비스세션",
+                      totalSessions: svcPtForm.sessions,
+                      serviceSessions: svcPtForm.sessions,
+                      paymentAmount: 0,
+                      startDate: svcPtForm.startDate || undefined,
+                      expiryDate: svcPtForm.expiryDate || undefined,
+                      paymentMemo: svcPtForm.notes || undefined,
+                    })}
+                  >
+                    {addServicePtMutation.isPending ? "등록 중..." : `서비스 ${svcPtForm.sessions}회 지급`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Portal>
         );
       })()}
 
