@@ -5734,16 +5734,20 @@ const adminRouter = t.router({
             sql`${attendanceChecks.checkDate} >= ${periodStart}`,
             sql`${attendanceChecks.checkDate} < ${periodEnd}`,
           )),
-          // 종료: 이 기간에 PT 세션을 모두 소진한 회원 (잔여 0회)
-          // 만료일 경과는 종료 아님 — 세션 0회 소진만 종료로 판정
-          // 조건1: 세션 소진으로 status='completed' (useSession 시 자동 설정)
-          // 조건2: status='active'지만 usedSessions >= totalSessions (status 미갱신 안전망)
+          // 종료: 이 기간에 마지막 수업을 한 회원 중 세션을 모두 소진한 패키지
+          // updatedAt 대신 pt_session_logs의 마지막 세션 날짜 기준 → 관리자 수정으로 인한 오집계 방지
           db.execute(sql`
-            SELECT DISTINCT "memberId" FROM pt_packages
-            WHERE "trainerId" = ${tid}
-              AND "totalSessions" > 0
-              AND "usedSessions" >= "totalSessions"
-              AND "updatedAt" >= ${periodStart} AND "updatedAt" < ${periodEnd}
+            SELECT DISTINCT pp."memberId"
+            FROM pt_packages pp
+            WHERE pp."trainerId" = ${tid}
+              AND pp."totalSessions" > 0
+              AND pp."usedSessions" >= pp."totalSessions"
+              AND EXISTS (
+                SELECT 1 FROM pt_session_logs psl
+                WHERE psl."packageId" = pp.id
+                  AND psl."sessionDate" >= ${periodStart}
+                  AND psl."sessionDate" < ${periodEnd}
+              )
           `),
           db.execute(sql`
             SELECT r."subType", r."memberId", r."consultantId", r."trainerId"
@@ -5819,10 +5823,9 @@ const adminRouter = t.router({
           reregAfterExpired = expiredList.filter(id => reregSet.has(id)).length;
         }
 
-        // 재등록률 = 재등록 회원 ÷ (신규 배정 + 재등록 회원)
-        // 이번 기간 전체 PT 거래 중 재등록 비율. H1 종료 후 H2 재등록도 포함.
-        const reregRate = (newMembers + reregMembers) > 0
-          ? Math.round((reregMembers / (newMembers + reregMembers)) * 100)
+        // 재등록률 = 종료자 중 재등록한 비율 (종료 후 재등록)
+        const reregRate = completed > 0
+          ? Math.round((reregAfterExpired / completed) * 100)
           : null;
 
         const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
@@ -5836,11 +5839,17 @@ const adminRouter = t.router({
           if (monthlyMap[r.m]) monthlyMap[r.m].rereg = r.c;
         }
 
+        // 월평균: 전체 경과월 대신 트레이너가 실제 수업한 달 수만 분모로 사용
+        const trainerActiveMonths = Object.values(monthlyMap).filter(v => v.sessions > 0).length;
+        const avgMonthly = trainerActiveMonths > 0
+          ? Math.round((sessions / trainerActiveMonths) * 10) / 10
+          : 0;
+
         return {
           trainerId: tid,
           trainerName: trainer.trainerName,
           sessions,
-          avgMonthly: Math.round((sessions / elapsedMonths) * 10) / 10,
+          avgMonthly,
           noShows,
           completed,
           newMembers,
@@ -5865,8 +5874,9 @@ const adminRouter = t.router({
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
       };
-      const totalReregRate = (total.newMembers + total.reregMembers) > 0
-        ? Math.round((total.reregMembers / (total.newMembers + total.reregMembers)) * 100)
+      // 합계 재등록률도 동일: 종료자 중 재등록한 비율
+      const totalReregRate = total.completed > 0
+        ? Math.round((total.reregAfterExpired / total.completed) * 100)
         : null;
 
       return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate } };
