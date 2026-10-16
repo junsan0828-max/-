@@ -2757,6 +2757,12 @@ const schedulesRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);
       const { scheduleId, isRecurring, memberId, memberName, ...rest } = input;
+      // 고정 템플릿에 status 직접 변경 금지 — updateStatus / completeWithSignature 경로를 사용
+      if (rest.status !== undefined) {
+        const [cur] = await db.select({ isRecurring: schedules.isRecurring }).from(schedules).where(eq(schedules.id, scheduleId)).limit(1);
+        if (cur?.isRecurring === 1 && rest.status !== "pending")
+          throw new TRPCError({ code: "BAD_REQUEST", message: "고정 수업은 해당 날짜 칸에서 체크해 주세요." });
+      }
       const patch: Record<string, unknown> = { ...rest };
       if (isRecurring !== undefined) patch.isRecurring = isRecurring ? 1 : 0;
       if (memberId !== undefined) {
