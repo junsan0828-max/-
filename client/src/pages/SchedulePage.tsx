@@ -236,11 +236,22 @@ export default function SchedulePage() {
   const weekStats = useMemo(() => {
     const all = (slots ?? []) as Slot[];
     const real = all.filter(s => s.isRecurring !== 1 || s.status === "done" || s.status === "cancelled" || s.status === "noshow");
+    // 트레이너별 집계
+    const byTrainer: Record<number, { name: string; done: number; pending: number; noshow: number; cancelled: number }> = {};
+    for (const s of real) {
+      if (!byTrainer[s.trainerId]) byTrainer[s.trainerId] = { name: s.trainerName ?? "?", done: 0, pending: 0, noshow: 0, cancelled: 0 };
+      const b = byTrainer[s.trainerId];
+      if (s.status === "done") b.done++;
+      else if (s.status === "pending") b.pending++;
+      else if (s.status === "noshow") b.noshow++;
+      else if (s.status === "cancelled") b.cancelled++;
+    }
     return {
       done: real.filter(s => s.status === "done").length,
       cancelled: real.filter(s => s.status === "cancelled").length,
       noshow: real.filter(s => s.status === "noshow").length,
       pending: real.filter(s => s.status === "pending").length,
+      byTrainer,
     };
   }, [slots]);
 
@@ -283,6 +294,7 @@ export default function SchedulePage() {
           </button>
           {[...(trainerOptions ?? [])].sort((a, b) => a.id - b.id).map(t => {
             const p = TRAINER_PALETTE[trainerColorMap.get(t.id) ?? 0];
+            const ts = weekStats.byTrainer[t.id];
             return (
               <button
                 key={t.id}
@@ -295,6 +307,11 @@ export default function SchedulePage() {
               >
                 <span className={`w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
                 {t.trainerName}
+                {ts && (
+                  <span className="text-[10px] opacity-70">
+                    {ts.done > 0 ? `${ts.done}완` : ""}{ts.pending > 0 ? `·${ts.pending}예` : ""}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -315,6 +332,33 @@ export default function SchedulePage() {
           </div>
         ))}
       </div>
+      {/* 트레이너별 수업 수 (전체 보기일 때만) */}
+      {isAdmin && trainerFilter === null && Object.keys(weekStats.byTrainer).length > 0 && (
+        <div className="rounded-lg border border-border/50 bg-card/50 px-3 py-2 space-y-1">
+          <p className="text-[10px] text-muted-foreground font-medium mb-1.5">트레이너별 수업 현황</p>
+          <div className="grid grid-cols-1 gap-1">
+            {[...(trainerOptions ?? [])].sort((a, b) => a.id - b.id).map(t => {
+              const ts = weekStats.byTrainer[t.id];
+              if (!ts) return null;
+              const p = TRAINER_PALETTE[trainerColorMap.get(t.id) ?? 0];
+              const total = ts.done + ts.pending + ts.noshow + ts.cancelled;
+              return (
+                <div key={t.id} className="flex items-center gap-2 text-xs">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
+                  <span className="w-14 text-foreground/80 font-medium">{t.trainerName}</span>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-emerald-400">{ts.done}완료</span>
+                    {ts.pending > 0 && <span className="text-sky-400">{ts.pending}예정</span>}
+                    {ts.noshow > 0 && <span className="text-rose-400">{ts.noshow}노쇼</span>}
+                    {ts.cancelled > 0 && <span className="text-amber-400">{ts.cancelled}캔슬</span>}
+                    <span className="text-muted-foreground/50 ml-auto">총 {total}회</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {/* 캔슬·노쇼 정책 안내 */}
       <p className="text-[11px] text-muted-foreground/60 leading-relaxed -mt-1">
         캔슬(당일 취소) 차감 없음 · 노쇼 PT 1회 차감 · 24시간 전 취소는 삭제 처리 · 환불 요청 시 당일 취소 → 노쇼 전환
