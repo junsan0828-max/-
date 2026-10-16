@@ -7,6 +7,30 @@ import { MEMBER_STATUS, SERVICE_COLORS, PT_STATUS, ATTENDANCE_STATUS, STAFF_LABE
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
+/** 날짜 문자 하나를 YYYY-MM-DD로 정규화. 파싱 실패 시 null. */
+function normalizeDateToken(s: string): string | null {
+  const d = s.replace(/[.\-/]/g, "");       // 구분자 제거
+  if (/^\d{6}$/.test(d)) {                  // YYMMDD  → 20YY-MM-DD
+    return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`;
+  }
+  if (/^\d{8}$/.test(d)) {                  // YYYYMMDD → YYYY-MM-DD
+    return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // 이미 올바른 형식
+  return null;
+}
+
+/** 자유 입력 텍스트에서 날짜 배열 파싱 (중복 제거, 정렬) */
+function parseBulkDates(text: string): string[] {
+  const raw = text.split(/[\n,\s]+/).map(s => s.trim()).filter(Boolean);
+  const result: string[] = [];
+  for (const token of raw) {
+    const n = normalizeDateToken(token);
+    if (n) result.push(n);
+  }
+  return [...new Set(result)].sort();
+}
+
 function parseDate(s: string | null | undefined): Date | null {
   if (!s) return null;
   // normalize "2024-01-15 12:30:45+00" → "2024-01-15T12:30:45+00:00"
@@ -3121,6 +3145,7 @@ export default function MemberDetail({ memberId }: Props) {
       </Dialog>
 
       {/* 대량 수업 체크 다이얼로그 */}
+      {/* 날짜 정규화: 260425 / 20260425 / 2026.04.25 / 2026/04/25 / 2026-04-25 모두 허용 */}
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -3132,24 +3157,20 @@ export default function MemberDetail({ memberId }: Props) {
               <label className="text-xs font-medium text-muted-foreground">날짜 목록</label>
               <p className="text-[11px] text-muted-foreground/70">
                 한 줄에 하나씩 또는 쉼표/공백으로 구분해서 입력하세요.<br />
-                형식: YYYY-MM-DD (예: 2026-10-15)
+                260425 · 20260425 · 2026.04.25 · 2026-04-25 모두 인식
               </p>
               <textarea
                 className="w-full min-h-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-y"
-                placeholder={"2026-10-15\n2026-10-13\n2026-10-08"}
+                placeholder={"260425\n260413\n20260408"}
                 value={bulkDatesText}
                 onChange={e => setBulkDatesText(e.target.value)}
               />
               {(() => {
-                const parsed = bulkDatesText
-                  .split(/[\n,\s]+/)
-                  .map(s => s.trim())
-                  .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
-                const unique = [...new Set(parsed)];
+                const unique = parseBulkDates(bulkDatesText);
                 return unique.length > 0 ? (
                   <p className="text-[11px] text-emerald-400">{unique.length}개 날짜 인식됨</p>
                 ) : bulkDatesText.trim() ? (
-                  <p className="text-[11px] text-destructive">유효한 날짜 없음 (YYYY-MM-DD 형식 확인)</p>
+                  <p className="text-[11px] text-destructive">유효한 날짜 없음</p>
                 ) : null;
               })()}
             </div>
@@ -3183,11 +3204,7 @@ export default function MemberDetail({ memberId }: Props) {
                 className="flex-1"
                 disabled={bulkCreateMutation.isPending || !bulkDatesText.trim()}
                 onClick={() => {
-                  const dates = bulkDatesText
-                    .split(/[\n,\s]+/)
-                    .map(s => s.trim())
-                    .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
-                  const unique = [...new Set(dates)];
+                  const unique = parseBulkDates(bulkDatesText);
                   if (!unique.length) { toast.error("유효한 날짜가 없습니다."); return; }
                   bulkCreateMutation.mutate({
                     memberId,
