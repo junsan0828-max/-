@@ -1776,7 +1776,7 @@ const ptRouter = t.router({
       // 이미 로그가 있는 날짜 확인
       const existingLogs = await db.select({ sessionDate: ptSessionLogs.sessionDate })
         .from(ptSessionLogs)
-        .where(and(eq(ptSessionLogs.memberId, input.memberId), sql`"sessionDate" = ANY(${uniqueDates})`));
+        .where(and(eq(ptSessionLogs.memberId, input.memberId), inArray(ptSessionLogs.sessionDate, uniqueDates)));
       const existingDates = new Set(existingLogs.map(l => l.sessionDate));
 
       // 패키지 목록 (packageId 미지정 시 날짜별 자동 선택용)
