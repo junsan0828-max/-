@@ -1,8 +1,8 @@
 import { useState } from "react";
 import TrainingManual from "./TrainingManual";
-import { WorkManagementSection, NoticeManagementSection, DataFieldManagementSection } from "./WorkManagement";
+import { NoticeManagementSection } from "./WorkManagement";
 
-type Tab = "manual" | "tasks" | "notices" | "datafields";
+type Tab = "manual" | "notices";
 
 export default function TeamManagementPage() {
   const [tab, setTab] = useState<Tab>("manual");
@@ -13,9 +13,7 @@ export default function TeamManagementPage() {
       <div className="grid grid-cols-2 gap-1 bg-accent/20 p-1 rounded-lg">
         {([
           ["manual", "교육 매뉴얼"],
-          ["tasks", "업무 관리"],
           ["notices", "공지사항 관리"],
-          ["datafields", "데이터 항목"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -29,9 +27,7 @@ export default function TeamManagementPage() {
         ))}
       </div>
       {tab === "manual" && <TrainingManual />}
-      {tab === "tasks" && <WorkManagementSection />}
       {tab === "notices" && <NoticeManagementSection />}
-      {tab === "datafields" && <DataFieldManagementSection />}
     </div>
   );
 }
