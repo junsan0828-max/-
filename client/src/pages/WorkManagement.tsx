@@ -1008,18 +1008,24 @@ export function DataFieldManagementSection() {
 }
 
 export default function WorkManagementPage() {
-  const [tab, setTab] = useState<"events" | "access" | "landing">("events");
+  const { data: me } = trpc.auth.me.useQuery();
+  const canNotice = me?.role === "admin" || me?.role === "sub_admin";
+  const [tab, setTab] = useState<"notices" | "events" | "access" | "landing">("events");
+  useEffect(() => { if (canNotice) setTab(t => (t === "events" ? "notices" : t)); }, [canNotice]);
+  const tabs = ([["notices", "공지사항"], ["events", "이벤트 관리"], ["access", "출입 관리"], ["landing", "랜딩페이지"]] as const)
+    .filter(([key]) => key !== "notices" || canNotice);
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">업무 관리</h1>
       <div className="flex gap-1 bg-accent/20 p-1 rounded-lg">
-        {([["events","이벤트 관리"],["access","출입 관리"],["landing","랜딩페이지"]] as const).map(([key, label]) => (
+        {tabs.map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 py-2 text-sm rounded-md transition-colors font-medium ${tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
             {label}
           </button>
         ))}
       </div>
+      {tab === "notices" && canNotice && <NoticeManagementSection />}
       {tab === "events" && <EventManagementSection />}
       {tab === "access" && <AccessManagement hideTitle />}
       {tab === "landing" && <LandingPageAdmin />}
