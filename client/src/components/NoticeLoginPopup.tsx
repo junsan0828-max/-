@@ -14,7 +14,7 @@ export default function NoticeLoginPopup() {
   const [location] = useLocation();
   const { data: me } = trpc.auth.me.useQuery();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery(undefined, {
-    enabled: !!(me && me.role !== "admin" && me.role !== "sub_admin"),
+    enabled: !!(me && me.role !== "admin"),
   });
   const markCompleteMutation = trpc.gym.work.notices.markComplete.useMutation({
     onSuccess: () => utils.gym.work.notices.invalidate(),
@@ -24,8 +24,8 @@ export default function NoticeLoginPopup() {
   const [visible, setVisible] = useState(false);
   const [index, setIndex] = useState(0);
 
-  const isAdmin = me?.role === "admin" || me?.role === "sub_admin";
-  const unread = (noticeList ?? []).filter((n: any) => !n.isCompleted);
+  const isAdmin = me?.role === "admin";
+  const unread = (noticeList ?? []).filter((n: any) => n.isTargeted !== false && !n.isCompleted);
 
   // Reset shown flag on every tab navigation
   useEffect(() => {

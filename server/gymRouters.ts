@@ -3676,6 +3676,18 @@ const tasksWorkRouter = t.router({
   }),
 });
 
+// 공지 대상: "all" 또는 콤마로 묶은 역할 목록 (sub_admin=팀장, trainer=트레이너, consultant=FC)
+const NOTICE_ROLES = ["sub_admin", "trainer", "consultant"] as const;
+function noticeTargets(targetRole: string | null | undefined): string[] {
+  if (!targetRole || targetRole === "all") return [...NOTICE_ROLES];
+  return targetRole.split(",").map(r => r.trim()).filter(r => (NOTICE_ROLES as readonly string[]).includes(r));
+}
+function normalizeNoticeTarget(input: string): string {
+  const picked = noticeTargets(input);
+  if (!picked.length) throw new TRPCError({ code: "BAD_REQUEST", message: "공지 대상을 선택해 주세요." });
+  return picked.length === NOTICE_ROLES.length ? "all" : NOTICE_ROLES.filter(r => picked.includes(r)).join(",");
+}
+
 const noticesWorkRouter = t.router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
@@ -3699,8 +3711,10 @@ const noticesWorkRouter = t.router({
     const completedIds = new Set(reads.filter((r: any) => r.completedAt).map((r: any) => Number(r.noticeId)));
     const readIds = new Set(reads.map((r: any) => Number(r.noticeId)));
 
+    // 관리자·팀장은 관리 화면용으로 전체를 받고, isTargeted로 '내가 받아야 할 공지'를 구분한다
     return allNotices
-      .filter(row => role === "admin" || role === "sub_admin" || row.notice.targetRole === "all" || row.notice.targetRole === role)
+      .map(row => ({ ...row, isTargeted: noticeTargets(row.notice.targetRole).includes(role) }))
+      .filter(row => role === "admin" || role === "sub_admin" || row.isTargeted)
       .map(row => ({ ...row, isRead: readIds.has(row.notice.id), isCompleted: completedIds.has(row.notice.id) }));
   }),
 
@@ -3710,7 +3724,7 @@ const noticesWorkRouter = t.router({
       if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [row] = await db.insert(notices).values({ ...input, authorId: ctx.user!.id }).returning();
+      const [row] = await db.insert(notices).values({ ...input, targetRole: normalizeNoticeTarget(input.targetRole), authorId: ctx.user!.id }).returning();
       return row;
     }),
 
@@ -3776,10 +3790,7 @@ const noticesWorkRouter = t.router({
 
       const allUsers = await db.select({ id: users.id, username: users.username, role: users.role })
         .from(users)
-        .where(notice.targetRole === "all"
-          ? sql`role IN ('trainer','consultant')`
-          : eq(users.role, notice.targetRole)
-        );
+        .where(inArray(users.role, noticeTargets(notice.targetRole)));
 
       const readsResult = await db.execute(sql`
         SELECT nr."userId", nr."readAt", nr."completedAt", u.username

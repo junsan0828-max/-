@@ -225,11 +225,21 @@ function NoticeReadPanel({ noticeId }: { noticeId: number }) {
   );
 }
 
+const NOTICE_TARGETS = [
+  { key: "sub_admin", label: "팀장" },
+  { key: "trainer", label: "트레이너" },
+  { key: "consultant", label: "FC" },
+] as const;
+function noticeTargetLabel(targetRole: string | null | undefined) {
+  if (!targetRole || targetRole === "all") return "전체";
+  return targetRole.split(",").map(r => NOTICE_TARGETS.find(t => t.key === r)?.label ?? r).join("·");
+}
+
 export function NoticeManagementSection() {
   const utils = trpc.useUtils();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery();
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ title: "", content: "", targetRole: "all", priority: "normal" });
+  const [targets, setTargets] = useState<Set<string>>(new Set(NOTICE_TARGETS.map(t => t.key)));
+  const [form, setForm] = useState({ title: "", content: "", priority: "normal" });
   const [expandedReaders, setExpandedReaders] = useState<Set<number>>(new Set());
   const [expandedNotices, setExpandedNotices] = useState<Set<number>>(new Set());
   const [detailNotice, setDetailNotice] = useState<any>(null);
@@ -242,8 +252,7 @@ export function NoticeManagementSection() {
     onSuccess: () => {
       toast.success("공지사항이 등록되었습니다");
       utils.gym.work.notices.invalidate();
-      setShowAdd(false);
-      setForm({ title: "", content: "", targetRole: "all", priority: "normal" });
+      setForm({ title: "", content: "", priority: "normal" });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -254,7 +263,19 @@ export function NoticeManagementSection() {
   });
 
   const PRIORITY_LABEL: Record<string, string> = { urgent: "긴급", important: "중요", normal: "일반" };
-  const ROLE_LABEL: Record<string, string> = { all: "전체", trainer: "트레이너", consultant: "컨설턴트" };
+  const allSelected = targets.size === NOTICE_TARGETS.length;
+  const toggleTarget = (key: string) => setTargets(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+  const submit = () => {
+    if (!targets.size) return toast.error("공지 대상을 선택해 주세요");
+    if (!form.content.trim()) return toast.error("공지 내용을 입력해 주세요");
+    const title = form.title.trim() || form.content.trim().split("\n")[0].slice(0, 40);
+    createMutation.mutate({ title, content: form.content.trim(), priority: form.priority, targetRole: allSelected ? "all" : [...targets].join(",") });
+  };
+  const chip = (on: boolean) => `px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`;
 
   return (
     <Card>
@@ -263,56 +284,41 @@ export function NoticeManagementSection() {
           <CardTitle className="text-base flex items-center gap-2">
             <Bell className="h-4 w-4 text-primary" />공지사항 관리
           </CardTitle>
-          <button onClick={() => setShowAdd(v => !v)}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
-            <Plus className="h-3.5 w-3.5" />공지 작성
-          </button>
         </div>
-        <p className="text-xs text-muted-foreground">트레이너·컨설턴트 공지사항 등록 및 관리</p>
+        <p className="text-xs text-muted-foreground">대상을 고르고 쓰면, 대상자가 시스템에 들어올 때 알림 창으로 뜹니다</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {showAdd && (
-          <div className="bg-background border border-border rounded-xl p-4 space-y-3">
-            <div>
-              <label className="text-xs text-muted-foreground">제목 *</label>
-              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="공지 제목"
-                className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">내용 *</label>
-              <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용을 입력하세요" rows={3}
-                className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">대상</label>
-                <select value={form.targetRole} onChange={e => setForm(f => ({ ...f, targetRole: e.target.value }))}
-                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="all">전체</option>
-                  <option value="trainer">트레이너만</option>
-                  <option value="consultant">컨설턴트만</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">중요도</label>
-                <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
-                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="normal">일반</option>
-                  <option value="important">중요</option>
-                  <option value="urgent">긴급</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
-              <button type="button"
-                onClick={() => { if (!form.title.trim() || !form.content.trim()) return toast.error("제목과 내용을 입력해주세요"); createMutation.mutate(form); }}
-                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">등록</button>
-            </div>
+        <div className="bg-background border border-border rounded-xl p-3 space-y-2.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-muted-foreground w-10 shrink-0">대상</span>
+            <button type="button" className={chip(allSelected)}
+              onClick={() => setTargets(allSelected ? new Set() : new Set(NOTICE_TARGETS.map(t => t.key)))}>전체</button>
+            {NOTICE_TARGETS.map(t => (
+              <button key={t.key} type="button" className={chip(targets.has(t.key))} onClick={() => toggleTarget(t.key)}>
+                {targets.has(t.key) ? "✓ " : ""}{t.label}
+              </button>
+            ))}
           </div>
-        )}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground w-10 shrink-0">중요도</span>
+            {(["normal", "important", "urgent"] as const).map(p => (
+              <button key={p} type="button" onClick={() => setForm(f => ({ ...f, priority: p }))}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${form.priority === p ? NOTICE_PRIORITY_STYLE[p] : "border-border text-muted-foreground"}`}>
+                {PRIORITY_LABEL[p]}
+              </button>
+            ))}
+          </div>
+          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="제목 (비우면 내용 첫 줄)"
+            className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+          <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용을 입력하세요" rows={4}
+            className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-y" />
+          <button type="button" onClick={submit} disabled={createMutation.isPending}
+            className="w-full bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+            {createMutation.isPending ? "등록 중..." : `공지 등록 · ${allSelected ? "전체" : NOTICE_TARGETS.filter(t => targets.has(t.key)).map(t => t.label).join("·") || "대상 없음"}`}
+          </button>
+        </div>
 
-        {(noticeList ?? []).length === 0 && !showAdd ? (
+        {(noticeList ?? []).length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-4">등록된 공지사항이 없습니다</p>
         ) : (
           <div className="space-y-2">
@@ -325,7 +331,7 @@ export function NoticeManagementSection() {
                         {PRIORITY_LABEL[n.notice.priority]}
                       </span>
                       <span className="text-xs text-muted-foreground border border-border px-1.5 py-0.5 rounded-full">
-                        {ROLE_LABEL[n.notice.targetRole] ?? n.notice.targetRole}
+                        {noticeTargetLabel(n.notice.targetRole)}
                       </span>
                     </div>
                     <p className="text-sm font-medium text-foreground mt-1 truncate">{n.notice.title}</p>
@@ -369,7 +375,7 @@ export function NoticeManagementSection() {
                     {PRIORITY_LABEL[detailNotice.notice.priority]}
                   </span>
                   <span className="text-xs border border-border px-1.5 py-0.5 rounded-full text-muted-foreground">
-                    {ROLE_LABEL[detailNotice.notice.targetRole] ?? detailNotice.notice.targetRole}
+                    {noticeTargetLabel(detailNotice.notice.targetRole)}
                   </span>
                 </div>
                 <h3 className="font-semibold text-foreground">{detailNotice.notice.title}</h3>
