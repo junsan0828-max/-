@@ -1086,6 +1086,11 @@ async function initDatabase() {
       priority TEXT NOT NULL DEFAULT 'normal',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS notice_links (
+      key TEXT PRIMARY KEY,
+      url TEXT NOT NULL DEFAULT '',
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS notice_reads (
       id SERIAL PRIMARY KEY,
       "noticeId" INTEGER NOT NULL,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Linkify } from "./Linkify";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Bell, CheckCircle2, ChevronRight, X } from "lucide-react";
@@ -93,7 +94,7 @@ export default function NoticeLoginPopup() {
 
         {/* 내용 */}
         <div className="overflow-y-auto flex-1 px-5 py-4">
-          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{item.notice.content}</p>
+          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap"><Linkify text={item.notice.content} /></p>
         </div>
 
         {/* 버튼 */}

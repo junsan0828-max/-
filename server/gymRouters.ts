@@ -3776,6 +3776,35 @@ const noticesWorkRouter = t.router({
       return { success: true };
     }),
 
+  // 고정 업무 링크 (전체·FC·트레이너). 상세 업무 내용·파일은 링크 페이지에 둔다.
+  links: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const res = await db.execute(sql`SELECT key, url FROM notice_links`);
+    const map: Record<string, string> = { all: "", consultant: "", trainer: "" };
+    for (const r of ((res as any).rows ?? res) as any[]) if (r.key in map) map[r.key] = r.url ?? "";
+    const role = ctx.user!.role;
+    // 관리자·팀장은 전부, 직원은 전체 링크 + 자기 역할 링크만
+    if (role === "admin" || role === "sub_admin") return map;
+    return { all: map.all, ...(role === "consultant" ? { consultant: map.consultant } : {}), ...(role === "trainer" ? { trainer: map.trainer } : {}) };
+  }),
+
+  saveLinks: protectedProcedure
+    .input(z.object({ all: z.string(), consultant: z.string(), trainer: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      for (const [key, url] of Object.entries(input)) {
+        const v = url.trim();
+        if (v && !/^https?:\/\//i.test(v)) throw new TRPCError({ code: "BAD_REQUEST", message: "링크는 http:// 또는 https:// 로 시작해야 합니다." });
+        await db.execute(sql`
+          INSERT INTO notice_links (key, url, "updatedAt") VALUES (${key}, ${v}, now()::text)
+          ON CONFLICT (key) DO UPDATE SET url = EXCLUDED.url, "updatedAt" = EXCLUDED."updatedAt"`);
+      }
+      return { success: true };
+    }),
+
   readStatus: protectedProcedure
     .input(z.object({ noticeId: z.number() }))
     .query(async ({ ctx, input }) => {

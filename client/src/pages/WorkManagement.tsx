@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Linkify } from "@/components/Linkify";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -235,11 +236,46 @@ function noticeTargetLabel(targetRole: string | null | undefined) {
   return targetRole.split(",").map(r => NOTICE_TARGETS.find(t => t.key === r)?.label ?? r).join("·");
 }
 
+const NOTICE_LINKS = [
+  { key: "all", label: "전체" },
+  { key: "consultant", label: "FC" },
+  { key: "trainer", label: "트레이너" },
+] as const;
+const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
+function noticeDateTitle() {
+  const d = new Date(Date.now() + 9 * 3600000);
+  return `${d.toISOString().slice(0, 10)} (${WEEKDAY[d.getUTCDay()]}) 업무`;
+}
+// 대상별 고정 링크 안내 문구. 전체·팀장이 포함되면 전체 링크, FC·트레이너만이면 각자 링크
+function noticeLinkTemplate(targets: Set<string>, links?: Record<string, string>) {
+  const keys = targets.size === NOTICE_TARGETS.length || targets.has("sub_admin")
+    ? ["all"]
+    : (["consultant", "trainer"] as const).filter(k => targets.has(k));
+  const lines = keys.map(k => {
+    const label = NOTICE_LINKS.find(l => l.key === k)!.label;
+    return `▶ ${label} 업무: ${links?.[k] || "(고정 링크 미등록)"}`;
+  });
+  return ["자세한 업무 내용과 파일은 아래 링크에서 확인해 주세요.", ...lines, ""].join("\n");
+}
+
 export function NoticeManagementSection() {
   const utils = trpc.useUtils();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery();
   const [targets, setTargets] = useState<Set<string>>(new Set(NOTICE_TARGETS.map(t => t.key)));
-  const [form, setForm] = useState({ title: "", content: "", priority: "normal" });
+  const [form, setForm] = useState({ title: noticeDateTitle(), content: "", priority: "normal" });
+  const [contentTouched, setContentTouched] = useState(false);
+  const { data: links } = trpc.gym.work.notices.links.useQuery();
+  const [editLinks, setEditLinks] = useState(false);
+  const [linkForm, setLinkForm] = useState({ all: "", consultant: "", trainer: "" });
+  useEffect(() => { if (links) setLinkForm({ all: links.all ?? "", consultant: (links as any).consultant ?? "", trainer: (links as any).trainer ?? "" }); }, [links]);
+  const saveLinksMutation = trpc.gym.work.notices.saveLinks.useMutation({
+    onSuccess: () => { toast.success("고정 링크를 저장했습니다"); utils.gym.work.notices.links.invalidate(); setEditLinks(false); },
+    onError: (e) => toast.error(e.message),
+  });
+  // 본문 기본 문구: 고른 대상에 맞는 고정 링크 안내. 직접 고치기 전까지는 대상이 바뀌면 따라 바뀐다.
+  useEffect(() => {
+    if (!contentTouched) setForm(f => ({ ...f, content: noticeLinkTemplate(targets, links as any) }));
+  }, [targets, links, contentTouched]);
   const [expandedReaders, setExpandedReaders] = useState<Set<number>>(new Set());
   const [expandedNotices, setExpandedNotices] = useState<Set<number>>(new Set());
   const [detailNotice, setDetailNotice] = useState<any>(null);
@@ -252,7 +288,8 @@ export function NoticeManagementSection() {
     onSuccess: () => {
       toast.success("공지사항이 등록되었습니다");
       utils.gym.work.notices.invalidate();
-      setForm({ title: "", content: "", priority: "normal" });
+      setContentTouched(false);
+      setForm({ title: noticeDateTitle(), content: noticeLinkTemplate(targets, links as any), priority: "normal" });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -272,7 +309,7 @@ export function NoticeManagementSection() {
   const submit = () => {
     if (!targets.size) return toast.error("공지 대상을 선택해 주세요");
     if (!form.content.trim()) return toast.error("공지 내용을 입력해 주세요");
-    const title = form.title.trim() || form.content.trim().split("\n")[0].slice(0, 40);
+    const title = form.title.trim() || noticeDateTitle();
     createMutation.mutate({ title, content: form.content.trim(), priority: form.priority, targetRole: allSelected ? "all" : [...targets].join(",") });
   };
   const chip = (on: boolean) => `px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`;
@@ -288,6 +325,35 @@ export function NoticeManagementSection() {
         <p className="text-xs text-muted-foreground">대상을 고르고 쓰면, 대상자가 시스템에 들어올 때 알림 창으로 뜹니다</p>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="bg-background border border-border rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground">📌 고정 업무 링크</span>
+            {!editLinks && (
+              <button type="button" onClick={() => setEditLinks(true)} className="text-xs text-primary hover:underline">수정</button>
+            )}
+          </div>
+          {NOTICE_LINKS.map(l => (
+            <div key={l.key} className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-14 shrink-0">{l.label}</span>
+              {editLinks ? (
+                <input value={(linkForm as any)[l.key]} onChange={e => setLinkForm(f => ({ ...f, [l.key]: e.target.value }))}
+                  placeholder="https://..." className="flex-1 min-w-0 bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              ) : (links as any)?.[l.key] ? (
+                <a href={(links as any)[l.key]} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 truncate text-xs text-primary underline underline-offset-2">{(links as any)[l.key]}</a>
+              ) : (
+                <span className="flex-1 text-xs text-muted-foreground/60">미등록</span>
+              )}
+            </div>
+          ))}
+          {editLinks && (
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => setEditLinks(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-1.5 text-xs">취소</button>
+              <button type="button" onClick={() => saveLinksMutation.mutate(linkForm)} disabled={saveLinksMutation.isPending}
+                className="flex-1 bg-primary text-primary-foreground rounded-lg py-1.5 text-xs font-medium disabled:opacity-50">저장</button>
+            </div>
+          )}
+        </div>
+
         <div className="bg-background border border-border rounded-xl p-3 space-y-2.5">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs text-muted-foreground w-10 shrink-0">대상</span>
@@ -308,9 +374,9 @@ export function NoticeManagementSection() {
               </button>
             ))}
           </div>
-          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="제목 (비우면 내용 첫 줄)"
+          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="제목 (비우면 오늘 날짜)"
             className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-          <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용을 입력하세요" rows={4}
+          <textarea value={form.content} onChange={e => { setContentTouched(true); setForm(f => ({ ...f, content: e.target.value })); }} placeholder="공지 내용을 입력하세요" rows={5}
             className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-y" />
           <button type="button" onClick={submit} disabled={createMutation.isPending}
             className="w-full bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
@@ -388,7 +454,7 @@ export function NoticeManagementSection() {
               </button>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4">
-              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{detailNotice.notice.content}</p>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap"><Linkify text={detailNotice.notice.content} /></p>
             </div>
             <div className="px-5 py-4 border-t border-border shrink-0">
               <NoticeReadPanel noticeId={detailNotice.notice.id} />

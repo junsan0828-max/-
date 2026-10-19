@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Linkify } from "@/components/Linkify";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { Plus, CheckCircle2, Circle, Bell, ChevronDown, ChevronUp, Trash2, X, Users } from "lucide-react";
@@ -177,6 +178,9 @@ export default function MyWorkPage() {
   }
 
   const isSaving = createMutation.isPending || createForGroupMutation.isPending;
+  const { data: workLinks } = trpc.gym.work.notices.links.useQuery();
+  const linkButtons = ([["all", "전체 업무"], ["consultant", "FC 업무"], ["trainer", "트레이너 업무"]] as const)
+    .filter(([k]) => (workLinks as any)?.[k]);
 
   return (
     <div className="space-y-4 pb-24">
@@ -198,6 +202,17 @@ export default function MyWorkPage() {
           <Plus className="h-4 w-4" /> 업무 추가
         </button>
       </div>
+
+      {linkButtons.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {linkButtons.map(([k, label]) => (
+            <a key={k} href={(workLinks as any)[k]} target="_blank" rel="noopener noreferrer"
+              className="flex-1 min-w-[120px] text-center text-sm font-medium px-3 py-2 rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20">
+              📌 {label} 보기
+            </a>
+          ))}
+        </div>
+      )}
 
       {/* 긴급 공지 배너 */}
       {urgentNotices.map(n => (
@@ -376,7 +391,7 @@ export default function MyWorkPage() {
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
               <p className="text-xs text-muted-foreground">{selectedNotice.authorName} · {selectedNotice.notice.createdAt.substring(0, 10)}</p>
-              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{selectedNotice.notice.content}</p>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap"><Linkify text={selectedNotice.notice.content} /></p>
             </div>
             <div className="p-4 border-t border-border shrink-0">
               <button onClick={() => setSelectedNotice(null)}
