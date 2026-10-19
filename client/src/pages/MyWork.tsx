@@ -220,7 +220,7 @@ export default function MyWorkPage() {
           <Bell className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-red-400">[긴급] {n.notice.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.notice.content}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.notice.content.replace(/^\s*▶.*$/gm, "").replace(/https?:\/\/\S+/g, "").trim()}</p>
           </div>
           <button onClick={() => markReadMutation.mutate({ noticeId: n.notice.id })}
             className="text-xs text-red-400 border border-red-400/40 px-2 py-1 rounded shrink-0 hover:bg-red-400/10">확인</button>
