@@ -32,3 +32,29 @@ export function Linkify({ text }: { text: string | null | undefined }) {
     </>
   );
 }
+
+/** 목록 미리보기용: 주소를 뺀 글 + 작은 링크 버튼 */
+export function NoticePreview({ text }: { text: string | null | undefined }) {
+  if (!text) return null;
+  const buttons: { href: string; label: string }[] = [];
+  const body = text.split("\n").map(line => {
+    const m = line.match(LINK_LINE_RE);
+    if (m) { buttons.push({ href: m[2], label: `📌 ${m[1]} 보기` }); return ""; }
+    return line.replace(/https?:\/\/\S+/g, url => { buttons.push({ href: url, label: "🔗 링크 열기" }); return ""; });
+  }).join(" ").replace(/\s+/g, " ").trim();
+  return (
+    <>
+      {body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{body}</p>}
+      {buttons.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {buttons.map((b, i) => (
+            <a key={i} href={b.href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+              className="inline-flex items-center px-2.5 py-1 rounded-md bg-primary/15 border border-primary/40 text-primary text-xs font-medium hover:bg-primary/25">
+              {b.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

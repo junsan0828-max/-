@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Linkify } from "@/components/Linkify";
+import { Linkify, NoticePreview } from "@/components/Linkify";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -401,7 +401,7 @@ export function NoticeManagementSection() {
                       </span>
                     </div>
                     <p className="text-sm font-medium text-foreground mt-1 truncate">{n.notice.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.notice.content}</p>
+                    <NoticePreview text={n.notice.content} />
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-muted-foreground">📅 {n.notice.createdAt?.substring(0, 10)}</span>
                       <button onClick={() => setDetailNotice(n)} className="text-xs text-primary hover:underline">
