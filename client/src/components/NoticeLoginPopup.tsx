@@ -20,6 +20,7 @@ export default function NoticeLoginPopup() {
   const markCompleteMutation = trpc.gym.work.notices.markComplete.useMutation({
     onSuccess: () => utils.gym.work.notices.invalidate(),
   });
+  const markReadMutation = trpc.gym.work.notices.markRead.useMutation();
 
   const shownForVisitRef = useRef(false);
   const [visible, setVisible] = useState(false);
@@ -43,6 +44,15 @@ export default function NoticeLoginPopup() {
       setVisible(true);
     }
   }, [location, me, noticeList, isAdmin]);
+
+  // 알림 창에 뜬 공지는 '읽음'으로 기록 — 관리자 [확인자 보기]에 반영
+  const shownItem = visible ? unread[index] : undefined;
+  const readSentRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    if (!shownItem || shownItem.isRead || readSentRef.current.has(shownItem.notice.id)) return;
+    readSentRef.current.add(shownItem.notice.id);
+    markReadMutation.mutate({ noticeId: shownItem.notice.id });
+  }, [shownItem?.notice.id]);
 
   if (!visible || index >= unread.length) return null;
 
