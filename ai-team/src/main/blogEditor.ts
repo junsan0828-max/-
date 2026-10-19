@@ -351,16 +351,28 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
   const { tmpdir } = await import("node:os");
   const cardDir = join(tmpdir(), "ai-team-blog-cards");
   const cards = renderCards(card, cardDir, { centerName: center.centerName, steps: center.methodStepsShort });
-  const photos = pickPhotos(3);
+  // 센터 5단계 카드는 모든 글에서 똑같고 본문의 1~5단계 목록과 겹쳐서 기본으로 쓰지 않는다 (2026-10-19 대표 지적).
+  // 카드 자리에는 센터 사진을 한 장 더 넣는다. 예전처럼 쓰려면 .env에 BLOG_STEPS_CARD=1.
+  const useStepsCard = process.env.BLOG_STEPS_CARD === "1";
+  const photos = pickPhotos(useStepsCard ? 3 : 4);
   const kw = (i: number) => KEYWORDS[(i + rnd(0, KEYWORDS.length)) % KEYWORDS.length];
+  const stepsSlot = useStepsCard
+    ? { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true }
+    : { file: photos[3].file, caption: `${kw(0)}, ${photos[3].scene}`, ai: false };
   const slots = [
     { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true }, // 소제목 1: 논문 배경
     { file: photos[0].file, caption: `${kw(0)}, ${photos[0].scene}`, ai: false }, // 소제목 2: 결과
     { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true }, // 소제목 3: 한계
-    { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true }, // 소제목 4: 센터 방식
+    stepsSlot, // 소제목 4: 센터 방식 (카드 또는 센터 사진)
     { file: photos[1].file, caption: `${kw(1)}, ${photos[1].scene}`, ai: false }, // 소제목 5: 마무리
     { file: photos[2].file, caption: `${kw(2)}, ${photos[2].scene}`, ai: false }, // 맨 끝(※ 문구 앞)
   ];
+
+  // 소제목이 5개로 잡히지 않으면 이미지가 한 칸씩 밀리므로 에디터를 열기 전에 중단한다 (소제목은 30자 이내 한 줄, 앞뒤 빈 줄).
+  const preHeadings = findHeadings(draft.lines);
+  if (preHeadings.length !== 5) {
+    throw new Error(`소제목이 5개로 인식되지 않았습니다(${preHeadings.length}개: ${preHeadings.map((h) => `"${h}"`).join(", ")}). 소제목은 30자 이내 한 줄이고 앞뒤가 빈 줄이어야 합니다. 초안을 고쳐 주세요.`);
+  }
 
   // 2) 브라우저 연결
   await ensureBrowser();
