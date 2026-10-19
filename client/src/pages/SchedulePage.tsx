@@ -235,7 +235,13 @@ export default function SchedulePage() {
 
   const weekStats = useMemo(() => {
     const all = (slots ?? []) as Slot[];
-    const real = all.filter(s => s.isRecurring !== 1 || s.status === "done" || s.status === "cancelled" || s.status === "noshow");
+    // 달력에 보이는 것과 같은 기준: 고정 수업은 그 주 같은 칸·트레이너·시간에 실제 일정이 없을 때 '예정' 1건
+    const cellKey = (s: Slot) => {
+      const wd = (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7;
+      return `${wd}-${s.trainerId}-${s.scheduledTime ?? ""}`;
+    };
+    const oneOffKeys = new Set(all.filter(s => s.isRecurring !== 1).map(cellKey));
+    const real = all.filter(s => s.isRecurring !== 1 || !oneOffKeys.has(cellKey(s)));
     // 트레이너별 집계
     const byTrainer: Record<number, { name: string; done: number; pending: number; noshow: number; cancelled: number }> = {};
     for (const s of real) {
