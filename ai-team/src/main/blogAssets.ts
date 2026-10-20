@@ -20,6 +20,7 @@ export interface CardData {
 export interface PhotoPick {
   file: string; // 절대 경로
   scene: string;
+  key?: string; // 사용 기록(used.json)에 남길 승인 사진 이름 (원본을 쓸 때 file 이름과 달라진다)
 }
 
 /** 본문에서 '카드 데이터' JSON 블록을 읽는다. */
@@ -127,11 +128,31 @@ export function pickPhotos(n = 3): PhotoPick[] {
   const lib: Record<string, { scene: string }> = JSON.parse(readFileSync(join(PHOTO_DIR, "library.json"), "utf-8"));
   const usedPath = join(PHOTO_DIR, "used.json");
   const used: Record<string, number> = existsSync(usedPath) ? JSON.parse(readFileSync(usedPath, "utf-8")) : {};
-  const files = Object.keys(lib).filter((f) => existsSync(join(PHOTO_DIR, f)));
-  if (files.length < n) throw new Error(`승인된 사진이 ${files.length}장뿐입니다 (필요 ${n}장). '사진' 폴더에 모자이크가 끝난 사진을 더 넣어 주세요.`);
+
+  // 대표가 에디터에서 직접 모자이크하겠다고 한 경우(2026-10-20): 승인 사진 대신 '모자이크 전 원본'을 올린다.
+  // 이 경우 회원 얼굴이 가려지지 않은 채 에디터에 올라가므로, 대표가 에디터에서 모든 얼굴을 가린 뒤에만 발행해야 한다.
+  const useOriginals = process.env.BLOG_USE_ORIGINALS === "1";
+  const originals: Record<string, string> = useOriginals && existsSync(join(PHOTO_DIR, "originals.json"))
+    ? JSON.parse(readFileSync(join(PHOTO_DIR, "originals.json"), "utf-8"))
+    : {};
+  const origDir = join(PHOTO_DIR, "..", "사진_원본");
+  const files = Object.keys(lib).filter((f) => existsSync(join(PHOTO_DIR, f)) && (!useOriginals || (originals[f] && existsSync(join(origDir, originals[f])))));
+  if (files.length < n) throw new Error(`${useOriginals ? "원본이 연결된 " : "승인된 "}사진이 ${files.length}장뿐입니다 (필요 ${n}장). ${useOriginals ? "'사진/originals.json'에 원본 파일을 연결해 주세요." : "'사진' 폴더에 모자이크가 끝난 사진을 더 넣어 주세요."}`);
   const shuffled = files.map((f) => ({ f, r: Math.random() })).sort((a, b) => (used[a.f] ?? 0) - (used[b.f] ?? 0) || a.r - b.r);
   const picks = shuffled.slice(0, n).map((x) => x.f);
-  return picks.map((f) => ({ file: join(PHOTO_DIR, f), scene: lib[f].scene }));
+  if (!useOriginals) return picks.map((f) => ({ file: join(PHOTO_DIR, f), scene: lib[f].scene }));
+
+  // 에디터가 파일명으로 이미지를 찾으므로 영문 이름의 임시 복사본을 만든다. 다시 인코딩해서 위치·기기 정보(EXIF)는 지운다.
+  const outDir = join(tmpdir(), "ai-team-blog-originals");
+  mkdirSync(outDir, { recursive: true });
+  const py = process.env.BLOG_PYTHON || join(__dirname, "..", "..", "tools", ".venv", "Scripts", "python.exe");
+  return picks.map((f) => {
+    const out = join(outDir, `orig_${f.replace(/\.[^.]+$/, "")}.jpg`);
+    const code = "import sys,cv2,numpy as np\nim=cv2.imdecode(np.fromfile(sys.argv[1],np.uint8),cv2.IMREAD_COLOR)\nassert im is not None\ncv2.imencode('.jpg',im,[cv2.IMWRITE_JPEG_QUALITY,92])[1].tofile(sys.argv[2])";
+    const r = spawnSync(py, ["-I", "-c", code, join(origDir, originals[f]), out], { encoding: "utf-8", timeout: 60000 });
+    if (r.status !== 0 || !existsSync(out)) throw new Error(`원본 복사본을 만들지 못했습니다(${f}): ${r.stderr || r.error}`);
+    return { file: out, scene: lib[f].scene, key: f };
+  });
 }
 
 /** 이번 글에 실제로 쓴 사진을 기록한다 (실패한 시도가 순번을 소모하지 않도록 성공 후에만 호출). */
@@ -139,6 +160,6 @@ export function markPhotosUsed(picks: PhotoPick[]): void {
   const usedPath = join(PHOTO_DIR, "used.json");
   const used: Record<string, number> = existsSync(usedPath) ? JSON.parse(readFileSync(usedPath, "utf-8")) : {};
   const now = Date.now();
-  for (const p of picks) used[p.file.replace(/^.*[\\/]/, "")] = now;
+  for (const p of picks) used[p.key ?? p.file.replace(/^.*[\\/]/, "")] = now;
   writeFileSync(usedPath, JSON.stringify(used, null, 1), "utf-8");
 }
