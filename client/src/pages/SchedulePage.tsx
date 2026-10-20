@@ -233,6 +233,16 @@ export default function SchedulePage() {
   for (const key of Object.keys(grid)) usedHours.add(Number(key.split("-")[1]));
   const visibleHours = HOURS.filter(h => usedHours.has(h) || (h >= 9 && h <= 22));
 
+  // 날짜·시간이 지났는데 체크하지 않은 고정 PT 수업은 '캔슬'로 표시 (차감·정산에도 없음과 같음).
+  // 화면 표시만 바꾸고 데이터는 만들지 않는다 — 열어서 수업 체크·노쇼로 처리할 수 있다.
+  const nowKey = (() => { const n = new Date(); return `${toYmd(n)} ${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`; })();
+  const effStatus = (s: Slot, wd: number) => {
+    if (s.isRecurring !== 1 || s.status !== "pending" || (s.eventType ?? "pt") !== "pt") return s.status;
+    const d = weekDates[wd];
+    if (!d || toYmd(d) < s.scheduledDate) return s.status;
+    return `${toYmd(d)} ${s.scheduledTime ?? "99:99"}` <= nowKey ? "cancelled" : s.status;
+  };
+
   const weekStats = useMemo(() => {
     const all = (slots ?? []) as Slot[];
     // 달력에 보이는 것과 같은 기준: 고정 수업은 그 주 같은 칸·트레이너·시간에 실제 일정이 없을 때 '예정' 1건
@@ -241,7 +251,8 @@ export default function SchedulePage() {
       return `${wd}-${s.trainerId}-${s.scheduledTime ?? ""}`;
     };
     const oneOffKeys = new Set(all.filter(s => s.isRecurring !== 1).map(cellKey));
-    const real = all.filter(s => s.isRecurring !== 1 || !oneOffKeys.has(cellKey(s)));
+    const real = all.filter(s => s.isRecurring !== 1 || !oneOffKeys.has(cellKey(s)))
+      .map(s => ({ ...s, status: effStatus(s, (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7) }));
     // 트레이너별 집계
     const byTrainer: Record<number, { name: string; done: number; pending: number; noshow: number; cancelled: number }> = {};
     for (const s of real) {
@@ -259,7 +270,7 @@ export default function SchedulePage() {
       pending: real.filter(s => s.status === "pending").length,
       byTrainer,
     };
-  }, [slots]);
+  }, [slots, weekDates, nowKey]);
 
   return (
     <div className="space-y-4">
@@ -479,6 +490,7 @@ export default function SchedulePage() {
                   const et = (top?.eventType ?? "pt") as EventType;
                   const colors = EVENT_COLORS[et] ?? EVENT_COLORS.pt;
                   const isDone = top?.status === "done";
+                  const topSt = top ? effStatus(top, wd) : undefined;
                   // 트레이너가 배정된 슬롯은 항상 트레이너 색상 (고정/유동 무관)
                   const tColor = top?.trainerId != null
                     ? TRAINER_PALETTE[trainerColorMap.get(top.trainerId) ?? 0]
@@ -507,6 +519,7 @@ export default function SchedulePage() {
                           const p = TRAINER_PALETTE[trainerColorMap.get(s.trainerId) ?? 0];
                           const sEt = (s.eventType ?? "pt") as EventType;
                           const sDone = s.status === "done";
+                          const sSt = effStatus(s, wd);
                           const sSelected = dragSlotId === s.id;
                           return (
                             <button
@@ -527,16 +540,16 @@ export default function SchedulePage() {
                               }}
                               className={`relative w-full rounded-lg border px-1 py-1 text-left text-[11px] leading-tight transition-all select-none ${
                                 sSelected ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
-                                : s.status === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
-                                : s.status === "cancelled" ? "bg-amber-950/30 border-dashed border-amber-600/40 text-amber-200/60"
+                                : sSt === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
+                                : sSt === "cancelled" ? "bg-amber-950/30 border-dashed border-amber-600/40 text-amber-200/60"
                                 : sDone ? `${p.cell} opacity-60`
                                 : p.cell
                               }`}
                             >
                               {sDone && <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />}
-                              {(s.status === "cancelled" || s.status === "noshow") && (
-                                <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${s.status === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
-                                  {s.status === "cancelled" ? "캔슬" : "노쇼"}
+                              {(sSt === "cancelled" || sSt === "noshow") && (
+                                <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${sSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
+                                  {sSt === "cancelled" ? "캔슬" : "노쇼"}
                                 </span>
                               )}
                               {viewingAll && (
@@ -588,9 +601,9 @@ export default function SchedulePage() {
                         isSelected
                           ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
                           : top
-                            ? top.status === "noshow"
+                            ? topSt === "noshow"
                               ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
-                              : top.status === "cancelled"
+                              : topSt === "cancelled"
                               ? "bg-amber-950/30 border-dashed border-amber-600/40 text-amber-200/60"
                               : isDone
                               ? `${tColor ? tColor.cell : colors.filled} opacity-60`
@@ -607,9 +620,9 @@ export default function SchedulePage() {
                           {isDone && (
                             <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />
                           )}
-                          {(top.status === "cancelled" || top.status === "noshow") && (
-                            <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${top.status === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
-                              {top.status === "cancelled" ? "캔슬" : "노쇼"}
+                          {(topSt === "cancelled" || topSt === "noshow") && (
+                            <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${topSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
+                              {topSt === "cancelled" ? "캔슬" : "노쇼"}
                             </span>
                           )}
                           {viewingAll && (
@@ -1064,6 +1077,9 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
         })() && (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 space-y-2">
             <span className="font-medium">지나간 수업 — 처리 선택</span>
+            {target.isRecurring === 1 && (
+              <p className="text-[11px] text-amber-300/80">체크하지 않은 고정 수업은 달력에 '캔슬'로 표시됩니다 (차감 없음). 진행했다면 수업 체크를 눌러 주세요.</p>
+            )}
             <div className="flex gap-1.5">
               <button type="button" disabled={busy}
                 onClick={() => {
