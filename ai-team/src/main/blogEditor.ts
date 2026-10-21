@@ -339,6 +339,7 @@ function findHeadings(lines: string[]): string[] {
 
 interface ImageSpec {
   centerPhotos?: boolean; // false 면 센터 사진을 자동으로 넣지 않는다
+  cards?: boolean; // false 면 논문 설명 카드(한눈에 보기·근거)를 넣지 않는다
   representative?: number; // images 중 대표 이미지로 쓸 번호(0부터)
   images: { file: string; at: number | string; caption: string; ai: boolean }[];
 }
@@ -354,7 +355,7 @@ function parseImageSpec(md: string): ImageSpec | undefined {
   if (!sec) return undefined;
   const m = sec.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (!m) throw new Error("'이미지 지정'의 JSON 블록을 읽지 못했습니다.");
-  const raw = JSON.parse(m[1]) as { centerPhotos?: boolean; representative?: number; images?: { file: string; at?: number | string; caption?: string; ai?: boolean }[] };
+  const raw = JSON.parse(m[1]) as { centerPhotos?: boolean; cards?: boolean; representative?: number; images?: { file: string; at?: number | string; caption?: string; ai?: boolean }[] };
   const outDir = join(tmpdir(), "ai-team-blog-extra");
   mkdirSync(outDir, { recursive: true });
   const images = (raw.images ?? []).map((x, i) => {
@@ -363,7 +364,7 @@ function parseImageSpec(md: string): ImageSpec | undefined {
     copyFileSync(x.file, out);
     return { file: out, at: x.at ?? "end", caption: x.caption ?? "", ai: x.ai ?? false };
   });
-  return { centerPhotos: raw.centerPhotos, representative: raw.representative, images };
+  return { centerPhotos: raw.centerPhotos, cards: raw.cards, representative: raw.representative, images };
 }
 
 export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
@@ -381,30 +382,31 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
   // 1) 이미지 준비
   const { tmpdir } = await import("node:os");
   const cardDir = join(tmpdir(), "ai-team-blog-cards");
-  const cards = renderCards(card, cardDir, { centerName: center.centerName, steps: center.methodStepsShort });
+  // 초안의 '## 이미지 지정'으로 대표가 고른 이미지(광고 배너 등)를 원하는 소제목 앞에 넣는다.
+  // centerPhotos:false 면 센터 사진을, cards:false 면 논문 설명 카드(한눈에 보기·근거)를 자동으로 넣지 않는다 (이벤트 글 등).
+  const spec = parseImageSpec(md);
+  const cards = spec?.cards === false ? undefined : renderCards(card, cardDir, { centerName: center.centerName, steps: center.methodStepsShort });
   // 센터 5단계 카드는 모든 글에서 똑같고 본문의 1~5단계 목록과 겹쳐서 기본으로 쓰지 않는다 (2026-10-19 대표 지적).
   // 카드 자리에는 센터 사진을 한 장 더 넣는다. 예전처럼 쓰려면 .env에 BLOG_STEPS_CARD=1.
   const useStepsCard = process.env.BLOG_STEPS_CARD === "1";
-  // 초안의 '## 이미지 지정'으로 대표가 고른 이미지(광고 배너 등)를 원하는 소제목 앞에 넣는다. centerPhotos:false 면 센터 사진은 자동으로 넣지 않는다.
-  const spec = parseImageSpec(md);
   const wantCenterPhotos = spec?.centerPhotos !== false;
   const photos = wantCenterPhotos ? pickPhotos(useStepsCard ? 3 : 4) : [];
   const kw = (i: number) => KEYWORDS[(i + rnd(0, KEYWORDS.length)) % KEYWORDS.length];
   type Slot = { file: string; caption: string; ai: boolean; at: number | string; kind: string };
-  const overviewSlot: Slot = { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true, at: 0, kind: "AI 제작" }; // 소제목 1: 논문 배경
-  const evidenceSlot: Slot = { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true, at: 2, kind: "AI 제작" }; // 소제목 3: 한계
+  const overviewSlot: Slot | undefined = cards && { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true, at: 0, kind: "AI 제작" }; // 소제목 1: 논문 배경
+  const evidenceSlot: Slot | undefined = cards && { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true, at: 2, kind: "AI 제작" }; // 소제목 3: 한계
   const slots: Slot[] = wantCenterPhotos
     ? [
-        overviewSlot,
+        ...(overviewSlot ? [overviewSlot] : []),
         { file: photos[0].file, caption: `${kw(0)}, ${photos[0].scene}`, ai: false, at: 1, kind: "센터 사진" }, // 소제목 2: 결과
-        evidenceSlot,
-        useStepsCard // 소제목 4: 센터 방식 (카드 또는 센터 사진)
+        ...(evidenceSlot ? [evidenceSlot] : []),
+        useStepsCard && cards // 소제목 4: 센터 방식 (카드 또는 센터 사진)
           ? { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true, at: 3, kind: "AI 제작" }
-          : { file: photos[3].file, caption: `${kw(0)}, ${photos[3].scene}`, ai: false, at: 3, kind: "센터 사진" },
+          : { file: photos[3]?.file ?? photos[0].file, caption: `${kw(0)}, ${(photos[3] ?? photos[0]).scene}`, ai: false, at: 3, kind: "센터 사진" },
         { file: photos[1].file, caption: `${kw(1)}, ${photos[1].scene}`, ai: false, at: 4, kind: "센터 사진" }, // 소제목 5: 마무리
         { file: photos[2].file, caption: `${kw(2)}, ${photos[2].scene}`, ai: false, at: "end", kind: "센터 사진" }, // 맨 끝(※ 문구 앞)
       ]
-    : [overviewSlot, evidenceSlot];
+    : [...(overviewSlot ? [overviewSlot] : []), ...(evidenceSlot ? [evidenceSlot] : [])];
   for (const x of spec?.images ?? []) slots.push({ file: x.file, caption: x.caption, ai: x.ai, at: x.at, kind: "지정 이미지" });
 
   // 소제목이 5개로 잡히지 않으면 이미지가 한 칸씩 밀리므로 에디터를 열기 전에 중단한다 (소제목은 30자 이내 한 줄, 앞뒤 빈 줄).
