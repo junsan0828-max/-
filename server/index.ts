@@ -1086,6 +1086,18 @@ async function initDatabase() {
       priority TEXT NOT NULL DEFAULT 'normal',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS service_grants (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 0,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      reason TEXT NOT NULL,
+      "refId" INTEGER,
+      "createdBy" INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS notice_links (
       key TEXT PRIMARY KEY,
       url TEXT NOT NULL DEFAULT '',

@@ -1982,6 +1982,145 @@ function DataHealthTab() {
   );
 }
 
+// ── 서비스 탭 ────────────────────────────────────────────────────────────────
+const GRANT_KIND_LABEL: Record<string, string> = { health: "헬스", pt: "PT", locker: "락커", uniform: "운동복" };
+
+function ServiceTab() {
+  const [, setLocation] = useLocation();
+  const [year, setYear] = useState(new Date().getFullYear());
+  const { data, isLoading } = trpc.access.serviceStats.useQuery({ year });
+  const { data: grantList = [] } = trpc.access.listServiceGrants.useQuery();
+  const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
+
+  if (isLoading || !data) return <p className="text-sm text-muted-foreground text-center py-10">불러오는 중...</p>;
+  const P = data.byType.PT, H = data.byType["헬스"];
+  const totalRegs = P.regs + H.regs, totalSvc = P.withService + H.withService;
+  const rows: [string, keyof typeof P, string][] = [
+    ["헬스 기간", "health", "text-emerald-400"],
+    ["락커", "locker", "text-amber-400"],
+    ["운동복", "uniform", "text-purple-400"],
+    ["PT 회차", "pt", "text-blue-400"],
+  ];
+  const monthly = data.monthly.map((m, i) => ({ month: `${i + 1}월`, 등록: m.regs, "서비스 포함": m.withService }));
+  const occ = (o: Record<string, number>) => {
+    const paid = o.paid ?? 0, svc = o.service ?? 0, unk = o.unknown ?? 0;
+    return { paid, svc, unk, total: paid + svc + unk };
+  };
+  const L = occ(data.locker), U = occ(data.uniform);
+  const yearGrants = grantList.filter(g => g.createdAt.startsWith(String(year)));
+  const th = "px-2 py-2 text-xs font-semibold text-muted-foreground text-right first:text-left bg-muted/30";
+  const td = "px-2 py-2 text-sm text-right first:text-left border-t border-border/50";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">서비스 제공 비율</p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setYear(y => y - 1)} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground"><ChevronLeft className="h-4 w-4" /></button>
+          <span className="text-sm font-semibold w-14 text-center">{year}년</span>
+          <button onClick={() => setYear(y => y + 1)} disabled={year >= new Date().getFullYear()} className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          ["전체 등록", `${totalRegs}건`, `서비스 포함 ${totalSvc}건 (${pct(totalSvc, totalRegs)}%)`],
+          ["PT 등록", `${pct(P.withService, P.regs)}%`, `${P.regs}건 중 ${P.withService}건 서비스 포함`],
+          ["헬스 등록", `${pct(H.withService, H.regs)}%`, `${H.regs}건 중 ${H.withService}건 서비스 포함`],
+          ["계약 후 추가 지급", `${yearGrants.length}건`, Object.entries(data.grants).map(([k, v]) => `${GRANT_KIND_LABEL[k]} ${v.count}`).join(" · ") || "없음"],
+        ].map(([l, v, sub]) => (
+          <div key={l} className="rounded-xl border border-border bg-card p-3">
+            <p className="text-[11px] text-muted-foreground">{l}</p>
+            <p className="text-xl font-bold">{v}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card overflow-x-auto">
+        <p className="text-xs font-semibold px-3 pt-3 pb-2">항목별 서비스 포함 비율 <span className="font-normal text-muted-foreground">· 등록 건 중 해당 서비스가 계약에 들어간 비율</span></p>
+        <table className="w-full min-w-[420px]">
+          <thead><tr>{["항목", "PT 등록", "헬스 등록", "전체"].map(h => <th key={h} className={th}>{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.map(([label, k, c]) => {
+              const a = Number(P[k]), b = Number(H[k]);
+              return (
+                <tr key={label}>
+                  <td className={`${td} font-medium ${c}`}>{label}</td>
+                  <td className={td}>{a}건 <span className="text-muted-foreground text-xs">({pct(a, P.regs)}%)</span></td>
+                  <td className={td}>{b}건 <span className="text-muted-foreground text-xs">({pct(b, H.regs)}%)</span></td>
+                  <td className={`${td} font-semibold`}>{a + b}건 <span className="text-muted-foreground text-xs">({pct(a + b, totalRegs)}%)</span></td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td className={`${td} text-muted-foreground`}>헬스 서비스 총 일수</td>
+              <td className={td}>{P.healthDays.toLocaleString()}일</td>
+              <td className={td}>{H.healthDays.toLocaleString()}일</td>
+              <td className={`${td} font-semibold`}>{(P.healthDays + H.healthDays).toLocaleString()}일</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-3">
+        <p className="text-xs font-semibold mb-2">월별 등록 · 서비스 포함 건수</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={monthly} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
+            <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+            <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="등록" fill="#6366f1" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="서비스 포함" fill="#ec4899" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {([["락커 (현재 사용 중)", L], ["운동복 (현재 대여 중)", U]] as const).map(([label, o]) => (
+          <div key={label} className="rounded-xl border border-border bg-card p-3">
+            <p className="text-xs font-semibold mb-2">{label} {o.total}개</p>
+            <div className="flex h-2.5 rounded-full overflow-hidden bg-muted/40 mb-2">
+              <div className="bg-indigo-500" style={{ width: `${pct(o.paid, o.total)}%` }} />
+              <div className="bg-pink-500" style={{ width: `${pct(o.svc, o.total)}%` }} />
+              <div className="bg-slate-500" style={{ width: `${pct(o.unk, o.total)}%` }} />
+            </div>
+            <div className="flex gap-3 text-[11px] text-muted-foreground flex-wrap">
+              <span><span className="inline-block w-2 h-2 rounded-full bg-indigo-500 mr-1" />유료 {o.paid} ({pct(o.paid, o.total)}%)</span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-pink-500 mr-1" />서비스 {o.svc} ({pct(o.svc, o.total)}%)</span>
+              {o.unk > 0 && <span><span className="inline-block w-2 h-2 rounded-full bg-slate-500 mr-1" />구분 없음 {o.unk}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-3">
+        <p className="text-xs font-semibold mb-2">계약 후 추가 지급 이력 <span className="font-normal text-muted-foreground">({yearGrants.length}건)</span></p>
+        {yearGrants.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">등록 관리 → 회원 등록 → [서비스 지급]으로 지급한 내역이 여기에 쌓입니다</p>
+        ) : (
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {yearGrants.map(g => (
+              <button key={g.id} onClick={() => setLocation(`/members/${g.memberId}`)}
+                className="w-full text-left flex items-start justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-accent/30 text-xs">
+                <span className="min-w-0">
+                  <span className="font-medium">{g.memberName ?? "—"}</span>
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-400">{GRANT_KIND_LABEL[g.kind]} {g.kind === "pt" ? `${g.quantity}회` : `${g.quantity}일`}</span>
+                  <span className="block text-muted-foreground truncate">{g.reason}{g.endDate ? ` · ~${g.endDate}` : ""}</span>
+                </span>
+                <span className="text-muted-foreground shrink-0 text-right">{g.createdAt.slice(0, 10)}<br />{g.createdByName ?? ""}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground text-center">* 등록 = PT·헬스 신규·재등록 결제 건 · 서비스 포함 = 계약의 서비스 항목에 헬스·락커·운동복·PT가 들어간 건 · 락커 '구분 없음'은 유료/서비스 표시 없이 배정된 예전 데이터</p>
+    </div>
+  );
+}
+
 // ── 탭 정의 ──────────────────────────────────────────────────────────────────
 const TABS = [
   { key: "finance", label: "재무", icon: TrendingUp, activeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
@@ -1989,6 +2128,7 @@ const TABS = [
   { key: "marketing", label: "마케팅", icon: Megaphone, activeClass: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
   { key: "operations", label: "센터 운영", icon: Building2, activeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
   { key: "app", label: "앱 현황", icon: Smartphone, activeClass: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30" },
+  { key: "service", label: "서비스", icon: Gift, activeClass: "bg-pink-500/15 text-pink-400 border-pink-500/30" },
   { key: "health", label: "데이터 점검", icon: ShieldAlert, activeClass: "bg-red-500/15 text-red-400 border-red-500/30" },
 ] as const;
 
@@ -2003,7 +2143,7 @@ export default function DataManagementPage() {
         <Database className="h-5 w-5 text-primary" />
         데이터 관리
       </h1>
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
         {TABS.map(t => {
           const Icon = t.icon;
           const isActive = tab === t.key;
@@ -2025,6 +2165,7 @@ export default function DataManagementPage() {
       {tab === "marketing" && <MarketingTab />}
       {tab === "operations" && <OperationsTab />}
       {tab === "app" && <AppTab />}
+      {tab === "service" && <ServiceTab />}
       {tab === "health" && <DataHealthTab />}
     </div>
   );

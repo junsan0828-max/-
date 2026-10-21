@@ -1064,6 +1064,151 @@ export const accessRouter = t.router({
       }>;
     }),
 
+  // 계약 후 서비스 지급 — 계약(매출) 기록은 건드리지 않고 각 항목에 '추가'만 하고 이력을 남긴다
+  grantService: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      kind: z.enum(["health", "pt", "locker", "uniform"]),
+      days: z.number().int().min(1).max(730).optional(),      // 헬스·락커·운동복 기간
+      sessions: z.number().int().min(1).max(100).optional(),  // PT 횟수
+      lockerId: z.number().optional(),
+      startDate: z.string().optional(),
+      reason: z.string().trim().min(1, "지급 사유를 입력해 주세요"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const role = ctx.user?.role;
+      if (role !== "admin" && role !== "sub_admin" && role !== "consultant")
+        throw new TRPCError({ code: "FORBIDDEN", message: "서비스 지급 권한이 없습니다." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [m] = await db.select().from(members).where(eq(members.id, input.memberId)).limit(1);
+      if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." });
+      const today = kstDate();
+      const addDays = (d: string, n: number) => {
+        const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10);
+      };
+      const now = new Date().toISOString();
+      let startDate: string | null = null, endDate: string | null = null, refId: number | null = null, quantity = 0;
+
+      if (input.kind === "health") {
+        if (!input.days) throw new TRPCError({ code: "BAD_REQUEST", message: "기간(일)을 입력해 주세요." });
+        // 남은 기간이 있으면 그 다음 날부터, 끝났으면 오늘부터 이어 붙인다 (만료일은 늘어나기만 함)
+        startDate = m.membershipEnd && m.membershipEnd >= today ? addDays(m.membershipEnd, 1) : (input.startDate || today);
+        endDate = addDays(startDate, input.days - 1);
+        quantity = input.days;
+        await db.update(members).set({
+          membershipEnd: endDate,
+          ...(m.membershipStart ? {} : { membershipStart: startDate }),
+          updatedAt: now,
+        }).where(and(eq(members.id, m.id), sql`COALESCE(${members.membershipEnd}, '') < ${endDate}`));
+      } else if (input.kind === "pt") {
+        if (!input.sessions) throw new TRPCError({ code: "BAD_REQUEST", message: "횟수를 입력해 주세요." });
+        if (!m.trainerId) throw new TRPCError({ code: "BAD_REQUEST", message: "담당 트레이너가 없는 회원입니다. 먼저 PT 배정을 해 주세요." });
+        startDate = input.startDate || today;
+        quantity = input.sessions;
+        const [pkg] = await db.insert(ptPackages).values({
+          memberId: m.id, trainerId: m.trainerId, packageName: "서비스세션",
+          totalSessions: input.sessions, usedSessions: 0, serviceSessions: input.sessions,
+          paymentAmount: 0, startDate, paymentMemo: `서비스 지급: ${input.reason}`,
+        }).returning({ id: ptPackages.id });
+        refId = pkg?.id ?? null;
+      } else if (input.kind === "locker") {
+        if (!input.lockerId || !input.days) throw new TRPCError({ code: "BAD_REQUEST", message: "락커와 기간을 선택해 주세요." });
+        const [lk] = await db.select().from(lockers).where(eq(lockers.id, input.lockerId)).limit(1);
+        if (!lk) throw new TRPCError({ code: "NOT_FOUND", message: "락커를 찾을 수 없습니다." });
+        if (lk.isOccupied === 1) throw new TRPCError({ code: "BAD_REQUEST", message: `${lk.lockerNumber}번 락커는 사용 중입니다.` });
+        startDate = input.startDate || today;
+        endDate = addDays(startDate, input.days - 1);
+        quantity = input.days;
+        await db.update(lockers).set({
+          memberId: m.id, memberName: m.name, memberPhone: m.phone ?? undefined, isOccupied: 1,
+          startDate, endDate, rentalType: "service", memo: `서비스: ${input.reason}`, updatedAt: now,
+        }).where(and(eq(lockers.id, lk.id), eq(lockers.isOccupied, 0)));
+        refId = lk.id;
+      } else {
+        if (!input.days) throw new TRPCError({ code: "BAD_REQUEST", message: "기간(일)을 입력해 주세요." });
+        startDate = input.startDate || today;
+        endDate = addDays(startDate, input.days - 1);
+        quantity = input.days;
+        const [u] = await db.insert(uniforms).values({
+          memberId: m.id, memberName: m.name, memberPhone: m.phone ?? undefined, branchId: m.branchId ?? undefined,
+          startDate, endDate, rentalType: "service", isPaid: 0, memo: `서비스: ${input.reason}`,
+          isActive: 1, createdAt: now, updatedAt: now,
+        } as any).returning({ id: uniforms.id });
+        refId = u?.id ?? null;
+      }
+
+      await pool.query(
+        `INSERT INTO service_grants ("memberId", kind, quantity, "startDate", "endDate", reason, "refId", "createdBy")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [m.id, input.kind, quantity, startDate, endDate, input.reason, refId, ctx.user?.id ?? null],
+      );
+      return { startDate, endDate, quantity };
+    }),
+
+  // 데이터 관리 > 서비스 비율: 등록(계약) 중 서비스가 얼마나 포함되는지 + 계약 후 추가 지급
+  serviceStats: protectedProcedure
+    .input(z.object({ year: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const from = `${input.year}-01-01`, to = `${input.year + 1}-01-01`;
+      const q = async (text: string, params: any[] = []) => (await pool.query(text, params)).rows;
+      const [entries, locker, uniform, grants] = await Promise.all([
+        q(`SELECT type, "paymentDate", COALESCE("serviceItems",'') AS items, COALESCE("serviceHealthDuration",0) AS "svcHealth", COALESCE(amount,0) AS amount
+           FROM revenue_entries
+           WHERE type IN ('PT','헬스','다이어트') AND "subType" IN ('신규','재등록','신규배정')
+             AND "paymentDate" >= $1 AND "paymentDate" < $2`, [from, to]),
+        q(`SELECT COALESCE("rentalType",'unknown') AS t, COUNT(*)::int AS c FROM lockers WHERE "isOccupied"=1 GROUP BY 1`),
+        q(`SELECT COALESCE("rentalType",'unknown') AS t, COUNT(*)::int AS c FROM uniforms WHERE "isActive"=1 GROUP BY 1`),
+        q(`SELECT kind, COUNT(*)::int AS c, COALESCE(SUM(quantity),0)::int AS qty FROM service_grants
+           WHERE "createdAt" >= $1 AND "createdAt" < $2 GROUP BY kind`, [from, to]),
+      ]);
+
+      type Bucket = { regs: number; withService: number; health: number; healthDays: number; locker: number; uniform: number; pt: number; ptSessions: number };
+      const blank = (): Bucket => ({ regs: 0, withService: 0, health: 0, healthDays: 0, locker: 0, uniform: 0, pt: 0, ptSessions: 0 });
+      const byType: Record<string, Bucket> = { PT: blank(), 헬스: blank() };
+      const monthly: Bucket[] = Array.from({ length: 12 }, blank);
+      for (const e of entries) {
+        const t = e.type === "PT" ? "PT" : "헬스";
+        const items = String(e.items);
+        const hm = items.match(/헬스\((\d+)일\)/);
+        const healthDays = hm ? Number(hm[1]) : Number(e.svcHealth) > 0 ? Number(e.svcHealth) : 0;
+        const pm = items.match(/PT\((\d+)회\)/);
+        const has = { health: healthDays > 0 || /헬스/.test(items), locker: /락커/.test(items), uniform: /운동복/.test(items), pt: !!pm };
+        const any = has.health || has.locker || has.uniform || has.pt;
+        const mi = Number(String(e.paymentDate).slice(5, 7)) - 1;
+        for (const b of [byType[t], monthly[mi]]) {
+          if (!b) continue;
+          b.regs++; if (any) b.withService++;
+          if (has.health) { b.health++; b.healthDays += healthDays; }
+          if (has.locker) b.locker++;
+          if (has.uniform) b.uniform++;
+          if (has.pt) { b.pt++; b.ptSessions += Number(pm![1]); }
+        }
+      }
+      const by = (rows: any[]) => Object.fromEntries(rows.map(r => [r.t, Number(r.c)]));
+      return {
+        byType, monthly,
+        locker: by(locker),
+        uniform: by(uniform),
+        grants: Object.fromEntries(grants.map((g: any) => [g.kind, { count: Number(g.c), qty: Number(g.qty) }])) as Record<string, { count: number; qty: number }>,
+      };
+    }),
+
+  listServiceGrants: protectedProcedure.query(async () => {
+    const result = await pool.query(
+      `SELECT g.*, m.name AS "memberName", m.phone AS "memberPhone", u.username AS "createdByName"
+       FROM service_grants g
+       LEFT JOIN members m ON m.id = g."memberId"
+       LEFT JOIN users u ON u.id = g."createdBy"
+       ORDER BY g."createdAt" DESC LIMIT 300`);
+    return result.rows as Array<{
+      id: number; memberId: number; kind: "health" | "pt" | "locker" | "uniform"; quantity: number;
+      startDate: string | null; endDate: string | null; reason: string; refId: number | null;
+      createdAt: string; memberName: string | null; memberPhone: string | null; createdByName: string | null;
+    }>;
+  }),
+
   // 서비스 헬스권 (PT 등록 시 서비스로 제공된 헬스 기간, serviceHealthDuration > 0)
   getServiceHealthMemberships: protectedProcedure
     .query(async () => {

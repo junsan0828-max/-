@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Portal } from "@/components/Portal";
+import { ServiceGrantModal, GRANT_LABEL, type GrantKind } from "@/components/ServiceGrantModal";
 import { trpc } from "@/lib/trpc";
 import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
@@ -260,17 +261,8 @@ export default function RegistrationManagement() {
   });
   const [uniformMemberSearch, setUniformMemberSearch] = useState("");
 
-  // 서비스 PT 추가 모달 state
-  const [addServicePtOpen, setAddServicePtOpen] = useState(false);
-  const [svcPtSearch, setSvcPtSearch] = useState("");
-  const [svcPtForm, setSvcPtForm] = useState({
-    memberId: 0, memberName: "",
-    sessions: 5,
-    packageName: "서비스세션",
-    startDate: new Date().toISOString().substring(0, 10),
-    expiryDate: "",
-    notes: "",
-  });
+  // 계약 후 서비스 지급 모달
+  const [grantKind, setGrantKind] = useState<GrantKind | null>(null);
 
   // 간편 등록 state
   type QuickModal = null | "locker" | "uniform" | "daypass";
@@ -294,16 +286,6 @@ export default function RegistrationManagement() {
 
   const utils = trpc.useUtils();
 
-  const addServicePtMutation = trpc.pt.addPackage.useMutation({
-    onSuccess: () => {
-      toast.success("서비스 PT가 별도 패키지로 등록됐습니다.");
-      setAddServicePtOpen(false);
-      setSvcPtSearch("");
-      setSvcPtForm({ memberId: 0, memberName: "", sessions: 5, packageName: "서비스세션", startDate: new Date().toISOString().substring(0, 10), expiryDate: "", notes: "" });
-      activePtQuery.refetch();
-    },
-    onError: (e) => toast.error(e.message || "서비스 PT 등록 실패"),
-  });
 
   const revListQuery = trpc.gym.revenue.list.useQuery(undefined, { enabled: tab === "members" });
   const orphanPkgQuery = trpc.gym.revenue.listOrphanPackages.useQuery(undefined, { enabled: tab === "members" });
@@ -610,7 +592,7 @@ export default function RegistrationManagement() {
       <div className="flex gap-0 rounded-lg overflow-hidden border border-border overflow-x-auto">
         {(isTrainer
           ? (["members", "lockers", "uniforms"] as const)
-          : (["members", "lockers", "uniforms", "services"] as const)
+          : (["members", "lockers", "uniforms"] as const)
         ).map((t, i, arr) => (
           <button
             key={t}
@@ -675,7 +657,7 @@ export default function RegistrationManagement() {
           {/* 간편 등록 */}
           <div className="space-y-3">
             <p className="text-sm font-semibold text-foreground">간편 등록</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className={`grid gap-2 ${isTrainer ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
               <button
                 onClick={() => { setQuickModal("locker"); setLockerForm(f => ({ ...f, startDate: new Date().toISOString().substring(0, 10) })); }}
                 className="flex flex-col items-center justify-center gap-1.5 p-3 bg-card border border-border rounded-2xl hover:bg-accent hover:border-amber-500/50 transition-all group"
@@ -706,6 +688,18 @@ export default function RegistrationManagement() {
                 <span className="text-xs font-semibold text-foreground text-center leading-tight">1일권 구매</span>
                 <span className="text-[10px] text-muted-foreground text-center">직접 입력</span>
               </button>
+              {!isTrainer && (
+                <button
+                  onClick={() => setGrantKind("health")}
+                  className="flex flex-col items-center justify-center gap-1.5 p-3 bg-card border border-border rounded-2xl hover:bg-accent hover:border-pink-500/50 transition-all group"
+                >
+                  <div className="p-2.5 rounded-full bg-pink-500/10 group-hover:bg-pink-500/20 transition-colors">
+                    <Gift className="h-5 w-5 text-pink-500" />
+                  </div>
+                  <span className="text-xs font-semibold text-foreground text-center leading-tight">서비스 지급</span>
+                  <span className="text-[10px] text-muted-foreground text-center">헬스·PT·락커·운동복</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2193,435 +2187,10 @@ export default function RegistrationManagement() {
       })()}
 
       {/* 탭 4: 서비스 관리 — 무료 서비스 이용자 전용 */}
-      {tab === "services" && (() => {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const allUniforms = (uniformsQuery.data ?? []) as any[];
-        const activePtPackages = (activePtQuery.data ?? []);
-        const serviceLockers = (serviceLockerQuery.data ?? []) as any[];
-        const serviceHealths = (serviceHealthQuery.data ?? []) as any[];
-        const serviceItemsList = (serviceItemsQuery.data ?? []) as any[];
+      {grantKind && (
+        <ServiceGrantModal initialKind={grantKind} onClose={() => setGrantKind(null)} />
+      )}
 
-        const servicePt = activePtPackages.filter((p: any) => !p.paymentAmount || p.paymentAmount === 0);
-        const serviceUniforms = allUniforms.filter((u: any) => u.isActive === 1 && u.rentalType === "service");
-
-        function daysLeft(endDate: string | null) {
-          if (!endDate) return null;
-          const end = new Date(endDate); end.setHours(0, 0, 0, 0);
-          return Math.ceil((end.getTime() - today.getTime()) / 86400000);
-        }
-        function durationLabel(start: string | null, end: string | null) {
-          if (!start || !end) return "";
-          const days = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / 86400000);
-          if (days >= 28) return `${Math.round(days / 30)}개월`;
-          return `${days}일`;
-        }
-        function DDay({ endDate }: { endDate: string | null }) {
-          const d = daysLeft(endDate);
-          if (d === null) return <span className="text-xs text-muted-foreground">무기한</span>;
-          if (d < 0) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">{Math.abs(d)}일 초과</span>;
-          if (d === 0) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">오늘 만료</span>;
-          if (d <= 7) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">D-{d}</span>;
-          return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">D-{d}</span>;
-        }
-
-        // serviceItems + programDetail(결제 기록) 파싱 → 카테고리별 분류
-        type ParsedServiceItem = {
-          entryId: number; memberId: number | null;
-          name: string; phone: string; detail: string;
-          paymentDate: string; membershipStart: string | null; membershipEnd: string | null;
-          category: string;
-        };
-        const parsedItems: ParsedServiceItem[] = serviceItemsList.flatMap((entry: any) => {
-          const name = entry.memberName ?? entry.customerName ?? "—";
-          const phone = entry.memberPhone ?? entry.phone ?? "";
-          const memberId: number | null = entry.memberId ? Number(entry.memberId) : null;
-          const membershipStart: string | null = entry.membershipStart ?? null;
-          const membershipEnd: string | null = entry.membershipEnd ?? null;
-          const items: ParsedServiceItem[] = [];
-
-          // serviceItems에서 파싱
-          const siParts = (entry.serviceItems ?? "").split(",").filter(Boolean);
-          for (const raw of siParts) {
-            const cat = raw.startsWith("PT") ? "PT"
-              : raw.startsWith("헬스") ? "헬스"
-              : raw.startsWith("락커") ? "락커"
-              : raw.startsWith("운동복") ? "운동복" : "기타";
-            items.push({ entryId: entry.id, memberId, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", membershipStart, membershipEnd, category: cat });
-          }
-
-          // serviceItems가 없고 programDetail로만 등록된 경우 (예: programDetail="운동복")
-          if (siParts.length === 0 && entry.programDetail) {
-            const pd: string = entry.programDetail;
-            const cat = /운동복|유니폼|uniform/i.test(pd) ? "운동복"
-              : /락커/i.test(pd) ? "락커"
-              : /헬스/i.test(pd) ? "헬스"
-              : /PT/i.test(pd) ? "PT" : null;
-            const cleanDetail = cat === "운동복" ? "운동복" : cat === "락커" ? "락커" : cat === "헬스" ? "헬스" : cat === "PT" ? "PT" : pd;
-            if (cat) items.push({ entryId: entry.id, memberId, name, phone, detail: cleanDetail, paymentDate: entry.paymentDate ?? "", membershipStart, membershipEnd, category: cat });
-          }
-
-          return items;
-        });
-
-        // 검색 필터
-        const sq = serviceSearch.trim().toLowerCase();
-        const match = (name: string, phone: string) =>
-          !sq || name.toLowerCase().includes(sq) || (phone ?? "").replace(/\D/g, "").includes(sq.replace(/\D/g, ""));
-
-        // getServiceHealthMemberships와 serviceItems "헬스" 항목이 같은 revenue entry에서 중복될 수 있으므로
-        // serviceHealthDuration으로 이미 표시되는 entryId는 parsedItems에서 제외
-        const serviceHealthEntryIds = new Set(serviceHealths.map((h: any) => h.id));
-
-        const filteredHealthItems = parsedItems.filter(i => i.category === "헬스" && match(i.name, i.phone) && !serviceHealthEntryIds.has(i.entryId));
-        const filteredLockerItems = parsedItems.filter(i => i.category === "락커" && match(i.name, i.phone));
-        const filteredUniformItems = parsedItems.filter(i => i.category === "운동복" && match(i.name, i.phone));
-        const filteredPtItems = parsedItems.filter(i => i.category === "PT" && match(i.name, i.phone));
-
-        const filteredServiceHealths = serviceHealths.filter((h: any) => match(h.memberName ?? "", h.memberPhone ?? ""));
-        const filteredServicePt = servicePt.filter((p: any) => match(p.memberName ?? "", p.memberPhone ?? ""));
-        const filteredServiceLockers = serviceLockers.filter((l: any) => match(l.memberName ?? "", l.memberPhone ?? ""));
-        const filteredServiceUniforms = serviceUniforms.filter((u: any) => match(u.memberName ?? "", u.memberPhone ?? ""));
-
-        const totalHealth = filteredHealthItems.length + filteredServiceHealths.length;
-        const totalLocker = filteredLockerItems.length + filteredServiceLockers.length;
-        const totalUniform = filteredUniformItems.length + filteredServiceUniforms.length;
-        const totalPt = filteredPtItems.length + filteredServicePt.length;
-
-        return (
-          <div className="space-y-5">
-            {/* 검색 */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="이름, 전화번호 검색..."
-                value={serviceSearch}
-                onChange={e => setServiceSearch(e.target.value)}
-                className="w-full bg-input border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-
-            {(() => {
-              // 서비스 항목 raw detail → 읽기 좋은 레이블로 변환
-              function fmtDetail(detail: string): string {
-                const mHealth = detail.match(/^헬스\((\d+)(개월|일)\)$/);
-                if (mHealth) return `헬스 ${mHealth[1]}${mHealth[2]}`;
-                const mPt = detail.match(/^PT\((\d+)회\)$/);
-                if (mPt) return `PT ${mPt[1]}회`;
-                const mLocker = detail.match(/^락커\(([^)]+)\)$/);
-                if (mLocker) return `락커 ${mLocker[1]}번`;
-                return detail;
-              }
-
-              // 날짜 범위 문자열 (없으면 빈 문자열)
-              function dateRange(start: string | null, end: string | null): string {
-                if (!start && !end) return "";
-                if (start && end) return `${start} ~ ${end}`;
-                return start ?? end ?? "";
-              }
-
-              // 통합 서비스 카드
-              function ServiceCard({
-                id, name, phone, label, badgeBg, badgeText,
-                subInfo, endDate, onClick,
-              }: {
-                id: string; name: string; phone: string | null; label: string;
-                badgeBg: string; badgeText: string;
-                subInfo?: string; endDate?: string | null; onClick?: () => void;
-              }) {
-                const inner = (
-                  <>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {phone || "—"}{subInfo ? ` · ${subInfo}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0 space-y-0.5">
-                      <span className={`whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium ${badgeBg} ${badgeText}`}>🎁 {label}</span>
-                      {endDate && <div><DDay endDate={endDate} /></div>}
-                    </div>
-                  </>
-                );
-                const base = "bg-card border border-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2";
-                return onClick
-                  ? <button key={id} type="button" onClick={onClick} className={`w-full text-left ${base} hover:bg-accent/30 transition-colors`}>{inner}</button>
-                  : <div key={id} className={base}>{inner}</div>;
-              }
-
-              return (
-                <>
-                  {/* 서비스 헬스 */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                      <span className="text-emerald-400">◆</span> 서비스 헬스
-                      <span className="text-xs text-muted-foreground font-normal">({totalHealth}건)</span>
-                    </h3>
-                    {totalHealth === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {filteredHealthItems.map((item, idx) => (
-                          <ServiceCard key={`hi-${item.entryId}-${idx}`} id={`hi-${item.entryId}-${idx}`}
-                            name={item.name} phone={item.phone || null}
-                            label={fmtDetail(item.detail)}
-                            badgeBg="bg-emerald-500/20" badgeText="text-emerald-400"
-                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
-                            endDate={item.membershipEnd || undefined}
-                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
-                          />
-                        ))}
-                        {filteredServiceHealths.map((h: any) => (
-                          <ServiceCard key={`sh-${h.id}`} id={`sh-${h.id}`}
-                            name={h.memberName ?? "—"} phone={h.memberPhone ?? null}
-                            label={`헬스 ${h.serviceHealthDuration}일`}
-                            badgeBg="bg-emerald-500/20" badgeText="text-emerald-400"
-                            subInfo={dateRange(h.startDate, h.endDate) || undefined}
-                            endDate={h.endDate}
-                            onClick={() => setServiceModal({ memberId: h.memberId, memberName: h.memberName ?? "—", memberPhone: h.memberPhone, serviceType: "서비스 헬스", details: `${h.startDate ?? "-"} ~ ${h.endDate} · ${h.serviceHealthDuration}일` })}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 서비스 락커 */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                      <Key className="h-4 w-4 text-amber-400" /> 서비스 락커
-                      <span className="text-xs text-muted-foreground font-normal">({totalLocker}건)</span>
-                    </h3>
-                    {totalLocker === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {filteredLockerItems.map((item, idx) => (
-                          <ServiceCard key={`li-${item.entryId}-${idx}`} id={`li-${item.entryId}-${idx}`}
-                            name={item.name} phone={item.phone || null}
-                            label={fmtDetail(item.detail)}
-                            badgeBg="bg-amber-500/20" badgeText="text-amber-400"
-                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
-                            endDate={item.membershipEnd || undefined}
-                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
-                          />
-                        ))}
-                        {filteredServiceLockers.map((l: any) => (
-                          <ServiceCard key={`sl-${l.id}`} id={`sl-${l.id}`}
-                            name={l.memberName ?? "—"} phone={l.memberPhone ?? null}
-                            label={`락커 ${l.lockerNumber}번`}
-                            badgeBg="bg-amber-500/20" badgeText="text-amber-400"
-                            subInfo={dateRange(l.startDate, l.endDate) || undefined}
-                            endDate={l.endDate}
-                            onClick={() => setServiceModal({ memberId: l.memberId, memberName: l.memberName ?? "—", memberPhone: l.memberPhone, serviceType: "서비스 락커", details: `#${l.lockerNumber} · ${l.startDate ?? "-"}${l.endDate ? ` ~ ${l.endDate}` : ""}` })}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 서비스 운동복 */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                      <Shirt className="h-4 w-4 text-purple-400" /> 서비스 운동복
-                      <span className="text-xs text-muted-foreground font-normal">({totalUniform}건)</span>
-                    </h3>
-                    {totalUniform === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {filteredUniformItems.map((item, idx) => (
-                          <ServiceCard key={`ui-${item.entryId}-${idx}`} id={`ui-${item.entryId}-${idx}`}
-                            name={item.name} phone={item.phone || null}
-                            label="운동복"
-                            badgeBg="bg-purple-500/20" badgeText="text-purple-400"
-                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
-                            endDate={item.membershipEnd || undefined}
-                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
-                          />
-                        ))}
-                        {filteredServiceUniforms.map((u: any) => (
-                          <ServiceCard key={`su-${u.id}`} id={`su-${u.id}`}
-                            name={u.memberName ?? "—"} phone={u.memberPhone ?? null}
-                            label="운동복"
-                            badgeBg="bg-purple-500/20" badgeText="text-purple-400"
-                            subInfo={dateRange(u.startDate, u.endDate) || undefined}
-                            endDate={u.endDate}
-                            onClick={() => setServiceModal({ memberId: u.memberId ?? null, memberName: u.memberName ?? "—", memberPhone: u.memberPhone, serviceType: "서비스 운동복", details: `${u.startDate ?? "-"}${u.endDate ? ` ~ ${u.endDate}` : ""}` })}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 서비스 PT */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                        <span className="text-blue-400">◆</span> 서비스 PT
-                        <span className="text-xs text-muted-foreground font-normal">({totalPt}건)</span>
-                      </h3>
-                      <button
-                        onClick={() => setAddServicePtOpen(true)}
-                        className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors font-medium"
-                      >
-                        <Plus className="h-3 w-3" /> 서비스 추가
-                      </button>
-                    </div>
-                    {totalPt === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {filteredPtItems.map((item, idx) => (
-                          <ServiceCard key={`pi-${item.entryId}-${idx}`} id={`pi-${item.entryId}-${idx}`}
-                            name={item.name} phone={item.phone || null}
-                            label={fmtDetail(item.detail)}
-                            badgeBg="bg-blue-500/20" badgeText="text-blue-400"
-                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
-                            endDate={item.membershipEnd || undefined}
-                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
-                          />
-                        ))}
-                        {filteredServicePt.map((p: any) => {
-                          const remaining = (p.totalSessions ?? 0) - (p.usedSessions ?? 0);
-                          return (
-                            <ServiceCard key={`sp-${p.id}`} id={`sp-${p.id}`}
-                              name={p.memberName} phone={p.memberPhone ?? null}
-                              label={`PT ${remaining}회 잔여`}
-                              badgeBg="bg-blue-500/20" badgeText="text-blue-400"
-                              subInfo={p.packageName ? `${p.packageName}${p.expiryDate ? ` · 만료 ${p.expiryDate}` : ""}` : (p.expiryDate ? `만료 ${p.expiryDate}` : undefined)}
-                              endDate={p.expiryDate}
-                              onClick={() => setServiceModal({ memberId: p.memberId, memberName: p.memberName, memberPhone: p.memberPhone, serviceType: "서비스 PT", details: `${p.packageName ?? ""} · 잔여 ${remaining}회 / ${p.totalSessions}회${p.expiryDate ? ` · 만료 ${p.expiryDate}` : ""}` })}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        );
-      })()}
-
-      {/* 서비스 PT 추가 모달 */}
-      {addServicePtOpen && (() => {
-        const allMembers = (membersQuery.data ?? []) as { id: number; name: string; phone: string | null }[];
-        const filtered = svcPtSearch.trim()
-          ? allMembers.filter(m =>
-              m.name.includes(svcPtSearch.trim()) ||
-              (m.phone ?? "").replace(/\D/g, "").includes(svcPtSearch.trim().replace(/\D/g, ""))
-            )
-          : [];
-        return (
-          <Portal>
-            <div className="fixed inset-0 z-[210] bg-black/70 flex items-end justify-center" onClick={() => setAddServicePtOpen(false)}>
-              <div className="bg-card border border-border rounded-t-2xl w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-base">서비스 PT 추가</h3>
-                  <button onClick={() => setAddServicePtOpen(false)}><XCircle className="h-5 w-5 text-muted-foreground" /></button>
-                </div>
-                <p className="text-xs text-muted-foreground -mt-2">별도 패키지(결제 0원)로 생성 → 지급 날짜·이력이 분리 보관됩니다.</p>
-
-                {/* 회원 검색 */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">회원 검색</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <input
-                      className="w-full bg-input border border-border rounded-lg pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                      placeholder="이름 또는 전화번호"
-                      value={svcPtSearch}
-                      onChange={e => { setSvcPtSearch(e.target.value); setSvcPtForm(f => ({ ...f, memberId: 0, memberName: "" })); }}
-                    />
-                  </div>
-                  {svcPtForm.memberName ? (
-                    <div className="text-xs px-3 py-2 rounded-lg bg-blue-500/10 text-blue-400 font-medium flex items-center justify-between">
-                      ✓ {svcPtForm.memberName}
-                      <button className="text-muted-foreground hover:text-foreground" onClick={() => { setSvcPtSearch(""); setSvcPtForm(f => ({ ...f, memberId: 0, memberName: "" })); }}>×</button>
-                    </div>
-                  ) : filtered.length > 0 ? (
-                    <div className="border border-border rounded-lg overflow-hidden max-h-40 overflow-y-auto">
-                      {filtered.slice(0, 8).map(m => (
-                        <button key={m.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent/30 flex items-center justify-between"
-                          onClick={() => { setSvcPtForm(f => ({ ...f, memberId: m.id, memberName: m.name })); setSvcPtSearch(""); }}>
-                          <span>{m.name}</span>
-                          <span className="text-xs text-muted-foreground">{m.phone ?? ""}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : svcPtSearch.trim() ? (
-                    <p className="text-xs text-muted-foreground px-1">검색 결과 없음</p>
-                  ) : null}
-                </div>
-
-                {/* 패키지명 */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">패키지명</label>
-                    <input className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      value={svcPtForm.packageName}
-                      onChange={e => setSvcPtForm(f => ({ ...f, packageName: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">서비스 횟수</label>
-                    <input type="number" min={1} max={100} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      value={svcPtForm.sessions}
-                      onChange={e => setSvcPtForm(f => ({ ...f, sessions: Number(e.target.value) }))} />
-                  </div>
-                </div>
-
-                {/* 날짜 */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">시작일</label>
-                    <input type="date" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      value={svcPtForm.startDate}
-                      onChange={e => setSvcPtForm(f => ({ ...f, startDate: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">만료일 (선택)</label>
-                    <input type="date" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      value={svcPtForm.expiryDate}
-                      onChange={e => setSvcPtForm(f => ({ ...f, expiryDate: e.target.value }))} />
-                  </div>
-                </div>
-
-                {/* 메모 */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">메모 (지급 이유)</label>
-                  <input className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                    placeholder="예: 재등록 감사, 이벤트 당첨"
-                    value={svcPtForm.notes}
-                    onChange={e => setSvcPtForm(f => ({ ...f, notes: e.target.value }))} />
-                </div>
-
-                <div className="flex gap-2 pt-1">
-                  <button className="flex-1 py-2.5 rounded-xl border border-border text-sm" onClick={() => setAddServicePtOpen(false)}>취소</button>
-                  <button
-                    className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-50"
-                    disabled={!svcPtForm.memberId || svcPtForm.sessions < 1 || addServicePtMutation.isPending}
-                    onClick={() => addServicePtMutation.mutate({
-                      memberId: svcPtForm.memberId,
-                      ptProgram: svcPtForm.packageName || "서비스세션",
-                      totalSessions: svcPtForm.sessions,
-                      serviceSessions: svcPtForm.sessions,
-                      paymentAmount: 0,
-                      startDate: svcPtForm.startDate || undefined,
-                      expiryDate: svcPtForm.expiryDate || undefined,
-                      paymentMemo: svcPtForm.notes || undefined,
-                    })}
-                  >
-                    {addServicePtMutation.isPending ? "등록 중..." : `서비스 ${svcPtForm.sessions}회 지급`}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Portal>
-        );
-      })()}
-
-      {/* 서비스 회원 상세 모달 */}
       {serviceModal && (
         <Portal>
         <div className="fixed inset-0 z-[200] bg-black/70 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setServiceModal(null)}>
