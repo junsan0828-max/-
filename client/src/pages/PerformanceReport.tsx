@@ -23,8 +23,8 @@ function kstToday() {
 function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
     <section className="report-section mb-7">
-      <h2 className="report-h2 text-[15px] font-bold border-b-2 border-slate-800 pb-1 mb-3 flex items-baseline gap-2">
-        {title}{sub && <span className="text-[11px] font-normal text-slate-500">{sub}</span>}
+      <h2 className="report-h2 text-[15px] font-bold border-b-2 border-slate-800 pb-1 mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="whitespace-nowrap">{title}</span>{sub && <span className="text-[11px] font-normal text-slate-500">{sub}</span>}
       </h2>
       {children}
     </section>
@@ -34,9 +34,10 @@ function Section({ title, sub, children }: { title: string; sub?: string; childr
 function Table({ head, rows, foot, align }: {
   head: ReactNode[]; rows: ReactNode[][]; foot?: ReactNode[]; align?: ("l" | "r" | "c")[];
 }) {
-  const cls = (i: number) => `px-2 py-1.5 border border-slate-300 ${align?.[i] === "l" ? "text-left" : align?.[i] === "r" ? "text-right" : "text-center"}`;
+  const cls = (i: number) => `px-2 py-1.5 border border-slate-300 whitespace-nowrap print:whitespace-normal ${align?.[i] === "l" ? "text-left" : align?.[i] === "r" ? "text-right" : "text-center"}`;
   return (
-    <table className="w-full border-collapse text-[12px] mb-2">
+    <div className="overflow-x-auto -mx-1 px-1 mb-2 print:overflow-visible print:mx-0 print:px-0">
+    <table className="w-full border-collapse text-[12px]">
       <thead><tr className="bg-slate-100">{head.map((h, i) => <th key={i} className={`${cls(i)} font-semibold`}>{h}</th>)}</tr></thead>
       <tbody>
         {rows.length === 0
@@ -45,6 +46,7 @@ function Table({ head, rows, foot, align }: {
       </tbody>
       {foot && <tfoot><tr className="bg-slate-50 font-bold">{foot.map((f, i) => <td key={i} className={cls(i)}>{f}</td>)}</tr></tfoot>}
     </table>
+    </div>
   );
 }
 
@@ -52,7 +54,7 @@ function Kpi({ label, value, sub }: { label: string; value: ReactNode; sub?: Rea
   return (
     <div className="border border-slate-300 rounded px-3 py-2">
       <div className="text-[11px] text-slate-500">{label}</div>
-      <div className="text-[18px] font-bold leading-tight">{value}</div>
+      <div className="text-[16px] sm:text-[18px] font-bold leading-tight whitespace-nowrap">{value}</div>
       {sub && <div className="text-[10px] text-slate-500 mt-0.5">{sub}</div>}
     </div>
   );
@@ -76,7 +78,7 @@ function Findings({ good, bad, todo }: { good: string[]; bad: string[]; todo: st
     </div>
   );
   return (
-    <div className="grid grid-cols-3 gap-2 report-grid">
+    <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-2 report-grid">
       {block("강점", good, "▲")}
       {block("개선 필요", bad, "▼")}
       {block("다음 기간 실행 과제", todo, "□")}
@@ -158,14 +160,14 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
     <>
       <header className="mb-6 border-b-4 border-slate-800 pb-3">
         <div className="text-[11px] text-slate-500 tracking-widest">ZIANT GYM · TRAINER PERFORMANCE REPORT</div>
-        <h1 className="text-[22px] font-bold mt-1">{full.trainerName} 트레이너 성과 보고서</h1>
+        <h1 className="text-[19px] sm:text-[22px] font-bold mt-1 leading-snug">{full.trainerName} 트레이너 성과 보고서</h1>
         <div className="text-[12px] text-slate-600 mt-1">
           대상 기간: {full.year}년 {PERIOD_LABEL[full.period as Period]} · 작성일 {today} · 관리 회원·잔여는 작성일 기준
         </div>
       </header>
 
       <Section title="핵심 지표">
-        <div className="grid grid-cols-5 gap-2 report-grid">
+        <div className="grid grid-cols-2 sm:grid-cols-5 print:grid-cols-5 gap-2 report-grid">
           <Kpi label="총 수업" value={`${s.sessions.toLocaleString()}회`} sub={`월평균 ${s.avgMonthly}회`} />
           <Kpi label="관리 회원" value={`${s.managedMembers}명`} sub={`정지 ${s.pausedMembers}명 · 잔여 ${remainingTotal}회`} />
           <Kpi label="신규 (PT)" value={`${s.newMembers}명`} sub={`매출 ${man(s.newAmount)}`} />
@@ -219,7 +221,7 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
       </Section>
 
       <Section title="재등록 분석" sub={`재등록률 = 재등록 ${s.reregCount}건 ÷ (재등록 ${s.reregCount} + 종료 ${s.completed})`}>
-        <div className="grid grid-cols-2 gap-3 report-grid">
+        <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-3 report-grid">
           <div>
             <div className="text-[12px] font-semibold mb-1">프로그램별 재등록</div>
             <Table
@@ -237,7 +239,7 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
       </Section>
 
       <Section title="회원 현황" sub="작성일 기준">
-        <div className="grid grid-cols-4 gap-2 mb-3 report-grid">
+        <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-2 mb-3 report-grid">
           <Kpi label="관리 회원" value={`${managed.length}명`} />
           <Kpi label="14~29일 미출석" value={`${absent14.length}명`} />
           <Kpi label="30일 이상 미출석" value={`${absent30.length}명`} sub={`잔여 ${sum(absent30.map(m => Number(m.remaining ?? 0)))}회`} />
@@ -328,12 +330,12 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
     <>
       <header className="mb-6 border-b-4 border-slate-800 pb-3">
         <div className="text-[11px] text-slate-500 tracking-widest">ZIANT GYM · CENTER PERFORMANCE REPORT</div>
-        <h1 className="text-[22px] font-bold mt-1">자이언트짐 센터 성과 보고서</h1>
+        <h1 className="text-[19px] sm:text-[22px] font-bold mt-1 leading-snug">자이언트짐 센터 성과 보고서</h1>
         <div className="text-[12px] text-slate-600 mt-1">대상 기간: {center.year}년 {PERIOD_LABEL[center.period as Period]} · 작성일 {today} · 트레이너 {tr.length}명</div>
       </header>
 
       <Section title="핵심 지표">
-        <div className="grid grid-cols-5 gap-2 report-grid">
+        <div className="grid grid-cols-2 sm:grid-cols-5 print:grid-cols-5 gap-2 report-grid">
           <Kpi label="총 수업" value={`${T.sessions.toLocaleString()}회`} sub={`월평균 ${Math.round(T.sessions / activeMonths)}회`} />
           <Kpi label="관리 회원" value={`${T.managedMembers}명`} sub={`정지 ${T.pausedMembers}명`} />
           <Kpi label="신규 (PT)" value={`${T.newMembers}명`} sub={`헬스 신규 ${sum(monthlyHealth)}건`} />
@@ -354,7 +356,7 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
       </Section>
 
       <Section title="트레이너 순위">
-        <div className="grid grid-cols-3 gap-3 report-grid">
+        <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 report-grid">
           {([["수업", "sessions", "회"], ["재등록", "reregCount", "건"], ["신규", "newMembers", "명"]] as const).map(([label, k, u]) => {
             const sorted = [...tr].sort((a, b) => b[k] - a[k]);
             const mx = Math.max(1, ...sorted.map(t => t[k]));
@@ -516,7 +518,7 @@ export default function PerformanceReport() {
       ) : err ? (
         <p className="text-sm text-red-400 text-center py-16">{err}</p>
       ) : (
-        <div className="report-doc bg-white text-slate-900 rounded-xl p-6 md:p-10 max-w-[1000px] mx-auto shadow overflow-x-auto">
+        <div className="report-doc bg-white text-slate-900 rounded-xl p-4 sm:p-6 md:p-10 max-w-[1000px] mx-auto shadow">
           {body}
         </div>
       )}
