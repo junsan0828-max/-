@@ -48,6 +48,19 @@ for (const { dir, title, description, url } of routes) {
   console.log(`✓ dist/${dir}/index.html`);
 }
 
+// 1블록 랜딩페이지: 정적 HTML에 Supabase 접속 정보를 빌드 시점에 주입.
+// serve의 "/**" rewrite가 모든 경로를 index.html로 보내므로 /academy는 main.tsx가 이 파일을 불러와 표시한다.
+// .html 확장자는 cleanUrls 리다이렉트 대상이라 .htm으로 둔다.
+{
+  const outDir = path.join(distDir, "academy");
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+  const landing = fs.readFileSync(path.resolve("landing/academy.html"), "utf8")
+    .replace('"__SB_URL__"', JSON.stringify(process.env.VITE_SUPABASE_URL || ""))
+    .replace('"__SB_KEY__"', JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ""));
+  fs.writeFileSync(path.join(outDir, "page.htm"), landing);
+  console.log("✓ dist/academy/page.htm");
+}
+
 // serve.json: 라우트별 HTML 매핑 (SPA 모드 대신 명시적 rewrite)
 const serveConfig = {
   rewrites: [

@@ -1,0 +1,1748 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>상위 1% 트레이너 매출 성장 아카데미 1블록</title>
+<meta name="description" content="월 매출 1,000만원, 재등록률 80% 이상. 체성분·정적 체형 분석 상담과 움직임 평가 기반 50분 수업을 2주 동안 실습하는 트레이너 실무 교육.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="상위 1% 트레이너 매출 성장 아카데미 1블록">
+<meta property="og:description" content="월 매출 1,000만원, 재등록률 80% 이상. 체성분·정적 체형 분석 상담과 움직임 평가 기반 50분 수업을 2주 동안 실습하는 트레이너 실무 교육.">
+<meta property="og:url" content="https://noble-unity-production-8100.up.railway.app/academy">
+<link rel="icon" href="/icon-48.png">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700;900&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* ── 토큰 ── */
+:root {
+  --bg: #ffffff;
+  --bg-alt: #f5f8fc;
+  --bg-tint: #edf3fa;
+  --bg-dark: #edf3fa;
+  --fg: #0f2240;
+  --fg-2: #34465f;
+  --fg-muted: #66768d;
+  --fg-light: #9ba7b8;
+  --accent: #1c4f9c;
+  --accent-dk: #143d7a;
+  --accent-lt: #e4edf8;
+  --border: #dbe4ef;
+  --gold: #92400e;
+  --gold-bg: #fef3c7;
+  --grid: transparent;
+  --mark: rgba(28,79,156,.14);
+  color-scheme: light;
+  --serif: 'Noto Serif KR', 'Georgia', serif;
+  --sans: 'Noto Sans KR', sans-serif;
+  --max: 680px;
+  --gap: 24px;
+  --section: clamp(84px, 11vw, 104px);
+}
+
+/* ── 리셋 ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.75;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: inherit; }
+
+/* ── 레이아웃 ── */
+.wrap {
+  max-width: var(--max);
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+.sec { padding-block: var(--section); }
+.sec + .sec { border-top: 1px solid var(--border); }
+.sec--dark { background: var(--bg-tint); border-top: 1px solid var(--border); }
+.sec--alt { background: var(--bg-alt); }
+.sec { position: relative; overflow: hidden; }
+.sec > .wrap { position: relative; z-index: 1; }
+.sec-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; color: var(--accent); }
+.bg-glow { display: none; }
+.bg-mark {
+  position: absolute; top: 34px; right: -6px;
+  font-family: var(--serif); font-weight: 900;
+  font-size: clamp(132px, 24vw, 280px); line-height: .9; letter-spacing: -.045em;
+  white-space: nowrap; user-select: none;
+  color: transparent;
+  -webkit-text-stroke: 1.2px var(--mark);
+}
+.bg-mark--hero { top: 56px; right: -18px; font-size: clamp(190px, 50vw, 460px); --mark: rgba(28,79,156,.12); }
+
+/* ── 타이포 ── */
+.kicker {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.kicker--dark { color: var(--accent); }
+.h1 {
+  font-family: var(--serif);
+  font-size: clamp(24px, 5.5vw, 36px);
+  font-weight: 900;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.h2 {
+  font-family: var(--serif);
+  font-size: clamp(20px, 4.5vw, 28px);
+  font-weight: 700;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+.h3 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.lead {
+  font-size: 15px;
+  color: var(--fg-muted);
+  line-height: 1.85;
+  margin-top: 12px;
+}
+.spacer { height: 32px; }
+.spacer-sm { height: 20px; }
+
+/* ── 버튼 ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 0 28px;
+  min-height: 56px;
+  transition: background .15s, color .15s;
+  text-align: center;
+}
+.btn-row .btn { flex: 1 1 220px; }
+.btn-row--center { justify-content: center; }
+.btn-row--center .btn { flex: 0 1 340px; }
+.btn--primary { background: var(--accent); color: #fff; }
+.btn--primary:hover { background: var(--accent-dk); }
+.btn--outline {
+  background: transparent;
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+.btn--outline:hover { background: var(--accent-lt); }
+.btn--sm { font-size: 14px; padding: 0 18px; min-height: 40px; }
+
+/* ── 히어로 배경 ── */
+.hero { position: relative; overflow: hidden; }
+.hero > .wrap { position: relative; z-index: 1; }
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── 강사 서사 ── */
+.story { display: flex; flex-direction: column; gap: 18px; font-size: 16px; line-height: 1.95; color: var(--fg-2); }
+.story strong { color: var(--fg); }
+.story .hl { color: var(--accent); font-weight: 700; }
+.pillars { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
+.pillar {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  min-width: 0;
+}
+.pillar:hover { border-color: var(--accent); }
+.pl-week { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.pl-goal { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--fg); line-height: 1.45; }
+.pl-desc { font-size: 13px; color: var(--fg-muted); line-height: 1.7; }
+@media (max-width: 560px) { .pillars { grid-template-columns: 1fr; } }
+.hero-quote {
+  margin-top: 40px;
+  border-left: 3px solid var(--accent);
+  padding: 4px 0 4px 20px;
+  color: var(--fg-2);
+  font-size: 15px;
+  line-height: 1.9;
+}
+.hero-quote b { color: var(--fg); }
+.hero-quote cite { display: block; font-style: normal; font-size: 13px; color: var(--fg-muted); margin-top: 10px; }
+
+/* ── 변화 (Before/After) ── */
+.change-list { display: flex; flex-direction: column; gap: 14px; margin-top: 28px; }
+.change-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+.change-cell { border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.change-cell .cc-tag { font-size: 11px; font-weight: 700; letter-spacing: .08em; margin-bottom: 6px; }
+.change-cell p { font-size: 14px; line-height: 1.7; }
+.change-before { background: var(--bg-alt); color: var(--fg-muted); }
+.change-before .cc-tag { color: var(--fg-light); }
+.change-after { background: var(--accent-lt); color: var(--fg); }
+.change-after .cc-tag { color: var(--accent); }
+.change-after p { font-weight: 600; }
+.change-arrow { align-self: center; color: var(--accent); font-weight: 700; }
+.change-topic { font-size: 13px; font-weight: 700; color: var(--fg-2); margin-bottom: 6px; }
+@media (max-width: 560px) {
+  .change-row { grid-template-columns: 1fr; gap: 6px; }
+  .change-arrow { justify-self: center; transform: rotate(90deg); }
+}
+.deliver-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+.deliver-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: var(--bg);
+}
+.deliver-item .di-num { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .08em; }
+.deliver-item .di-title { font-size: 15px; font-weight: 700; margin-top: 4px; }
+.deliver-item .di-desc { font-size: 13px; color: var(--fg-muted); margin-top: 4px; line-height: 1.65; }
+.goal-line {
+  margin-top: 32px;
+  font-family: var(--serif);
+  font-size: clamp(18px, 4vw, 22px);
+  font-weight: 700;
+  line-height: 1.6;
+  text-wrap: balance;
+}
+.goal-line em { font-style: normal; color: var(--accent); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+
+/* ── 이미지 플레이스홀더 ── */
+.ph {
+  width: 100%;
+  background: var(--bg-alt);
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+}
+.ph-icon { font-size: 13px; opacity: .5; letter-spacing: .04em; }
+.ph small { font-size: 11px; opacity: .6; }
+.ph--hero { aspect-ratio: 16/9; margin-top: 36px; }
+.ph--wide { aspect-ratio: 3/1; }
+.ph--sq { aspect-ratio: 4/3; }
+.ph--portrait { aspect-ratio: 3/4; max-width: 200px; }
+
+.shot { margin-top: 14px; }
+.shot img { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 20px rgba(15,34,64,.08); }
+.shot figcaption { font-size: 12px; color: var(--fg-muted); margin-top: 8px; }
+
+/* ── 태그/배지 ── */
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 8px;
+  letter-spacing: .04em;
+}
+.badge--gold { background: var(--gold-bg); color: var(--gold); }
+.badge--blue { background: var(--accent-lt); color: var(--accent); }
+.badge--dark { background: var(--accent-lt); color: var(--accent); }
+.week-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* ── 문제 카드 ── */
+.problem-grid { display: flex; flex-direction: column; gap: 16px; margin-top: 28px; }
+.problem-card {
+  background: var(--bg-alt);
+  border-radius: 10px;
+  padding: 22px 24px;
+  border-left: 3px solid var(--border);
+}
+.problem-card .pc-head { font-size: 12px; font-weight: 700; color: var(--fg-light); letter-spacing: .08em; margin-bottom: 8px; }
+.problem-card .pc-q { font-size: 15px; font-weight: 600; color: var(--fg-2); margin-bottom: 6px; }
+.problem-card .pc-body { font-size: 14px; color: var(--fg-muted); }
+.problem-end {
+  margin-top: 28px;
+  background: var(--accent-lt);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 18px 22px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--fg-2);
+}
+
+/* ── 가상회원 흐름 ── */
+.flow-grid { display: flex; flex-direction: column; gap: 0; margin-top: 28px; }
+.flow-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding-block: 18px;
+  border-top: 1px solid var(--border);
+}
+.flow-num {
+  flex-shrink: 0;
+  width: 36px;
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.3;
+}
+.flow-body .fb-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.flow-body .fb-desc { font-size: 14px; color: var(--fg-muted); }
+
+.persona-box {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.persona-box .pb-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--fg-light); margin-bottom: 10px; }
+.persona-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.persona-item { font-size: 13px; color: var(--fg-muted); }
+.persona-item span { font-weight: 600; color: var(--fg-2); margin-right: 4px; }
+
+/* ── 커리큘럼 ── */
+.curr-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 22px;
+  margin-bottom: 14px;
+  background: var(--bg);
+}
+.sec--alt .curr-block { background: var(--bg); }
+.curr-block .cb-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.cb-num { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--fg-light); }
+.cb-time { font-size: 11px; font-weight: 700; background: var(--bg-alt); color: var(--fg-muted); border-radius: 4px; padding: 2px 8px; }
+.curr-block .cb-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.curr-block .cb-body { font-size: 14px; color: var(--fg-muted); }
+.curr-block ul { padding-left: 16px; margin-top: 8px; font-size: 14px; color: var(--fg-muted); display: flex; flex-direction: column; gap: 3px; }
+.curr-total {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--accent-lt);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.curr-note { font-size: 12px; color: var(--fg-light); margin-top: 8px; }
+
+/* ── 50분 프리뷰 ── */
+.seq-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 28px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.seq-stage {
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.seq-stage:last-child { border-bottom: none; }
+.ss-tag { flex-shrink: 0; min-width: 80px; }
+.ss-tag .sst-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-light); }
+.ss-tag .sst-name { font-size: 14px; font-weight: 700; color: var(--accent); }
+.ss-body .ssb-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.ss-body .ssb-desc { font-size: 14px; color: var(--fg-muted); }
+.seq-note {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--fg-light);
+  line-height: 1.7;
+}
+
+/* ── 도구 ── */
+.tools-grid { display: flex; flex-direction: column; gap: 16px; margin-top: 28px; }
+.tool-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.tc-header {
+  background: var(--bg-alt);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tc-icon { display: none; }
+.tc-title { font-size: 16px; font-weight: 700; }
+.tc-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
+.tc-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+.tc-ph { border-radius: 6px; }
+.tc-section .tcs-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--fg-light); margin-bottom: 4px; }
+.tc-section p { font-size: 14px; color: var(--fg-muted); }
+.tool-sub {
+  margin-top: 20px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 22px;
+}
+.tool-sub .ts-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--fg-light); margin-bottom: 8px; }
+.tool-sub .ts-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.tool-sub p { font-size: 14px; color: var(--fg-muted); }
+
+/* ── 셀프체크 ── */
+.check-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
+.check-list li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--bg-alt);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 15px;
+}
+.check-list li { border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; }
+.rv-num { flex-shrink: 0; font-family: var(--serif); font-weight: 700; font-size: 15px; color: var(--accent); }
+.cl-icon { flex-shrink: 0; color: var(--accent); font-size: 16px; margin-top: 1px; }
+
+/* ── 강사 ── */
+.instructor-wrap { margin-top: 28px; }
+.instructor-card {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  background: var(--bg-alt);
+  border-radius: 12px;
+  padding: 28px;
+  margin-bottom: 20px;
+}
+.inst-photo { flex-shrink: 0; }
+.inst-info .inst-name { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+.inst-info .inst-role { font-size: 12px; color: var(--fg-muted); margin-bottom: 14px; }
+.inst-career { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.inst-career li { font-size: 14px; color: var(--fg-muted); }
+.inst-career li::before { content: "· "; }
+.evidence-note {
+  background: var(--bg-alt);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.75;
+}
+.evidence-note strong { color: var(--fg-2); }
+@media (max-width: 480px) {
+  .instructor-card { flex-direction: column; }
+  .persona-grid { grid-template-columns: 1fr; }
+}
+
+/* ── 수강생 후기 ── */
+.reviews-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 560px) {
+  .reviews-grid { grid-template-columns: 1fr; }
+}
+.review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  transition: border-color .2s;
+}
+.review-card:hover { border-color: var(--accent); }
+.review-stars { color: #f59e0b; font-size: 14px; letter-spacing: .05em; }
+.review-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--fg-2);
+  flex: 1;
+  font-style: normal;
+  quotes: "\201C" "\201D";
+}
+.review-author { border-top: 1px solid var(--border); padding-top: 14px; }
+.review-name { font-size: 14px; font-weight: 700; color: var(--fg); }
+.review-meta { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
+.review-note {
+  margin-top: 32px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: var(--bg-alt);
+  border-radius: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+}
+
+/* ── 모집 안내 테이블 ── */
+.info-table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+.info-table tr { border-bottom: 1px solid var(--border); }
+.info-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--fg-muted);
+  font-size: 13px;
+  padding: 14px 0 14px 0;
+  width: 110px;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.info-table td { padding: 14px 0; font-size: 15px; }
+.need {
+  display: inline;
+  background: #fef2f2;
+  color: #dc2626;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.info-row-fixed { font-size: 14px; color: var(--fg-muted); }
+
+/* ── FAQ ── */
+.faq-wrap { margin-top: 28px; }
+details { border-bottom: 1px solid var(--border); }
+details:first-child { border-top: 1px solid var(--border); }
+summary {
+  padding: 17px 4px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+summary::-webkit-details-marker { display: none; }
+.sum-arrow { flex-shrink: 0; font-size: 20px; color: var(--fg-muted); line-height: 1; transition: transform .2s; }
+details[open] .sum-arrow { transform: rotate(45deg); }
+.faq-body {
+  padding: 0 4px 20px;
+  font-size: 14px;
+  color: var(--fg-muted);
+  line-height: 1.85;
+}
+
+/* ── CTA 다크 ── */
+.cta-wrap { text-align: center; }
+.cta-wrap .h2 { color: var(--fg); }
+.cta-wrap .lead { color: var(--fg-muted); }
+.cta-wrap .btn-row { justify-content: center; }
+.cta-edu {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-top: 28px;
+  line-height: 1.75;
+}
+.cta-edu strong { color: var(--fg-2); }
+
+/* ── 신청·결제 ── */
+.pay-steps { list-style: none; display: flex; flex-direction: column; gap: 16px; counter-reset: ps; }
+.pay-steps li { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ps-label { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.ps-label::before { counter-increment: ps; content: counter(ps) ". "; }
+.ps-val { font-size: 14px; color: var(--fg-2); line-height: 1.7; }
+.ps-val b { color: var(--fg); }
+.ps-sub { font-size: 12px; color: var(--fg-muted); }
+.copy-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 2px; }
+.copy-text { font-size: 16px; color: var(--fg); font-variant-numeric: tabular-nums; user-select: all; }
+.copy-btn {
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  background: var(--accent-lt); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 10px; min-height: 32px;
+}
+.copy-btn.is-done { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.discount { display: inline-block; margin: 6px 0 4px; font-size: 13px; color: var(--accent); background: var(--accent-lt); border-radius: 6px; padding: 4px 10px; line-height: 1.6; }
+.discount b { color: var(--accent-dk); }
+
+/* ── 신청 모달 ── */
+.pay-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
+.pay-modal[hidden] { display: none; }
+.pm-backdrop { position: absolute; inset: 0; background: rgba(15,34,64,.45); }
+.pm-card {
+  position: relative; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
+  background: var(--bg); border-radius: 16px 16px 0 0;
+  padding: 28px 22px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 32px rgba(15,34,64,.18);
+}
+@media (min-width: 560px) {
+  .pay-modal { align-items: center; padding-inline: 16px; }
+  .pm-card { border-radius: 16px; padding: 32px 28px; }
+}
+.pm-x { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border: none; background: none; font-size: 26px; line-height: 1; color: var(--fg-muted); }
+.pm-title { font-family: var(--serif); font-size: 21px; font-weight: 700; color: var(--fg); margin-bottom: 6px; }
+.pm-meta { font-size: 13px; color: var(--fg-muted); margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.pm-note { font-size: 12px; color: var(--fg-muted); margin-top: 20px; }
+body.modal-open { overflow: hidden; }
+
+
+/* ── 매출 포인트 박스 ── */
+.revenue-box {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 24px;
+  margin-top: 28px;
+}
+.revenue-box .rb-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: var(--fg-muted);
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+.revenue-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.revenue-list li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  font-size: 15px;
+  color: var(--fg);
+  line-height: 1.65;
+}
+.revenue-list .rv-mark {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 8px;
+}
+
+/* ── 헤더 (앵커용) ── */
+.site-header {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.site-header .logo { font-size: 13px; font-weight: 700; color: var(--fg-muted); }
+.site-header .logo span { color: var(--accent); }
+.site-header .header-cta { display: none; }
+@media (min-width: 540px) { .site-header .header-cta { display: inline-flex; } }
+</style>
+
+
+
+<!-- ── 상단 고정 헤더 ── -->
+<header class="site-header">
+  <div class="logo">통합기능운동학협회 · <span>1블록</span></div>
+  <button type="button" class="btn btn--primary btn--sm header-cta js-open-pay">교육 신청하기</button>
+</header>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S01 · 첫 화면                              -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec hero" style="padding-block: clamp(88px, 11vw, 112px) clamp(76px, 10vw, 96px);">
+  <!-- 배경 이미지: 실제 사진으로 교체 시 아래 svg를 <img src="..." alt=""> 로 바꾸면 됩니다 -->
+  <div class="hero-bg sec-bg--grid" aria-hidden="true">
+    <span class="bg-glow"></span><span class="bg-glow bg-glow--2"></span>
+    <span class="bg-mark bg-mark--hero">1%</span>
+  </div>
+  <div class="wrap">
+    <p style="font-size: 13px; margin-bottom: 6px;">통합기능운동학협회</p>
+    <p class="kicker kicker--dark">상위 1% 트레이너 매출 성장 아카데미</p>
+    <h1 class="h1">월 매출 1,000만원.<br>재등록률 80% 이상.<br>그 방법을 2주 동안 배웁니다.</h1>
+    <p class="lead" style="margin-top: 16px; max-width: 520px;">
+      매출을 만드는 상담, 재등록을 만드는 수업.<br>
+      현장에서 결과를 낸 방법을 그대로 실습하는 2주 실무 교육입니다.
+    </p>
+    <div class="pillars">
+      <a class="pillar" href="#curriculum">
+        <span class="pl-week">1주차 · 상담</span>
+        <span class="pl-goal">월 매출 1,000만원을 만드는 상담</span>
+        <span class="pl-desc">체성분·정적 체형 분석과 해설, 세일즈북 제작, 세일즈 상담 실습</span>
+      </a>
+      <a class="pillar" href="#week2">
+        <span class="pl-week">2주차 · 수업</span>
+        <span class="pl-goal">재등록률 80% 이상을 만드는 수업</span>
+        <span class="pl-desc">움직임 평가로 신뢰를 쌓는 첫 수업·체험 수업, 50분 시퀀스 설계</span>
+      </a>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn--primary js-open-pay">1블록 교육 신청하기</button>
+      <a href="#change" class="btn btn--outline">2주 뒤 달라지는 것</a>
+    </div>
+    <div style="margin-top: 16px; display: flex; gap: 20px; flex-wrap: wrap;">
+      <span style="font-size: 13px;">1블록 · 2주 실무 교육</span>
+      <span style="font-size: 13px;">1주차 6시간 · 2주차 5시간 · 총 11시간</span>
+    </div>
+
+    <blockquote class="hero-quote">
+      회원 10명 중 8명 이상이 다시 등록하고,<br>
+      한 달 PT 매출이 <b>1,000만원</b>을 넘기까지<br>
+      특별한 화술은 없었습니다.<br><br>
+      회원의 몸을 분석하고, 그 이유를 설명하고,<br>
+      <b>50분 수업으로 증명했을 뿐입니다.</b><br>
+      그 과정을 2주 동안 그대로 가르칩니다.
+      <cite>이준산 · 통합기능운동학협회 대표</cite>
+    </blockquote>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S02 · 현장의 문제                          -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">WHY</span></div>
+  <div class="wrap">
+    <p class="kicker">현장의 고민</p>
+    <h2 class="h2">결과를 보여주는 것과,<br>운동의 필요성을 설명하는<br>것은 다릅니다.</h2>
+    <div class="problem-grid">
+      <div class="problem-card" style="border-color: var(--accent);">
+        <div class="pc-head">체성분 상담</div>
+        <div class="pc-q">인바디 결과를 설명했지만</div>
+        <div class="pc-body">근육량과 체지방률을 보여주었지만, 그래서 어떤 운동이 필요한지까지 이어지지 않는다.</div>
+      </div>
+      <div class="problem-card">
+        <div class="pc-head">체형 상담</div>
+        <div class="pc-q">체형은 확인했지만</div>
+        <div class="pc-body">어깨와 골반의 정렬은 관찰했지만, 회원의 생활습관과 운동 방향으로 연결하기 어렵다.</div>
+      </div>
+      <div class="problem-card">
+        <div class="pc-head">실제 수업</div>
+        <div class="pc-q">평가는 했지만</div>
+        <div class="pc-body">움직임 평가를 진행했지만, 이후 수업은 익숙한 운동 순서로 돌아간다.</div>
+      </div>
+    </div>
+    <div class="problem-end">
+      평가 결과가 상담의 근거가 되고,<br>
+      그 근거가 수업 설계로 이어져야 합니다.<br><br>
+      <strong style="color: var(--accent-dk);">분석과 수업이 하나의 흐름으로 연결될 때,<br>재등록은 설득이 아니라 자연스러운 다음 단계가 됩니다.</strong>
+    </div>
+
+    <!-- 매출 연결 포인트 -->
+    <div class="revenue-box" style="background: var(--bg-alt); border: 1px solid var(--border);">
+      <div class="rb-label" style="color: var(--fg-light);">이 교육이 매출과 연결되는 이유</div>
+      <ul class="revenue-list">
+        <li style="color: var(--fg-2);"><span class="rv-num">01</span>체성분·체형 분석을 회원의 언어로 설명하면, 전문성에 대한 신뢰가 먼저 생깁니다.</li>
+        <li style="color: var(--fg-2);"><span class="rv-num">02</span>분석 결과가 수업 설계로 이어지면, 회원이 "이 운동이 왜 필요한지" 납득합니다.</li>
+        <li style="color: var(--fg-2);"><span class="rv-num">03</span>납득한 회원은 변화를 기대하며 다시 등록합니다.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S02-1 · 2주 뒤 달라지는 것                 -->
+<!-- ═══════════════════════════════════════════ -->
+<section id="change" class="sec">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">AFTER</span></div>
+  <div class="wrap">
+    <p class="kicker">교육 후 변화</p>
+    <h2 class="h2">2주 뒤, 내 상담과 수업은<br>이렇게 달라집니다.</h2>
+    <p class="lead">같은 회원, 같은 인바디 결과지. 달라지는 건 트레이너가 그 자료로 무엇을 하느냐입니다.</p>
+
+    <div class="change-list">
+      <div>
+        <div class="change-topic">체성분 상담</div>
+        <div class="change-row">
+          <div class="change-cell change-before"><div class="cc-tag">지금</div><p>근육량·체지방률 수치를 읽어준다.</p></div>
+          <div class="change-cell change-after"><div class="cc-tag">2주 뒤</div><p>수치를 근거로 "그래서 어떤 운동이 필요한지"까지 설명한다.</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="change-topic">체형 상담</div>
+        <div class="change-row">
+          <div class="change-cell change-before"><div class="cc-tag">지금</div><p>어깨·골반이 틀어졌다고 보여준다.</p></div>
+          <div class="change-cell change-after"><div class="cc-tag">2주 뒤</div><p>관찰 결과를 드로잉으로 정리하고, 생활습관과 운동 방향까지 연결해 설명한다.</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="change-topic">프로그램 제안</div>
+        <div class="change-row">
+          <div class="change-cell change-before"><div class="cc-tag">지금</div><p>가격과 횟수부터 설명한다.</p></div>
+          <div class="change-cell change-after"><div class="cc-tag">2주 뒤</div><p>내 세일즈북으로 전문성과 프로그램의 가치를 먼저 보여준다.</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="change-topic">50분 수업</div>
+        <div class="change-row">
+          <div class="change-cell change-before"><div class="cc-tag">지금</div><p>평가는 했지만 익숙한 운동 순서로 돌아간다.</p></div>
+          <div class="change-cell change-after"><div class="cc-tag">2주 뒤</div><p>움직임 평가 결과로 다음 운동을 고르고, 선택의 이유가 있는 50분을 설계한다.</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="change-topic">재등록 상담</div>
+        <div class="change-row">
+          <div class="change-cell change-before"><div class="cc-tag">지금</div><p>재등록 시점이 오면 다시 설득해야 한다.</p></div>
+          <div class="change-cell change-after"><div class="cc-tag">2주 뒤</div><p>기록해 둔 변화를 보여주며 다음 단계를 자연스럽게 제안한다.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+    <h3 class="h3">2주 뒤, 내 손에 남는 것</h3>
+    <div class="deliver-grid">
+      <div class="deliver-item"><div class="di-num">01</div><div class="di-title">내 세일즈북 초안</div><div class="di-desc">내 전문성과 상담 방식을 담아 직접 만들고 피드백까지 받은 상담 자료</div></div>
+      <div class="deliver-item"><div class="di-num">02</div><div class="di-title">체형 분석 드로잉</div><div class="di-desc">가상회원 자료로 직접 분석하고 시각화한 결과물</div></div>
+      <div class="deliver-item"><div class="di-num">03</div><div class="di-title">내가 설계한 50분 시퀀스</div><div class="di-desc">움직임 평가를 근거로 시퀀스 랩에서 설계·공유한 수업</div></div>
+      <div class="deliver-item"><div class="di-num">04</div><div class="di-title">매출 데이터 관리법</div><div class="di-desc">회원·수업·매출 데이터를 쌓고 재등록 전략에 쓰는 방식</div></div>
+    </div>
+
+    <p class="goal-line">목표는 하나입니다.<br>회원이 먼저 <em>"계속하고 싶다"</em>고 말하는 트레이너.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S03 · 가상회원으로 배우는 전체 과정         -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec sec--alt">
+  <div class="sec-bg sec-bg--grid" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">HOW</span></div>
+  <div class="wrap">
+    <p class="kicker">교육 방식</p>
+    <h2 class="h2">하나의 회원을,<br>분석부터 수업 설계까지.</h2>
+    <p class="lead">같은 사례를 따라가며, 무엇을 보고, 무엇을 질문하고, 어떤 운동으로 연결할지 연습합니다.</p>
+
+    <div class="spacer-sm"></div>
+    <div class="persona-box">
+      <div class="pb-label">실습용 가상회원 설정 예시 — 실제 회원 정보가 아닙니다</div>
+      <div class="persona-grid">
+        <div class="persona-item"><span>연령·성별</span>예: 40대 여성</div>
+        <div class="persona-item"><span>직업</span>예: 사무직 (하루 8시간 착석)</div>
+        <div class="persona-item"><span>운동 경험</span>예: 산발적 운동, 꾸준한 경험 없음</div>
+        <div class="persona-item"><span>주요 고민</span>예: 만성 요통, 체중 감량</div>
+        <div class="persona-item"><span>제공 자료</span>체성분·정적 체형 분석 결과</div>
+        <div class="persona-item"><span>생활습관</span>수면·식습관·통증 이력</div>
+      </div>
+    </div>
+
+    <div class="flow-grid">
+      <div class="flow-item">
+        <div class="flow-num">01</div>
+        <div class="flow-body">
+          <div class="fb-title">체성분과 정적 체형 분석</div>
+          <div class="fb-desc">제공된 자료에서 무엇을 확인하고 어디에 주목할지 기준을 잡습니다.</div>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">02</div>
+        <div class="flow-body">
+          <div class="fb-title">생활습관과 회원 고민 정리</div>
+          <div class="fb-desc">분석 결과와 연결하여 추가로 확인해야 할 질문을 구체화합니다.</div>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">03</div>
+        <div class="flow-body">
+          <div class="fb-title">회원 눈높이에 맞춘 해설</div>
+          <div class="fb-desc">수치와 관찰 결과를 회원이 이해할 수 있는 언어로 설명하는 연습을 합니다.</div>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">04</div>
+        <div class="flow-body">
+          <div class="fb-title">세일즈북을 활용한 상담과 프로그램 제안</div>
+          <div class="fb-desc">분석 내용을 바탕으로 운동 방향과 프로그램을 상담에서 전달하는 흐름을 익힙니다.</div>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">05</div>
+        <div class="flow-body">
+          <div class="fb-title">움직임 평가와 결과 해석</div>
+          <div class="fb-desc">직접 평가를 수행하고, 관찰한 내용을 수업 방향과 연결합니다.</div>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">06</div>
+        <div class="flow-body">
+          <div class="fb-title">평가에 따른 운동 선택</div>
+          <div class="fb-desc">평가 결과에 따라 각 구간의 운동을 어떤 기준으로 고르는지 연습합니다.</div>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">07</div>
+        <div class="flow-body">
+          <div class="fb-title">50분 수업 시퀀스 설계와 기록</div>
+          <div class="fb-desc">시퀀스 랩을 활용해 설계한 수업을 정리하고 공유합니다.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S04 · 1주차                                -->
+<!-- ═══════════════════════════════════════════ -->
+<section id="curriculum" class="sec">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">01</span></div>
+  <div class="wrap">
+    <span class="week-tag">WEEK 01 · 매출을 만드는 상담</span>
+    <h2 class="h2">월 매출 1,000만원을 만든<br>체성분·정적 체형 분석 상담.</h2>
+    <p class="lead">체성분 &amp; 정적 체형 분석 및 해설(상담 관점). 분석 방법을 배우고, 실습과 도구 활용으로 손에 익힌 뒤, 매출로 연결하는 세일즈북 제작과 세일즈 상담까지 실습합니다.</p>
+
+    <div class="spacer-sm"></div>
+    <div class="curr-total">
+      총 교육시간 6시간 · 11:00–17:00 (휴식 포함)
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">01</span>
+      </div>
+      <div class="cb-title">가상회원 설정의 목적 · 매출 증거 자료 · 핵심 기준 검증 설문</div>
+      <div class="cb-body">
+        <ul>
+          <li>왜 가상회원으로 실습하는지 이해하고 교육 전체 흐름을 파악합니다.</li>
+          <li>실제 매출 증거 자료를 통한 강의 배경 확인.</li>
+          <li>'1% 운동 전문가 핵심 기준 검증 설문'을 통한 자기 점검.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">02</span>
+      </div>
+      <div class="cb-title">체성분·정적 체형 분석 이론과 사례</div>
+      <div class="cb-body">
+        <ul>
+          <li>체성분 주요 항목의 해석 기준</li>
+          <li>정적 체형의 관찰 기준</li>
+          <li>회원 정보와 생활습관을 함께 확인하는 방법</li>
+          <li>분석 내용을 운동 방향과 상담에 연결하는 방법</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">03</span>
+      </div>
+      <div class="cb-title">체성분·정적 체형 분석 실습 및 도구 활용</div>
+      <div class="cb-body">
+        <ul>
+          <li>가상회원 자료 분석 실습</li>
+          <li>정적 체형 분석 드로잉 도구 활용</li>
+          <li>관찰한 내용을 시각적으로 정리하기</li>
+          <li>회원에게 설명하는 해설 연습</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 이미지 영역 2 -->
+    <figure class="shot" style="margin-bottom: 14px;">
+      <img src="/academy/img-3566e2242f.jpg" alt="정적 체형 분석 실습 — 기준점에 표식을 붙이고 측면 자세를 촬영하는 장면" width="860" height="930" loading="lazy">
+      <figcaption>정적 체형 분석 실습 · 기준점에 표식을 붙이고 측면 자세를 직접 촬영해 봅니다</figcaption>
+    </figure>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">04</span>
+      </div>
+      <div class="cb-title">매출 1,000만원 세일즈북 제작 과정 소개</div>
+      <div class="cb-body">세일즈북의 구성과 역할, 전문성과 프로그램을 상담 자료로 정리하는 과정을 이해합니다.</div>
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">05</span>
+      </div>
+      <div class="cb-title">세일즈북 제작 실습 및 피드백</div>
+      <div class="cb-body">자신의 정보와 상담 방식을 반영한 세일즈북 초안을 만들고 피드백을 받습니다.</div>
+    </div>
+
+    <!-- 이미지 영역 3 -->
+    <figure class="shot" style="margin-bottom: 14px;">
+      <img src="/academy/img-53ba45a8e5.jpg" alt="세일즈북 예시 — 체성분·정적 체형 분석 결과와 12주 로드맵, 추천 프로그램 페이지" width="1860" height="1356" loading="lazy">
+      <figcaption>세일즈북 · 분석 결과를 회원의 언어로 정리하고 12주 계획과 프로그램을 제안하는 페이지 (예시)</figcaption>
+    </figure>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">06</span>
+      </div>
+      <div class="cb-title">세일즈 상담 교육</div>
+      <div class="cb-body">
+        <ul>
+          <li>현재 상태를 설명하는 방법</li>
+          <li>회원의 고민과 생활습관 확인</li>
+          <li>운동 방향 제시</li>
+          <li>프로그램 제안과 연결</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">07</span>
+      </div>
+      <div class="cb-title">세일즈 상담 실습</div>
+      <div class="cb-body">
+        <ul>
+          <li>분석 자료와 세일즈북을 활용한 상담 흐름 연습</li>
+          <li>질문·해설·제안 역할 연습</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 이미지 영역 4 -->
+    <figure class="shot" style="margin-bottom: 14px;">
+      <img src="/academy/img-1bff60be15.jpg" alt="세일즈 상담 실습 — 트레이너들이 상담 자료를 짚어 가며 설명 연습을 하는 장면" width="820" height="1086" loading="lazy">
+      <figcaption>세일즈 상담 실습 · 분석 자료를 짚어 가며 회원에게 설명하는 흐름을 직접 연습합니다</figcaption>
+    </figure>
+
+
+    <div style="margin-top: 24px; padding: 18px 22px; background: var(--accent-lt); border-radius: 8px;">
+      <p style="font-size: 15px; font-weight: 600; color: var(--accent); line-height: 1.7;">
+        분석 결과를 나열하는 상담에서,<br>
+        회원에게 필요한 운동 방향을 설명하는 상담으로.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S05 · 2주차                                -->
+<!-- ═══════════════════════════════════════════ -->
+<section id="week2" class="sec sec--alt">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">02</span></div>
+  <div class="wrap">
+    <span class="week-tag">WEEK 02 · 재등록을 만드는 수업</span>
+    <h2 class="h2">재등록률 80% 이상을 만든<br>신뢰의 50분 수업.</h2>
+    <p class="lead">움직임 평가를 활용한 50분 수업 시퀀스 설계(트레이닝 관점). 첫 수업과 체험 수업에서 회원의 신뢰를 얻고, 그 신뢰를 재등록으로 이어가는 수업을 직접 짜봅니다.</p>
+
+    <div class="spacer-sm"></div>
+    <div class="curr-total">
+      총 교육시간 5시간 · 12:00–17:00 (휴식 포함)
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">01</span>
+      </div>
+      <div class="cb-title">회원관리 도구 활용 교육 및 실습 (핏스텝)</div>
+      <div class="cb-body">
+        <ul>
+          <li>핏스텝을 활용한 회원 정보와 운동 기록 관리</li>
+          <li>수업과 회원관리를 연결하는 방법</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">02</span>
+      </div>
+      <div class="cb-title">첫 수업 · 체험 수업 시퀀스 이론</div>
+      <div class="cb-body">
+        <ul>
+          <li>첫 수업과 체험 수업의 시퀀스 구성</li>
+          <li>50분 수업의 구성 원리 (준비·수행·통합)</li>
+          <li>회원 목표와 평가 결과를 반영하는 기준</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">03</span>
+      </div>
+      <div class="cb-title">실제 수업 교육 및 실습 (움직임 평가 · 결과 해석 · 다음 운동 설정)</div>
+      <div class="cb-body">
+        <ul>
+          <li>움직임 평가</li>
+          <li>평가 결과 해석</li>
+          <li>다음 운동 설정</li>
+          <li>평가 결과와 메인 운동 연결</li>
+          <li>실제 지도와 수업 적용 실습</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 이미지 영역 5 -->
+    <figure class="shot" style="margin-bottom: 14px;">
+      <img src="/academy/img-cc021299ad.jpg" alt="움직임 평가 실습 — 트레이너들이 서로 짝을 지어 플랭크 등 움직임을 평가하는 장면" width="826" height="1006" loading="lazy">
+      <figcaption>움직임 평가 실습 · 짝을 지어 서로의 움직임을 평가하고 결과를 해석합니다</figcaption>
+    </figure>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">04</span>
+      </div>
+      <div class="cb-title">수업 설계 및 시퀀스 랩 활용 · 시퀀스 공유</div>
+      <div class="cb-body">
+        <ul>
+          <li>개인별 수업 설계</li>
+          <li>시퀀스 랩 활용 방법</li>
+          <li>설계한 시퀀스 공유</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 이미지 영역 6 -->
+    <figure class="shot" style="margin-bottom: 14px;">
+      <img src="/academy/img-204acc2297.jpg" alt="시퀀스 랩 내 시퀀스 목록 — 회원 유형별 50분 수업 시퀀스" width="1520" height="1590" loading="lazy">
+      <figcaption>시퀀스 랩 · 회원 유형별로 설계한 50분 수업 목록 (예시 데이터)</figcaption>
+    </figure>
+
+    <div class="curr-block" style="border-color: var(--accent);">
+      <div class="cb-meta">
+        <span class="cb-num">05</span>
+      </div>
+      <div class="cb-title">매출 전략 — 데이터 수집과 재등록 구조 만들기</div>
+      <div class="cb-body">
+        <ul>
+          <li>회원·수업·매출 관련 데이터를 어떻게 쌓고 활용하는가</li>
+          <li>재등록률을 높이는 상담·수업 흐름의 실제 구조</li>
+          <li>월 PT 매출 1,000만원 이상을 유지하는 운영 방식 공개</li>
+          <li>강사 직접 집계 자료 기반 매출 전략 설명</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="curr-block">
+      <div class="cb-meta">
+        <span class="cb-num">06</span>
+      </div>
+      <div class="cb-title">수료증 증정 및 단체사진 촬영</div>
+      <div class="cb-body">통합기능운동학협회 공식 수료증 증정 (국가공인 자격과는 구분됩니다).</div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 18px 22px; background: var(--accent-lt); border-radius: 8px;">
+      <p style="font-size: 15px; font-weight: 600; color: var(--accent); line-height: 1.7;">
+        평가에서 멈추지 않고,<br>
+        평가 결과에 따라 다음 운동을 선택합니다.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S06 · 50분 시퀀스 미리보기                  -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec sec--dark">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">50</span></div>
+  <div class="wrap">
+    <p class="kicker kicker--dark">50분 수업 구조 미리보기</p>
+    <h2 class="h2">운동 목록이 아닌,<br>선택의 이유가 있는 50분.</h2>
+    <p class="lead">교육에서 익히는 수업 구성 방식입니다. 모든 회원에게 적용하는 고정 처방이 아닙니다.</p>
+
+    <div class="seq-stages" style="margin-top: 28px;">
+      <div class="seq-stage">
+        <div class="ss-tag">
+          <div class="sst-label">STAGE 1</div>
+          <div class="sst-name">PREPARATION</div>
+          <div style="font-size: 11px; margin-top: 2px;">준비</div>
+        </div>
+        <div class="ss-body">
+          <div class="ssb-title">회원의 움직임을 확인하고,<br>메인 운동에 필요한 준비 운동을 선택한다.</div>
+          <div class="ssb-desc">움직임 평가 결과와 당일 상태를 확인한 후, 이어지는 수행 구간에 맞게 준비합니다.</div>
+        </div>
+      </div>
+      <div class="seq-stage">
+        <div class="ss-tag">
+          <div class="sst-label">STAGE 2</div>
+          <div class="sst-name">PERFORMANCE</div>
+          <div style="font-size: 11px; margin-top: 2px;">수행</div>
+        </div>
+        <div class="ss-body">
+          <div class="ssb-title">회원 목표와 평가 결과를 반영해<br>메인 운동과 개인 운동 교육을 구성한다.</div>
+          <div class="ssb-desc">상담에서 확인한 목표와 움직임 평가 결과를 연결해 수업의 핵심 구간을 설계합니다.</div>
+        </div>
+      </div>
+      <div class="seq-stage">
+        <div class="ss-tag">
+          <div class="sst-label">STAGE 3</div>
+          <div class="sst-name">INTEGRATION</div>
+          <div style="font-size: 11px; margin-top: 2px;">통합</div>
+        </div>
+        <div class="ss-body">
+          <div class="ssb-title">코어와 척추 움직임 등을 연결하며<br>수업의 흐름을 정리한다.</div>
+          <div class="ssb-desc">수업에서 다룬 움직임 패턴을 통합하고, 다음 수업으로 이어지는 흐름을 마무리합니다.</div>
+        </div>
+      </div>
+    </div>
+    <p class="seq-note">
+      ※ 각 구간의 세부 시간 배분은 교육에서 다루는 확정 자료에 따라 수정될 수 있습니다.<br>
+      ※ 실제 수업은 회원의 평가 결과와 목표에 따라 구성이 달라집니다.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S07 · 나만의 매출 도구                      -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">TOOLS</span></div>
+  <div class="wrap">
+    <p class="kicker">교육에서 만드는 도구</p>
+    <h2 class="h2">교육이 끝나도 남는<br>나만의 매출 도구 3가지.</h2>
+    <p class="lead">재등록률 80% 이상을 만든 상담·수업 구조를 직접 내 것으로 만드는 실습입니다.</p>
+
+    <div class="tools-grid">
+      <!-- 세일즈북 -->
+      <div class="tool-card">
+        <div class="tc-header">
+          <div>
+            <div class="tc-title">세일즈북</div>
+            <div class="tc-sub">나만의 상담 자료</div>
+          </div>
+        </div>
+        <div class="tc-body">
+          <figure class="shot">
+            <img src="/academy/img-d9962279d6.jpg" alt="세일즈북 예시 — 표지와 담당 트레이너 소개, 상담 진행 순서 페이지" width="1860" height="1356" loading="lazy">
+            <figcaption>세일즈북 · 표지와 트레이너 소개, 상담 진행 순서 (예시)</figcaption>
+          </figure>
+          <div class="tc-section">
+            <div class="tcs-label">무엇을 배우는가</div>
+            <p>내 전문성과 상담 내용을 정리하는 방법, 회원에게 프로그램 가치를 설명하는 자료 구성법을 익힙니다.</p>
+          </div>
+          <div class="tc-section">
+            <div class="tcs-label">현장에서 어디에 사용하는가</div>
+            <p>첫 상담 자리에서 분석 결과와 함께 펼치는 나만의 상담 도구로 활용합니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 체형분석 도구 -->
+      <div class="tool-card">
+        <div class="tc-header">
+          <div>
+            <div class="tc-title">체형분석 도구 활용법</div>
+            <div class="tc-sub">정적 체형 관찰·드로잉</div>
+          </div>
+        </div>
+        <div class="tc-body">
+          <figure class="shot">
+            <img src="/academy/img-527617aaa2.jpg" alt="FIT STEP 체형 분석 드로잉 화면 — 정면 사진 위에 수평선과 수직선으로 정렬을 표시한 예시" width="720" height="1191" loading="lazy">
+            <figcaption>FIT STEP 체형 분석 드로잉 · 수평선·수직선·각도선으로 정렬을 표시하고, 얼굴은 모자이크로 가립니다 (예시)</figcaption>
+          </figure>
+          <div class="tc-section">
+            <div class="tcs-label">무엇을 배우는가</div>
+            <p>정적 체형의 관찰 결과를 드로잉으로 정리하고, 회원에게 시각적으로 전달하는 방법을 익힙니다.</p>
+          </div>
+          <div class="tc-section">
+            <div class="tcs-label">현장에서 어디에 사용하는가</div>
+            <p>체형 관찰 내용을 상담 자리에서 시각적으로 공유하고, 운동 방향과 연결하는 근거로 활용합니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 시퀀스 랩 -->
+      <div class="tool-card">
+        <div class="tc-header">
+          <div>
+            <div class="tc-title">시퀀스 랩</div>
+            <div class="tc-sub">수업 설계 & 공유 도구</div>
+          </div>
+        </div>
+        <div class="tc-body">
+          <figure class="shot">
+            <img src="/academy/img-f700a20457.jpg" alt="시퀀스 랩 수업 상세 — 준비·수행·통합 8단계 50분 교정 수업" width="1520" height="1870" loading="lazy">
+            <figcaption>시퀀스 랩 · 평가 결과를 반영한 50분 수업 (준비 → 수행 → 통합, 예시 데이터)</figcaption>
+          </figure>
+          <div class="tc-section">
+            <div class="tcs-label">무엇을 배우는가</div>
+            <p>평가 결과를 바탕으로 수업을 설계하고, 시퀀스를 정리·공유하는 방법을 익힙니다.</p>
+          </div>
+          <div class="tc-section">
+            <div class="tcs-label">현장에서 어디에 사용하는가</div>
+            <p>회원별 수업 시퀀스를 체계적으로 설계하고 기록하는 도구로 활용합니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 핏스텝 보조 영역 -->
+    <div class="tool-sub">
+      <div class="ts-label">2주차 회원관리 실습 도구</div>
+      <div class="ts-title">핏스텝 (FIT STEP)</div>
+      <p>2주차 실습에서 회원 정보와 운동 기록 관리 방법을 함께 익힙니다.</p>
+      <figure class="shot">
+        <img src="/academy/img-bc5745c778.png" alt="핏스텝 성장분석실 화면 — 회원 수, 수업 수, 재등록 수, 재등록률 통계" width="1037" height="740" loading="lazy">
+        <figcaption>핏스텝 성장분석실 · 회원 수, 재등록 수, 재등록률을 한 화면에서 확인 (예시 데이터)</figcaption>
+      </figure>
+    </div>
+
+    <div style="margin-top: 20px; padding: 16px 18px; background: var(--bg-alt); border-radius: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.75;">
+      ※ 도구별 계정 제공 범위, 이용 기간 등 세부 조건은 모집 안내에서 별도 공지합니다.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S08 · 셀프 체크                            -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec sec--alt">
+  <div class="sec-bg sec-bg--grid" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">CHECK</span></div>
+  <div class="wrap">
+    <p class="kicker">자기 점검</p>
+    <h2 class="h2">지금 내 상담과 수업은,<br>어디까지 연결되어 있나요?</h2>
+    <p class="lead">아래 질문에 답하며 이번 교육이 내게 필요한지 생각해보세요.</p>
+    <ul class="check-list">
+      <li>체성분 수치를 회원의 운동 방향으로 설명할 수 있나요?</li>
+      <li>체형 관찰과 생활습관 질문을 연결하고 있나요?</li>
+      <li>상담에서 사용할 나만의 자료가 있나요?</li>
+      <li>움직임 평가 결과에 따라 운동을 바꾸고 있나요?</li>
+      <li>50분 수업의 순서와 선택 이유를 설명할 수 있나요?</li>
+      <li>회원의 움직임 변화를 기록하고 전달하고 있나요?</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S09 · 강사                                 -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">COACH</span></div>
+  <div class="wrap">
+    <p class="kicker">강사 소개</p>
+    <h2 class="h2">현장에서 사용한 과정을,<br>교육으로 연결합니다.</h2>
+    <div class="instructor-wrap">
+      <!-- 강사 실제 사진 교체 영역 -->
+      <figure class="shot" style="margin-top: 0; margin-bottom: 24px;">
+        <img src="/academy/img-0bd00be9da.jpg" alt="근막경선 관점 체형분석 세미나에서 트레이너들에게 체형 분석 실습을 지도하는 이준산 대표" width="1080" height="840" loading="lazy">
+        <figcaption>근막경선 관점 체형분석 세미나 · 현장 실습을 직접 지도하는 이준산 대표 (오른쪽)</figcaption>
+      </figure>
+
+      <div style="margin-bottom: 20px;">
+        <div class="inst-name" style="font-size: 20px; font-weight: 700;">이준산</div>
+        <div style="font-size: 13px; color: var(--fg-muted);">통합기능운동학협회 · 자이언트짐 · FIT STEP 대표</div>
+      </div>
+
+      <div class="story">
+        <p>이준산 대표는 자이언트짐을 운영하며 회원을 직접 상담하고 수업해 온 트레이너입니다.</p>
+        <p>그의 회원 <strong>10명 중 8명 이상이 다시 등록합니다.</strong> 한 달 PT 매출은 <strong>1,000만원</strong>을 넘습니다. 하지만 그는 이 결과를 '영업 실력'으로 설명하지 않습니다. 회원의 체성분과 체형을 분석하고, 그 결과를 회원이 알아듣는 말로 풀어주고, 그 설명이 맞았다는 것을 <span class="hl">50분 수업으로 보여준 결과</span>라고 말합니다.</p>
+        <p>자세교정으로 석사 과정을 마치고, 차의과학대학교 의학박사과정에 진학한 것도 같은 이유입니다. 회원에게 "왜 이 운동이 필요한가"를 감이 아니라 근거로 설명하기 위해서입니다.</p>
+        <p>현장에서 실제로 쓰던 세일즈북, 체형 분석 드로잉, 50분 시퀀스 설계 방식, 회원관리 도구까지. 그 과정을 다른 트레이너도 쓸 수 있게 정리한 것이 <strong>상위 1% 트레이너 매출 성장 아카데미</strong>이고, 1블록은 그 출발점입니다.</p>
+      </div>
+      <p style="font-size: 12px; color: var(--fg-light); margin-top: 16px; margin-bottom: 20px;">※ 재등록률·매출은 강사 본인 집계 기준입니다. 의학박사과정은 현재 휴학 중입니다.</p>
+
+      <!-- 현장 근거 자료 -->
+      <div class="evidence-note">
+        <strong>현장 근거 자료</strong> — 실제 매출·회원 수·재등록 관련 자료, 상담 도구 화면은 검증 확인 후 이 영역에 공개합니다. 각 수치에는 집계 기간·대상·산정 기준이 함께 표시됩니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S10 · 수강생 후기                          -->
+<!-- ═══════════════════════════════════════════ -->
+<section id="reviews" class="sec">
+  <div class="sec-bg sec-bg--grid" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">“</span></div>
+  <div class="wrap" style="position: relative; z-index: 1;">
+    <p class="kicker">수강생 후기</p>
+    <h2 class="h2" style="text-wrap: balance;">실제로 배운 트레이너들의 이야기</h2>
+    <p class="lead" style="margin-top: 12px; margin-bottom: 40px;">교육을 마친 트레이너들이 현장에서 경험한 변화입니다.</p>
+
+    <div class="reviews-grid">
+
+      <div class="review-card">
+        <div class="review-stars">★★★★★</div>
+        <blockquote class="review-body">
+          "체성분 분석을 상담에 이렇게 쓸 수 있다는 걸 처음 알았어요. 교육받고 나서 첫 상담부터 계약으로 이어졌습니다. 세일즈북 만들어 두니까 설명이 훨씬 편해졌고요."
+        </blockquote>
+        <div class="review-author">
+          <div class="review-name">김○○ 트레이너</div>
+          <div class="review-meta">경력 1년 · 서울</div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-stars">★★★★★</div>
+        <blockquote class="review-body">
+          "재등록이 잘 안 됐던 이유를 수업에서 찾게 됐어요. 움직임 평가로 첫 수업을 구성하니까 회원이 '이 트레이너는 다르다'는 걸 느끼는 것 같아요. 이번 달 재등록률이 확실히 올랐습니다."
+        </blockquote>
+        <div class="review-author">
+          <div class="review-name">박○○ 필라테스 강사</div>
+          <div class="review-meta">경력 2년 · 경기</div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-stars">★★★★★</div>
+        <blockquote class="review-body">
+          "매출 1,000만원이 현실적이지 않다고 생각했는데, 구조를 배우고 나서 생각이 바뀌었습니다. 50분 수업 설계법이 특히 도움이 됐어요. 회원 한 명 한 명을 위한 수업을 만들 수 있게 됐습니다."
+        </blockquote>
+        <div class="review-author">
+          <div class="review-name">이○○ 트레이너</div>
+          <div class="review-meta">경력 3년 · 부산</div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-stars">★★★★★</div>
+        <blockquote class="review-body">
+          "핏스텝 회원관리 도구를 실습으로 배운 게 좋았어요. 데이터를 모으는 습관이 생겼고, 재등록 시기에 맞춰 전략적으로 접근하게 됐습니다. 교육 내용이 현장에 바로 적용 가능했어요."
+        </blockquote>
+        <div class="review-author">
+          <div class="review-name">최○○ 트레이너</div>
+          <div class="review-meta">경력 1년 · 인천</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="review-note">
+      ※ 후기는 수강생의 동의를 받아 게재합니다. 개인정보 보호를 위해 이름 일부를 가렸습니다.
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S11 · 모집 안내                            -->
+<!-- ═══════════════════════════════════════════ -->
+<section id="apply" class="sec sec--alt">
+  <div class="sec-bg sec-bg--grid" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">11.07</span></div>
+  <div class="wrap">
+    <p class="kicker">모집 안내</p>
+    <h2 class="h2">신청 전 확인하세요</h2>
+    <table class="info-table">
+      <tr>
+        <th>주최</th>
+        <td class="info-row-fixed">통합기능운동학협회</td>
+      </tr>
+      <tr>
+        <th>과정</th>
+        <td class="info-row-fixed">상위 1% 트레이너 매출 성장 아카데미 · 1블록</td>
+      </tr>
+      <tr>
+        <th>구성</th>
+        <td class="info-row-fixed">
+          1주차 — 체성분·정적 체형 분석 및 해설 (상담 관점)<br>
+          2주차 — 움직임 평가를 활용한 50분 수업 시퀀스 설계 (트레이닝 관점)
+        </td>
+      </tr>
+      <tr>
+        <th>교육시간</th>
+        <td class="info-row-fixed">1주차 6시간 · 2주차 5시간 · 총 11시간</td>
+      </tr>
+      <tr>
+        <th>1주차</th>
+        <td class="info-row-fixed">2026년 11월 7일 (토) · 11:00–17:00</td>
+      </tr>
+      <tr>
+        <th>2주차</th>
+        <td class="info-row-fixed">2026년 11월 14일 (토) · 12:00–17:00</td>
+      </tr>
+      <tr>
+        <th>시작·종료</th>
+        <td class="info-row-fixed">1주차 11:00–17:00 · 2주차 12:00–17:00</td>
+      </tr>
+      <tr>
+        <th>장소</th>
+        <td class="info-row-fixed">맞춤운동센터 자이언트짐 정왕배곧점<br><span style="font-size: 13px; color: var(--fg-muted);">경기도 시흥시 함송로 29번길 5, 3층</span></td>
+      </tr>
+      <tr>
+        <th>모집 인원</th>
+        <td class="info-row-fixed">12명 (선착순 마감)</td>
+      </tr>
+      <tr>
+        <th>교육비</th>
+        <td class="info-row-fixed">300,000원 (1·2주차 전체)<div class="discount">함께 신청 할인 · 2명 이상 동시 신청 시 1인당 20,000원 할인 → <b>각 280,000원</b></div><span style="font-size: 13px; color: var(--fg-muted);">계좌 입금 (아래 신청·결제 참고)</span></td>
+      </tr>
+      <tr>
+        <th>준비물</th>
+        <td class="info-row-fixed">별도 공지 예정</td>
+      </tr>
+      <tr>
+        <th>도구 제공</th>
+        <td class="info-row-fixed">
+          <div style="line-height: 2;">
+            · 시퀀스 랩<br>
+            · 체형분석 라잉 드로잉<br>
+            · 세일즈북 AI 시스템<br>
+            · 가상회원 데이터 30명
+          </div>
+          <div style="font-size: 12px; color: var(--fg-muted); margin-top: 6px;">※ 도구별 계정 제공 범위 및 이용 기간은 신청 안내에서 별도 공지합니다.</div>
+        </td>
+      </tr>
+      <tr>
+        <th>수료 기준</th>
+        <td>
+          <div style="font-size: 14px; color: var(--fg-2);">1·2주차 합산 출석률 70% 이상 시 수료증 발급<br><span style="font-size: 13px; color: var(--fg-muted);">결석한 회차는 다음 기수에서 무료 재참여 후 수료 가능</span></div>
+          <div style="font-size: 13px; color: var(--fg-muted); margin-top: 4px;">수료증은 통합기능운동학협회 발급 (국가공인 자격과는 구분됩니다)</div>
+        </td>
+      </tr>
+      <tr>
+        <th>신청·결제</th>
+        <td id="how">
+          <ol class="pay-steps">
+            <li>
+              <span class="ps-label">신청</span>
+              <span class="ps-val">문자 또는 카카오톡으로 <b>이름 · 연락처 · 소속 센터</b>를 보내주세요. 함께 신청하는 분이 있으면 모두의 이름을 한 번에 보내주세요.</span>
+              <span class="copy-line"><b class="copy-text">010-7559-3111</b><button type="button" class="copy-btn" data-copy="010-7559-3111">번호 복사</button></span>
+            </li>
+            <li>
+              <span class="ps-label">입금</span>
+              <span class="ps-val">교육비 300,000원을 아래 계좌로 입금해 주세요. 2명 이상 함께 신청하면 <b>1인당 280,000원</b>입니다.</span>
+              <span class="copy-line"><b class="copy-text">카카오뱅크 3333-11-2760806</b><button type="button" class="copy-btn" data-copy="3333112760806">계좌 복사</button></span>
+              <span class="ps-sub">예금주 이준산 · 입금자명은 신청자 이름으로 해 주세요.</span>
+            </li>
+            <li>
+              <span class="ps-label">확정</span>
+              <span class="ps-val">입금 확인 후 신청 확정 문자를 보내드립니다. 12명 선착순 마감입니다.</span>
+            </li>
+          </ol>
+        </td>
+      </tr>
+      <tr>
+        <th>취소·환불</th>
+        <td>
+          <div style="font-size: 14px; line-height: 1.9; color: var(--fg-2);">
+            · 1주차 교육일 7일 전까지 — 전액 환불<br>
+            · 1주차 교육일 3–6일 전 — 50% 환불<br>
+            · 1주차 교육일 2일 전 ~ 당일 — 환불 불가<br>
+            · 1주차 교육 수료 후 2주차 미참석 — 환불 불가
+          </div>
+          <div style="font-size: 12px; color: var(--fg-muted); margin-top: 6px;">※ 천재지변·강사 사정 등 불가피한 사유로 교육이 취소될 경우 전액 환불합니다.</div>
+        </td>
+      </tr>
+      <tr>
+        <th>문의</th>
+        <td class="info-row-fixed">
+          010-7559-3111
+          <div style="font-size: 13px; color: var(--fg-muted); margin-top: 2px;">문자 또는 카카오톡으로 문의해 주세요.</div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="btn-row btn-row--center">
+      <button type="button" class="btn btn--primary js-open-pay">1블록 교육 신청하기</button>
+    </div>
+    <p style="font-size: 12px; color: var(--fg-light); margin-top: 12px; text-align: center;">문의 링크 확정 후 연결됩니다.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S11 · FAQ                                  -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec">
+  <div class="sec-bg" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">FAQ</span></div>
+  <div class="wrap">
+    <p class="kicker">자주 묻는 질문</p>
+    <h2 class="h2">FAQ</h2>
+    <div class="faq-wrap">
+      <details>
+        <summary>1블록에는 어떤 교육이 포함되나요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          1블록은 1주차와 2주차로 구성된 2주 실무 교육입니다. 1주차에서는 체성분·정적 체형 분석을 상담에 활용하는 방법과 세일즈북 제작을 다루고, 2주차에서는 움직임 평가를 바탕으로 50분 수업 시퀀스를 설계하는 방법을 배웁니다. 1주차 6시간(11:00–17:00), 2주차 5시간(12:00–17:00), 총 11시간입니다.
+        </div>
+      </details>
+      <details>
+        <summary>두 주차 모두 참여하는 과정인가요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          1주차와 2주차는 연결된 내용으로 구성되어 있어 두 회차 모두 참여하시는 것을 권장합니다. 한 회차를 놓친 경우, 다음 기수의 해당 회차에 무료로 참여하실 수 있으며 참여를 마치면 수료증을 드립니다.
+        </div>
+      </details>
+      <details>
+        <summary>경력이 짧은 트레이너도 참여할 수 있나요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          체성분·체형 분석에 대한 기초 이해가 있고 PT 수업 경험이 있는 트레이너라면 참여하실 수 있습니다. 특정 경력 기준보다는 상담과 수업에서 분석 결과를 어떻게 연결할지에 대한 고민이 있으신 분께 적합합니다.
+        </div>
+      </details>
+      <details>
+        <summary>세일즈북이 없어도 참여할 수 있나요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          네. 1주차 교육에서 세일즈북을 직접 만드는 실습이 포함되어 있습니다. 기존에 없어도 교육 중 초안을 작성하고 피드백을 받을 수 있습니다.
+        </div>
+      </details>
+      <details>
+        <summary>체형분석 도구와 시퀀스 랩을 처음 사용해도 되나요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          네. 교육에서 각 도구를 처음 접하는 분도 따라올 수 있도록 활용 방법을 함께 다룹니다.
+        </div>
+      </details>
+      <details>
+        <summary>노트북이나 태블릿이 필요한가요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          준비물은 신청 완료 후 별도로 공지합니다.
+        </div>
+      </details>
+      <details>
+        <summary>교육 후 도구를 계속 사용할 수 있나요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          시퀀스 랩, 체형분석 라잉 드로잉, 세일즈북 AI 시스템, 가상회원 데이터 30명이 제공됩니다. 도구별 계정 제공 범위와 이용 기간은 신청 안내에서 별도로 알려드립니다.
+        </div>
+      </details>
+      <details>
+        <summary>수료증 발급 기준은 무엇인가요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          통합기능운동학협회 공식 수료증이 발급됩니다. 1·2주차 합산 출석률 70% 이상인 참가자에게 증정합니다. 국가공인 자격증이나 자격 취득 과정과는 구분됩니다.
+        </div>
+      </details>
+      <details>
+        <summary>신청 취소와 환불은 어떻게 되나요? <span class="sum-arrow">+</span></summary>
+        <div class="faq-body">
+          1주차 교육일 7일 전까지 전액 환불, 3–6일 전 50% 환불, 2일 전~당일 환불 불가, 1주차 수료 후 2주차 미참석 환불 불가입니다. 천재지변 등 불가피한 사유로 교육이 취소될 경우 전액 환불합니다.
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- S12 · 마지막 CTA                           -->
+<!-- ═══════════════════════════════════════════ -->
+<section class="sec sec--dark" style="padding-block: clamp(96px, 12vw, 120px);">
+  <div class="sec-bg sec-bg--grid sec-bg--dkgrid" aria-hidden="true"><span class="bg-glow"></span><span class="bg-mark">80%</span></div>
+  <div class="wrap">
+    <div class="cta-wrap">
+      <p class="kicker kicker--dark">통합기능운동학협회</p>
+      <h2 class="h2">분석을 상담으로.<br>평가를 수업으로.<br>수업을 재등록으로.</h2>
+      <p class="lead" style="max-width: 460px; margin-inline: auto;">
+        월 매출 1,000만원, 재등록률 80% 이상.<br>
+        그 구조를 2주 안에 직접 만들어보세요.
+      </p>
+      <p style="margin-top: 18px; font-size: 13px;">월 매출 1,000만원 · 재등록률 80% 이상 · 2주 실무 교육</p>
+      <div class="btn-row btn-row--center">
+        <button type="button" class="btn btn--primary js-open-pay">1블록 교육 신청하기</button>
+      </div>
+      <div class="cta-edu">
+        <strong>상위 1% 트레이너 매출 성장 아카데미 · 1블록</strong><br>
+        통합기능운동학협회 | 2주 실무 교육 | 총 11시간
+      </div>
+      <p style="font-size: 12px; margin-top: 20px; line-height: 1.75;">
+        ※ 수치(재등록률·매출)는 강사 본인 기준이며 개인 환경에 따라 다를 수 있습니다.<br>이 교육은 특정 매출이나 결과를 보장하지 않습니다.
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="pay-modal" id="payModal" hidden>
+  <div class="pm-backdrop" data-close></div>
+  <div class="pm-card" role="dialog" aria-modal="true" aria-labelledby="pmTitle">
+    <button type="button" class="pm-x" data-close aria-label="닫기">×</button>
+    <p class="kicker" style="margin-bottom: 6px;">1블록 교육 신청</p>
+    <h3 id="pmTitle" class="pm-title">신청은 3단계로 끝납니다</h3>
+    <p class="pm-meta">2026.11.7(토) · 11.14(토) · 자이언트짐 정왕배곧점 · 300,000원 (함께 신청 시 각 280,000원)</p>
+    <ol class="pay-steps">
+    <li>
+      <span class="ps-label">신청</span>
+      <span class="ps-val">문자 또는 카카오톡으로 <b>이름 · 연락처 · 소속 센터</b>를 보내주세요. 함께 신청하는 분이 있으면 모두의 이름을 한 번에 보내주세요.</span>
+      <span class="copy-line"><b class="copy-text">010-7559-3111</b><button type="button" class="copy-btn" data-copy="010-7559-3111">번호 복사</button></span>
+    </li>
+    <li>
+      <span class="ps-label">입금</span>
+      <span class="ps-val">교육비 300,000원을 아래 계좌로 입금해 주세요. 2명 이상 함께 신청하면 <b>1인당 280,000원</b>입니다.</span>
+      <span class="copy-line"><b class="copy-text">카카오뱅크 3333-11-2760806</b><button type="button" class="copy-btn" data-copy="3333112760806">계좌 복사</button></span>
+      <span class="ps-sub">예금주 이준산 · 입금자명은 신청자 이름으로 해 주세요.</span>
+    </li>
+    <li>
+      <span class="ps-label">확정</span>
+      <span class="ps-val">입금 확인 후 신청 확정 문자를 보내드립니다. 12명 선착순 마감입니다.</span>
+    </li>
+    </ol>
+    <p class="pm-note">취소·환불 기준은 모집 안내를 확인해 주세요.</p>
+  </div>
+</div>
+
+
+
+<script>
+(function () {
+  var modal = document.getElementById('payModal');
+  function open() { modal.hidden = false; document.body.classList.add('modal-open'); }
+  function close() { modal.hidden = true; document.body.classList.remove('modal-open'); }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.js-open-pay')) { open(); return; }
+    if (e.target.closest('[data-close]')) { close(); return; }
+    var btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    var label = btn.dataset.label || (btn.dataset.label = btn.textContent);
+    function done(msg) {
+      btn.textContent = msg; btn.classList.add('is-done');
+      setTimeout(function () { btn.textContent = label; btn.classList.remove('is-done'); }, 1800);
+    }
+    function fallback() {
+      var t = btn.parentElement.querySelector('.copy-text');
+      if (t) { var rg = document.createRange(); rg.selectNodeContents(t); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); }
+      done('선택됨 · 길게 눌러 복사');
+    }
+    try { navigator.clipboard.writeText(btn.dataset.copy).then(function () { done('복사됨'); }, fallback); }
+    catch (err) { fallback(); }
+  });
+})();
+</script>
+
+<script>
+(function () {
+  var SB = "__SB_URL__", KEY = "__SB_KEY__";
+  if (!SB || SB.indexOf("__") === 0 || !KEY) return;
+  function day() { return new Date().toISOString().slice(0, 10).replace(/-/g, ""); }
+  function inc(k) {
+    try {
+      fetch(SB + "/rest/v1/rpc/dp_inc_counter", {
+        method: "POST", keepalive: true,
+        headers: { "Content-Type": "application/json", apikey: KEY, Authorization: "Bearer " + KEY },
+        body: JSON.stringify({ p_key: k })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function track(total, daily) { inc("lp_" + total); inc("lp_" + daily + "_" + day()); }
+  try {
+    if (!sessionStorage.getItem("lp-visited")) { sessionStorage.setItem("lp-visited", "1"); track("vc", "vt"); }
+  } catch (e) { track("vc", "vt"); }
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".js-open-pay")) track("uc", "ud");
+    else if (e.target.closest(".copy-btn")) track("sc", "st");
+  });
+})();
+</script>
+</body>
+</html>
