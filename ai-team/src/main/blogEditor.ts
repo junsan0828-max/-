@@ -13,7 +13,9 @@ import { latestDraftFile, parseDraft } from "./paperBlog";
 import { loadBlogCenter } from "./blogCenter";
 import { parseCardData, pickPhotos, markPhotosUsed, renderCards, PHOTO_DIR } from "./blogAssets";
 
-const CDP = "http://127.0.0.1:9222";
+// 다른 네이버 계정(2호점 등)은 크롬 창·프로필·포트를 따로 쓴다: BLOG_CHROME_PROFILE + BLOG_CDP_PORT (기본 9222).
+const CDP_PORT = Number(process.env.BLOG_CDP_PORT) || 9222;
+const CDP = `http://127.0.0.1:${CDP_PORT}`;
 const CHROME = process.env.CHROME_PATH || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const PROFILE = process.env.BLOG_CHROME_PROFILE || join(homedir(), "chrome-ai-profile");
 const WRITE_URL = "https://blog.naver.com/GoBlogWrite.naver";
@@ -36,7 +38,7 @@ async function cdpUp(): Promise<boolean> {
 async function ensureBrowser(): Promise<void> {
   if (await cdpUp()) return;
   if (!existsSync(CHROME)) throw new Error(`크롬을 찾을 수 없습니다: ${CHROME}`);
-  const child = spawn(CHROME, [`--remote-debugging-port=9222`, `--user-data-dir=${PROFILE}`, "https://blog.naver.com/"], { detached: true, stdio: "ignore" });
+  const child = spawn(CHROME, [`--remote-debugging-port=${CDP_PORT}`,`--user-data-dir=${PROFILE}`, "https://blog.naver.com/"], { detached: true, stdio: "ignore" });
   child.unref();
   for (let i = 0; i < 30; i++) {
     await sleep(1000);
