@@ -5,9 +5,9 @@
 //  - 제목/본문/이미지/사진 설명/AI 표시/링크/장소만 채운다. 발행·예약·저장 버튼은 절대 누르지 않는다 (최종 발행은 대표님).
 //  - 보안 확인(캡차)·로그인 화면이 보이거나, 에디터에 이미 내용이 있으면 즉시 중단한다.
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { extname, join } from "node:path";
 import { chromium, type Browser, type Frame, type Page } from "playwright";
 import { latestDraftFile, parseDraft } from "./paperBlog";
 import { loadBlogCenter } from "./blogCenter";
@@ -337,6 +337,35 @@ function findHeadings(lines: string[]): string[] {
   return out;
 }
 
+interface ImageSpec {
+  centerPhotos?: boolean; // false 면 센터 사진을 자동으로 넣지 않는다
+  representative?: number; // images 중 대표 이미지로 쓸 번호(0부터)
+  images: { file: string; at: number | string; caption: string; ai: boolean }[];
+}
+
+/**
+ * 초안의 '## 이미지 지정' JSON 블록을 읽는다 (없으면 undefined).
+ *  { "centerPhotos": false, "representative": 0,
+ *    "images": [ { "file": "C:\\...\\배너.png", "at": 0, "caption": "AI 제작 이미지 | …", "ai": true } ] }
+ * at: 소제목 번호(0~4) | "end"(※ 문구 앞) | 본문 한 줄 전체. 에디터가 파일명으로 이미지를 찾으므로 영문 이름의 임시 복사본으로 올린다.
+ */
+function parseImageSpec(md: string): ImageSpec | undefined {
+  const sec = md.split(/\n##\s*이미지 지정/)[1]?.split(/\n##\s/)[0];
+  if (!sec) return undefined;
+  const m = sec.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (!m) throw new Error("'이미지 지정'의 JSON 블록을 읽지 못했습니다.");
+  const raw = JSON.parse(m[1]) as { centerPhotos?: boolean; representative?: number; images?: { file: string; at?: number | string; caption?: string; ai?: boolean }[] };
+  const outDir = join(tmpdir(), "ai-team-blog-extra");
+  mkdirSync(outDir, { recursive: true });
+  const images = (raw.images ?? []).map((x, i) => {
+    if (!existsSync(x.file)) throw new Error(`지정한 이미지 파일이 없습니다: ${x.file}`);
+    const out = join(outDir, `extra_${i + 1}${extname(x.file).toLowerCase() || ".png"}`);
+    copyFileSync(x.file, out);
+    return { file: out, at: x.at ?? "end", caption: x.caption ?? "", ai: x.ai ?? false };
+  });
+  return { centerPhotos: raw.centerPhotos, representative: raw.representative, images };
+}
+
 export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
   const file = draftFile || latestDraftFile();
   const md = readFileSync(file, "utf-8");
@@ -356,19 +385,27 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
   // 센터 5단계 카드는 모든 글에서 똑같고 본문의 1~5단계 목록과 겹쳐서 기본으로 쓰지 않는다 (2026-10-19 대표 지적).
   // 카드 자리에는 센터 사진을 한 장 더 넣는다. 예전처럼 쓰려면 .env에 BLOG_STEPS_CARD=1.
   const useStepsCard = process.env.BLOG_STEPS_CARD === "1";
-  const photos = pickPhotos(useStepsCard ? 3 : 4);
+  // 초안의 '## 이미지 지정'으로 대표가 고른 이미지(광고 배너 등)를 원하는 소제목 앞에 넣는다. centerPhotos:false 면 센터 사진은 자동으로 넣지 않는다.
+  const spec = parseImageSpec(md);
+  const wantCenterPhotos = spec?.centerPhotos !== false;
+  const photos = wantCenterPhotos ? pickPhotos(useStepsCard ? 3 : 4) : [];
   const kw = (i: number) => KEYWORDS[(i + rnd(0, KEYWORDS.length)) % KEYWORDS.length];
-  const stepsSlot = useStepsCard
-    ? { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true }
-    : { file: photos[3].file, caption: `${kw(0)}, ${photos[3].scene}`, ai: false };
-  const slots = [
-    { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true }, // 소제목 1: 논문 배경
-    { file: photos[0].file, caption: `${kw(0)}, ${photos[0].scene}`, ai: false }, // 소제목 2: 결과
-    { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true }, // 소제목 3: 한계
-    stepsSlot, // 소제목 4: 센터 방식 (카드 또는 센터 사진)
-    { file: photos[1].file, caption: `${kw(1)}, ${photos[1].scene}`, ai: false }, // 소제목 5: 마무리
-    { file: photos[2].file, caption: `${kw(2)}, ${photos[2].scene}`, ai: false }, // 맨 끝(※ 문구 앞)
-  ];
+  type Slot = { file: string; caption: string; ai: boolean; at: number | string; kind: string };
+  const overviewSlot: Slot = { file: cards.overview, caption: `AI 제작 이미지 | 논문 한눈에 보기 (${kw(1)})`, ai: true, at: 0, kind: "AI 제작" }; // 소제목 1: 논문 배경
+  const evidenceSlot: Slot = { file: cards.evidence, caption: `AI 제작 이미지 | 근거가 있는 것과 약한 것 (${kw(2)})`, ai: true, at: 2, kind: "AI 제작" }; // 소제목 3: 한계
+  const slots: Slot[] = wantCenterPhotos
+    ? [
+        overviewSlot,
+        { file: photos[0].file, caption: `${kw(0)}, ${photos[0].scene}`, ai: false, at: 1, kind: "센터 사진" }, // 소제목 2: 결과
+        evidenceSlot,
+        useStepsCard // 소제목 4: 센터 방식 (카드 또는 센터 사진)
+          ? { file: cards.steps, caption: `AI 제작 이미지 | ${center.centerName} 트레이닝 5단계 (${kw(0)})`, ai: true, at: 3, kind: "AI 제작" }
+          : { file: photos[3].file, caption: `${kw(0)}, ${photos[3].scene}`, ai: false, at: 3, kind: "센터 사진" },
+        { file: photos[1].file, caption: `${kw(1)}, ${photos[1].scene}`, ai: false, at: 4, kind: "센터 사진" }, // 소제목 5: 마무리
+        { file: photos[2].file, caption: `${kw(2)}, ${photos[2].scene}`, ai: false, at: "end", kind: "센터 사진" }, // 맨 끝(※ 문구 앞)
+      ]
+    : [overviewSlot, evidenceSlot];
+  for (const x of spec?.images ?? []) slots.push({ file: x.file, caption: x.caption, ai: x.ai, at: x.at, kind: "지정 이미지" });
 
   // 소제목이 5개로 잡히지 않으면 이미지가 한 칸씩 밀리므로 에디터를 열기 전에 중단한다 (소제목은 30자 이내 한 줄, 앞뒤 빈 줄).
   const preHeadings = findHeadings(draft.lines);
@@ -407,9 +444,10 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
     const headings = findHeadings(lines);
     const fallback = lines.find((l) => l.startsWith("※")) ?? lines[lines.length - 1];
     for (let i = 0; i < slots.length; i++) {
-      const target = headings[i] ?? fallback;
+      const at = slots[i].at;
+      const target = at === "end" ? fallback : typeof at === "number" ? (headings[at] ?? fallback) : (lines.find((l) => l === at) ?? fallback);
       await ed.insertImage(target, slots[i].file, slots[i].caption, slots[i].ai);
-      notes.push(`이미지 ${i + 1}/6 (${slots[i].ai ? "AI 제작" : "센터 사진"}) → "${target.slice(0, 14)}" 앞`);
+      notes.push(`이미지 ${i + 1}/${slots.length} (${slots[i].kind}) → "${target.slice(0, 14)}" 앞`);
     }
 
     // 5) 배너(맨 위, 링크, AI 표시)
@@ -419,11 +457,13 @@ export async function fillBlogEditor(draftFile?: string): Promise<FillResult> {
     notes.push(`배너 링크: ${BANNER_LINK} (접속 가능한 주소인지 발행 전 미리보기에서 눌러 확인하세요)`);
 
     // 6) 대표 이미지는 센터 사진, 장소 2곳은 맨 아래
-    await ed.setRepresentative(photos[0].file.replace(/^.*[\\/]/, "").replace(/\.[a-z]+$/i, ""));
+    const repFile = spec?.representative != null && spec.images[spec.representative] ? spec.images[spec.representative].file : photos[0]?.file;
+    if (!repFile) throw new Error("대표 이미지로 쓸 이미지가 없습니다.");
+    await ed.setRepresentative(repFile.replace(/^.*[\\/]/, "").replace(/\.[a-z]+$/i, ""));
     await ed.insertPlaces(PLACES);
-    notes.push(`대표 이미지: ${photos[0].file.replace(/^.*[\\/]/, "")} (실제 센터 사진)`, "장소 2곳 하단 삽입");
+    notes.push(`대표 이미지: ${repFile.replace(/^.*[\\/]/, "")}${spec?.representative != null ? " (지정 이미지)" : " (실제 센터 사진)"}`, "장소 2곳 하단 삽입");
 
-    markPhotosUsed(photos); // 성공한 글에서만 사진 사용 기록을 남긴다
+    if (photos.length) markPhotosUsed(photos); // 성공한 글에서만 사진 사용 기록을 남긴다
     const finalCount = await ed.imageCount();
     return { draftFile: file, title: draft.title, images: finalCount, places: PLACES.length, notes };
   } finally {
