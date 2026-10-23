@@ -96,6 +96,9 @@ async function findMemberByAttendanceNumber(attendanceNumber: string) {
   return { member: rows[suffix] ?? null, candidates: [] };
 }
 
+// 서비스 지급 가능한 트레이너 계정 (대표 지정)
+const SERVICE_GRANT_TRAINERS = ["trainer1", "trainer2", "trainer3", "trainer4", "trainer5"];
+
 export const accessRouter = t.router({
   // 만료 임박 진단 (인증 불필요 — 개인정보 미포함)
   debugExpiring: publicProcedure.query(async () => {
@@ -686,6 +689,7 @@ export const accessRouter = t.router({
         id: members.id,
         name: members.name,
         phone: members.phone,
+        trainerId: members.trainerId,
       })
       .from(members)
       .where(eq(members.status, "active"))
@@ -1077,12 +1081,16 @@ export const accessRouter = t.router({
     }))
     .mutation(async ({ ctx, input }) => {
       const role = ctx.user?.role;
-      if (role !== "admin" && role !== "sub_admin" && role !== "consultant")
+      const isGrantTrainer = role === "trainer" && SERVICE_GRANT_TRAINERS.includes(ctx.user?.username ?? "");
+      if (role !== "admin" && role !== "sub_admin" && role !== "consultant" && !isGrantTrainer)
         throw new TRPCError({ code: "FORBIDDEN", message: "서비스 지급 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [m] = await db.select().from(members).where(eq(members.id, input.memberId)).limit(1);
       if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." });
+      // 트레이너는 본인 담당 회원에게만 지급
+      if (isGrantTrainer && m.trainerId !== ctx.user?.trainerId)
+        throw new TRPCError({ code: "FORBIDDEN", message: "담당 회원에게만 서비스를 지급할 수 있습니다." });
       const today = kstDate();
       const addDays = (d: string, n: number) => {
         const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10);

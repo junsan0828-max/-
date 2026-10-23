@@ -15,7 +15,10 @@ export function ServiceGrantModal({ initialKind = "health", onClose, onDone }: {
   initialKind?: GrantKind; onClose: () => void; onDone?: () => void;
 }) {
   const utils = trpc.useUtils();
-  const { data: memberList = [] } = trpc.access.getMembersForLocker.useQuery();
+  const { data: me } = trpc.auth.me.useQuery();
+  const { data: allMembers = [] } = trpc.access.getMembersForLocker.useQuery();
+  // 트레이너는 담당 회원만
+  const memberList = me?.role === "trainer" ? (allMembers as any[]).filter(m => m.trainerId === (me as any).trainerId) : allMembers;
   const { data: lockers = [] } = trpc.access.getLockers.useQuery();
   const [kind, setKind] = useState<GrantKind>(initialKind);
   const [search, setSearch] = useState("");

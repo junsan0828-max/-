@@ -200,6 +200,7 @@ export default function RegistrationManagement() {
   const [, setLocation] = useLocation();
   const { data: currentUser } = trpc.auth.me.useQuery();
   const isTrainer = currentUser?.role === "trainer";
+  const canGrantService = !isTrainer || ["trainer1", "trainer2", "trainer3", "trainer4", "trainer5"].includes((currentUser as any)?.username ?? "");
   const [tab, setTab] = useState<"members" | "lockers" | "uniforms" | "services">("members");
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
@@ -657,7 +658,7 @@ export default function RegistrationManagement() {
           {/* 간편 등록 */}
           <div className="space-y-3">
             <p className="text-sm font-semibold text-foreground">간편 등록</p>
-            <div className={`grid gap-2 ${isTrainer ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
+            <div className={`grid gap-2 ${canGrantService ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
               <button
                 onClick={() => { setQuickModal("locker"); setLockerForm(f => ({ ...f, startDate: new Date().toISOString().substring(0, 10) })); }}
                 className="flex flex-col items-center justify-center gap-1.5 p-3 bg-card border border-border rounded-2xl hover:bg-accent hover:border-amber-500/50 transition-all group"
@@ -688,7 +689,7 @@ export default function RegistrationManagement() {
                 <span className="text-xs font-semibold text-foreground text-center leading-tight">1일권 구매</span>
                 <span className="text-[10px] text-muted-foreground text-center">직접 입력</span>
               </button>
-              {!isTrainer && (
+              {canGrantService && (
                 <button
                   onClick={() => setGrantKind("health")}
                   className="flex flex-col items-center justify-center gap-1.5 p-3 bg-card border border-border rounded-2xl hover:bg-accent hover:border-pink-500/50 transition-all group"
