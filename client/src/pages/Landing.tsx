@@ -815,9 +815,9 @@ function MissionSection({ onTrial: _onTrial }: { onTrial: () => void }) {
       <div className="relative z-10 max-w-xl mx-auto px-6 lg:px-8 flex flex-col items-center text-center">
 
         {/* 연 1회 배지 */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 mb-8">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-          <span className="text-[10px] font-bold tracking-[0.3em] text-amber-400 uppercase">연 1회 한정 프로그램</span>
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 mb-8">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#60A5FA] animate-pulse" />
+          <span className="text-[10px] font-bold tracking-[0.3em] text-[#60A5FA] uppercase">연 1회 한정 프로그램</span>
         </div>
 
         {/* 메인 카피 */}
@@ -830,17 +830,17 @@ function MissionSection({ onTrial: _onTrial }: { onTrial: () => void }) {
         </p>
 
         {/* 777 메인 카드 */}
-        <div className="w-full rounded-3xl border border-amber-400/30 bg-gradient-to-b from-amber-400/10 to-[#1D4ED8]/10 p-7 mb-6 shadow-[0_0_60px_rgba(251,191,36,0.08)] text-left">
+        <div className="w-full rounded-3xl border border-[#1D4ED8]/50 bg-gradient-to-b from-[#1D4ED8]/15 to-[#1D4ED8]/5 p-7 mb-4 shadow-[0_0_40px_rgba(29,78,216,0.2)] text-left">
 
           {/* 프로그램 명 */}
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
-              <p className="text-amber-400 text-[10px] font-bold tracking-[0.3em] uppercase mb-2">자이언트짐</p>
+              <p className="text-[#60A5FA]/60 text-[10px] font-bold tracking-[0.3em] uppercase mb-2">자이언트짐</p>
               <p className="text-white font-black text-2xl tracking-tight leading-none">777 맞춤 PT</p>
             </div>
             <div className="flex-shrink-0 text-right">
-              <p className="text-white/30 text-[10px] mb-1">프로그램</p>
-              <p className="text-amber-400 font-black text-2xl leading-none">17회</p>
+              <p className="text-white/30 text-[10px] mb-1">수업</p>
+              <p className="text-white font-black text-2xl leading-none">17회</p>
             </div>
           </div>
 
@@ -852,8 +852,8 @@ function MissionSection({ onTrial: _onTrial }: { onTrial: () => void }) {
               { num: "03", title: "수업", desc: "필라테스 + 웨이트 역량 강사진의 17회 맞춤 지도" },
             ].map((step) => (
               <div key={step.num} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg border border-amber-400/30 bg-amber-400/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-amber-400 text-[10px] font-bold">{step.num}</span>
+                <div className="w-8 h-8 rounded-lg border border-[#1D4ED8]/40 bg-[#1D4ED8]/15 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[#60A5FA] text-[10px] font-bold">{step.num}</span>
                 </div>
                 <div>
                   <span className="text-white text-sm font-bold mr-2">{step.title}</span>
@@ -863,31 +863,40 @@ function MissionSection({ onTrial: _onTrial }: { onTrial: () => void }) {
             ))}
           </div>
 
-          {/* 가격 강조 */}
+          {/* 포함 혜택 */}
+          <div className="rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 mb-4">
+            <p className="text-white/40 text-[10px] tracking-widest uppercase mb-3">패키지 포함 혜택</p>
+            <div className="space-y-2">
+              {[
+                { label: "맞춤 PT 17회", highlight: false },
+                { label: "헬스 이용권 2개월", highlight: true },
+                { label: "락커 서비스", highlight: true },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5 text-[#60A5FA] flex-shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  <span className={`text-sm font-semibold ${item.highlight ? "text-[#60A5FA]" : "text-white/80"}`}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 가격 */}
           <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 flex items-center justify-between">
-            <div>
-              <p className="text-white/40 text-[11px] mb-0.5">프로그램 금액</p>
-              <p className="text-white font-black text-xl">77만 7천 원</p>
-            </div>
-            <div className="text-right">
-              <p className="text-white/40 text-[11px] mb-0.5">총 수업</p>
-              <p className="text-[#60A5FA] font-black text-xl">17회</p>
-            </div>
+            <p className="text-white/40 text-sm">프로그램 금액</p>
+            <p className="text-white font-black text-xl">77만 7천 원</p>
           </div>
         </div>
 
         {/* 연 1회 강조 박스 */}
-        <div className="w-full rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] px-5 py-4 mb-10">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full border border-amber-400/40 bg-amber-400/10 flex items-center justify-center flex-shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-amber-400">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-              </svg>
-            </div>
-            <div className="text-left">
-              <p className="text-amber-400 text-xs font-bold mb-0.5">1년에 단 한 번 운영됩니다</p>
-              <p className="text-white/50 text-[11px] leading-relaxed">등록 인원에 따라 조기 마감될 수 있습니다. 관심 있으시다면 지금 바로 문의해 주세요.</p>
-            </div>
+        <div className="w-full rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 mb-10 flex items-center gap-3">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-[#60A5FA] flex-shrink-0">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+          </svg>
+          <div className="text-left">
+            <p className="text-white text-xs font-bold mb-0.5">1년에 단 한 번 운영됩니다</p>
+            <p className="text-white/40 text-[11px] leading-relaxed">등록 인원에 따라 조기 마감될 수 있습니다.</p>
           </div>
         </div>
 
@@ -896,7 +905,7 @@ function MissionSection({ onTrial: _onTrial }: { onTrial: () => void }) {
           href={BRANCH.b1.naverUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="block w-full py-4 bg-amber-400 hover:bg-amber-300 text-[#080F1A] font-black text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(251,191,36,0.25)] mb-3 text-center"
+          className="block w-full py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-black text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-3 text-center"
         >
           777 맞춤 PT 문의하기 →
         </a>
