@@ -12,7 +12,7 @@ const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", 
 const PRODUCT_TYPES = ["전체", "PT", "헬스", "다이어트", "운동복", "락커", "1일권", "기타"];
 const SUB_TYPE_FILTERS = ["전체", "신규", "재등록"];
 
-function fmt(n: number) { return n.toLocaleString(); }
+function fmt(n: number | null | undefined) { return (Number(n) || 0).toLocaleString(); }
 
 function computeRevenueEndDate(entry: any): string | null {
   if (!entry.startDate) return null;
@@ -457,7 +457,7 @@ function StatsTab() {
               <div key={t.trainerId} className="flex items-center justify-between text-xs">
                 <span>{t.trainerName}</span>
                 <div className="flex items-center gap-3 text-muted-foreground">
-                  <span>PT {fmt(t.pt)} / 헬스 {fmt(t.health)}</span>
+                  <span>PT {fmt((t as any).ptNew + (t as any).ptRenewal)} (신규 {fmt((t as any).ptNew)} · 재등록 {fmt((t as any).ptRenewal)}) / 헬스 {fmt(t.health)}</span>
                   <span className="font-medium text-foreground">{fmt(t.total)}원</span>
                 </div>
               </div>
