@@ -252,6 +252,7 @@ export default function SchedulePage() {
     };
     const oneOffKeys = new Set(all.filter(s => s.isRecurring !== 1).map(cellKey));
     const real = all.filter(s => s.isRecurring !== 1 || !oneOffKeys.has(cellKey(s)))
+      .filter(s => s.status !== "skipped")
       .map(s => ({ ...s, status: effStatus(s, (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7) }));
     // 트레이너별 집계
     const byTrainer: Record<number, { name: string; done: number; pending: number; noshow: number; cancelled: number }> = {};
@@ -437,7 +438,9 @@ export default function SchedulePage() {
 
                 {weekDates.map((d, wd) => {
                   const cell = grid[`${wd}-${h}`] ?? [];
-                  const top = cell[0];
+                  // skipped(미리 취소) 일정은 고정 수업을 가리기만 하고 칸에는 보이지 않는다
+                  const top = cell.find(s => s.status !== "skipped"
+                    && !(s.isRecurring === 1 && cell.some(o => o.isRecurring !== 1 && o.trainerId === s.trainerId && o.scheduledTime === s.scheduledTime)));
                   const open = isOpen(wd, h);
                   const hol = holidayName(toYmd(d));
 
@@ -506,7 +509,7 @@ export default function SchedulePage() {
                     if (s.isRecurring !== 1) _oneOffKeys.add(`${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`);
                   });
                   const visible = cell.filter(s => {
-                    if (s.isRecurring !== 1) return true; // one-off는 항상 표시
+                    if (s.isRecurring !== 1) return s.status !== "skipped"; // one-off는 표시 (미리 취소분 제외)
                     // recurring은 같은 트레이너·시간에 one-off가 없을 때만 표시
                     return !_oneOffKeys.has(`${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`);
                   });
@@ -777,7 +780,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
   const createMutation = trpc.schedules.create.useMutation({
     onSuccess: (_data, variables) => {
       const lbl = EVENT_LABELS[variables.eventType ?? "pt"];
-      if (variables.status === "cancelled") toast.success("이 일정이 취소됐습니다");
+      if (variables.status === "skipped") toast.success("이번 주 수업을 삭제했습니다");
+      else if (variables.status === "cancelled") toast.success("캔슬(당일 취소)로 처리했습니다");
       else toast.success(`${lbl}이 추가되었습니다`);
       onSaved();
     },
@@ -1250,7 +1254,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
             {target.isRecurring === 1 ? (
               <div className="space-y-3">
                 {([
-                  { value: "one",    label: "이 일정만 취소" },
+                  { value: "one",    label: "이 날짜만 삭제 (고정 수업은 유지)" },
                   { value: "future", label: "이 일정 및 향후 일정 삭제" },
                   { value: "all",    label: "모든 일정 삭제" },
                 ] as const).map(opt => (
@@ -1280,12 +1284,12 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
                 onClick={() => {
                   if (target.isRecurring === 1) {
                     if (deleteDialog === "one") {
-                      // 이 주만 취소: 취소 상태 one-off 생성 (recurring template 유지)
+                      // 이 날짜만 삭제: skipped one-off로 그 회차만 가린다 (당일 캔슬과 구분, 통계 제외)
                       createMutation.mutate({
                         memberId: target.memberId, memberName: target.memberName ?? undefined,
                         scheduledDate: date, scheduledTime: target.scheduledTime ?? undefined,
                         isRecurring: false, eventType: (target.eventType ?? "pt") as any,
-                        branchId: target.branchId ?? undefined, status: "cancelled",
+                        branchId: target.branchId ?? undefined, status: "skipped",
                         ...(effTrainerId ? { trainerId: effTrainerId } : {}),
                       });
                     } else {
@@ -1299,7 +1303,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
                 }}
                 className="flex-1 py-2 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-sm font-medium disabled:opacity-50"
               >
-                {deleteBusy ? "처리 중..." : deleteDialog === "one" ? "취소 처리" : "삭제"}
+                {deleteBusy ? "처리 중..." : "삭제"}
               </button>
             </div>
           </div>

@@ -2861,7 +2861,7 @@ const schedulesRouter = t.router({
       branchId: z.number().nullable().optional(),
       trainerId: z.number().optional(),
       eventType: z.enum(["pt", "ballet", "consultation", "trial", "meeting", "other"]).default("pt"),
-      status: z.enum(["pending", "done", "cancelled", "noshow"]).optional(),
+      status: z.enum(["pending", "done", "cancelled", "noshow", "skipped"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!canUseSchedule(ctx.user as any)) throw new TRPCError({ code: "FORBIDDEN", message: "이용 권한이 없습니다." });
@@ -2894,7 +2894,7 @@ const schedulesRouter = t.router({
       scheduledDate: z.string().optional(),
       scheduledTime: z.string().optional(),
       notes: z.string().nullable().optional(),
-      status: z.enum(["pending", "done", "cancelled", "noshow"]).optional(),
+      status: z.enum(["pending", "done", "cancelled", "noshow", "skipped"]).optional(),
       isRecurring: z.boolean().optional(),
       branchId: z.number().nullable().optional(),
       eventType: z.enum(["pt", "ballet", "consultation", "trial", "meeting", "other"]).optional(),
@@ -2932,7 +2932,7 @@ const schedulesRouter = t.router({
     }),
 
   updateStatus: protectedProcedure
-    .input(z.object({ scheduleId: z.number(), status: z.enum(["pending", "done", "cancelled", "noshow"]) }))
+    .input(z.object({ scheduleId: z.number(), status: z.enum(["pending", "done", "cancelled", "noshow", "skipped"]) }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireOwnSchedule(ctx, input.scheduleId);
       const [row] = await db.select({ isRecurring: schedules.isRecurring }).from(schedules).where(eq(schedules.id, input.scheduleId)).limit(1);
@@ -6225,7 +6225,8 @@ const dashboardRouter = t.router({
       .filter(r => !oneOffTimes.has(r.scheduledTime)) // one-off가 덮은 슬롯 제외
       .map(r => ({ ...r, status: "pending" })); // 템플릿 상태는 특정 날짜의 결과가 아니다 — 오늘 체크 전이면 항상 예정
 
-    const all = [...oneOffs, ...recurringToday];
+    // skipped = 미리 취소(삭제)한 회차 — 고정 수업은 가리되 오늘 수업 수에는 넣지 않는다
+    const all = [...oneOffs, ...recurringToday].filter(r => r.status !== "skipped");
     return { total: all.length, done: all.filter(r => r.status === "done").length };
   }),
 
@@ -6264,6 +6265,7 @@ const dashboardRouter = t.router({
       .map(r => ({ ...r, status: "pending" }));
 
     return [...oneOffs, ...recurringToday]
+      .filter(r => r.status !== "skipped")
       .sort((a, b) => (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? ""));
   }),
 
