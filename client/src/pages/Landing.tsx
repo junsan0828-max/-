@@ -342,8 +342,8 @@ function ProgramSection({ onReserve }: { onReserve: () => void }) {
     b1: [
       { period: "1개월", price: "80,000원" },
       { period: "3개월", price: "159,000원" },
-      { period: "6개월", price: "216,000원" },
-      { period: "12개월", price: "312,000원" },
+      { period: "6개월", price: "226,000원" },
+      { period: "12개월", price: "322,000원" },
     ],
     b2: [
       { period: "1개월", price: "60,000원" },
