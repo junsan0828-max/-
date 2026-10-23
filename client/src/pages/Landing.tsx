@@ -659,11 +659,12 @@ function ReviewsSection() {
   );
 }
 
-// ─── Section 5.5: 친구 이벤트 ────────────────────────────────────────────────
+// ─── Section 5.5: 이벤트 ─────────────────────────────────────────────────────
 function EventSection() {
+  const [branch, setBranch] = useState<"b1" | "b2">("b1");
+
   return (
     <section id="event" className="py-24 lg:py-36 bg-[#06111F] relative overflow-hidden">
-      {/* 백그라운드 글로우 */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#1D4ED8]/10 blur-[120px] pointer-events-none" />
 
       <div className="relative z-10 max-w-xl mx-auto px-6 lg:px-8 flex flex-col items-center text-center">
@@ -671,95 +672,129 @@ function EventSection() {
         {/* 배지 */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 mb-10">
           <span className="w-1.5 h-1.5 rounded-full bg-[#60A5FA] animate-pulse" />
-          <span className="text-[10px] font-bold tracking-[0.3em] text-[#60A5FA] uppercase">Special Event</span>
+          <span className="text-[10px] font-bold tracking-[0.3em] text-[#60A5FA] uppercase">12월 31일까지</span>
         </div>
 
         {/* 헤드라인 */}
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
-          함께 등록하면<br />
-          <span className="text-[#60A5FA]">더 많이</span> 드립니다
+          지금 등록하면<br />
+          <span className="text-[#60A5FA]">더 드립니다</span>
         </h2>
-        <p className="text-white/50 text-sm lg:text-base font-light leading-relaxed mb-14 max-w-sm">
-          혼자보다 함께 시작하면 더 오래 갑니다.<br />
-          친구, 가족, 연인과 함께 운동을 시작해보세요.
+        <p className="text-white/50 text-sm lg:text-base font-light leading-relaxed mb-10 max-w-sm">
+          연말 한정 혜택, 놓치지 마세요.
         </p>
 
-        {/* 카드 영역 2×2 */}
-        <div className="w-full grid grid-cols-2 gap-3 mb-8">
-
-          {/* 1인 / 6개월 */}
-          <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center gap-2 text-center">
-            <p className="text-[9px] tracking-[0.2em] text-white/30 uppercase font-medium">1인 등록</p>
-            <p className="text-white font-bold text-sm leading-snug">헬스 6개월</p>
-            <div className="w-full border-t border-white/10 pt-2 mt-auto space-y-0.5">
-              <p className="text-white/40 text-[10px] line-through">6개월</p>
-              <p className="text-white/80 font-bold text-sm">6개월 + <span className="text-[#60A5FA]">2주</span></p>
-            </div>
-          </div>
-
-          {/* 2인 / 6개월 동시 */}
-          <div className="relative rounded-2xl border border-[#1D4ED8]/40 bg-gradient-to-b from-[#1D4ED8]/15 to-[#1D4ED8]/5 p-4 flex flex-col items-center gap-2 text-center shadow-[0_0_20px_rgba(29,78,216,0.15)]">
-            <p className="text-[9px] tracking-[0.2em] text-[#60A5FA]/70 uppercase font-medium">2인 동시 · 6개월</p>
-            <p className="text-white font-bold text-sm leading-snug">각각 6개월</p>
-            <div className="w-full border-t border-[#1D4ED8]/30 pt-2 mt-auto space-y-0.5">
-              <p className="text-white/40 text-[10px] line-through">6개월</p>
-              <p className="text-[#60A5FA] font-bold text-sm">6개월 + <span className="font-black">4주</span></p>
-            </div>
-          </div>
-
-          {/* 1인 / 12개월 */}
-          <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center gap-2 text-center">
-            <p className="text-[9px] tracking-[0.2em] text-white/30 uppercase font-medium">1인 등록</p>
-            <p className="text-white font-bold text-sm leading-snug">헬스 12개월</p>
-            <div className="w-full border-t border-white/10 pt-2 mt-auto space-y-0.5">
-              <p className="text-white/40 text-[10px] line-through">12개월</p>
-              <p className="text-white/80 font-bold text-sm">12개월 + <span className="text-[#60A5FA]">4주</span></p>
-            </div>
-          </div>
-
-          {/* 2인 / 12개월 동시 BEST */}
-          <div className="relative rounded-2xl border border-[#1D4ED8]/60 bg-gradient-to-b from-[#1D4ED8]/25 to-[#1D4ED8]/5 p-4 flex flex-col items-center gap-2 text-center shadow-[0_0_30px_rgba(29,78,216,0.25)]">
-            <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#1D4ED8] text-white text-[9px] font-bold tracking-widest rounded-full">BEST</span>
-            <p className="text-[9px] tracking-[0.2em] text-[#60A5FA] uppercase font-medium mt-1">2인 동시 · 12개월</p>
-            <p className="text-white font-bold text-sm leading-snug">각각 12개월</p>
-            <div className="w-full border-t border-[#1D4ED8]/30 pt-2 mt-auto space-y-0.5">
-              <p className="text-white/40 text-[10px] line-through">12개월</p>
-              <p className="text-[#60A5FA] font-black text-sm">13개월 + 운동복</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 혜택 요약 박스 */}
-        <div className="w-full rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 mb-10 space-y-2.5">
-          {[
-            { left: "6개월 · 1인 등록", right: "+ 2주" },
-            { left: "6개월 · 2인 동시", right: "+ 4주 (각각)" },
-            { left: "12개월 · 1인 등록", right: "+ 4주" },
-            { left: "12개월 · 2인 동시", right: "+ 1개월 + 운동복 (각각)" },
-          ].map((row, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <p className="text-white/60 text-sm">{row.left}</p>
-              <p className={`text-sm font-bold ${i === 3 ? "text-[#60A5FA]" : "text-white/90"}`}>{row.right}</p>
-            </div>
+        {/* 지점 탭 */}
+        <div className="inline-flex bg-white/5 rounded-xl p-1 mb-10 border border-white/10">
+          {(["b1", "b2"] as const).map((b) => (
+            <button
+              key={b}
+              onClick={() => setBranch(b)}
+              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
+                branch === b
+                  ? "bg-[#1D4ED8] text-white shadow-[0_2px_12px_rgba(29,78,216,0.4)]"
+                  : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              {b === "b1" ? "1호점" : "2호점"}
+            </button>
           ))}
         </div>
 
-        {/* CTA */}
-        <a
-          href={BRANCH.b1.naverUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6 text-center"
-        >
-          무료 상담 예약하기 →
-        </a>
+        {branch === "b1" ? (
+          <>
+            {/* 1호점 카드 2개 */}
+            <div className="w-full grid grid-cols-2 gap-3 mb-8">
+              {/* 6개월 */}
+              <div className="relative rounded-2xl border border-[#1D4ED8]/40 bg-gradient-to-b from-[#1D4ED8]/15 to-[#1D4ED8]/5 p-5 flex flex-col items-center gap-2 text-center shadow-[0_0_20px_rgba(29,78,216,0.15)]">
+                <p className="text-[9px] tracking-[0.2em] text-[#60A5FA]/70 uppercase font-medium">헬스 6개월</p>
+                <p className="text-white font-bold text-base leading-snug">6개월 등록</p>
+                <div className="w-full border-t border-[#1D4ED8]/30 pt-3 mt-auto space-y-1">
+                  <p className="text-white/40 text-[10px] line-through">6개월</p>
+                  <p className="text-[#60A5FA] font-black text-base">7개월</p>
+                  <p className="text-white/50 text-[10px]">1개월 추가 증정</p>
+                </div>
+              </div>
+
+              {/* 12개월 BEST */}
+              <div className="relative rounded-2xl border border-[#1D4ED8]/60 bg-gradient-to-b from-[#1D4ED8]/25 to-[#1D4ED8]/5 p-5 flex flex-col items-center gap-2 text-center shadow-[0_0_30px_rgba(29,78,216,0.25)]">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#1D4ED8] text-white text-[9px] font-bold tracking-widest rounded-full">BEST</span>
+                <p className="text-[9px] tracking-[0.2em] text-[#60A5FA] uppercase font-medium mt-1">헬스 12개월</p>
+                <p className="text-white font-bold text-base leading-snug">12개월 등록</p>
+                <div className="w-full border-t border-[#1D4ED8]/30 pt-3 mt-auto space-y-1">
+                  <p className="text-white/40 text-[10px] line-through">12개월</p>
+                  <p className="text-[#60A5FA] font-black text-base">운동복 증정</p>
+                  <p className="text-white/50 text-[10px]">수량 한정</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 혜택 요약 */}
+            <div className="w-full rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 mb-10 space-y-2.5">
+              {[
+                { left: "6개월 등록", right: "+ 1개월 추가" },
+                { left: "12개월 등록", right: "운동복 증정" },
+              ].map((row, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <p className="text-white/60 text-sm">{row.left}</p>
+                  <p className="text-sm font-bold text-[#60A5FA]">{row.right}</p>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href={BRANCH.b1.naverUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6 text-center"
+            >
+              1호점 상담 예약하기 →
+            </a>
+          </>
+        ) : (
+          <>
+            {/* 2호점 카드 1개 (풀 width) */}
+            <div className="w-full rounded-2xl border border-[#1D4ED8]/60 bg-gradient-to-b from-[#1D4ED8]/25 to-[#1D4ED8]/5 p-6 flex flex-col items-center gap-3 text-center shadow-[0_0_30px_rgba(29,78,216,0.25)] mb-8">
+              <span className="px-3 py-0.5 bg-[#1D4ED8] text-white text-[9px] font-bold tracking-widest rounded-full">12월 31일까지</span>
+              <p className="text-white font-bold text-lg leading-snug">헬스 등록 시</p>
+              <div className="w-full border-t border-[#1D4ED8]/30 pt-4 mt-1 space-y-2">
+                <div className="flex items-center justify-center gap-3">
+                  <span className="px-3 py-1.5 rounded-lg bg-white/10 text-white font-bold text-sm">운동복 증정</span>
+                  <span className="text-white/40 text-lg">+</span>
+                  <span className="px-3 py-1.5 rounded-lg bg-white/10 text-white font-bold text-sm">락커 서비스</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 혜택 요약 */}
+            <div className="w-full rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 mb-10 space-y-2.5">
+              {[
+                { left: "헬스 등록", right: "운동복 + 락커" },
+              ].map((row, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <p className="text-white/60 text-sm">{row.left}</p>
+                  <p className="text-sm font-bold text-[#60A5FA]">{row.right}</p>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href={BRANCH.b2.naverUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6 text-center"
+            >
+              2호점 상담 예약하기 →
+            </a>
+          </>
+        )}
 
         {/* 주의사항 */}
         <div className="space-y-1">
           {[
-            "친구, 가족, 연인 모두 가능",
+            "이벤트는 2026년 12월 31일까지 진행됩니다",
             "운동복 서비스는 수량 한정 제공",
-            "이벤트는 기간 한정으로 진행될 수 있습니다",
+            "현장 상황에 따라 조기 종료될 수 있습니다",
           ].map((note) => (
             <p key={note} className="text-white/25 text-[11px] tracking-wide">* {note}</p>
           ))}
@@ -770,145 +805,90 @@ function EventSection() {
   );
 }
 
-// ─── Section 5.7: 미션 혜택 ──────────────────────────────────────────────────
-function MissionSection({ onTrial }: { onTrial: () => void }) {
+// ─── Section 5.7: 777 맞춤 PT ────────────────────────────────────────────────
+function MissionSection({ onTrial: _onTrial }: { onTrial: () => void }) {
   return (
     <section id="mission" className="py-24 lg:py-36 bg-[#080F1A] relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-[#1D4ED8]/8 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-[#1D4ED8]/6 blur-[80px] pointer-events-none" />
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[#1D4ED8]/10 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-[#1E3A8A]/12 blur-[100px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-xl mx-auto px-6 lg:px-8">
+      <div className="relative z-10 max-w-xl mx-auto px-6 lg:px-8 flex flex-col items-center text-center">
 
-        {/* 헤드라인 */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#60A5FA]" />
-            <span className="text-[10px] font-bold tracking-[0.3em] text-[#60A5FA] uppercase">회원 혜택 미션</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
-            미션 달성하고<br />
-            <span className="text-[#60A5FA]">추가 혜택</span> 받기
-          </h2>
-          <p className="text-white/40 text-sm leading-relaxed">
-            간단한 참여만으로<br />헬스 이용 혜택을 받아보세요.
-          </p>
+        {/* 연 1회 배지 */}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 mb-8">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <span className="text-[10px] font-bold tracking-[0.3em] text-amber-400 uppercase">연 1회 한정 프로그램</span>
         </div>
 
-        {/* ── DEAL 1: 1만원 체험 예약 ── */}
-        <div className="rounded-2xl border border-[#1D4ED8]/50 bg-gradient-to-br from-[#1D4ED8]/15 to-[#1D4ED8]/5 p-5 mb-4 shadow-[0_0_30px_rgba(29,78,216,0.15)]">
-          <div className="flex items-start justify-between gap-4 mb-4">
+        {/* 메인 카피 */}
+        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-[1.15] mb-5 tracking-tight">
+          같은 운동을 해도<br />
+          <span className="text-[#60A5FA]">내 몸에 맞아야</span> 달라집니다
+        </h2>
+        <p className="text-white/50 text-sm lg:text-base font-light leading-relaxed mb-12 max-w-sm">
+          운동을 시작하기 전,<br className="hidden sm:block" />내 몸부터 확인하세요.
+        </p>
+
+        {/* 777 메인 카드 */}
+        <div className="w-full rounded-3xl border border-amber-400/30 bg-gradient-to-b from-amber-400/10 to-[#1D4ED8]/10 p-7 mb-6 shadow-[0_0_60px_rgba(251,191,36,0.08)] text-left">
+
+          {/* 프로그램 명 */}
+          <div className="flex items-start justify-between gap-4 mb-6">
             <div>
-              <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1D4ED8] text-white text-[9px] font-bold tracking-widest uppercase mb-2">DEAL 1</span>
-              <p className="text-white font-bold text-base leading-snug">1만원 체험 예약 결제</p>
-              <p className="text-white/40 text-xs mt-1">체형분석 및 상담 · 센터 직접 체험</p>
+              <p className="text-amber-400 text-[10px] font-bold tracking-[0.3em] uppercase mb-2">자이언트짐</p>
+              <p className="text-white font-black text-2xl tracking-tight leading-none">777 맞춤 PT</p>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-[#60A5FA] text-[10px] tracking-wide mb-1">혜택</p>
-              <p className="text-[#60A5FA] font-black text-xl leading-none">헬스 1개월</p>
-              <p className="text-[#60A5FA]/70 text-[11px] font-medium">추가 제공</p>
+            <div className="flex-shrink-0 text-right">
+              <p className="text-white/30 text-[10px] mb-1">프로그램</p>
+              <p className="text-amber-400 font-black text-2xl leading-none">17회</p>
             </div>
           </div>
-          <button
-            onClick={onTrial}
-            className="w-full py-3 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white text-sm font-bold rounded-xl transition-colors"
-          >
-            체험 예약하기 →
-          </button>
-        </div>
 
-        {/* 구분선 */}
-        <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-white/20 text-[11px] tracking-widest">+</span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
+          {/* 3단계 과정 */}
+          <div className="space-y-3 mb-6">
+            {[
+              { num: "01", title: "분석", desc: "체성분 · 체형 · 보행 · 움직임 · 생활 불편 확인" },
+              { num: "02", title: "설계", desc: "지금 나에게 필요한 운동을 개인 맞춤 설계" },
+              { num: "03", title: "수업", desc: "필라테스 + 웨이트 역량 강사진의 17회 맞춤 지도" },
+            ].map((step) => (
+              <div key={step.num} className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg border border-amber-400/30 bg-amber-400/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-amber-400 text-[10px] font-bold">{step.num}</span>
+                </div>
+                <div>
+                  <span className="text-white text-sm font-bold mr-2">{step.title}</span>
+                  <span className="text-white/40 text-xs">{step.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
 
-        {/* ── DEAL 2: 3-step 미션 ── */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 mb-4">
-          <div className="flex items-center justify-between mb-5">
+          {/* 가격 강조 */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 flex items-center justify-between">
             <div>
-              <span className="inline-block px-2.5 py-0.5 rounded-full border border-white/20 text-white/50 text-[9px] font-bold tracking-widest uppercase mb-2">DEAL 2</span>
-              <p className="text-white font-bold text-base">2가지 미션 완료</p>
+              <p className="text-white/40 text-[11px] mb-0.5">프로그램 금액</p>
+              <p className="text-white font-black text-xl">77만 7천 원</p>
             </div>
             <div className="text-right">
-              <p className="text-white/40 text-[10px] tracking-wide mb-1">혜택</p>
-              <p className="text-[#60A5FA] font-black text-xl leading-none">1만원</p>
-              <p className="text-[#60A5FA]/70 text-[11px] font-medium">할인</p>
+              <p className="text-white/40 text-[11px] mb-0.5">총 수업</p>
+              <p className="text-[#60A5FA] font-black text-xl">17회</p>
             </div>
           </div>
-
-          {/* 미션 스텝 */}
-          {[
-            {
-              step: "01",
-              title: "네이버 플레이스 저장 + 알림 받기",
-              desc: "자이언트짐 플레이스 저장 후 소식 알림 설정",
-              href: BRANCH.b1.naverUrl,
-              btnLabel: "바로가기",
-              note: "완료 후 캡처해서 네이버 톡톡으로 전달해주세요",
-            },
-            {
-              step: "02",
-              title: "네이버 영수증 리뷰",
-              desc: "방문 상담 시 작성 방법을 안내해 드립니다",
-              href: null,
-              btnLabel: null,
-              note: null,
-            },
-          ].map((m, i, arr) => (
-            <div key={m.step} className="relative">
-              {i < arr.length - 1 && (
-                <div className="absolute left-[18px] top-10 w-px h-4 bg-white/10" />
-              )}
-              <div className="flex items-center gap-3 mb-1">
-                <div className="w-9 h-9 rounded-xl border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[#60A5FA] text-[10px] font-bold">{m.step}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-[13px] font-semibold">{m.title}</p>
-                  <p className="text-white/35 text-[11px]">{m.desc}</p>
-                  {m.note && (
-                    <a
-                      href="https://talk.naver.com/ct/w42bpf#nafullscreen"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[#60A5FA]/70 hover:text-[#60A5FA] text-[10px] mt-1 transition-colors"
-                    >
-                      📲 {m.note}
-                      <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-2.5 h-2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                      </svg>
-                    </a>
-                  )}
-                </div>
-                {m.href && m.btnLabel && (
-                  <a
-                    href={m.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-[#60A5FA]/60 hover:text-[#60A5FA] transition-colors flex-shrink-0 flex items-center gap-1"
-                  >
-                    {m.btnLabel}
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </a>
-                )}
-              </div>
-              {i < arr.length - 1 && <div className="h-4" />}
-            </div>
-          ))}
         </div>
 
-        {/* 두 딜 합산 강조 */}
-        <div className="rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/8 px-5 py-4 mb-8 flex items-center justify-between">
-          <div>
-            <p className="text-white/50 text-xs mb-1">DEAL 1 + DEAL 2 모두 달성 시</p>
-            <p className="text-white font-bold text-sm">헬스 1개월 추가 <span className="text-white/40">+</span> <span className="text-[#60A5FA]">1만원 할인</span></p>
+        {/* 연 1회 강조 박스 */}
+        <div className="w-full rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] px-5 py-4 mb-10">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full border border-amber-400/40 bg-amber-400/10 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-amber-400">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+              </svg>
+            </div>
+            <div className="text-left">
+              <p className="text-amber-400 text-xs font-bold mb-0.5">1년에 단 한 번 운영됩니다</p>
+              <p className="text-white/50 text-[11px] leading-relaxed">등록 인원에 따라 조기 마감될 수 있습니다. 관심 있으시다면 지금 바로 문의해 주세요.</p>
+            </div>
           </div>
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-[#60A5FA]/40 flex-shrink-0">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-          </svg>
         </div>
 
         {/* CTA */}
@@ -916,18 +896,11 @@ function MissionSection({ onTrial }: { onTrial: () => void }) {
           href={BRANCH.b1.naverUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="block w-full py-4 bg-white text-[#0B1D3A] font-bold text-sm tracking-wide hover:bg-white/90 transition-colors rounded-xl shadow-lg text-center"
+          className="block w-full py-4 bg-amber-400 hover:bg-amber-300 text-[#080F1A] font-black text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(251,191,36,0.25)] mb-3 text-center"
         >
-          지금 혜택 시작하기 →
+          777 맞춤 PT 문의하기 →
         </a>
-        <a
-          href={BRANCH.b1.naverUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block w-full mt-3 py-3.5 border border-white/20 text-white/60 text-sm hover:text-white hover:border-white/40 transition-colors rounded-xl text-center"
-        >
-          무료 상담 예약
-        </a>
+        <p className="text-white/20 text-[11px]">* 수업 목적에 따라 운동 방식이 달라집니다</p>
 
       </div>
     </section>
