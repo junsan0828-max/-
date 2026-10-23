@@ -284,8 +284,8 @@ function ProgramSection() {
               {[
                 { period: "1개월", price: "80,000원" },
                 { period: "3개월", price: "159,000원" },
-                { period: "6개월", price: "216,000원" },
-                { period: "12개월", price: "312,000원" },
+                { period: "6개월", price: "226,000원" },
+                { period: "12개월", price: "322,000원" },
               ].map((p) => (
                 <div key={p.period} className="flex items-center justify-between py-4 border-b border-gray-100">
                   <span className="text-sm text-gray-400 font-light">{p.period}</span>

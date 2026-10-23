@@ -15,8 +15,8 @@ const DEFAULTS: SettingsMap = {
   hours_saturday: "토요일 10:00 ~ 17:00",
   gym_price_1m: "80,000원",
   gym_price_3m: "159,000원",
-  gym_price_6m: "216,000원",
-  gym_price_12m: "312,000원",
+  gym_price_6m: "226,000원",
+  gym_price_12m: "322,000원",
   pt_price_10: "500,000원",
   pt_price_20: "960,000원",
 };
@@ -95,8 +95,8 @@ export default function LandingPageAdmin() {
         <div className="grid grid-cols-2 gap-4">
           <Field label="1개월" value={form.gym_price_1m} onChange={(v) => set("gym_price_1m", v)} placeholder="80,000원" />
           <Field label="3개월" value={form.gym_price_3m} onChange={(v) => set("gym_price_3m", v)} placeholder="159,000원" />
-          <Field label="6개월" value={form.gym_price_6m} onChange={(v) => set("gym_price_6m", v)} placeholder="216,000원" />
-          <Field label="12개월" value={form.gym_price_12m} onChange={(v) => set("gym_price_12m", v)} placeholder="312,000원" />
+          <Field label="6개월" value={form.gym_price_6m} onChange={(v) => set("gym_price_6m", v)} placeholder="226,000원" />
+          <Field label="12개월" value={form.gym_price_12m} onChange={(v) => set("gym_price_12m", v)} placeholder="322,000원" />
         </div>
       </section>
 
