@@ -1086,6 +1086,7 @@ async function initDatabase() {
       priority TEXT NOT NULL DEFAULT 'normal',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE schedules ADD COLUMN IF NOT EXISTS "repeatUntil" TEXT`,
     `CREATE TABLE IF NOT EXISTS service_grants (
       id SERIAL PRIMARY KEY,
       "memberId" INTEGER NOT NULL,

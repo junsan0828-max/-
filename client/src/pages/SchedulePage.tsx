@@ -85,6 +85,7 @@ type Slot = {
   isRecurring: number;
   branchId: number | null;
   eventType: EventType | null;
+  repeatUntil?: string | null;
 };
 
 export default function SchedulePage() {
@@ -168,12 +169,24 @@ export default function SchedulePage() {
     pressStartPos.current = null;
   }, []);
 
+  const moveOccurrenceMutation = trpc.schedules.moveOccurrence.useMutation({
+    onSuccess: () => { toast.success("이번 주 수업만 옮겼습니다 (고정 수업은 그대로)"); refresh(); },
+    onError: e => toast.error(e.message),
+  });
+
   const commitMove = useCallback((slotId: number, wd: number, h: number) => {
     const targetDate = toYmd(weekDates[wd]);
     const targetTime = `${String(h).padStart(2, "0")}:00`;
-    moveMutation.mutate({ scheduleId: slotId, scheduledDate: targetDate, scheduledTime: targetTime });
+    const src = ((slots ?? []) as Slot[]).find(s => s.id === slotId);
+    if (src?.isRecurring === 1) {
+      // 고정 수업은 이번 주 회차만 옮긴다 — 템플릿 자체(지난·다음 주)는 건드리지 않음
+      const srcWd = (new Date(src.scheduledDate + "T00:00:00").getDay() + 6) % 7;
+      moveOccurrenceMutation.mutate({ templateId: slotId, fromDate: toYmd(weekDates[srcWd]), toDate: targetDate, toTime: targetTime });
+    } else {
+      moveMutation.mutate({ scheduleId: slotId, scheduledDate: targetDate, scheduledTime: targetTime });
+    }
     cancelMove();
-  }, [weekDates, cancelMove, moveMutation]);
+  }, [weekDates, cancelMove, moveMutation, moveOccurrenceMutation, slots]);
 
   const startLongPress = useCallback((slotId: number, x: number, y: number) => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
@@ -200,9 +213,17 @@ export default function SchedulePage() {
   }, []);
 
   // 요일×시간 격자에 배치. 고정 슬롯은 시작일 이후의 모든 주에 같은 요일로 깔린다.
+  // 종료일(repeatUntil)이 지난 고정 수업은 그 주 칸에서 뺀다
+  const activeSlots = useMemo(() => ((slots ?? []) as Slot[]).filter(s => {
+    if (s.isRecurring !== 1 || !s.repeatUntil) return true;
+    const wd = (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7;
+    const d = weekDates[wd];
+    return !d || toYmd(d) <= s.repeatUntil;
+  }), [slots, weekDates]);
+
   const grid = useMemo(() => {
     const g: Record<string, Slot[]> = {};
-    for (const s of (slots ?? []) as Slot[]) {
+    for (const s of activeSlots) {
       const h = hourOf(s.scheduledTime);
       if (h == null) continue;
       const d = new Date(s.scheduledDate + "T00:00:00");
@@ -213,7 +234,7 @@ export default function SchedulePage() {
     // 같은 칸에 고정 슬롯과 실제 배정이 겹치면 실제 배정을 앞세운다.
     for (const k of Object.keys(g)) g[k].sort((a, b) => a.isRecurring - b.isRecurring);
     return g;
-  }, [slots]);
+  }, [activeSlots]);
 
   // 트레이너 id → 팔레트 인덱스 (id 오름차순, 안정적)
   const trainerColorMap = useMemo(() => {
@@ -237,14 +258,15 @@ export default function SchedulePage() {
   // 화면 표시만 바꾸고 데이터는 만들지 않는다 — 열어서 수업 체크·노쇼로 처리할 수 있다.
   const nowKey = (() => { const n = new Date(); return `${toYmd(n)} ${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`; })();
   const effStatus = (s: Slot, wd: number) => {
-    if (s.isRecurring !== 1 || s.status !== "pending" || (s.eventType ?? "pt") !== "pt") return s.status;
+    if (s.status !== "pending" || (s.eventType ?? "pt") !== "pt") return s.status;
+    if (s.isRecurring !== 1) return `${s.scheduledDate} ${s.scheduledTime ?? "99:99"}` <= nowKey ? "cancelled" : s.status;
     const d = weekDates[wd];
     if (!d || toYmd(d) < s.scheduledDate) return s.status;
     return `${toYmd(d)} ${s.scheduledTime ?? "99:99"}` <= nowKey ? "cancelled" : s.status;
   };
 
   const weekStats = useMemo(() => {
-    const all = (slots ?? []) as Slot[];
+    const all = activeSlots;
     // 달력에 보이는 것과 같은 기준: 고정 수업은 그 주 같은 칸·트레이너·시간에 실제 일정이 없을 때 '예정' 1건
     const cellKey = (s: Slot) => {
       const wd = (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7;
@@ -271,7 +293,7 @@ export default function SchedulePage() {
       pending: real.filter(s => s.status === "pending").length,
       byTrainer,
     };
-  }, [slots, weekDates, nowKey]);
+  }, [activeSlots, weekDates, nowKey]);
 
   return (
     <div className="space-y-4">
@@ -795,6 +817,10 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
     onSuccess: () => { toast.success("삭제되었습니다"); onSaved(); },
     onError: e => toast.error(e.message),
   });
+  const endRecurringMutation = trpc.schedules.endRecurring.useMutation({
+    onSuccess: (r) => { toast.success(r.deleted ? "고정 수업을 삭제했습니다" : `고정 수업을 ${r.repeatUntil}까지로 종료했습니다`); onSaved(); },
+    onError: e => toast.error(e.message),
+  });
   const cancelCompletionMutation = trpc.schedules.cancelCompletion.useMutation({
     onSuccess: () => { toast.success("완료 취소 — 회차가 복구되었습니다"); onSaved(); },
     onError: e => toast.error(e.message),
@@ -831,10 +857,21 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
     onError: e => toast.error(e.message),
   });
 
+  const recordOccurrenceMutation = trpc.schedules.recordOccurrence.useMutation({
+    onSuccess: (res, v) => {
+      if (v.mode === "cancelled") toast.success("캔슬(당일 취소)로 처리했습니다");
+      else reportDeduct(v.mode === "done" ? "수업 체크" : "노쇼", res);
+      onSaved();
+    },
+    onError: e => toast.error(e.message),
+  });
+
   const checkPastFixed = (mode: "done" | "noshow") => {
     const label = mode === "done" ? "완료" : "노쇼";
     const deductMsg = mode === "done" ? "PT 세션 1회가 차감됩니다." : "노쇼 처리되며 PT 세션 1회가 차감됩니다.";
     if (!confirm(`${date} ${time} 수업을 ${label} 처리합니다. ${deductMsg}`)) return;
+    // 고정 수업 회차: 서버에서 생성+차감을 한 번에 (중간 실패로 '예정'만 남는 일 방지)
+    if (target?.isRecurring === 1) { recordOccurrenceMutation.mutate({ templateId: target.id, date, mode }); return; }
     const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
     const payload = {
       memberId, memberName: freeText,
@@ -849,9 +886,9 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
     else createThenNoShowMutation.mutate(payload);
   };
 
-  const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || cancelCompletionMutation.isPending || checkPastMutation.isPending || noShowMutation.isPending || createThenCheckMutation.isPending || createThenNoShowMutation.isPending;
+  const busy = recordOccurrenceMutation.isPending || endRecurringMutation.isPending || createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || cancelCompletionMutation.isPending || checkPastMutation.isPending || noShowMutation.isPending || createThenCheckMutation.isPending || createThenNoShowMutation.isPending;
   // 삭제 버튼은 삭제/취소 관련 mutation이 진행 중일 때만 막음 (저장 중에는 삭제 가능)
-  const deleteBusy = deleteMutation.isPending || createMutation.isPending;
+  const deleteBusy = deleteMutation.isPending || createMutation.isPending || endRecurringMutation.isPending;
 
   const save = () => {
     // 시간을 직접 고쳐서 영업시간 밖으로 나가는 것도 막는다(칸 잠금만으론 못 막힘).
@@ -1114,7 +1151,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
                   if (target.isRecurring === 1) {
                     if (confirm(`${date} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`)) {
                       const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
-                      createMutation.mutate({ memberId, memberName: freeText, scheduledDate: date, scheduledTime: time, notes: notes || undefined, isRecurring: false, eventType, branchId: selectedBranchId ?? undefined, ...(effTrainerId ? { trainerId: effTrainerId } : {}), status: "cancelled" });
+                      recordOccurrenceMutation.mutate({ templateId: target.id, date, mode: "cancelled" });
                     }
                   } else {
                     if (confirm(`${target.scheduledDate} 수업을 캔슬(당일 취소·차감 없음) 처리합니다.`))
@@ -1255,8 +1292,8 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
               <div className="space-y-3">
                 {([
                   { value: "one",    label: "이 날짜만 삭제 (고정 수업은 유지)" },
-                  { value: "future", label: "이 일정 및 향후 일정 삭제" },
-                  { value: "all",    label: "모든 일정 삭제" },
+                  { value: "future", label: "이 날짜부터 고정 수업 종료 (지난 수업은 유지)" },
+                  { value: "all",    label: "고정 수업 전체 삭제 (지난 주 칸도 사라짐)" },
                 ] as const).map(opt => (
                   <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -1292,8 +1329,11 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
                         branchId: target.branchId ?? undefined, status: "skipped",
                         ...(effTrainerId ? { trainerId: effTrainerId } : {}),
                       });
+                    } else if (deleteDialog === "future") {
+                      // 이 날짜부터 반복 종료 — 지난 회차는 남긴다
+                      endRecurringMutation.mutate({ templateId: fixed!.id, fromDate: date });
                     } else {
-                      // 향후 / 전체: 반복 템플릿 삭제
+                      // 전체 삭제
                       deleteMutation.mutate({ scheduleId: fixed!.id });
                     }
                   } else {

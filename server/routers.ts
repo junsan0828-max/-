@@ -2830,7 +2830,8 @@ const schedulesRouter = t.router({
       const periodCond = or(
         // 고정 슬롯은 시작일이 이 주 끝 이전이면 계속 유효하다.
         and(eq(schedules.isRecurring, 0), gte(schedules.scheduledDate, input.weekStart), lte(schedules.scheduledDate, input.weekEnd)),
-        and(eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, input.weekEnd)),
+        and(eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, input.weekEnd),
+          sql`(${schedules.repeatUntil} IS NULL OR ${schedules.repeatUntil} >= ${input.weekStart})`),
       )!;
 
       return db
@@ -2841,7 +2842,7 @@ const schedulesRouter = t.router({
           scheduledDate: schedules.scheduledDate, scheduledTime: schedules.scheduledTime,
           notes: schedules.notes, status: schedules.status,
           isRecurring: schedules.isRecurring, branchId: schedules.branchId,
-          eventType: schedules.eventType,
+          eventType: schedules.eventType, repeatUntil: schedules.repeatUntil,
         })
         .from(schedules)
         .leftJoin(members, eq(schedules.memberId, members.id))
@@ -3066,6 +3067,61 @@ const schedulesRouter = t.router({
         .where(eq(schedules.id, input.scheduleId));
 
       return { success: true };
+    }),
+
+  // 고정 수업의 특정 날짜 회차 처리(체크·노쇼·캔슬)를 한 번에: 개별 일정 생성 + 차감을 서버에서 함께 한다.
+  // (예전엔 화면에서 생성→체크를 두 번 호출해, 중간에 실패하면 '예정' 일정만 남았다)
+  recordOccurrence: protectedProcedure
+    .input(z.object({ templateId: z.number(), date: z.string(), mode: z.enum(["done", "noshow", "cancelled"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.templateId);
+      const [tpl] = await db.select().from(schedules).where(eq(schedules.id, input.templateId)).limit(1);
+      if (!tpl || tpl.isRecurring !== 1) throw new TRPCError({ code: "BAD_REQUEST", message: "고정 수업이 아닙니다." });
+      const [exists] = await db.select({ id: schedules.id, status: schedules.status }).from(schedules).where(and(
+        eq(schedules.isRecurring, 0), eq(schedules.trainerId, tpl.trainerId),
+        eq(schedules.scheduledDate, input.date), eq(schedules.scheduledTime, tpl.scheduledTime ?? ""),
+      )).limit(1);
+      if (exists) throw new TRPCError({ code: "BAD_REQUEST", message: "이 날짜 수업은 이미 처리돼 있습니다. 새로고침 후 확인해 주세요." });
+      const [row] = await db.insert(schedules).values({
+        memberId: tpl.memberId, memberName: tpl.memberId ? null : tpl.memberName, trainerId: tpl.trainerId,
+        scheduledDate: input.date, scheduledTime: tpl.scheduledTime, notes: null,
+        isRecurring: 0, branchId: tpl.branchId, eventType: tpl.eventType, status: input.mode,
+      }).returning({ id: schedules.id, memberId: schedules.memberId, memberName: schedules.memberName, trainerId: schedules.trainerId });
+      const isPt = !tpl.eventType || tpl.eventType === "pt";
+      if (input.mode === "cancelled" || !isPt) return { success: true, sessionResult: null, skipReason: null };
+      const { sessionResult, skipReason } = await deductForSchedule(db, row, input.date);
+      return { success: true, sessionResult, skipReason };
+    }),
+
+  // 고정 수업을 이번 주만 다른 칸으로 옮기기: 원래 회차는 skipped, 새 칸에 개별 일정
+  moveOccurrence: protectedProcedure
+    .input(z.object({ templateId: z.number(), fromDate: z.string(), toDate: z.string(), toTime: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.templateId);
+      const [tpl] = await db.select().from(schedules).where(eq(schedules.id, input.templateId)).limit(1);
+      if (!tpl || tpl.isRecurring !== 1) throw new TRPCError({ code: "BAD_REQUEST", message: "고정 수업이 아닙니다." });
+      const base = { memberId: tpl.memberId, memberName: tpl.memberId ? null : tpl.memberName, trainerId: tpl.trainerId,
+        isRecurring: 0, branchId: tpl.branchId, eventType: tpl.eventType };
+      await db.insert(schedules).values({ ...base, scheduledDate: input.fromDate, scheduledTime: tpl.scheduledTime, status: "skipped", notes: `이동 → ${input.toDate} ${input.toTime}` });
+      const [row] = await db.insert(schedules).values({ ...base, scheduledDate: input.toDate, scheduledTime: input.toTime, status: "pending" }).returning({ id: schedules.id });
+      return { id: row.id };
+    }),
+
+  // 고정 수업 종료: 이 날짜부터 반복 안 함 (지난 회차는 그대로 남는다). 시작일 이전이면 통째 삭제.
+  endRecurring: protectedProcedure
+    .input(z.object({ templateId: z.number(), fromDate: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireOwnSchedule(ctx, input.templateId);
+      const [tpl] = await db.select({ isRecurring: schedules.isRecurring, scheduledDate: schedules.scheduledDate }).from(schedules).where(eq(schedules.id, input.templateId)).limit(1);
+      if (!tpl || tpl.isRecurring !== 1) throw new TRPCError({ code: "BAD_REQUEST", message: "고정 수업이 아닙니다." });
+      if (input.fromDate <= tpl.scheduledDate) {
+        await db.delete(schedules).where(eq(schedules.id, input.templateId));
+        return { deleted: true, repeatUntil: null };
+      }
+      const d = new Date(input.fromDate + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - 1);
+      const repeatUntil = d.toISOString().slice(0, 10);
+      await db.update(schedules).set({ repeatUntil }).where(eq(schedules.id, input.templateId));
+      return { deleted: false, repeatUntil };
     }),
 
   // 노쇼 처리: 상태를 noshow로 변경 + PT 세션 차감 (PT 수업이고 회원 있는 경우만)
@@ -6230,7 +6286,8 @@ const dashboardRouter = t.router({
     const recurringAll = await db
       .select({ status: schedules.status, scheduledTime: schedules.scheduledTime, scheduledDate: schedules.scheduledDate })
       .from(schedules)
-      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass));
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass,
+        sql`(${schedules.repeatUntil} IS NULL OR ${schedules.repeatUntil} >= ${today})`));
 
     const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll
@@ -6269,7 +6326,8 @@ const dashboardRouter = t.router({
 
     const recurringAll = await db.select(cols).from(schedules)
       .leftJoin(members, eq(schedules.memberId, members.id))
-      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass));
+      .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass,
+        sql`(${schedules.repeatUntil} IS NULL OR ${schedules.repeatUntil} >= ${today})`));
 
     const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll

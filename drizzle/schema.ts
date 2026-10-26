@@ -155,6 +155,7 @@ export const schedules = pgTable("schedules", {
   branchId: integer("branchId"),
   signature: text("signature"),
   eventType: text("eventType").default("pt").notNull(), // pt | consultation | trial | meeting | other
+  repeatUntil: text("repeatUntil"),   // 고정 슬롯 종료일 (이 날짜까지 반복, NULL이면 계속)
   createdAt: text("createdAt").default(now).notNull(),
 });
 
