@@ -1130,11 +1130,22 @@ const trainersRouter = t.router({
       employmentType: string | null; workplaceName: string | null;
       workYears: number | null; specialties: string | null; profileBonusGranted: number;
       jobType: string | null; careerRange: string | null; activityArea: string | null; profileImage: string | null;
-      journalType: string | null; operationMode: string | null;
-    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage","educationNeeds","onboardingSurveyDone","journalType","operationMode" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
-    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null, educationNeeds: null, onboardingSurveyDone: 0, journalType: null, operationMode: "both" };
+      journalType: string | null; operationMode: string | null; allowOperatorAccess: number; operatorAccessUpdatedAt: string | null;
+    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage","educationNeeds","onboardingSurveyDone","journalType","operationMode","allowOperatorAccess","operatorAccessUpdatedAt" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
+    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null, educationNeeds: null, onboardingSurveyDone: 0, journalType: null, operationMode: "both", allowOperatorAccess: 0, operatorAccessUpdatedAt: null };
     return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50, ...ext };
   }),
+
+  setOperatorAccess: protectedProcedure
+    .input(z.object({ allow: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `UPDATE trainers SET "allowOperatorAccess"=$1, "operatorAccessUpdatedAt"=now()::text WHERE id=$2`,
+        [input.allow ? 1 : 0, ctx.user.trainerId]
+      );
+      return { success: true };
+    }),
 
   updateMyProfile: protectedProcedure
     .input(z.object({ trainerName: z.string().min(1), phone: z.string().optional(), email: z.string().email().optional().or(z.literal("")) }))
@@ -1488,6 +1499,15 @@ const trainersRouter = t.router({
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
+// 관리자는 트레이너를 지정해 그 트레이너의 성장 통계·분석을 볼 수 있다.
+function resolveGrowthTrainerId(user: { role?: string; trainerId?: number | null }, requested?: number) {
+  if (requested != null && requested !== user.trainerId) {
+    if (user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    return requested;
+  }
+  return user.trainerId ?? null;
+}
+
 const dashboardRouter = t.router({
   getStats: protectedProcedure.query(({ ctx }) => {
     const trainerId = ctx.user.trainerId;
@@ -1623,9 +1643,14 @@ const dashboardRouter = t.router({
     }),
 
   // 성장 분석 — 시간표 가동률·수용 여력·매출 전망·이탈 위험·추천
-  getGrowthAnalysis: protectedProcedure.query(async ({ ctx }) => {
-    const tid = ctx.user.trainerId;
+  getGrowthAnalysis: protectedProcedure
+    .input(z.object({ trainerId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const tid = resolveGrowthTrainerId(ctx.user, input?.trainerId);
     if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+    const asOperator = tid !== ctx.user.trainerId;
+    const showNames = !asOperator || (await operatorCanSeePII(tid));
+    const nameOf = (n: string) => (showNames ? n : maskName(n) ?? "");
 
     const DAY = 86400000;
     const kstToday = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
@@ -1788,7 +1813,7 @@ const dashboardRouter = t.router({
       const bySessions = r.remaining > 0 ? Math.ceil((r.remaining / freq) * 7) : 0;
       const daysToExpiry = r.expiryDate ? Math.round((Date.parse(r.expiryDate.slice(0, 10) + "T00:00:00Z") - todayMs) / DAY) : null;
       const daysLeft = daysToExpiry != null ? Math.min(daysToExpiry, bySessions || daysToExpiry) : bySessions;
-      return { memberId: r.memberId, name: r.name, remaining: r.remaining, daysLeft };
+      return { memberId: r.memberId, name: nameOf(r.name), remaining: r.remaining, daysLeft };
     }).filter(r => r.daysLeft >= 0 && r.daysLeft <= 30).sort((a, b) => a.daysLeft - b.daysLeft);
     const expectedRenewals = Math.round(ending.length * renewalRate * 10) / 10;
     const expectedRenewalRevenue = Math.round(ending.length * renewalRate * avgPackagePrice);
@@ -1801,7 +1826,7 @@ const dashboardRouter = t.router({
       .map(r => {
         const last = lastSeen.get(r.memberId);
         const days = last ? Math.round((todayMs - Date.parse(last.slice(0, 10) + "T00:00:00Z")) / DAY) : null;
-        return { memberId: r.memberId, name: r.name, remaining: r.remaining, daysSince: days };
+        return { memberId: r.memberId, name: nameOf(r.name), remaining: r.remaining, daysSince: days };
       })
       .filter(r => r.daysSince == null || r.daysSince >= 14)
       .sort((a, b) => (b.daysSince ?? 999) - (a.daysSince ?? 999));
@@ -1904,6 +1929,7 @@ const dashboardRouter = t.router({
     recs.sort((a, b) => b.impact - a.impact);
 
     return {
+      viewer: { asOperator, namesMasked: !showNames },
       hoursEstimated,
       workHours,
       schedule: {
@@ -1928,9 +1954,9 @@ const dashboardRouter = t.router({
   // 나의 성과 리포트 — 기간(상반기/하반기/연간) × 연도
   // 성장 통계 — 프로그램별·유입경로·성별 심층 데이터
   getGrowthStats: protectedProcedure
-    .input(z.object({ year: z.number(), period: z.enum(["H1", "H2", "annual", "month"]), month: z.number().optional() }))
+    .input(z.object({ year: z.number(), period: z.enum(["H1", "H2", "annual", "month"]), month: z.number().optional(), trainerId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const tid = ctx.user.trainerId;
+      const tid = resolveGrowthTrainerId(ctx.user, input.trainerId);
       if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
       const { year, period, month } = input;
 
@@ -2927,6 +2953,20 @@ const eContractRouter = t.router({
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
+// 회원 개인정보는 트레이너가 '운영자 열람 허용'을 켠 경우에만 관리자에게 그대로 보여준다.
+async function operatorCanSeePII(trainerId: number) {
+  const r = await pool.query<{ allow: number }>(`SELECT "allowOperatorAccess" AS allow FROM trainers WHERE id=$1`, [trainerId]);
+  return Number(r.rows[0]?.allow ?? 0) === 1;
+}
+function maskName(name: string | null | undefined) {
+  if (!name) return name ?? null;
+  const chars = Array.from(name);
+  return chars[0] + "○".repeat(Math.max(1, chars.length - 1));
+}
+function maskPhone(phone: string | null | undefined) {
+  return phone ? "비공개" : phone ?? null;
+}
+
 const adminProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user || ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
   return next({ ctx: { ...ctx, user: ctx.user } });
@@ -2988,6 +3028,7 @@ const adminRouter = t.router({
         subscriptionStatus: (settingsRow[0] as any)?.subStatus ?? "trial",
         subscriptionEndDate: (settingsRow[0] as any)?.subscriptionEndDate ?? null,
         adminMemo: (settingsRow[0] as any)?.adminMemo ?? null,
+        allowOperatorAccess: await operatorCanSeePII(tr.id),
       };
     }));
     return withStats;
@@ -3020,6 +3061,7 @@ const adminRouter = t.router({
         subscriptionStatus: (settingsRow[0] as any)?.subStatus ?? "trial",
         subscriptionEndDate: (settingsRow[0] as any)?.subscriptionEndDate ?? null,
         adminMemo: (settingsRow[0] as any)?.adminMemo ?? null,
+        allowOperatorAccess: await operatorCanSeePII(tr.id),
       };
     }),
 
@@ -3356,7 +3398,8 @@ const adminRouter = t.router({
          FROM fit_step_plus_members WHERE "trainerId"=$1 ORDER BY "createdAt" DESC`,
         [input.trainerId]
       );
-      return rows.rows;
+      if (await operatorCanSeePII(input.trainerId)) return rows.rows;
+      return rows.rows.map((r: any) => ({ ...r, name: maskName(r.name), phone: maskPhone(r.phone), username: r.username ? "비공개" : r.username }));
     }),
 
   getTrainerBookingsDetail: adminProcedure
@@ -3367,7 +3410,8 @@ const adminRouter = t.router({
          FROM consultation_bookings WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 50`,
         [input.trainerId]
       );
-      return rows.rows;
+      if (await operatorCanSeePII(input.trainerId)) return rows.rows;
+      return rows.rows.map((r: any) => ({ ...r, name: maskName(r.name), phone: maskPhone(r.phone), message: r.message ? "(비공개)" : r.message }));
     }),
 
   getTrainerTemplatesDetail: adminProcedure
@@ -3388,7 +3432,11 @@ const adminRouter = t.router({
         pool.query<any>(`SELECT * FROM custom_survey_questions WHERE "trainerId"=$1 ORDER BY "sortOrder", id`, [input.trainerId]),
         pool.query<any>(`SELECT * FROM custom_survey_responses WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 30`, [input.trainerId]),
       ]);
-      return { questions: qRows.rows, responses: rRows.rows };
+      if (await operatorCanSeePII(input.trainerId)) return { questions: qRows.rows, responses: rRows.rows };
+      return {
+        questions: qRows.rows,
+        responses: rRows.rows.map((r: any) => ({ ...r, respondentName: maskName(r.respondentName), respondentPhone: maskPhone(r.respondentPhone), answers: "{}" })),
+      };
     }),
 
   getTrainerContractDetail: adminProcedure
@@ -3417,7 +3465,8 @@ const adminRouter = t.router({
          ORDER BY m."createdAt" DESC`,
         [input.trainerId]
       );
-      return rows.rows;
+      if (await operatorCanSeePII(input.trainerId)) return rows.rows;
+      return rows.rows.map((r: any) => ({ ...r, name: maskName(r.name), phone: maskPhone(r.phone) }));
     }),
 
   getTrainerSessionsDetail: adminProcedure
@@ -3433,7 +3482,8 @@ const adminRouter = t.router({
          LIMIT 100`,
         [input.trainerId]
       );
-      return rows.rows;
+      if (await operatorCanSeePII(input.trainerId)) return rows.rows;
+      return rows.rows.map((r: any) => ({ ...r, memberName: maskName(r.memberName), feedback: r.feedback ? "(비공개)" : r.feedback }));
     }),
 
   getTrainerAttendancesDetail: adminProcedure
@@ -3450,7 +3500,8 @@ const adminRouter = t.router({
          LIMIT 100`,
         [input.trainerId]
       );
-      return rows.rows;
+      if (await operatorCanSeePII(input.trainerId)) return rows.rows;
+      return rows.rows.map((r: any) => ({ ...r, memberName: maskName(r.memberName), painArea: r.painArea ? "(비공개)" : r.painArea }));
     }),
 
   listSurveyResponses: adminProcedure.query(async () => {

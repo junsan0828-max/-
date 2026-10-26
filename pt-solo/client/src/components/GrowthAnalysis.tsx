@@ -84,9 +84,12 @@ function WorkHoursDialog({ open, onClose, initial }: { open: boolean; onClose: (
   );
 }
 
-export default function GrowthAnalysis() {
-  const [, setLocation] = useLocation();
-  const { data, isLoading } = trpc.dashboard.getGrowthAnalysis.useQuery(undefined, { refetchOnWindowFocus: false });
+export default function GrowthAnalysis({ trainerId }: { trainerId?: number } = {}) {
+  const [, navigate] = useLocation();
+  const { data, isLoading } = trpc.dashboard.getGrowthAnalysis.useQuery(trainerId ? { trainerId } : undefined, { refetchOnWindowFocus: false });
+  const asOperator = !!data?.viewer.asOperator;
+  // 운영자 보기에서는 트레이너 화면(회원 상세·스케줄)으로 이동하지 않는다
+  const setLocation = (path: string) => { if (!asOperator) navigate(path); };
   const [hoursOpen, setHoursOpen] = useState(false);
   const [hover, setHover] = useState<{ dow: number; hour: number; occ: number; open: boolean } | null>(null);
 
@@ -101,6 +104,12 @@ export default function GrowthAnalysis() {
 
   return (
     <div className="space-y-4">
+      {asOperator && (
+        <p className="text-xs rounded-lg px-3 py-2 bg-muted/60 text-muted-foreground">
+          운영자 보기 · {data.viewer.namesMasked ? "트레이너가 회원 정보 열람을 허용하지 않아 이름을 가렸어요." : "트레이너가 회원 정보 열람을 허용했어요."}
+        </p>
+      )}
+
       {/* 핵심 요약 */}
       <section className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3">
         <p className="text-xs font-semibold text-primary">이번 분석 요약</p>
@@ -121,7 +130,7 @@ export default function GrowthAnalysis() {
             <p className="text-[10px] text-muted-foreground">월 기준</p>
           </div>
         </div>
-        {data.hoursEstimated && s.hasData && (
+        {data.hoursEstimated && s.hasData && !asOperator && (
           <button onClick={() => setHoursOpen(true)} className="w-full text-left text-xs text-amber-700 bg-amber-500/10 rounded-lg px-3 py-2">
             운영 시간을 수업 기록으로 추정했어요. <b className="underline underline-offset-2">운영 시간 설정</b>을 하면 수용 인원과 매출 여력이 정확해져요.
           </button>
@@ -158,7 +167,7 @@ export default function GrowthAnalysis() {
         icon={CalendarClock}
         title="주간 시간표 점유"
         right={
-          <button onClick={() => setHoursOpen(true)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <button onClick={() => setHoursOpen(true)} disabled={asOperator} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:pointer-events-none">
             <Settings2 className="h-3.5 w-3.5" />
             운영 시간{data.hoursEstimated && <span className="text-[10px] text-amber-600">(자동 추정)</span>}
           </button>
@@ -296,9 +305,11 @@ export default function GrowthAnalysis() {
             </li>
           ))}
         </ol>
-        <button onClick={() => setLocation("/schedule")} className="flex items-center gap-0.5 text-xs font-semibold text-primary">
-          스케줄 관리로 가기 <ChevronRight className="h-3.5 w-3.5" />
-        </button>
+        {!asOperator && (
+          <button onClick={() => setLocation("/schedule")} className="flex items-center gap-0.5 text-xs font-semibold text-primary">
+            스케줄 관리로 가기 <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        )}
       </Card>
 
       {/* 재등록 예정 */}
@@ -315,7 +326,7 @@ export default function GrowthAnalysis() {
                   <span className={`text-xs font-semibold tabular-nums w-14 text-right ${m.daysLeft <= 7 ? "text-rose-500" : "text-amber-600"}`}>
                     {m.daysLeft === 0 ? "곧 종료" : `약 ${m.daysLeft}일`}
                   </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  {!asOperator && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
                 </button>
               </li>
             ))}
@@ -338,7 +349,7 @@ export default function GrowthAnalysis() {
                   <span className="text-xs font-semibold text-rose-500 tabular-nums w-16 text-right">
                     {m.daysSince == null ? "기록 없음" : `${m.daysSince}일째`}
                   </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  {!asOperator && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
                 </button>
               </li>
             ))}
@@ -363,7 +374,7 @@ export default function GrowthAnalysis() {
         </div>
       </Card>
 
-      <WorkHoursDialog open={hoursOpen} onClose={() => setHoursOpen(false)} initial={data.workHours} />
+      {!asOperator && <WorkHoursDialog open={hoursOpen} onClose={() => setHoursOpen(false)} initial={data.workHours} />}
     </div>
   );
 }

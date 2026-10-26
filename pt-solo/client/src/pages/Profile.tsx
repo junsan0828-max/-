@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, CheckCircle, Clock, XCircle, Briefcase, Camera, Share2, Copy, Check, Users, ClipboardList, Bell, BellOff, Send } from "lucide-react";
+import { User, Lock, CheckCircle, Clock, XCircle, Briefcase, Camera, Share2, Copy, Check, Users, ClipboardList, Bell, BellOff, Send, ShieldCheck } from "lucide-react";
 
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -159,6 +159,53 @@ async function resizeImageToBase64(file: File, maxSize = 300): Promise<string> {
   });
 }
 
+
+function OperatorAccessCard() {
+  const utils = trpc.useUtils();
+  const { data: profile } = trpc.trainers.getMyProfile.useQuery();
+  const allowed = Number((profile as any)?.allowOperatorAccess ?? 0) === 1;
+  const updatedAt = (profile as any)?.operatorAccessUpdatedAt as string | null | undefined;
+  const mutation = trpc.trainers.setOperatorAccess.useMutation({
+    onSuccess: (_r, v) => {
+      utils.trainers.getMyProfile.invalidate();
+      toast.success(v.allow ? "운영자 열람을 허용했어요" : "운영자 열람 허용을 철회했어요");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />회원 정보 운영자 열람
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          FIT STEP 운영자는 기본적으로 매출·수업 수 같은 <b className="text-foreground">숫자만</b> 보고, 회원 이름·연락처·메모·건강 정보는 가려서 봐요.
+          운영 컨설팅이나 문의 처리를 위해 회원 정보까지 보여주려면 허용해 주세요. 언제든 철회할 수 있어요.
+        </p>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{allowed ? "열람 허용 중" : "열람 허용 안 함"}</p>
+            {updatedAt && (
+              <p className="text-xs text-muted-foreground">마지막 변경 {updatedAt.slice(0, 10)}</p>
+            )}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={allowed ? "outline" : "default"}
+            disabled={mutation.isPending || !profile}
+            onClick={() => mutation.mutate({ allow: !allowed })}
+          >
+            {allowed ? "허용 철회" : "허용하기"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
@@ -533,6 +580,8 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      <OperatorAccessCard />
 
       {/* 비밀번호 변경 */}
       <Card className="bg-card border-border">

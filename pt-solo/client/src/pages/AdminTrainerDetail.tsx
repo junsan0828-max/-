@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2, Pencil, X, Users, Dumbbell, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2, Pencil, X, Users, Dumbbell, ClipboardCheck, TrendingUp, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
@@ -119,6 +119,21 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             <PlanBadge plan={(t as any).plan} />
           </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+        <button
+          onClick={() => setLocation(`/admin/trainers/${trainerId}/growth`)}
+          className="w-full flex items-center justify-between text-sm font-semibold"
+        >
+          <span className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" />성장 통계·분석 보기</span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </button>
+        <p className={`text-xs ${(t as any).allowOperatorAccess ? "text-emerald-600" : "text-muted-foreground"}`}>
+          {(t as any).allowOperatorAccess
+            ? "회원 정보 열람 허용됨 — 회원 이름·연락처가 그대로 보여요."
+            : "회원 정보 비공개 — 트레이너가 열람을 허용하지 않아 회원 이름·연락처·메모는 가려서 보여요."}
+        </p>
       </div>
 
       {/* 기본 정보 */}

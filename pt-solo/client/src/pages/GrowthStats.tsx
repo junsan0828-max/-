@@ -19,7 +19,7 @@ function fmt(n: number) {
   return n.toLocaleString();
 }
 
-export default function GrowthStats() {
+export default function GrowthStats({ trainerId }: { trainerId?: number } = {}) {
   const [, setLocation] = useLocation();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
@@ -31,7 +31,7 @@ export default function GrowthStats() {
   const [tab, setTab] = useState<"stats" | "analysis">("stats");
 
   const { data, isLoading } = trpc.dashboard.getGrowthStats.useQuery(
-    { year, period, month },
+    { year, period, month, trainerId },
     { refetchOnWindowFocus: false, enabled: tab === "stats" }
   );
 
@@ -49,7 +49,7 @@ export default function GrowthStats() {
       {/* 상단 헤더 */}
       <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
         <button
-          onClick={() => setLocation("/")}
+          onClick={() => setLocation(trainerId ? `/admin/trainers/${trainerId}` : "/")}
           className="p-1.5 -ml-1.5 hover:bg-accent/40 rounded-lg transition-colors"
         >
           <ChevronLeft className="h-5 w-5" />
@@ -88,7 +88,7 @@ export default function GrowthStats() {
           ))}
         </div>
 
-        {tab === "analysis" ? <GrowthAnalysis /> : (<>
+        {tab === "analysis" ? <GrowthAnalysis trainerId={trainerId} /> : (<>
         {/* 기간 탭 */}
         <div className="flex gap-1 bg-muted/50 rounded-xl p-1">
           {(["H1", "H2", "annual", "month"] as const).map(p => (

@@ -830,6 +830,8 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandMessage" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "operationMode" TEXT NOT NULL DEFAULT 'both'`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "workHours" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "allowOperatorAccess" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "operatorAccessUpdatedAt" TEXT`);
   await pool.query(`CREATE TABLE IF NOT EXISTS plan_purchase_requests (
     id SERIAL PRIMARY KEY,
     "trainerId" INTEGER NOT NULL,

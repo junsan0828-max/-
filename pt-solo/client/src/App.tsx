@@ -227,6 +227,9 @@ function App() {
           <Route path="/growth-stats">{() => <GrowthStats />}</Route>
 
           <Route path="/feedback">{() => <TrainerFeedback />}</Route>
+          <Route path="/admin/trainers/:id/growth">
+            {(params) => (user?.role === "admin" ? <GrowthStats trainerId={parseInt(params.id!)} /> : <Redirect to="/" />)}
+          </Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
           </Route>
