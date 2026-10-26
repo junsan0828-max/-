@@ -254,16 +254,9 @@ export default function SchedulePage() {
   for (const key of Object.keys(grid)) usedHours.add(Number(key.split("-")[1]));
   const visibleHours = HOURS.filter(h => usedHours.has(h) || (h >= 9 && h <= 22));
 
-  // 날짜·시간이 지났는데 체크하지 않은 고정 PT 수업은 '캔슬'로 표시 (차감·정산에도 없음과 같음).
-  // 화면 표시만 바꾸고 데이터는 만들지 않는다 — 열어서 수업 체크·노쇼로 처리할 수 있다.
-  const nowKey = (() => { const n = new Date(); return `${toYmd(n)} ${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`; })();
-  const effStatus = (s: Slot, wd: number) => {
-    if (s.status !== "pending" || (s.eventType ?? "pt") !== "pt") return s.status;
-    if (s.isRecurring !== 1) return `${s.scheduledDate} ${s.scheduledTime ?? "99:99"}` <= nowKey ? "cancelled" : s.status;
-    const d = weekDates[wd];
-    if (!d || toYmd(d) < s.scheduledDate) return s.status;
-    return `${toYmd(d)} ${s.scheduledTime ?? "99:99"}` <= nowKey ? "cancelled" : s.status;
-  };
+  // 체크하지 않은 지난 수업은 자동으로 상태를 바꾸지 않고 그대로 둔다 (대표 결정 2026-10-26)
+  const nowKey = "";
+  const effStatus = (s: Slot, _wd: number) => s.status;
 
   const weekStats = useMemo(() => {
     const all = activeSlots;
@@ -1118,9 +1111,6 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
         })() && (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 space-y-2">
             <span className="font-medium">지나간 수업 — 처리 선택</span>
-            {target.isRecurring === 1 && (
-              <p className="text-[11px] text-amber-300/80">체크하지 않은 고정 수업은 달력에 '캔슬'로 표시됩니다 (차감 없음). 진행했다면 수업 체크를 눌러 주세요.</p>
-            )}
             <div className="flex gap-1.5">
               <button type="button" disabled={busy}
                 onClick={() => {
