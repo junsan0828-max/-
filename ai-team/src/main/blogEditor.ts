@@ -81,6 +81,15 @@ export class Editor {
   paras() {
     return this.f.locator(".se-component.se-text:not(.se-documentTitle) .se-text-paragraph");
   }
+  /** 마지막 본문 문단을 눌러 커서를 둔다. 선택 영역 레이어(.se-selection)가 클릭을 가로채면 강제로 누른다. */
+  async focusLastPara() {
+    const last = this.paras().last();
+    try {
+      await last.click({ timeout: 5000 });
+    } catch {
+      await last.click({ force: true });
+    }
+  }
   imgComp(base: string) {
     return this.f.locator(".se-component.se-image").filter({ has: this.f.locator(`img[src*="${base}"]`) }).first();
   }
@@ -150,7 +159,7 @@ export class Editor {
       const segs = l.split(/(\*\*[^*]+\*\*)/).filter(Boolean);
       let ok = false;
       for (let a = 0; a < 2 && !ok; a++) {
-        await this.paras().last().click();
+        await this.focusLastPara();
         await this.page.keyboard.press("Control+End");
         await sleep(250);
         for (const seg of segs) {
@@ -298,7 +307,7 @@ export class Editor {
     if (!/se-is-has-value/.test(cls)) throw new Error("배너 링크가 적용되지 않았습니다.");
   }
   async insertPlaces(names: string[]) {
-    await this.paras().last().click();
+    await this.focusLastPara();
     await this.page.keyboard.press("Control+End");
     await sleep(400);
     await this.f.locator('button:has-text("장소")').first().click();
