@@ -2871,6 +2871,19 @@ const schedulesRouter = t.router({
       const trainerId = (isAdmin && input.trainerId) ? input.trainerId : ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "어느 트레이너의 일정인지 지정해야 합니다." });
       const memberId = input.memberId ?? (input.eventType === "pt" ? await resolveMemberByName(db, input.memberName, trainerId) : null);
+      // 같은 회원·요일·시간의 고정 수업이 이미 있으면 또 만들지 않는다 (지난 주 체크하다 고정이 3중으로 쌓이던 문제)
+      if (input.isRecurring && (memberId || input.memberName) && input.scheduledTime) {
+        const dup = await pool.query(
+          `SELECT id, "scheduledDate" FROM schedules
+           WHERE "isRecurring" = 1 AND "trainerId" = $1 AND "scheduledTime" = $2
+             AND EXTRACT(ISODOW FROM "scheduledDate"::date) = EXTRACT(ISODOW FROM $3::date)
+             AND ${memberId ? `"memberId" = $4` : `"memberName" = $4`}
+           LIMIT 1`,
+          [trainerId, input.scheduledTime, input.scheduledDate, memberId ?? input.memberName],
+        );
+        if (dup.rows[0])
+          throw new TRPCError({ code: "BAD_REQUEST", message: `이미 같은 요일·시간의 고정 수업이 있습니다 (${dup.rows[0].scheduledDate}부터). 지난 수업을 체크할 때는 '고정 수업' 체크를 끄고 등록해 주세요.` });
+      }
       const [row] = await db.insert(schedules).values({
         memberId,
         memberName: memberId ? null : (input.memberName ?? null),
