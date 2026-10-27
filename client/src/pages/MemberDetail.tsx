@@ -1505,8 +1505,7 @@ export default function MemberDetail({ memberId }: Props) {
                     <button
                       onClick={() => {
                         setYangdoServiceType("pt");
-                        setYangdoModalOpen(true);
-                        setYangdoContractUrl("");
+                        setTransferOpen(true);
                         setYangdoSelectedPkgId(ptPackages?.[0]?.id ?? "");
                         setYangdoForm({ transferDate: "", trainerMemo: "" });
                       }}
@@ -1888,8 +1887,7 @@ export default function MemberDetail({ memberId }: Props) {
                           <button
                             onClick={() => {
                               setYangdoServiceType("health");
-                              setYangdoModalOpen(true);
-                              setYangdoContractUrl("");
+                              setTransferOpen(true);
                               setYangdoSelectedItemId(healthRevs[0]?.id ?? "");
                               setYangdoForm({ transferDate: "", trainerMemo: "" });
                             }}
@@ -2053,8 +2051,7 @@ export default function MemberDetail({ memberId }: Props) {
                           <button
                             onClick={() => {
                               setYangdoServiceType("locker");
-                              setYangdoModalOpen(true);
-                              setYangdoContractUrl("");
+                              setTransferOpen(true);
                               setYangdoSelectedItemId(memberPrograms?.lockers[0]?.id ?? "");
                               setYangdoForm({ transferDate: "", trainerMemo: "" });
                             }}
@@ -2177,8 +2174,7 @@ export default function MemberDetail({ memberId }: Props) {
                           <button
                             onClick={() => {
                               setYangdoServiceType("uniform");
-                              setYangdoModalOpen(true);
-                              setYangdoContractUrl("");
+                              setTransferOpen(true);
                               setYangdoSelectedItemId(memberPrograms?.uniforms[0]?.id ?? "");
                               setYangdoForm({ transferDate: "", trainerMemo: "" });
                             }}

@@ -284,6 +284,13 @@ export const transferRouter = t.router({
       transfereeBirthDate: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      // 양수인 없이 완료되면 '양수인'이라는 가짜 회원이 생기고 전 항목이 넘어간다 (2026-10-27 김현숙 사고)
+      const tName = (input.transfereeName ?? "").trim();
+      if (!input.transfereeMemberId && (!tName || tName === "양수인"))
+        throw new TRPCError({ code: "BAD_REQUEST", message: "양수인을 선택하거나 이름을 입력해 주세요." });
+      if (input.transfereeMemberId === input.transferorMemberId)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "양도인과 양수인이 같습니다." });
+
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
