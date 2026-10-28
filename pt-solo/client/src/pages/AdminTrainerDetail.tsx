@@ -207,7 +207,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           {[
             { label: "관리 회원", value: `${t.memberCount}명`, color: "text-blue-400", modal: "members" as const },
             { label: "수업", value: `${t.sessionCount}회`, color: "text-green-400", modal: "sessions" as const },
-            { label: "출석 체크", value: `${t.attendanceCount}회`, color: "text-purple-400", modal: "attendances" as const },
+            { label: "수업 체크", value: `${t.attendanceCount}회`, color: "text-purple-400", modal: "attendances" as const },
           ].map(item => (
             <button
               key={item.label}
@@ -296,46 +296,22 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <ClipboardCheck className="h-4 w-4 text-purple-400" />출석 체크 기록 (최근 100건)
+              <ClipboardCheck className="h-4 w-4 text-purple-400" />수업 체크 기록 (최근 100건)
             </DialogTitle>
           </DialogHeader>
           {!attendancesDetail ? (
             <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
           ) : attendancesDetail.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">출석 체크 기록이 없습니다.</p>
+            <p className="text-sm text-muted-foreground text-center py-6">수업 체크 기록이 없습니다.</p>
           ) : (
             <div className="space-y-2">
               {attendancesDetail.map((a: any) => (
                 <div key={a.id} className="px-3 py-2.5 rounded-lg bg-accent/20 border border-border space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold">{a.memberName ?? "알 수 없음"}</p>
-                    <span className="text-xs text-muted-foreground">{a.checkDate}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-3 text-xs">
-                    {a.conditionScore != null && (
-                      <span className="flex items-center gap-1">
-                        <span className="text-muted-foreground">컨디션</span>
-                        <span className={`font-semibold ${a.conditionScore >= 4 ? "text-green-400" : a.conditionScore >= 3 ? "text-amber-600" : "text-red-400"}`}>{a.conditionScore}/5</span>
-                      </span>
-                    )}
-                    {a.sleepHours != null && (
-                      <span className="flex items-center gap-1">
-                        <span className="text-muted-foreground">수면</span>
-                        <span className="font-medium">{a.sleepHours}h</span>
-                      </span>
-                    )}
-                    {a.energyLevel != null && (
-                      <span className="flex items-center gap-1">
-                        <span className="text-muted-foreground">에너지</span>
-                        <span className="font-medium">{a.energyLevel}/5</span>
-                      </span>
-                    )}
-                    {a.painLevel != null && a.painLevel > 0 && (
-                      <span className="flex items-center gap-1">
-                        <span className="text-red-400">통증</span>
-                        <span className="font-medium text-red-400">{a.painLevel}/5{a.painArea ? ` (${a.painArea})` : ""}</span>
-                      </span>
-                    )}
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {a.checkDate} · {a.status === "attended" ? "수업 완료" : a.status === "noshow" ? "노쇼" : a.status === "cancelled" ? "캔슬" : a.status}
+                    </span>
                   </div>
                 </div>
               ))}

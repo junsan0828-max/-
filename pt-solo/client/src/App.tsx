@@ -11,7 +11,6 @@ import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
 import ParQ from "./pages/ParQ";
 import AttendancePage from "./pages/AttendancePage";
-import AttendanceCheck from "./pages/AttendanceCheck";
 import MemberReport from "./pages/MemberReport";
 import PT from "./pages/PT";
 import Profile from "./pages/Profile";
@@ -194,9 +193,7 @@ function App() {
             {(params) => <MemberDetail memberId={parseInt(params.id!)} />}
           </Route>
           <Route path="/attendance">{() => <AttendancePage />}</Route>
-          <Route path="/attendance/:id">
-            {(params) => <AttendanceCheck memberId={parseInt(params.id!)} />}
-          </Route>
+          <Route path="/attendance/:id">{() => <Redirect to="/attendance" replace />}</Route>
           <Route path="/pt">{() => <PT />}</Route>
           <Route path="/leads">{() => <Leads />}</Route>
           <Route path="/profile">{() => <Profile />}</Route>

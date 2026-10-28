@@ -2221,14 +2221,16 @@ const attendanceChecksRouter = t.router({
 
   listByMember: protectedProcedure
     .input(z.object({ memberId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertOwnsMember(ctx.user.trainerId, input.memberId);
       const db = getDb();
       return db.select().from(attendanceChecks).where(eq(attendanceChecks.memberId, input.memberId)).orderBy(desc(attendanceChecks.checkDate));
     }),
 
   getByMemberDate: protectedProcedure
     .input(z.object({ memberId: z.number(), date: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertOwnsMember(ctx.user.trainerId, input.memberId);
       const db = getDb();
       const rows = await db.select().from(attendanceChecks).where(and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.date))).limit(1);
       return rows[0] ?? null;
@@ -2240,19 +2242,13 @@ const attendanceChecksRouter = t.router({
       checkDate: z.string(),
       checkTime: z.string().optional(),
       status: z.enum(["attended", "noshow", "cancelled"]).default("attended"),
-      conditionScore: z.number().min(1).max(5).optional(),
-      sleepHours: z.string().optional(),
-      energyLevel: z.string().optional(),
-      diet: z.string().optional(),
-      painLevel: z.number().min(0).max(10).optional(),
-      painArea: z.string().optional(),
-      painSide: z.string().optional(),
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await assertOwnsMember(trainerId, input.memberId);
 
       const { memberId, checkDate, ...fields } = input;
       const existing = await db.select({ id: attendanceChecks.id }).from(attendanceChecks).where(and(eq(attendanceChecks.memberId, memberId), eq(attendanceChecks.checkDate, checkDate))).limit(1);
@@ -2276,15 +2272,126 @@ const attendanceChecksRouter = t.router({
       return { success: true };
     }),
 
+  // 수업 체크 한 번으로 출석 기록 + 수업 1회 차감을 함께 처리한다.
+  checkClass: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      status: z.enum(["attended", "noshow", "cancelled"]).default("attended"),
+      deduct: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await assertOwnsMember(trainerId, input.memberId);
+      // 출석은 기본 차감, 노쇼는 선택, 캔슬은 차감하지 않음
+      const deduct = input.status === "cancelled" ? false : input.deduct ?? input.status === "attended";
+      const kst = new Date(Date.now() + 9 * 3600000);
+      const checkTime = kst.toISOString().slice(11, 16);
+      const attStatus = input.status === "attended" ? "attended" : input.status === "noshow" ? "noshow" : "absent";
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        // 같은 회원·날짜 동시 요청 직렬화
+        await client.query(`SELECT pg_advisory_xact_lock($1, $2)`, [input.memberId, Number(input.date.replace(/-/g, "")) % 2147483647]);
+
+        const ex = await client.query<{ id: number; status: string }>(
+          `SELECT id, status FROM attendance_checks WHERE "memberId"=$1 AND "checkDate"=$2 LIMIT 1`, [input.memberId, input.date]);
+        const isNewAttend = !ex.rows[0] || ex.rows[0].status !== "attended";
+        if (ex.rows[0]) {
+          await client.query(`UPDATE attendance_checks SET status=$1, "checkTime"=COALESCE("checkTime",$2), "updatedAt"=now()::text WHERE id=$3`,
+            [input.status, checkTime, ex.rows[0].id]);
+        } else {
+          await client.query(`INSERT INTO attendance_checks ("memberId","trainerId","checkDate","checkTime",status) VALUES ($1,$2,$3,$4,$5)`,
+            [input.memberId, trainerId, input.date, checkTime, input.status]);
+        }
+        const att = await client.query<{ id: number }>(
+          `SELECT id FROM attendances WHERE "memberId"=$1 AND "attendDate"=$2 LIMIT 1`, [input.memberId, input.date]);
+        if (att.rows[0]) await client.query(`UPDATE attendances SET status=$1 WHERE id=$2`, [attStatus, att.rows[0].id]);
+        else await client.query(`INSERT INTO attendances ("memberId","trainerId","attendDate",status) VALUES ($1,$2,$3,$4)`, [input.memberId, trainerId, input.date, attStatus]);
+
+        let deducted = false;
+        let alreadyDeducted = false;
+        let noPackage = false;
+        if (deduct) {
+          const logged = await client.query(`SELECT 1 FROM pt_session_logs WHERE "memberId"=$1 AND "sessionDate"=$2 LIMIT 1`, [input.memberId, input.date]);
+          if (logged.rowCount) {
+            alreadyDeducted = true;
+          } else {
+            const pkg = await client.query<{ id: number }>(
+              `UPDATE pt_packages SET "usedSessions"="usedSessions"+1,
+                 status = CASE WHEN "usedSessions"+1 >= "totalSessions" THEN 'completed' ELSE 'active' END
+               WHERE id = (
+                 SELECT id FROM pt_packages
+                 WHERE "memberId"=$1 AND status='active' AND "usedSessions" < "totalSessions"
+                 ORDER BY "expiryDate" ASC NULLS LAST, "createdAt" ASC, id ASC LIMIT 1
+                 FOR UPDATE
+               )
+               RETURNING id`, [input.memberId]);
+            if (pkg.rows[0]) {
+              await client.query(`INSERT INTO pt_session_logs ("memberId","trainerId","packageId","sessionDate") VALUES ($1,$2,$3,$4)`,
+                [input.memberId, trainerId, pkg.rows[0].id, input.date]);
+              await client.query(`UPDATE members SET "membershipStart"=$2 WHERE id=$1 AND "membershipStart" IS NULL`, [input.memberId, input.date]);
+              deducted = true;
+            } else {
+              noPackage = true;
+            }
+          }
+        }
+        await client.query("COMMIT");
+
+        const rem = await pool.query<{ remaining: number | null }>(
+          `SELECT SUM("totalSessions"-"usedSessions")::int AS remaining FROM pt_packages WHERE "memberId"=$1 AND status='active'`, [input.memberId]);
+        if (isNewAttend && input.status === "attended") giveAutoPoints(trainerId, "attendance_check", "회원 출석 체크");
+        return { success: true, deducted, alreadyDeducted, noPackage, remaining: rem.rows[0]?.remaining ?? 0 };
+      } catch (e) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
+    }),
+
+  // 체크 취소: 출석 기록을 지우고, 체크로 자동 차감된 수업(일지 내용이 없는 기록)은 되돌린다.
   delete: protectedProcedure
     .input(z.object({ memberId: z.number(), date: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-      await db.delete(attendanceChecks).where(and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.date)));
-      await db.delete(attendances).where(and(eq(attendances.memberId, input.memberId), eq(attendances.attendDate, input.date)));
-      return { success: true };
+      await assertOwnsMember(trainerId, input.memberId);
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`DELETE FROM attendance_checks WHERE "memberId"=$1 AND "checkDate"=$2`, [input.memberId, input.date]);
+        await client.query(`DELETE FROM attendances WHERE "memberId"=$1 AND "attendDate"=$2`, [input.memberId, input.date]);
+        const logs = await client.query<{ id: number; packageId: number | null; hasContent: boolean }>(
+          `SELECT id, "packageId",
+             (COALESCE(NULLIF("exercisesJson",'[]'),'')<>'' OR COALESCE(notes,'')<>'' OR COALESCE(goal,'')<>'' OR COALESCE(feedback,'')<>'' OR COALESCE("bodyPart",'')<>'') AS "hasContent"
+           FROM pt_session_logs WHERE "memberId"=$1 AND "sessionDate"=$2 ORDER BY id DESC`, [input.memberId, input.date]);
+        let restored = false;
+        let keptWithJournal = false;
+        const target = logs.rows.find(l => !l.hasContent);
+        if (target) {
+          await client.query(`DELETE FROM pt_session_logs WHERE id=$1`, [target.id]);
+          if (target.packageId) {
+            await client.query(
+              `UPDATE pt_packages SET "usedSessions"=GREATEST("usedSessions"-1,0),
+                 status = CASE WHEN status='completed' THEN 'active' ELSE status END
+               WHERE id=$1 AND "memberId"=$2`, [target.packageId, input.memberId]);
+          }
+          restored = true;
+        } else if (logs.rows.length) {
+          keptWithJournal = true;
+        }
+        await client.query("COMMIT");
+        return { success: true, restored, keptWithJournal };
+      } catch (e) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
     }),
 });
 
@@ -2392,7 +2499,8 @@ const reportsRouter = t.router({
       const reportTrainerId = tokenRows[0].trainerId;
       const [memberRows, checks, memos, packages, attendanceList, sessionLogs] = await Promise.all([
         db.select().from(members).where(eq(members.id, memberId)).limit(1),
-        db.select().from(attendanceChecks).where(eq(attendanceChecks.memberId, memberId)).orderBy(desc(attendanceChecks.checkDate)),
+        db.select({ id: attendanceChecks.id, checkDate: attendanceChecks.checkDate, status: attendanceChecks.status })
+          .from(attendanceChecks).where(eq(attendanceChecks.memberId, memberId)).orderBy(desc(attendanceChecks.checkDate)),
         db.select().from(workoutMemos).where(eq(workoutMemos.memberId, memberId)).orderBy(desc(workoutMemos.memoDate)),
         db.select().from(ptPackages).where(eq(ptPackages.memberId, memberId)).orderBy(desc(ptPackages.createdAt)),
         db.select().from(attendances).where(eq(attendances.memberId, memberId)).orderBy(desc(attendances.attendDate)),
@@ -3490,8 +3598,7 @@ const adminRouter = t.router({
     .input(z.object({ trainerId: z.number() }))
     .query(async ({ input }) => {
       const rows = await pool.query<any>(
-        `SELECT ac.id, ac."checkDate", ac."conditionScore", ac."sleepHours", ac."energyLevel",
-                ac."painLevel", ac."painArea", ac."createdAt",
+        `SELECT ac.id, ac."checkDate", ac.status, ac."createdAt",
                 m.name AS "memberName"
          FROM attendance_checks ac
          LEFT JOIN members m ON m.id = ac."memberId"
@@ -3501,7 +3608,7 @@ const adminRouter = t.router({
         [input.trainerId]
       );
       if (await operatorCanSeePII(input.trainerId)) return rows.rows;
-      return rows.rows.map((r: any) => ({ ...r, memberName: maskName(r.memberName), painArea: r.painArea ? "(비공개)" : r.painArea }));
+      return rows.rows.map((r: any) => ({ ...r, memberName: maskName(r.memberName) }));
     }),
 
   listSurveyResponses: adminProcedure.query(async () => {

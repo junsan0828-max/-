@@ -46,6 +46,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAutoPoints, pointLabel } from "@/hooks/useAutoPoints";
 import { useHasMembership, useHasSessions } from "@/hooks/useOperationMode";
+import { useClassCheck } from "@/hooks/useClassCheck";
 import {
   ArrowLeft,
   Crown,
@@ -174,6 +175,7 @@ export default function MemberDetail({ memberId }: Props) {
   const autoPoints = useAutoPoints();
   const hasMembership = useHasMembership();
   const hasSessions = useHasSessions();
+  const classCheck = useClassCheck();
 
   // 일지 → 시퀀스로 저장 (빈 화면에서 다시 만들지 않도록, 이미 기록한 운동을 바로 개인 시퀀스로)
   const createSeqDraft = trpc.sequenceLab.createDraft.useMutation();
@@ -639,7 +641,7 @@ export default function MemberDetail({ memberId }: Props) {
     );
   }
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = new Date(Date.now() + 9 * 3600000).toISOString().split("T")[0];
   const checkedInToday = attendanceList?.some((a) => a.attendDate === todayStr);
 
   const remainingPt = ptPackages
@@ -1016,13 +1018,11 @@ export default function MemberDetail({ memberId }: Props) {
                             <Button
                               size="sm"
                               className="w-full gap-2 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30"
-                              onClick={() => {
-                                const today = new Date().toISOString().split("T")[0];
-                                setLocation(`/attendance/${memberId}?date=${today}`);
-                              }}
+                              disabled={classCheck.pending}
+                              onClick={() => classCheck.checkClass(memberId, todayStr)}
                             >
                               <Dumbbell className="h-3.5 w-3.5" />
-                              수업 1회 사용
+                              수업 체크 (1회 차감)
                             </Button>
                           </div>
                         )}
@@ -1235,13 +1235,13 @@ export default function MemberDetail({ memberId }: Props) {
                 ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                 : ""
             }`}
-            disabled={checkedInToday}
+            disabled={checkedInToday || classCheck.pending}
             onClick={() => {
-              if (!checkedInToday) setLocation(`/attendance/${memberId}?date=${todayStr}`);
+              if (!checkedInToday) classCheck.checkClass(memberId, todayStr);
             }}
           >
             <CheckCircle className="h-4 w-4" />
-            {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
+            {checkedInToday ? "오늘 수업 완료 ✓" : "오늘 수업 체크"}
           </Button>
 
           {/* 달력 카드 */}
@@ -1318,7 +1318,7 @@ export default function MemberDetail({ memberId }: Props) {
           {conditionChecks && conditionChecks.length > 0 && (
             <Card className="bg-card border-border">
               <CardHeader className="px-4 pb-2 pt-4">
-                <CardTitle className="text-sm">컨디션 체크 이력</CardTitle>
+                <CardTitle className="text-sm">수업 체크 이력</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 <div className="space-y-0">
@@ -1336,20 +1336,8 @@ export default function MemberDetail({ memberId }: Props) {
                               ? "bg-red-500/20 text-red-400"
                               : "bg-amber-500/15 text-amber-600"
                           }`}>
-                            {check.status === "attended" ? "출석" : check.status === "noshow" ? "노쇼" : "캔슬"}
+                            {check.status === "attended" ? "수업 완료" : check.status === "noshow" ? "노쇼" : "캔슬"}
                           </span>
-                        </div>
-                        <div className="flex gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
-                          {check.conditionScore != null && (
-                            <span>컨디션 {check.conditionScore}/5</span>
-                          )}
-                          {check.energyLevel && <span>에너지 {check.energyLevel}</span>}
-                          {check.sleepHours && <span>수면 {check.sleepHours}h</span>}
-                          {check.painLevel != null && check.painLevel > 0 && (
-                            <span className="text-orange-400">
-                              통증 {check.painLevel}/10{check.painArea ? ` (${check.painArea})` : ""}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
