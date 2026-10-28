@@ -118,12 +118,7 @@ function App() {
   const [location] = useLocation();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
-  // 랜딩 페이지 (공개) — 비로그인 루트 또는 /landing 직접 접근
-  if (location === "/landing" || (!user && !isLoading && location === "/")) {
-    return <Landing />;
-  }
-
-  // 키오스크 출입 페이지 (공개, 인증 불필요)
+  // 키오스크 출입 페이지 (공개, 인증 불필요) — auth 체크 전에 처리
   if (location === "/kiosk") {
     return <KioskPage />;
   }
@@ -132,6 +127,11 @@ function App() {
   }
   if (location === "/consult-kiosk") {
     return <ConsultKioskPage />;
+  }
+
+  // 랜딩 페이지 (공개) — 비로그인 루트 또는 /landing 직접 접근
+  if (location === "/landing" || (!user && !isLoading && location === "/")) {
+    return <Landing />;
   }
 
   // 개인정보처리방침 (공개)
