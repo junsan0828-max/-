@@ -5984,6 +5984,38 @@ ${dataContext}
     };
   }),
 
+  // ─── 수업 알림: 로그인 회원의 임박 수업 조회 ────────────────────────────────
+  myUpcomingSchedules: gymPlusProtected.query(async ({ ctx }) => {
+    const gmRes = await pool.query(
+      `SELECT phone FROM gym_plus_members WHERE id = $1`,
+      [ctx.gymPlusMemberId]
+    );
+    const phone = gmRes.rows[0]?.phone;
+    if (!phone) return [];
+
+    const memberRes = await pool.query(
+      `SELECT id FROM members WHERE phone = $1 LIMIT 1`,
+      [phone]
+    );
+    const memberId = memberRes.rows[0]?.id;
+    if (!memberId) return [];
+
+    const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const res = await pool.query(
+      `SELECT s."scheduledDate", s."scheduledTime", t."trainerName"
+       FROM schedules s
+       JOIN trainers t ON t.id = s."trainerId"
+       WHERE s."memberId" = $1
+         AND s.status = 'pending'
+         AND s."scheduledDate" >= $2
+       ORDER BY s."scheduledDate" ASC, s."scheduledTime" ASC
+       LIMIT 5`,
+      [memberId, kstToday]
+    );
+    return res.rows as { scheduledDate: string; scheduledTime: string | null; trainerName: string }[];
+  }),
+
 });
 
 // ─── Landing ──────────────────────────────────────────────────────────────────
@@ -6854,37 +6886,80 @@ const kioskRouter = t.router({
       return { ok: true };
     }),
 
-  // ─── 수업 알림: 로그인 회원의 임박 수업 조회 ────────────────────────────────
-  myUpcomingSchedules: gymPlusProtected.query(async ({ ctx }) => {
-    const gmRes = await pool.query(
-      `SELECT phone FROM gym_plus_members WHERE id = $1`,
-      [ctx.gymPlusMemberId]
-    );
-    const phone = gmRes.rows[0]?.phone;
-    if (!phone) return [];
+  // ─── 상담 키오스크: 접수 ──────────────────────────────────────────────────────
+  submitConsult: publicProcedure
+    .input(z.object({
+      consultType: z.enum(["new", "renew", "pt"]),
+      name: z.string().optional(),
+      phone: z.string().min(9),
+      purpose: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const digits = input.phone.replace(/\D/g, "");
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
 
-    const memberRes = await pool.query(
-      `SELECT id FROM members WHERE phone = $1 LIMIT 1`,
-      [phone]
-    );
-    const memberId = memberRes.rows[0]?.id;
-    if (!memberId) return [];
+      // 재등록 상담은 기존 회원 확인
+      let memberName: string | null = null;
+      if (input.consultType === "renew") {
+        const mRes = await pool.query(
+          `SELECT name FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active' ORDER BY "membershipEnd" DESC NULLS LAST LIMIT 1`,
+          [digits]
+        );
+        if (mRes.rows.length === 0) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원 정보를 찾을 수 없습니다." });
+        }
+        memberName = mRes.rows[0].name;
+      }
 
-    const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const res = await pool.query(
+        `INSERT INTO kiosk_consult_requests ("consultType", name, phone, purpose, "createdAt")
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [
+          input.consultType,
+          input.name ?? memberName ?? null,
+          digits,
+          input.purpose ?? null,
+          kstNow,
+        ]
+      );
 
-    const res = await pool.query(
-      `SELECT s."scheduledDate", s."scheduledTime", t."trainerName"
-       FROM schedules s
-       JOIN trainers t ON t.id = s."trainerId"
-       WHERE s."memberId" = $1
-         AND s.status = 'pending'
-         AND s."scheduledDate" >= $2
-       ORDER BY s."scheduledDate" ASC, s."scheduledTime" ASC
-       LIMIT 5`,
-      [memberId, kstToday]
-    );
-    return res.rows as { scheduledDate: string; scheduledTime: string | null; trainerName: string }[];
-  }),
+      return { id: res.rows[0].id, memberName };
+    }),
+
+  // ─── 상담 키오스크: 관리자 목록 조회 ─────────────────────────────────────────
+  getConsultRequests: adminOnlyProcedure
+    .input(z.object({ status: z.string().optional() }))
+    .query(async ({ input }) => {
+      const where = input.status ? `WHERE status = $1` : `WHERE status != 'done'`;
+      const params = input.status ? [input.status] : [];
+      const res = await pool.query(
+        `SELECT id, "consultType", name, phone, purpose, status, "staffNote", "createdAt", "processedAt"
+         FROM kiosk_consult_requests
+         ${where}
+         ORDER BY "createdAt" DESC
+         LIMIT 100`,
+        params
+      );
+      return res.rows as {
+        id: number; consultType: string; name: string | null; phone: string;
+        purpose: string | null; status: string; staffNote: string | null;
+        createdAt: string; processedAt: string | null;
+      }[];
+    }),
+
+  // ─── 상담 키오스크: 처리 완료 ─────────────────────────────────────────────────
+  processConsult: adminOnlyProcedure
+    .input(z.object({ id: z.number(), status: z.enum(["in_progress", "done", "pending"]), staffNote: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+      await pool.query(
+        `UPDATE kiosk_consult_requests SET status = $1, "staffNote" = COALESCE($2, "staffNote"),
+         "processedAt" = CASE WHEN $1 = 'done' THEN $3 ELSE "processedAt" END
+         WHERE id = $4`,
+        [input.status, input.staffNote ?? null, kstNow, input.id]
+      );
+      return { ok: true };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

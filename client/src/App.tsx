@@ -27,6 +27,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import KioskPage from "./pages/Kiosk";
 import DietKioskPage from "./pages/DietKiosk";
+import ConsultKioskPage from "./pages/ConsultKiosk";
 import Dashboard from "./pages/Dashboard";
 import GymDashboard from "./pages/GymDashboard";
 import Members from "./pages/Members";
@@ -128,6 +129,9 @@ function App() {
   }
   if (location === "/diet-kiosk" || location === "/kiosk-general") {
     return <DietKioskPage />;
+  }
+  if (location === "/consult-kiosk") {
+    return <ConsultKioskPage />;
   }
 
   // 개인정보처리방침 (공개)

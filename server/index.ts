@@ -759,6 +759,18 @@ async function initDatabase() {
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS push_notification_log_daily_uniq
        ON push_notification_log ("gymPlusMemberId", type, LEFT("sentAt", 10))`,
+    // 상담 키오스크 접수 테이블
+    `CREATE TABLE IF NOT EXISTS kiosk_consult_requests (
+      id SERIAL PRIMARY KEY,
+      "consultType" TEXT NOT NULL,
+      name TEXT,
+      phone TEXT NOT NULL,
+      purpose TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "staffNote" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "processedAt" TEXT
+    )`,
   ];
   for (const stmt of alterStatements) {
     try {
