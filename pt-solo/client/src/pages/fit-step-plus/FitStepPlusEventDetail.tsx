@@ -43,7 +43,7 @@ export default function FitStepPlusEventDetail({ eventId, trainerId }: { eventId
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eventTypeStyle[event.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
             {eventTypeLabel[event.eventType ?? "notice"] ?? event.eventType}
           </span>
-          {event.isPinned ? <span className="text-xs text-yellow-400">📌 고정</span> : null}
+          {event.isPinned ? <span className="text-xs text-amber-600">📌 고정</span> : null}
         </div>
         <h1 className="font-bold text-xl leading-snug">{event.title}</h1>
         <p className="text-xs text-muted-foreground">{event.createdAt?.slice(0, 10)}</p>
