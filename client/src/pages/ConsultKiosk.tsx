@@ -10,6 +10,7 @@ type Stage =
   | "consult_done"
   | "payment_wait"
   | "info_display"
+  | "event_display"
   | "staff_calling"
   | "staff_called"
   | "not_found"
@@ -190,6 +191,25 @@ export default function ConsultKiosk() {
             <div className="flex-1">
               <p className="text-white font-bold text-lg">안내 설명</p>
               <p className="text-white/40 text-sm mt-0.5">이용권 가격 · 이벤트 · 운영시간</p>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/20 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+
+          {/* 이벤트 안내 */}
+          <button
+            onClick={() => setStage("event_display")}
+            className="w-full flex items-center gap-5 p-6 rounded-2xl border border-purple-500/30 bg-purple-500/8 active:bg-purple-500/15 transition-colors text-left"
+          >
+            <div className="w-12 h-12 rounded-xl bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-purple-400" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-white font-bold text-lg">이벤트 안내</p>
+              <p className="text-white/40 text-sm mt-0.5">현재 진행 중인 이벤트</p>
             </div>
             <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/20 flex-shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -387,6 +407,63 @@ export default function ConsultKiosk() {
             </div>
           ))}
           <button onClick={doReset} className="w-full py-4 rounded-xl bg-white/5 border border-white/10 text-white/60 font-bold mt-2">
+            처음으로 →
+          </button>
+        </div>
+      )}
+
+      {/* ── 이벤트 안내 ── */}
+      {stage === "event_display" && (
+        <div className="w-full max-w-sm space-y-3">
+          <div className="text-center mb-2">
+            <p className="text-purple-400 text-xs font-bold tracking-widest uppercase">12월 31일까지</p>
+            <p className="text-white font-bold text-lg mt-1">진행 중인 이벤트</p>
+          </div>
+
+          {/* 1호점 이벤트 */}
+          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
+            <p className="text-purple-400 text-[10px] tracking-widest uppercase mb-3">1호점 (정왕점)</p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
+                <div>
+                  <p className="text-white font-bold text-sm">6개월 등록 시</p>
+                  <p className="text-white/60 text-sm">→ 1개월 무료 추가 (총 7개월)</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
+                <div>
+                  <p className="text-white font-bold text-sm">12개월 등록 시</p>
+                  <p className="text-white/60 text-sm">→ 운동복 증정</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2호점 이벤트 */}
+          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
+            <p className="text-purple-400 text-[10px] tracking-widest uppercase mb-3">2호점 (시흥점)</p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
+                <div>
+                  <p className="text-white font-bold text-sm">등록 시</p>
+                  <p className="text-white/60 text-sm">→ 운동복 + 락커 서비스 제공</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 777 PT */}
+          <div className="rounded-2xl border border-[#60A5FA]/20 bg-[#1D4ED8]/[0.07] px-5 py-5">
+            <p className="text-[#60A5FA] text-[10px] tracking-widest uppercase mb-3">777 맞춤 PT</p>
+            <p className="text-white font-bold text-sm mb-1">연 1회 한정 특별 프로그램</p>
+            <p className="text-white/60 text-sm">맞춤 PT 17회 · 헬스 이용권 2개월 · 락커 서비스</p>
+            <p className="text-[#60A5FA] font-bold text-base mt-2">777,000원</p>
+          </div>
+
+          <button onClick={doReset} className="w-full py-4 rounded-xl bg-white/5 border border-white/10 text-white/60 font-bold">
             처음으로 →
           </button>
         </div>
