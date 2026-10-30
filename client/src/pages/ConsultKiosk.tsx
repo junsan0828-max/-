@@ -10,6 +10,8 @@ type Stage =
   | "consult_done"
   | "payment_wait"
   | "info_display"
+  | "staff_calling"
+  | "staff_called"
   | "not_found"
   | "error";
 
@@ -90,6 +92,11 @@ export default function ConsultKiosk() {
     },
   });
 
+  const callStaffMut = trpc.kiosk.callStaff.useMutation({
+    onSuccess: () => setStage("staff_called"),
+    onError: () => setStage("staff_called"), // 실패해도 완료로 보여줌
+  });
+
   const doReset = useCallback(() => {
     setStage("main_select");
     setName(""); setPhone(""); setPurpose(""); setMemberName("");
@@ -114,6 +121,11 @@ export default function ConsultKiosk() {
     const digits = phone.replace(/\D/g, "");
     if (digits.length < 9) return;
     submitMut.mutate({ consultType, name: name || undefined, phone: digits, purpose: purpose || undefined });
+  };
+
+  const handleCallStaff = () => {
+    setStage("staff_calling");
+    callStaffMut.mutate({ message: "키오스크에서 직원을 호출했습니다." });
   };
 
   return (
@@ -182,6 +194,17 @@ export default function ConsultKiosk() {
             <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/20 flex-shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
             </svg>
+          </button>
+
+          {/* 직원 부르기 */}
+          <button
+            onClick={handleCallStaff}
+            className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/5 active:bg-amber-500/10 transition-colors mt-2"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-amber-400" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+            </svg>
+            <p className="text-amber-400 font-bold text-base">직원 부르기</p>
           </button>
         </div>
       )}
@@ -366,6 +389,36 @@ export default function ConsultKiosk() {
           <button onClick={doReset} className="w-full py-4 rounded-xl bg-white/5 border border-white/10 text-white/60 font-bold mt-2">
             처음으로 →
           </button>
+        </div>
+      )}
+
+      {/* ── 직원 호출 중 ── */}
+      {stage === "staff_calling" && (
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto animate-pulse">
+            <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10 text-amber-400" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M24.76 28.47a39.7 39.7 0 0 0 9.07-2.18A14.94 14.94 0 0 1 30 16.25V15A10 10 0 0 0 10 15v1.25a14.94 14.94 0 0 1-3.85 10.03 39.85 39.85 0 0 0 9.08 2.19m9.53 0a40.4 40.4 0 0 1-9.53 0m9.53 0a5 5 0 0 1-9.53 0" />
+            </svg>
+          </div>
+          <p className="text-white font-bold text-xl">호출 중...</p>
+        </div>
+      )}
+
+      {/* ── 직원 호출 완료 ── */}
+      {stage === "staff_called" && (
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+            <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10 text-amber-400" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M24.76 28.47a39.7 39.7 0 0 0 9.07-2.18A14.94 14.94 0 0 1 30 16.25V15A10 10 0 0 0 10 15v1.25a14.94 14.94 0 0 1-3.85 10.03 39.85 39.85 0 0 0 9.08 2.19m9.53 0a40.4 40.4 0 0 1-9.53 0m9.53 0a5 5 0 0 1-9.53 0" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-white font-bold text-2xl mb-2">직원을 호출했습니다!</p>
+            <p className="text-white/50 text-sm leading-relaxed">
+              잠시만 기다려 주시면<br />직원이 곧 찾아옵니다.
+            </p>
+          </div>
+          <AutoCloseBar durationMs={7000} active={stage === "staff_called"} onClose={doReset} />
         </div>
       )}
 

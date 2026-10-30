@@ -75,7 +75,7 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const client of list) {
-        if (client.url.includes('/gym-plus') && 'focus' in client) {
+        if ('focus' in client) {
           client.navigate(url);
           return client.focus();
         }

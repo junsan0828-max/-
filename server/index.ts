@@ -771,6 +771,23 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "processedAt" TEXT
     )`,
+    // 직원 호출 로그
+    `CREATE TABLE IF NOT EXISTS staff_call_log (
+      id SERIAL PRIMARY KEY,
+      message TEXT NOT NULL DEFAULT '직원 호출',
+      status TEXT NOT NULL DEFAULT 'pending',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "acknowledgedAt" TEXT
+    )`,
+    // 직원 푸시 구독 (어드민/트레이너용)
+    `CREATE TABLE IF NOT EXISTS staff_push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      "userId" INTEGER NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     try {

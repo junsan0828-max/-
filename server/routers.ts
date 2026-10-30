@@ -6960,6 +6960,93 @@ const kioskRouter = t.router({
       );
       return { ok: true };
     }),
+
+  // ─── 직원 호출 ─────────────────────────────────────────────────────────────
+  callStaff: publicProcedure
+    .input(z.object({ message: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+      const msg = input.message ?? "키오스크에서 직원을 호출했습니다.";
+
+      // 호출 기록 저장
+      const res = await pool.query(
+        `INSERT INTO staff_call_log (message, "createdAt") VALUES ($1, $2) RETURNING id`,
+        [msg, kstNow]
+      );
+      const callId = res.rows[0]?.id;
+
+      // 직원 전체에게 푸시 발송
+      const subs = await pool.query(`SELECT * FROM staff_push_subscriptions`);
+      for (const sub of subs.rows) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            JSON.stringify({
+              title: "🔔 직원 호출",
+              body: msg,
+              url: "/",
+            })
+          );
+        } catch (e: any) {
+          if (e?.statusCode === 410) {
+            await pool.query(`DELETE FROM staff_push_subscriptions WHERE endpoint = $1`, [sub.endpoint]).catch(() => {});
+          }
+        }
+      }
+      return { ok: true, callId };
+    }),
+
+  // 최근 호출 조회 (어드민/트레이너 — 대시보드 폴링용)
+  getRecentStaffCalls: protectedProcedure
+    .query(async () => {
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const since = new Date(kstNow.getTime() - 5 * 60 * 1000).toISOString(); // 최근 5분
+      const res = await pool.query(
+        `SELECT id, message, status, "createdAt" FROM staff_call_log
+         WHERE "createdAt" >= $1 AND status = 'pending'
+         ORDER BY "createdAt" DESC LIMIT 10`,
+        [since]
+      );
+      return res.rows as { id: number; message: string; status: string; createdAt: string }[];
+    }),
+
+  // 호출 확인(acknowledge)
+  acknowledgeStaffCall: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+      await pool.query(
+        `UPDATE staff_call_log SET status = 'acknowledged', "acknowledgedAt" = $1 WHERE id = $2`,
+        [kstNow, input.id]
+      );
+      return { ok: true };
+    }),
+
+  // 직원 푸시 구독 등록
+  subscribeStaffPush: protectedProcedure
+    .input(z.object({
+      endpoint: z.string(),
+      p256dh: z.string(),
+      auth: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+      await pool.query(
+        `INSERT INTO staff_push_subscriptions ("userId", endpoint, p256dh, auth, "createdAt")
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (endpoint) DO UPDATE SET p256dh = $3, auth = $4, "userId" = $1`,
+        [ctx.user.id, input.endpoint, input.p256dh, input.auth, kstNow]
+      );
+      return { ok: true };
+    }),
+
+  // 직원 푸시 구독 해제
+  unsubscribeStaffPush: protectedProcedure
+    .input(z.object({ endpoint: z.string() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM staff_push_subscriptions WHERE endpoint = $1`, [input.endpoint]);
+      return { ok: true };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
