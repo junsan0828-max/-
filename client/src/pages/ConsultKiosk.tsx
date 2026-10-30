@@ -78,6 +78,7 @@ export default function ConsultKiosk() {
   const [phone, setPhone] = useState("");
   const [purpose, setPurpose] = useState("");
   const [memberName, setMemberName] = useState("");
+  const [showConsultModal, setShowConsultModal] = useState(false);
 
   const phoneRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -100,6 +101,7 @@ export default function ConsultKiosk() {
 
   const doReset = useCallback(() => {
     setStage("main_select");
+    setShowConsultModal(false);
     setName(""); setPhone(""); setPurpose(""); setMemberName("");
   }, []);
 
@@ -142,7 +144,7 @@ export default function ConsultKiosk() {
         <div className="w-full max-w-sm space-y-3">
           {/* 상담 신청 */}
           <button
-            onClick={() => setStage("consult_type")}
+            onClick={() => setShowConsultModal(true)}
             className="w-full flex items-center gap-5 p-6 rounded-2xl border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 active:bg-[#1D4ED8]/20 transition-colors text-left"
           >
             <div className="w-12 h-12 rounded-xl bg-[#1D4ED8]/20 flex items-center justify-center flex-shrink-0">
@@ -531,6 +533,81 @@ export default function ConsultKiosk() {
           </div>
           <button onClick={doReset} className="w-full py-4 rounded-xl border border-white/20 text-white/60 font-bold">처음으로</button>
           <AutoCloseBar durationMs={7000} active={stage === "error"} onClose={doReset} />
+        </div>
+      )}
+
+      {/* ── 상담 신청 모달 ── */}
+      {showConsultModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          onClick={() => setShowConsultModal(false)}
+        >
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm bg-[#0D1B2E] border border-white/10 rounded-3xl p-7 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setShowConsultModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-white/40">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <p className="text-white/40 text-[11px] tracking-[0.4em] uppercase mb-2">상담 신청</p>
+            <h3 className="text-white font-bold text-2xl mb-2">회원이신가요?</h3>
+            <p className="text-white/40 text-sm mb-8">해당하는 항목을 선택해 주세요.</p>
+
+            <div className="space-y-3">
+              {/* 처음 이신가요? */}
+              <button
+                onClick={() => {
+                  setConsultType("new");
+                  setShowConsultModal(false);
+                  setStage("consult_input");
+                }}
+                className="w-full flex items-center gap-4 p-5 rounded-2xl border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 active:bg-[#1D4ED8]/20 transition-colors text-left"
+              >
+                <div className="w-11 h-11 rounded-xl bg-[#1D4ED8]/20 flex items-center justify-center flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#60A5FA]" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-bold text-base">처음 이신가요?</p>
+                  <p className="text-white/40 text-sm mt-0.5">신규 회원 상담</p>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/20 flex-shrink-0">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+
+              {/* 기존 회원입니다 */}
+              <button
+                onClick={() => {
+                  setShowConsultModal(false);
+                  setStage("consult_type");
+                }}
+                className="w-full flex items-center gap-4 p-5 rounded-2xl border border-[#059669]/30 bg-[#059669]/8 active:bg-[#059669]/15 transition-colors text-left"
+              >
+                <div className="w-11 h-11 rounded-xl bg-[#059669]/15 flex items-center justify-center flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#34D399]" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-bold text-base">기존 회원입니다</p>
+                  <p className="text-white/40 text-sm mt-0.5">재등록 · PT 상담</p>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/20 flex-shrink-0">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
