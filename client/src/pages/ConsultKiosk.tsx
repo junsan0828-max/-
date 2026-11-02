@@ -72,6 +72,8 @@ const MEMBERSHIP_PRICES: Record<number, [string, string][]> = {
   2: [["1개월", "60,000원"], ["3개월", "120,000원"], ["6개월", "180,000원"], ["12개월", "300,000원"]],
 };
 
+const VAT_NOTE = "* 카드 및 시루 결제 시 부가세 10%";
+
 const BRANCH_EVENT_ROWS: Record<number, string[]> = {
   1: ["6개월 등록 → 1개월 추가", "12개월 등록 → 운동복 증정", "12월 31일까지"],
   2: ["등록 시 → 운동복 + 락커 서비스 제공", "12월 31일까지"],
@@ -514,6 +516,7 @@ export default function ConsultKiosk() {
                 <span className="text-slate-900 font-semibold text-sm">{price}</span>
               </div>
             ))}
+            <p className="text-slate-500 text-xs pt-2">{VAT_NOTE}</p>
           </div>
           <button onClick={doReset} className="w-full py-3.5 rounded-xl border border-slate-200 text-slate-500 text-sm">
             처음으로 →
@@ -532,6 +535,7 @@ export default function ConsultKiosk() {
                 {item.rows.map((row) => (
                   <p key={row} className="text-slate-600 text-sm">{row}</p>
                 ))}
+                {item.title === "헬스 이용권" && <p className="text-slate-500 text-xs pt-1">{VAT_NOTE}</p>}
               </div>
             </div>
           ))}
