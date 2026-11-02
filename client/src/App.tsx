@@ -119,13 +119,15 @@ function App() {
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
   // 키오스크 출입 페이지 (공개, 인증 불필요) — auth 체크 전에 처리
-  if (location === "/kiosk") {
+  // 메신저·브라우저가 붙이는 끝 슬래시나 대문자 때문에 로그인 화면으로 빠지지 않도록 정규화
+  const kioskPath = location.toLowerCase().replace(/\/+$/, "");
+  if (kioskPath === "/kiosk") {
     return <KioskPage />;
   }
-  if (location === "/diet-kiosk" || location === "/kiosk-general") {
+  if (kioskPath === "/diet-kiosk" || kioskPath === "/kiosk-general") {
     return <DietKioskPage />;
   }
-  if (location === "/consult-kiosk") {
+  if (kioskPath === "/consult-kiosk") {
     return <ConsultKioskPage />;
   }
 
