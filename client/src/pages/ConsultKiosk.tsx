@@ -6,6 +6,8 @@ type ConsultType = "new" | "renew" | "pt";
 type Stage =
   | "main_select"
   | "consult_type"
+  | "consult_check"
+  | "consult_status"
   | "consult_input"
   | "consult_done"
   | "payment_wait"
@@ -79,6 +81,7 @@ export default function ConsultKiosk() {
   const [purpose, setPurpose] = useState("");
   const [memberName, setMemberName] = useState("");
   const [showConsultModal, setShowConsultModal] = useState(false);
+  const [waitType, setWaitType] = useState<"wait" | "callback">("wait");
 
   const phoneRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -102,6 +105,7 @@ export default function ConsultKiosk() {
   const doReset = useCallback(() => {
     setStage("main_select");
     setShowConsultModal(false);
+    setWaitType("wait");
     setName(""); setPhone(""); setPurpose(""); setMemberName("");
   }, []);
 
@@ -111,6 +115,10 @@ export default function ConsultKiosk() {
         if (consultType === "renew") phoneRef.current?.focus();
         else nameRef.current?.focus();
       }, 100);
+    }
+    if (stage === "consult_check") {
+      const t = setTimeout(() => setStage("consult_status"), 1800);
+      return () => clearTimeout(t);
     }
   }, [stage, consultType]);
 
@@ -123,7 +131,8 @@ export default function ConsultKiosk() {
   const handleSubmit = () => {
     const digits = phone.replace(/\D/g, "");
     if (digits.length < 9) return;
-    submitMut.mutate({ consultType, name: name || undefined, phone: digits, purpose: purpose || undefined });
+    const resolvedPurpose = purpose || (consultType === "new" ? (waitType === "callback" ? "연락 요청" : "기다리기") : undefined);
+    submitMut.mutate({ consultType, name: name || undefined, phone: digits, purpose: resolvedPurpose });
   };
 
   const handleCallStaff = () => {
@@ -231,7 +240,84 @@ export default function ConsultKiosk() {
         </div>
       )}
 
-      {/* ── 상담 유형 선택 ── */}
+      {/* ── 체크 중 (신규) ── */}
+      {stage === "consult_check" && (
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-[#1D4ED8]/10 flex items-center justify-center mx-auto">
+            <svg className="w-8 h-8 text-[#60A5FA] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-white font-bold text-xl mb-2">빠른 상담을 위해</p>
+            <p className="text-[#60A5FA] font-bold text-xl">체크 중입니다...</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── 상담 상태 안내 (신규) ── */}
+      {stage === "consult_status" && (
+        <div className="w-full max-w-sm space-y-5">
+          {/* 상태 카드 */}
+          <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] px-5 py-5 flex gap-4 items-start">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-amber-400" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-amber-300 font-bold text-sm mb-1">현재 선생님이 수업 중이세요</p>
+              <p className="text-white/60 text-sm leading-relaxed">
+                정보를 남겨주시면 수업 후 바로 연락드립니다.<br />
+                수업은 <span className="text-white font-semibold">매 시간 50분</span>에 종료됩니다.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-white/50 text-sm text-center">어떻게 하시겠어요?</p>
+
+          {/* 기다리기 */}
+          <button
+            onClick={() => { setWaitType("wait"); setStage("consult_input"); }}
+            className="w-full flex items-center gap-4 p-5 rounded-2xl border border-[#1D4ED8]/35 bg-[#1D4ED8]/8 active:bg-[#1D4ED8]/18 transition-colors text-left"
+          >
+            <div className="w-11 h-11 rounded-xl bg-[#1D4ED8]/18 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#60A5FA]" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-white font-bold text-base">기다리기</p>
+              <p className="text-white/40 text-sm mt-0.5">잠시 기다린 후 상담 받기</p>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/20 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+
+          {/* 연락 받기 */}
+          <button
+            onClick={() => { setWaitType("callback"); setStage("consult_input"); }}
+            className="w-full flex items-center gap-4 p-5 rounded-2xl border border-[#059669]/30 bg-[#059669]/7 active:bg-[#059669]/15 transition-colors text-left"
+          >
+            <div className="w-11 h-11 rounded-xl bg-[#059669]/15 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#34D399]" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-white font-bold text-base">연락 받기</p>
+              <p className="text-white/40 text-sm mt-0.5">번호 남기면 선생님이 연락드려요</p>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/20 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* ── 상담 유형 선택 (기존 회원) ── */}
       {stage === "consult_type" && (
         <div className="w-full max-w-sm">
           <button onClick={doReset} className="flex items-center gap-1 text-white/30 text-sm mb-8 hover:text-white/60 transition-colors">
@@ -242,7 +328,7 @@ export default function ConsultKiosk() {
           </button>
           <h2 className="text-xl font-bold text-white mb-8">어떤 상담을 원하시나요?</h2>
           <div className="space-y-3">
-            {CONSULT_TYPES.map((t) => (
+            {CONSULT_TYPES.filter(t => t.key !== "new").map((t) => (
               <button
                 key={t.key}
                 onClick={() => { setConsultType(t.key); setStage("consult_input"); }}
@@ -264,16 +350,24 @@ export default function ConsultKiosk() {
       {/* ── 상담 정보 입력 ── */}
       {stage === "consult_input" && (
         <div className="w-full max-w-sm">
-          <button onClick={() => setStage("consult_type")} className="flex items-center gap-1 text-white/30 text-sm mb-8 hover:text-white/60 transition-colors">
+          <button
+            onClick={() => setStage(consultType === "new" ? "consult_status" : "consult_type")}
+            className="flex items-center gap-1 text-white/30 text-sm mb-8 hover:text-white/60 transition-colors"
+          >
             <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
             </svg>
             돌아가기
           </button>
 
-          <p className="text-[#60A5FA] text-xs font-bold tracking-widest uppercase mb-6">
-            {CONSULT_TYPES.find(t => t.key === consultType)?.label}
+          <p className="text-[#60A5FA] text-xs font-bold tracking-widest uppercase mb-1">
+            {consultType === "new" ? "신규 상담" : CONSULT_TYPES.find(t => t.key === consultType)?.label}
           </p>
+          {consultType === "new" && (
+            <p className="text-white/40 text-sm mb-5">
+              {waitType === "callback" ? "연락처를 남겨주시면 선생님이 연락드립니다." : "정보를 남겨주시면 수업 후 바로 안내해 드립니다."}
+            </p>
+          )}
 
           {consultType !== "renew" && (
             <div className="mb-5">
@@ -339,7 +433,7 @@ export default function ConsultKiosk() {
             disabled={phone.replace(/\D/g, "").length < 9 || submitMut.isPending}
             className="w-full py-4 rounded-xl font-bold text-white bg-[#1D4ED8] hover:bg-[#1a44c2] disabled:opacity-30 transition-colors"
           >
-            {submitMut.isPending ? "접수 중..." : "상담 접수하기"}
+            {submitMut.isPending ? "접수 중..." : waitType === "callback" && consultType === "new" ? "연락처 남기기" : "상담 접수하기"}
           </button>
         </div>
       )}
@@ -567,7 +661,7 @@ export default function ConsultKiosk() {
                 onClick={() => {
                   setConsultType("new");
                   setShowConsultModal(false);
-                  setStage("consult_input");
+                  setStage("consult_check");
                 }}
                 className="w-full flex items-center gap-4 p-5 rounded-2xl border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 active:bg-[#1D4ED8]/20 transition-colors text-left"
               >
