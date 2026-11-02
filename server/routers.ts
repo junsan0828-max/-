@@ -67,6 +67,10 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
+const adminOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+  return next();
+});
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -6287,6 +6291,35 @@ async function syncDietProgramFromMainSystem(
 }
 
 // ─── Kiosk ────────────────────────────────────────────────────────────────────
+// 키오스크 상담 접수 알림을 받는 정직원 계정 (로그인 아이디)
+const CONSULT_NOTIFY_USERNAMES = ["trainer1", "trainer2", "fcmanager"];
+
+const CONSULT_TYPE_LABEL: Record<string, string> = { new: "신규 상담", renew: "재등록 상담", pt: "PT 상담" };
+
+async function notifyConsultRecipients(c: { consultType: string; name: string | null; phone: string; purpose: string | null }) {
+  const subs = await pool.query(
+    `SELECT s.endpoint, s.p256dh, s.auth FROM staff_push_subscriptions s
+     JOIN users u ON u.id = s."userId"
+     WHERE u.username = ANY($1)`,
+    [CONSULT_NOTIFY_USERNAMES]
+  );
+  const phone = c.phone.length === 11 ? `${c.phone.slice(0, 3)}-${c.phone.slice(3, 7)}-${c.phone.slice(7)}` : c.phone;
+  const payload = JSON.stringify({
+    title: `📝 ${CONSULT_TYPE_LABEL[c.consultType] ?? "상담"} 접수`,
+    body: [c.name, phone, c.purpose].filter(Boolean).join(" · "),
+    url: "/",
+  });
+  await Promise.all(subs.rows.map(async (s) => {
+    try {
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
+    } catch (e: any) {
+      if (e?.statusCode === 410 || e?.statusCode === 404) {
+        await pool.query(`DELETE FROM staff_push_subscriptions WHERE endpoint = $1`, [s.endpoint]).catch(() => {});
+      }
+    }
+  }));
+}
+
 const kioskRouter = t.router({
   getNotices: publicProcedure.query(async () => {
     const res = await pool.query(
@@ -6922,6 +6955,13 @@ const kioskRouter = t.router({
           kstNow,
         ]
       );
+
+      notifyConsultRecipients({
+        consultType: input.consultType,
+        name: input.name ?? memberName ?? null,
+        phone: digits,
+        purpose: input.purpose ?? null,
+      }).catch((e) => console.error("[consult push]", e));
 
       return { id: res.rows[0].id, memberName };
     }),

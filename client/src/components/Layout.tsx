@@ -10,6 +10,8 @@ import {
 import Logo from "./Logo";
 import AdminRenewalRequestsModal from "./AdminRenewalRequestsModal";
 
+const VAPID_PUBLIC = "BK0ZTd_UQHIaELB4FB0JphGm4UWlwIAwsfOdF3DNnAn_DGQNfwVm3I2HMi2VQxuHHUZhCwup7h1frg8Ue2XKMl8";
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
@@ -47,6 +49,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return `${String(kst.getUTCHours()).padStart(2,"0")}:${String(kst.getUTCMinutes()).padStart(2,"0")}`;
     } catch { return ""; }
   }
+
+  // 직원 푸시: 권한이 있으면 자동 등록, 없으면 한 번만 허용 요청
+  const pushSupported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>(pushSupported ? Notification.permission : "denied");
+  const subscribeStaffPush = trpc.kiosk.subscribeStaffPush.useMutation();
+
+  const registerPush = async () => {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription())
+      ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: VAPID_PUBLIC });
+    const keys = sub.toJSON().keys ?? {};
+    await subscribeStaffPush.mutateAsync({ endpoint: sub.endpoint, p256dh: keys.p256dh ?? "", auth: keys.auth ?? "" });
+  };
+
+  useEffect(() => {
+    if (user && pushSupported && pushPermission === "granted") registerPush().catch(() => {});
+  }, [user?.id, pushPermission]);
+
+  const enablePush = async () => {
+    const result = await Notification.requestPermission();
+    setPushPermission(result);
+    if (result !== "granted") toast.error("알림이 차단되었습니다. 브라우저 설정에서 알림을 허용해 주세요.");
+  };
 
   // PWA 설치 프롬프트
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -175,6 +200,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
+
+        {/* 알림 허용 요청 (한 번 허용하면 사라짐) */}
+        {user && pushSupported && pushPermission === "default" && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
+            <p className="text-xs text-foreground flex-1">상담 접수·직원 호출 알림을 받으려면 알림을 켜주세요</p>
+            <button
+              onClick={enablePush}
+              className="text-xs font-medium text-amber-700 bg-amber-500/20 px-2.5 py-1 rounded-md shrink-0"
+            >
+              알림 켜기
+            </button>
+          </div>
+        )}
 
         {/* PWA 설치 배너 */}
         {showInstallBanner && (

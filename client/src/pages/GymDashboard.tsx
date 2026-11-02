@@ -1,13 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { trpc } from "../lib/trpc";
 import { useLocation } from "wouter";
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Target,
   AlertCircle, RefreshCw, ArrowUpRight, ArrowDownRight,
-  BarChart2, Percent, CreditCard, ChevronLeft, ChevronRight, MapPin, Bell, BellOff, X,
+  BarChart2, Percent, CreditCard, ChevronLeft, ChevronRight, MapPin, Bell, X,
 } from "lucide-react";
-
-const VAPID_PUBLIC = "BK0ZTd_UQHIaELB4FB0JphGm4UWlwIAwsfOdF3DNnAn_DGQNfwVm3I2HMi2VQxuHHUZhCwup7h1frg8Ue2XKMl8";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
@@ -56,12 +54,8 @@ export default function GymDashboard() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
   const [activeCalls, setActiveCalls] = useState<{ id: number; message: string; createdAt: string }[]>([]);
-  const subRef = useRef<PushSubscription | null>(null);
 
-  const subscribeMut = trpc.kiosk.subscribeStaffPush.useMutation();
-  const unsubscribeMut = trpc.kiosk.unsubscribeStaffPush.useMutation();
   const acknowledgeMut = trpc.kiosk.acknowledgeStaffCall.useMutation();
   const { data: recentCalls, refetch: refetchCalls } = trpc.kiosk.getRecentStaffCalls.useQuery(
     undefined, { refetchInterval: 10000 }
@@ -71,44 +65,6 @@ export default function GymDashboard() {
   useEffect(() => {
     if (recentCalls) setActiveCalls(recentCalls);
   }, [recentCalls]);
-
-  // 서비스 워커 & 푸시 구독 초기화
-  useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    navigator.serviceWorker.ready.then(async (reg) => {
-      const existing = await reg.pushManager.getSubscription();
-      if (existing) { subRef.current = existing; setPushSubscribed(true); }
-    }).catch(() => {});
-  }, []);
-
-  const togglePush = useCallback(async () => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      alert("이 브라우저는 푸시 알림을 지원하지 않습니다.");
-      return;
-    }
-    const reg = await navigator.serviceWorker.ready;
-    if (pushSubscribed && subRef.current) {
-      await subRef.current.unsubscribe();
-      await unsubscribeMut.mutateAsync({ endpoint: subRef.current.endpoint });
-      subRef.current = null;
-      setPushSubscribed(false);
-      return;
-    }
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") { alert("알림을 허용해야 푸시를 받을 수 있습니다."); return; }
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: VAPID_PUBLIC,
-    });
-    const json = sub.toJSON();
-    await subscribeMut.mutateAsync({
-      endpoint: sub.endpoint,
-      p256dh: (json.keys as any)?.p256dh ?? "",
-      auth: (json.keys as any)?.auth ?? "",
-    });
-    subRef.current = sub;
-    setPushSubscribed(true);
-  }, [pushSubscribed]);
 
   const dismissCall = useCallback(async (id: number) => {
     await acknowledgeMut.mutateAsync({ id });
@@ -182,13 +138,6 @@ export default function GymDashboard() {
           <p className="text-xs text-muted-foreground mt-0.5">자이언트짐 통합 운영 현황</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={togglePush}
-            title={pushSubscribed ? "푸시 알림 해제" : "직원 호출 푸시 알림 받기"}
-            className={`p-2 rounded-lg border transition-colors ${pushSubscribed ? "bg-amber-50 border-amber-200 text-amber-600" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
-          >
-            {pushSubscribed ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-          </button>
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
             <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
               <ChevronLeft className="h-4 w-4" />
