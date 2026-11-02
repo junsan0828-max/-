@@ -121,6 +121,14 @@ export default function ConsultKiosk() {
     },
   });
 
+  // 대형 세로형 키오스크에서도 화면을 채우도록 rem 기준 크기를 화면에 맞춰 키움 (휴대폰은 기본 16px 유지)
+  useEffect(() => {
+    const html = document.documentElement;
+    const prev = html.style.fontSize;
+    html.style.fontSize = "clamp(16px, min(3.4vw, 1.9vh), 48px)";
+    return () => { html.style.fontSize = prev; };
+  }, []);
+
   const callStaffMut = trpc.kiosk.callStaff.useMutation({
     onSuccess: () => setStage("staff_called"),
     onError: () => setStage("staff_called"), // 실패해도 완료로 보여줌
@@ -166,8 +174,8 @@ export default function ConsultKiosk() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] text-slate-900 flex flex-col items-center justify-center px-6 py-10 select-none">
-      {/* 헤더 */}
-      <div className="mb-10 text-center">
+      {/* 헤더 (메인 화면에서만 — 입력 화면이 한 화면에 들어오도록) */}
+      {stage === "main_select" && <div className="mb-10 text-center">
         <p className="text-xl font-black tracking-tight text-slate-900">
           맞춤운동센터 <span className="text-[#1D4ED8]">자이언트짐</span>
         </p>
@@ -175,7 +183,7 @@ export default function ConsultKiosk() {
         {branchNo
           ? <p className="text-slate-400 text-xs mt-2">{BRANCH_LABEL[branchNo]}</p>
           : <p className="text-amber-600 text-xs mt-2">지점 미설정 · 주소 끝에 ?branch=1 또는 ?branch=2</p>}
-      </div>
+      </div>}
 
       {/* ── 메인 선택 ── */}
       {stage === "main_select" && (
@@ -439,7 +447,7 @@ export default function ConsultKiosk() {
 
           <div className="mb-5">
             <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">전화번호</label>
-            <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-xl font-mono tracking-widest min-h-[56px]">
+            <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-xl font-mono tracking-widest min-h-[3.5rem]">
               {phone || <span className="text-slate-400 text-base font-normal">숫자를 입력해 주세요</span>}
             </div>
             <input ref={phoneRef} type="tel" className="sr-only" readOnly value={phone} />
@@ -450,7 +458,7 @@ export default function ConsultKiosk() {
               <button
                 key={key}
                 onClick={() => handlePhoneKey(key)}
-                className={`py-4 rounded-xl text-lg font-bold transition-colors ${
+                className={`py-3 rounded-xl text-lg font-bold transition-colors ${
                   key === "지우기"
                     ? "text-red-500 bg-red-50 border border-red-200 text-sm"
                     : key === "←"
@@ -530,7 +538,7 @@ export default function ConsultKiosk() {
         <div className="w-full max-w-sm space-y-4">
           {infoItems(branchNo).map((item) => (
             <div key={item.title} className="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4">
-              <p className="text-slate-500 text-[10px] tracking-widest uppercase mb-3">{item.title}</p>
+              <p className="text-slate-500 text-[0.625rem] tracking-widest uppercase mb-3">{item.title}</p>
               <div className="space-y-1.5">
                 {item.rows.map((row) => (
                   <p key={row} className="text-slate-600 text-sm">{row}</p>
@@ -555,7 +563,7 @@ export default function ConsultKiosk() {
 
           {/* 1호점 이벤트 */}
           {branchNo !== 2 && <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
-            <p className="text-purple-600 text-[10px] tracking-widest uppercase mb-3">1호점 (정왕점)</p>
+            <p className="text-purple-600 text-[0.625rem] tracking-widest uppercase mb-3">1호점 (정왕점)</p>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
@@ -576,7 +584,7 @@ export default function ConsultKiosk() {
 
           {/* 2호점 이벤트 */}
           {branchNo !== 1 && <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
-            <p className="text-purple-600 text-[10px] tracking-widest uppercase mb-3">2호점 (시흥점)</p>
+            <p className="text-purple-600 text-[0.625rem] tracking-widest uppercase mb-3">2호점 (시흥점)</p>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
@@ -590,7 +598,7 @@ export default function ConsultKiosk() {
 
           {/* 777 PT */}
           <div className="rounded-2xl border border-[#60A5FA]/20 bg-[#1D4ED8]/[0.07] px-5 py-5">
-            <p className="text-[#2563EB] text-[10px] tracking-widest uppercase mb-3">777 맞춤 PT</p>
+            <p className="text-[#2563EB] text-[0.625rem] tracking-widest uppercase mb-3">777 맞춤 PT</p>
             <p className="text-slate-900 font-bold text-sm mb-1">연 1회 한정 특별 프로그램</p>
             <p className="text-slate-600 text-sm">맞춤 PT 17회 · 헬스 이용권 2개월 · 락커 서비스</p>
             <p className="text-[#2563EB] font-bold text-base mt-2">777,000원</p>
@@ -688,7 +696,7 @@ export default function ConsultKiosk() {
               </svg>
             </button>
 
-            <p className="text-slate-500 text-[11px] tracking-[0.4em] uppercase mb-2">상담 신청</p>
+            <p className="text-slate-500 text-[0.6875rem] tracking-[0.4em] uppercase mb-2">상담 신청</p>
             <h3 className="text-slate-900 font-bold text-2xl mb-2">회원이신가요?</h3>
             <p className="text-slate-500 text-sm mb-8">해당하는 항목을 선택해 주세요.</p>
 
