@@ -259,6 +259,12 @@ export default function ConsultKiosk() {
       {/* ── 상담 상태 안내 (신규) ── */}
       {stage === "consult_status" && (
         <div className="w-full max-w-sm space-y-5">
+          <button onClick={doReset} className="flex items-center gap-1 text-white/30 text-sm hover:text-white/60 transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+            돌아가기
+          </button>
           {/* 상태 카드 */}
           <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] px-5 py-5 flex gap-4 items-start">
             <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
