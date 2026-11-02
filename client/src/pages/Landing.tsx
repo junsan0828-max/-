@@ -349,7 +349,7 @@ function ProgramSection({ onReserve }: { onReserve: () => void }) {
       { period: "1개월", price: "60,000원" },
       { period: "3개월", price: "120,000원" },
       { period: "6개월", price: "180,000원" },
-      { period: "12개월", price: "280,000원" },
+      { period: "12개월", price: "300,000원" },
     ],
   };
 

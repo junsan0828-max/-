@@ -66,12 +66,25 @@ const PURPOSE_OPTIONS: Record<ConsultType, string[]> = {
   pt: ["체중 감량", "근력 향상", "체형 교정", "재활/통증", "777 맞춤 PT"],
 };
 
-const INFO_ITEMS = [
-  { title: "헬스 이용권", rows: ["1개월 80,000원", "3개월 159,000원", "6개월 226,000원", "12개월 322,000원"] },
-  { title: "연말 이벤트", rows: ["6개월 등록 → 1개월 추가", "12개월 등록 → 운동복 증정", "12월 31일까지"] },
-  { title: "777 맞춤 PT", rows: ["17회 맞춤 지도", "헬스 이용권 2개월 포함", "락커 서비스 포함", "777,000원"] },
-  { title: "운영 시간", rows: ["평일 06:00 – 23:00", "주말 08:00 – 20:00", "공휴일 08:00 – 20:00"] },
-];
+// 지점별 헬스 이용권 가격 (랜딩페이지 가격과 동일하게 유지)
+const MEMBERSHIP_PRICES: Record<number, [string, string][]> = {
+  1: [["1개월", "80,000원"], ["3개월", "159,000원"], ["6개월", "226,000원"], ["12개월", "322,000원"]],
+  2: [["1개월", "60,000원"], ["3개월", "120,000원"], ["6개월", "180,000원"], ["12개월", "300,000원"]],
+};
+
+const BRANCH_EVENT_ROWS: Record<number, string[]> = {
+  1: ["6개월 등록 → 1개월 추가", "12개월 등록 → 운동복 증정", "12월 31일까지"],
+  2: ["등록 시 → 운동복 + 락커 서비스 제공", "12월 31일까지"],
+};
+
+function infoItems(branchNo = 1) {
+  return [
+    { title: "헬스 이용권", rows: MEMBERSHIP_PRICES[branchNo].map(([p, v]) => `${p} ${v}`) },
+    { title: "연말 이벤트", rows: BRANCH_EVENT_ROWS[branchNo] },
+    { title: "777 맞춤 PT", rows: ["17회 맞춤 지도", "헬스 이용권 2개월 포함", "락커 서비스 포함", "777,000원"] },
+    { title: "운영 시간", rows: ["평일 06:00 – 23:00", "주말 08:00 – 20:00", "공휴일 08:00 – 20:00"] },
+  ];
+}
 
 // 지점별 키오스크 주소: /consult-kiosk?branch=1, /consult-kiosk?branch=2
 const BRANCH_LABEL: Record<number, string> = { 1: "1호점 (정왕점)", 2: "2호점 (시흥점)" };
@@ -495,10 +508,10 @@ export default function ConsultKiosk() {
           </div>
           <div className="rounded-2xl border border-[#059669]/20 bg-[#059669]/8 px-5 py-4 text-left space-y-2">
             <p className="text-slate-500 text-xs tracking-widest uppercase mb-3">이용권 안내</p>
-            {["1개월 80,000원", "3개월 159,000원", "6개월 226,000원", "12개월 322,000원"].map((item) => (
-              <div key={item} className="flex justify-between">
-                <span className="text-slate-600 text-sm">{item.split(" ")[0]}</span>
-                <span className="text-slate-900 font-semibold text-sm">{item.split(" ")[1]}</span>
+            {MEMBERSHIP_PRICES[branchNo ?? 1].map(([period, price]) => (
+              <div key={period} className="flex justify-between">
+                <span className="text-slate-600 text-sm">{period}</span>
+                <span className="text-slate-900 font-semibold text-sm">{price}</span>
               </div>
             ))}
           </div>
@@ -512,10 +525,7 @@ export default function ConsultKiosk() {
       {/* ── 안내 설명 ── */}
       {stage === "info_display" && (
         <div className="w-full max-w-sm space-y-4">
-          {INFO_ITEMS.map((item) => item.title === "연말 이벤트" && branchNo === 2
-            ? { ...item, rows: ["등록 시 → 운동복 + 락커 서비스 제공", "12월 31일까지"] }
-            : item
-          ).map((item) => (
+          {infoItems(branchNo).map((item) => (
             <div key={item.title} className="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4">
               <p className="text-slate-500 text-[10px] tracking-widest uppercase mb-3">{item.title}</p>
               <div className="space-y-1.5">
