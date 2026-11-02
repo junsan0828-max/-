@@ -73,7 +73,16 @@ const INFO_ITEMS = [
   { title: "운영 시간", rows: ["평일 06:00 – 23:00", "주말 08:00 – 20:00", "공휴일 08:00 – 20:00"] },
 ];
 
+// 지점별 키오스크 주소: /consult-kiosk?branch=1, /consult-kiosk?branch=2
+const BRANCH_LABEL: Record<number, string> = { 1: "1호점 (정왕점)", 2: "2호점 (시흥점)" };
+
+function readBranchNo(): number | undefined {
+  const n = Number(new URLSearchParams(window.location.search).get("branch"));
+  return BRANCH_LABEL[n] ? n : undefined;
+}
+
 export default function ConsultKiosk() {
+  const [branchNo] = useState(readBranchNo);
   const [stage, setStage] = useState<Stage>("main_select");
   const [consultType, setConsultType] = useState<ConsultType>("new");
   const [name, setName] = useState("");
@@ -132,12 +141,12 @@ export default function ConsultKiosk() {
     const digits = phone.replace(/\D/g, "");
     if (digits.length < 9) return;
     const resolvedPurpose = purpose || (consultType === "new" ? (waitType === "callback" ? "연락 요청" : "기다리기") : undefined);
-    submitMut.mutate({ consultType, name: name || undefined, phone: digits, purpose: resolvedPurpose });
+    submitMut.mutate({ consultType, name: name || undefined, phone: digits, purpose: resolvedPurpose, branchNo });
   };
 
   const handleCallStaff = () => {
     setStage("staff_calling");
-    callStaffMut.mutate({ message: "키오스크에서 직원을 호출했습니다." });
+    callStaffMut.mutate({ message: "키오스크에서 직원을 호출했습니다.", branchNo });
   };
 
   return (
@@ -148,6 +157,9 @@ export default function ConsultKiosk() {
           맞춤운동센터 <span className="text-[#1D4ED8]">자이언트짐</span>
         </p>
         <p className="text-slate-500 text-lg font-medium mt-1.5">무엇을 도와드릴까요?</p>
+        {branchNo
+          ? <p className="text-slate-400 text-xs mt-2">{BRANCH_LABEL[branchNo]}</p>
+          : <p className="text-amber-600 text-xs mt-2">지점 미설정 · 주소 끝에 ?branch=1 또는 ?branch=2</p>}
       </div>
 
       {/* ── 메인 선택 ── */}
@@ -500,7 +512,10 @@ export default function ConsultKiosk() {
       {/* ── 안내 설명 ── */}
       {stage === "info_display" && (
         <div className="w-full max-w-sm space-y-4">
-          {INFO_ITEMS.map((item) => (
+          {INFO_ITEMS.map((item) => item.title === "연말 이벤트" && branchNo === 2
+            ? { ...item, rows: ["등록 시 → 운동복 + 락커 서비스 제공", "12월 31일까지"] }
+            : item
+          ).map((item) => (
             <div key={item.title} className="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4">
               <p className="text-slate-500 text-[10px] tracking-widest uppercase mb-3">{item.title}</p>
               <div className="space-y-1.5">
@@ -525,7 +540,7 @@ export default function ConsultKiosk() {
           </div>
 
           {/* 1호점 이벤트 */}
-          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
+          {branchNo !== 2 && <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
             <p className="text-purple-600 text-[10px] tracking-widest uppercase mb-3">1호점 (정왕점)</p>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
@@ -543,10 +558,10 @@ export default function ConsultKiosk() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* 2호점 이벤트 */}
-          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
+          {branchNo !== 1 && <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
             <p className="text-purple-600 text-[10px] tracking-widest uppercase mb-3">2호점 (시흥점)</p>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
@@ -557,7 +572,7 @@ export default function ConsultKiosk() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* 777 PT */}
           <div className="rounded-2xl border border-[#60A5FA]/20 bg-[#1D4ED8]/[0.07] px-5 py-5">

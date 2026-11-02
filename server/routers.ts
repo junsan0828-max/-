@@ -6291,33 +6291,46 @@ async function syncDietProgramFromMainSystem(
 }
 
 // ─── Kiosk ────────────────────────────────────────────────────────────────────
-// 키오스크 상담 접수 알림을 받는 정직원 계정 (로그인 아이디)
-const CONSULT_NOTIFY_USERNAMES = ["trainer1", "trainer2", "fcmanager", "staff"];
+// 키오스크 알림(상담 접수·직원 호출)을 받는 계정 — 지점별 로그인 아이디
+const KIOSK_NOTIFY_USERNAMES: Record<number, string[]> = {
+  1: ["trainer1", "trainer2", "fcmanager", "staff", "admin"],
+  2: ["admin"],
+};
 
 const CONSULT_TYPE_LABEL: Record<string, string> = { new: "신규 상담", renew: "재등록 상담", pt: "PT 상담" };
 
-async function notifyConsultRecipients(c: { consultType: string; name: string | null; phone: string; purpose: string | null }) {
+// 키오스크 주소 ?branch=1 / ?branch=2
+const kioskBranchNo = z.number().int().min(1).max(2).optional();
+const branchPrefix = (branchNo?: number) => (branchNo ? `[${branchNo}호점] ` : "");
+
+async function sendKioskPush(branchNo: number | undefined, payload: { title: string; body: string; url: string }) {
+  // 지점 미지정 주소로 접속한 경우 누락되지 않도록 전 지점 수신자에게 보냄
+  const usernames = branchNo ? KIOSK_NOTIFY_USERNAMES[branchNo] : [...new Set(Object.values(KIOSK_NOTIFY_USERNAMES).flat())];
   const subs = await pool.query(
     `SELECT s.endpoint, s.p256dh, s.auth FROM staff_push_subscriptions s
      JOIN users u ON u.id = s."userId"
      WHERE u.username = ANY($1)`,
-    [CONSULT_NOTIFY_USERNAMES]
+    [usernames]
   );
-  const phone = c.phone.length === 11 ? `${c.phone.slice(0, 3)}-${c.phone.slice(3, 7)}-${c.phone.slice(7)}` : c.phone;
-  const payload = JSON.stringify({
-    title: `📝 ${CONSULT_TYPE_LABEL[c.consultType] ?? "상담"} 접수`,
-    body: [c.name, phone, c.purpose].filter(Boolean).join(" · "),
-    url: "/",
-  });
+  const body = JSON.stringify(payload);
   await Promise.all(subs.rows.map(async (s) => {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body);
     } catch (e: any) {
       if (e?.statusCode === 410 || e?.statusCode === 404) {
         await pool.query(`DELETE FROM staff_push_subscriptions WHERE endpoint = $1`, [s.endpoint]).catch(() => {});
       }
     }
   }));
+}
+
+function notifyConsultRecipients(c: { branchNo?: number; consultType: string; name: string | null; phone: string; purpose: string | null }) {
+  const phone = c.phone.length === 11 ? `${c.phone.slice(0, 3)}-${c.phone.slice(3, 7)}-${c.phone.slice(7)}` : c.phone;
+  return sendKioskPush(c.branchNo, {
+    title: `📝 ${branchPrefix(c.branchNo)}${CONSULT_TYPE_LABEL[c.consultType] ?? "상담"} 접수`,
+    body: [c.name, phone, c.purpose].filter(Boolean).join(" · "),
+    url: "/",
+  });
 }
 
 const kioskRouter = t.router({
@@ -6926,6 +6939,7 @@ const kioskRouter = t.router({
       name: z.string().optional(),
       phone: z.string().min(9),
       purpose: z.string().optional(),
+      branchNo: kioskBranchNo,
     }))
     .mutation(async ({ input }) => {
       const digits = input.phone.replace(/\D/g, "");
@@ -6945,18 +6959,20 @@ const kioskRouter = t.router({
       }
 
       const res = await pool.query(
-        `INSERT INTO kiosk_consult_requests ("consultType", name, phone, purpose, "createdAt")
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        `INSERT INTO kiosk_consult_requests ("consultType", name, phone, purpose, "createdAt", "branchNo")
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
         [
           input.consultType,
           input.name ?? memberName ?? null,
           digits,
           input.purpose ?? null,
           kstNow,
+          input.branchNo ?? null,
         ]
       );
 
       notifyConsultRecipients({
+        branchNo: input.branchNo,
         consultType: input.consultType,
         name: input.name ?? memberName ?? null,
         phone: digits,
@@ -7003,36 +7019,20 @@ const kioskRouter = t.router({
 
   // ─── 직원 호출 ─────────────────────────────────────────────────────────────
   callStaff: publicProcedure
-    .input(z.object({ message: z.string().optional() }))
+    .input(z.object({ message: z.string().optional(), branchNo: kioskBranchNo }))
     .mutation(async ({ input }) => {
       const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
-      const msg = input.message ?? "키오스크에서 직원을 호출했습니다.";
+      const msg = branchPrefix(input.branchNo) + (input.message ?? "키오스크에서 직원을 호출했습니다.");
 
       // 호출 기록 저장
       const res = await pool.query(
-        `INSERT INTO staff_call_log (message, "createdAt") VALUES ($1, $2) RETURNING id`,
-        [msg, kstNow]
+        `INSERT INTO staff_call_log (message, "createdAt", "branchNo") VALUES ($1, $2, $3) RETURNING id`,
+        [msg, kstNow, input.branchNo ?? null]
       );
       const callId = res.rows[0]?.id;
 
-      // 직원 전체에게 푸시 발송
-      const subs = await pool.query(`SELECT * FROM staff_push_subscriptions`);
-      for (const sub of subs.rows) {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            JSON.stringify({
-              title: "🔔 직원 호출",
-              body: msg,
-              url: "/",
-            })
-          );
-        } catch (e: any) {
-          if (e?.statusCode === 410) {
-            await pool.query(`DELETE FROM staff_push_subscriptions WHERE endpoint = $1`, [sub.endpoint]).catch(() => {});
-          }
-        }
-      }
+      sendKioskPush(input.branchNo, { title: "🔔 직원 호출", body: msg, url: "/" })
+        .catch((e) => console.error("[staff call push]", e));
       return { ok: true, callId };
     }),
 

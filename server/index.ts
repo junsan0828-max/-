@@ -779,6 +779,8 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "acknowledgedAt" TEXT
     )`,
+    `ALTER TABLE kiosk_consult_requests ADD COLUMN IF NOT EXISTS "branchNo" INTEGER`,
+    `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "branchNo" INTEGER`,
     // 직원 푸시 구독 (어드민/트레이너용)
     `CREATE TABLE IF NOT EXISTS staff_push_subscriptions (
       id SERIAL PRIMARY KEY,
