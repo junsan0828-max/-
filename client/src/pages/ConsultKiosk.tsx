@@ -72,7 +72,9 @@ const MEMBERSHIP_PRICES: Record<number, [string, string][]> = {
   2: [["1개월", "60,000원"], ["3개월", "120,000원"], ["6개월", "180,000원"], ["12개월", "300,000원"]],
 };
 
-const VAT_NOTE = "* 카드 및 시루 결제 시 부가세 10%";
+const IDLE_RESET_MS = 60_000;
+
+const VAT_NOTE ="* 카드 및 시루 결제 시 부가세 10%";
 
 const BRANCH_EVENT_ROWS: Record<number, string[]> = {
   1: ["6개월 등록 → 1개월 추가", "12개월 등록 → 운동복 증정", "12월 31일까지"],
@@ -140,6 +142,19 @@ export default function ConsultKiosk() {
     setWaitType("wait");
     setName(""); setPhone(""); setPurpose(""); setMemberName("");
   }, []);
+
+  // 홈이 아닌 화면에서 1분간 터치·입력이 없으면 입력값을 지우고 홈으로 (다음 손님에게 개인정보 노출 방지)
+  useEffect(() => {
+    if (stage === "main_select" && !showConsultModal) return;
+    let timer = setTimeout(doReset, IDLE_RESET_MS);
+    const bump = () => { clearTimeout(timer); timer = setTimeout(doReset, IDLE_RESET_MS); };
+    const events = ["pointerdown", "keydown", "input", "wheel"];
+    events.forEach((e) => window.addEventListener(e, bump, true));
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, bump, true));
+    };
+  }, [stage, showConsultModal, doReset]);
 
   useEffect(() => {
     if (stage === "consult_input") {
