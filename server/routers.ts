@@ -6292,7 +6292,7 @@ async function syncDietProgramFromMainSystem(
 
 // ─── Kiosk ────────────────────────────────────────────────────────────────────
 // 키오스크 상담 접수 알림을 받는 정직원 계정 (로그인 아이디)
-const CONSULT_NOTIFY_USERNAMES = ["trainer1", "trainer2", "fcmanager"];
+const CONSULT_NOTIFY_USERNAMES = ["trainer1", "trainer2", "fcmanager", "staff"];
 
 const CONSULT_TYPE_LABEL: Record<string, string> = { new: "신규 상담", renew: "재등록 상담", pt: "PT 상담" };
 
