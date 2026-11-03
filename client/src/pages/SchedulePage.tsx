@@ -88,6 +88,17 @@ type Slot = {
   repeatUntil?: string | null;
 };
 
+// 개별 일정이 고정 수업을 가리는 조건: 같은 트레이너·시간 + 같은 회원(회원 없는 고정 칸은 무엇이든 가린다).
+// 다른 회원의 개별 일정(상담 등)은 고정 수업과 나란히 보인다. 이름 비교는 회원 중복등록(같은 이름, 다른 id) 대비.
+const normName = (n: string | null | undefined) => (n ?? "").replace(/\s+/g, "");
+const coversTemplate = (o: Slot, t: Slot) => {
+  if (o.isRecurring === 1 || t.isRecurring !== 1) return false;
+  if (o.trainerId !== t.trainerId || (o.scheduledTime ?? "") !== (t.scheduledTime ?? "")) return false;
+  if (!t.memberId && !normName(t.memberName)) return true;
+  if (o.memberId && t.memberId && o.memberId === t.memberId) return true;
+  return !!normName(o.memberName) && normName(o.memberName) === normName(t.memberName);
+};
+
 export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   // trainerId: 전체보기에서 특정 카드를 눌렀으면 그 트레이너, null이면 새 일정(트레이너 선택 필요)
@@ -261,12 +272,9 @@ export default function SchedulePage() {
   const weekStats = useMemo(() => {
     const all = activeSlots;
     // 달력에 보이는 것과 같은 기준: 고정 수업은 그 주 같은 칸·트레이너·시간에 실제 일정이 없을 때 '예정' 1건
-    const cellKey = (s: Slot) => {
-      const wd = (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7;
-      return `${wd}-${s.trainerId}-${s.scheduledTime ?? ""}`;
-    };
-    const oneOffKeys = new Set(all.filter(s => s.isRecurring !== 1).map(cellKey));
-    const real = all.filter(s => s.isRecurring !== 1 || !oneOffKeys.has(cellKey(s)))
+    const wdOf = (s: Slot) => (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7;
+    const oneOffs = all.filter(s => s.isRecurring !== 1);
+    const real = all.filter(s => s.isRecurring !== 1 || !oneOffs.some(o => wdOf(o) === wdOf(s) && coversTemplate(o, s)))
       .filter(s => s.status !== "skipped")
       .map(s => ({ ...s, status: effStatus(s, (new Date(s.scheduledDate + "T00:00:00").getDay() + 6) % 7) }));
     // 트레이너별 집계
@@ -455,7 +463,7 @@ export default function SchedulePage() {
                   const cell = grid[`${wd}-${h}`] ?? [];
                   // skipped(미리 취소) 일정은 고정 수업을 가리기만 하고 칸에는 보이지 않는다
                   const top = cell.find(s => s.status !== "skipped"
-                    && !(s.isRecurring === 1 && cell.some(o => o.isRecurring !== 1 && o.trainerId === s.trainerId && o.scheduledTime === s.scheduledTime)));
+                    && !(s.isRecurring === 1 && cell.some(o => coversTemplate(o, s))));
                   const open = isOpen(wd, h);
                   const hol = holidayName(toYmd(d));
 
@@ -519,14 +527,10 @@ export default function SchedulePage() {
                   // 트레이너마다 one-off가 있으면 recurring template만 제거.
                   // one-off 2개가 같은 시간에 있으면 둘 다 표시한다.
                   // cell은 이미 isRecurring 오름차순(one-off 먼저) 정렬되어 있다.
-                  const _oneOffKeys = new Set<string>();
-                  cell.forEach(s => {
-                    if (s.isRecurring !== 1) _oneOffKeys.add(`${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`);
-                  });
                   const visible = cell.filter(s => {
                     if (s.isRecurring !== 1) return s.status !== "skipped"; // one-off는 표시 (미리 취소분 제외)
-                    // recurring은 같은 트레이너·시간에 one-off가 없을 때만 표시
-                    return !_oneOffKeys.has(`${s.trainerId ?? "none"}-${s.scheduledTime ?? ""}`);
+                    // recurring은 같은 트레이너·시간·회원의 one-off가 없을 때만 표시
+                    return !cell.some(o => coversTemplate(o, s));
                   });
 
                   // 관리자·FC 전체보기, 또는 한 칸에 여러 수업: 카드마다 따로 보여주고 따로 누르고 따로 옮긴다

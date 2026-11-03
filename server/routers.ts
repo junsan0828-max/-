@@ -85,6 +85,17 @@ function samePhone(col: any, phone: string) {
 
 // KST(UTC+9) 기준 날짜 문자열(YYYY-MM-DD). UTC 기준으로 계산하면 한국 오전(00~09시)에
 // 만료/이탈 판정이 하루 밀리는 문제가 생긴다.
+// 오늘 일정: 개별 일정이 고정 수업을 가리는 조건 = 같은 시간 + 같은 회원 (회원 없는 고정 칸은 무엇이든 가림).
+// 화면(SchedulePage coversTemplate)과 같은 기준.
+type _OccKey = { scheduledTime: string | null; memberId: number | null; memberName: string | null };
+const _normName = (n: string | null | undefined) => (n ?? "").replace(/\s+/g, "");
+function oneOffCoversTemplate(o: _OccKey, t: _OccKey): boolean {
+  if ((o.scheduledTime ?? "") !== (t.scheduledTime ?? "")) return false;
+  if (!t.memberId && !_normName(t.memberName)) return true;
+  if (o.memberId && t.memberId && o.memberId === t.memberId) return true;
+  return !!_normName(o.memberName) && _normName(o.memberName) === _normName(t.memberName);
+}
+
 function kstDate(offsetDays = 0): string {
   return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().substring(0, 10);
 }
@@ -3077,9 +3088,16 @@ const schedulesRouter = t.router({
       const db = await requireOwnSchedule(ctx, input.templateId);
       const [tpl] = await db.select().from(schedules).where(eq(schedules.id, input.templateId)).limit(1);
       if (!tpl || tpl.isRecurring !== 1) throw new TRPCError({ code: "BAD_REQUEST", message: "고정 수업이 아닙니다." });
+      // 같은 회원의 회차만 '이미 처리됨'으로 본다 (같은 시간 다른 회원 상담 등은 무관)
+      const tplName = tpl.memberId
+        ? (await db.select({ name: members.name }).from(members).where(eq(members.id, tpl.memberId)).limit(1))[0]?.name ?? null
+        : tpl.memberName;
+      const sameMember = !tpl.memberId && !tplName ? sql`TRUE`
+        : sql`(${tpl.memberId ? sql`${schedules.memberId} = ${tpl.memberId}` : sql`FALSE`}
+             OR REPLACE(COALESCE((SELECT m.name FROM members m WHERE m.id = ${schedules.memberId}), ${schedules.memberName}, ''), ' ', '') = REPLACE(${tplName ?? ""}, ' ', ''))`;
       const [exists] = await db.select({ id: schedules.id, status: schedules.status }).from(schedules).where(and(
         eq(schedules.isRecurring, 0), eq(schedules.trainerId, tpl.trainerId),
-        eq(schedules.scheduledDate, input.date), eq(schedules.scheduledTime, tpl.scheduledTime ?? ""),
+        eq(schedules.scheduledDate, input.date), eq(schedules.scheduledTime, tpl.scheduledTime ?? ""), sameMember,
       )).limit(1);
       if (exists) throw new TRPCError({ code: "BAD_REQUEST", message: "이 날짜 수업은 이미 처리돼 있습니다. 새로고침 후 확인해 주세요." });
       const [row] = await db.insert(schedules).values({
@@ -6278,22 +6296,23 @@ const dashboardRouter = t.router({
 
     // 오늘 one-off 수업 (회의·기타 제외)
     const oneOffs = await db
-      .select({ status: schedules.status, scheduledTime: schedules.scheduledTime })
-      .from(schedules)
+      .select({ status: schedules.status, scheduledTime: schedules.scheduledTime, memberId: schedules.memberId,
+        memberName: sql<string | null>`COALESCE(${members.name}, ${schedules.memberName})` })
+      .from(schedules).leftJoin(members, eq(schedules.memberId, members.id))
       .where(and(eq(schedules.trainerId, trainerId), eq(schedules.scheduledDate, today), eq(schedules.isRecurring, 0), isClass));
 
     // 오늘 요일에 해당하는 고정 수업 (시작일 ≤ 오늘, 회의·기타 제외)
     const recurringAll = await db
-      .select({ status: schedules.status, scheduledTime: schedules.scheduledTime, scheduledDate: schedules.scheduledDate })
-      .from(schedules)
+      .select({ status: schedules.status, scheduledTime: schedules.scheduledTime, scheduledDate: schedules.scheduledDate,
+        memberId: schedules.memberId, memberName: sql<string | null>`COALESCE(${members.name}, ${schedules.memberName})` })
+      .from(schedules).leftJoin(members, eq(schedules.memberId, members.id))
       .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass,
         sql`(${schedules.repeatUntil} IS NULL OR ${schedules.repeatUntil} >= ${today})`));
 
-    const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll
       .filter(r => (new Date(r.scheduledDate + "T00:00:00").getDay() + 6) % 7 === todayDow)
-      .filter(r => !oneOffTimes.has(r.scheduledTime)) // one-off가 덮은 슬롯 제외
-      .map(r => ({ ...r, status: "pending" })); // 템플릿 상태는 특정 날짜의 결과가 아니다 — 오늘 체크 전이면 항상 예정
+      .filter(r => !oneOffs.some(o => oneOffCoversTemplate(o, r))) // 같은 회원 one-off가 덮은 슬롯 제외
+      .map(({ memberId: _m, memberName: _n, ...r }) => ({ ...r, status: "pending" })); // 템플릿 상태는 특정 날짜의 결과가 아니다 — 오늘 체크 전이면 항상 예정
 
     // skipped = 미리 취소(삭제)한 회차 — 고정 수업은 가리되 오늘 수업 수에는 넣지 않는다
     const all = [...oneOffs, ...recurringToday].filter(r => r.status !== "skipped");
@@ -6329,10 +6348,9 @@ const dashboardRouter = t.router({
       .where(and(eq(schedules.trainerId, trainerId), eq(schedules.isRecurring, 1), lte(schedules.scheduledDate, today), isClass,
         sql`(${schedules.repeatUntil} IS NULL OR ${schedules.repeatUntil} >= ${today})`));
 
-    const oneOffTimes = new Set(oneOffs.map(o => o.scheduledTime));
     const recurringToday = recurringAll
       .filter(r => (new Date(r.scheduledDate + "T00:00:00").getDay() + 6) % 7 === todayDow)
-      .filter(r => !oneOffTimes.has(r.scheduledTime))
+      .filter(r => !oneOffs.some(o => oneOffCoversTemplate(o, r)))
       .map(r => ({ ...r, status: "pending" }));
 
     return [...oneOffs, ...recurringToday]
