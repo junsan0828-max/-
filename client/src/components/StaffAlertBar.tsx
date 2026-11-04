@@ -35,17 +35,28 @@ export function playDingDong() {
   lastDing = Date.now();
   const ctx = getCtx();
   if (!ctx) return;
+  // 컴프레서로 피크를 눌러 전체 음량을 최대한 끌어올린다 (기기 '미디어 음량'을 따른다)
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -24; comp.knee.value = 10; comp.ratio.value = 8;
+  comp.attack.value = 0.003; comp.release.value = 0.25;
+  const master = ctx.createGain();
+  master.gain.value = 1.8;
+  comp.connect(master).connect(ctx.destination);
   const tone = (freq: number, start: number) => {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.value = freq;
-    g.gain.setValueAtTime(0.0001, ctx.currentTime + start);
-    g.gain.exponentialRampToValueAtTime(0.6, ctx.currentTime + start + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + 1.1);
-    o.connect(g).connect(ctx.destination);
-    o.start(ctx.currentTime + start);
-    o.stop(ctx.currentTime + start + 1.2);
+    // 기본음 + 배음(옥타브·5도)을 섞어 작은 폰 스피커에서도 또렷하게
+    ([[1, 1], [2, 0.5], [3, 0.25]] as const).forEach(([mult, vol]) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = mult === 1 ? "triangle" : "sine";
+      o.frequency.value = freq * mult;
+      const t0 = ctx.currentTime + start;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.3);
+      o.connect(g).connect(comp);
+      o.start(t0);
+      o.stop(t0 + 1.4);
+    });
   };
   tone(659.25, 0);    // 띵 (미)
   tone(523.25, 0.45); // 동 (도)
