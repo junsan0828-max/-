@@ -2745,10 +2745,15 @@ async function deductForSchedule(db: any, row: { id?: number; memberId: number |
   const pkg = await pickActivePackage(db, row.memberId);
   if (!pkg) return { sessionResult: null, skipReason: "no_package" as DeductSkip };
 
-  const [dup] = await db.select({ id: ptSessionLogs.id }).from(ptSessionLogs)
-    .where(and(eq(ptSessionLogs.memberId, row.memberId), eq(ptSessionLogs.trainerId, row.trainerId), eq(ptSessionLogs.sessionDate, targetDate)))
-    .limit(1);
-  if (dup) return { sessionResult: null, skipReason: "duplicate" as DeductSkip };
+  // 같은 날 두 번 수업(예: 12시·21시)도 각각 차감한다: 그날 완료·노쇼된 PT 일정 수만큼만 로그를 허용.
+  // 같은 일정을 다시 체크하거나 출석체크로 이미 차감된 경우는 개수가 같아 이중 차감되지 않는다.
+  const [{ n: logCount }] = await db.select({ n: sql<number>`COUNT(*)::int` }).from(ptSessionLogs)
+    .where(and(eq(ptSessionLogs.memberId, row.memberId), eq(ptSessionLogs.trainerId, row.trainerId), eq(ptSessionLogs.sessionDate, targetDate)));
+  const [{ n: classCount }] = await db.select({ n: sql<number>`COUNT(*)::int` }).from(schedules)
+    .where(and(eq(schedules.memberId, row.memberId), eq(schedules.trainerId, row.trainerId), eq(schedules.scheduledDate, targetDate),
+      eq(schedules.isRecurring, 0), sql`${schedules.status} IN ('done', 'noshow')`,
+      sql`(${schedules.eventType} IS NULL OR ${schedules.eventType} = 'pt')`));
+  if (Number(logCount) >= Math.max(1, Number(classCount))) return { sessionResult: null, skipReason: "duplicate" as DeductSkip };
 
   const newUsed = pkg.usedSessions + 1;
   const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
