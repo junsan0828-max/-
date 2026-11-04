@@ -3,13 +3,13 @@ import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, Users, Dumbbell, LogOut,
+  LayoutDashboard, Users, Dumbbell, LogOut, Bell,
   UserCog, Settings, User, ClipboardCheck, Download, X, ChevronLeft,
   TrendingUp, Megaphone, UserPlus, ListChecks, BookOpen, Menu, ExternalLink, ClipboardList, ClipboardPlus, UsersRound, Database, PenLine, CalendarDays,
 } from "lucide-react";
 import Logo from "./Logo";
 import NoticeLoginPopup from "./NoticeLoginPopup";
-import StaffAlertBar from "./StaffAlertBar";
+import StaffAlertBar, { openAlertSettings } from "./StaffAlertBar";
 
 const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
 
@@ -212,6 +212,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </a>
         )}
         <button
+          onClick={openAlertSettings}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          <Bell className="h-4 w-4 shrink-0" />
+          알림 설정
+        </button>
+        <button
           onClick={() => logoutMutation.mutate()}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
@@ -266,6 +273,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Logo className="h-7" textSize="text-sm" />
           </button>
           <div className="flex items-center gap-1">
+            <button
+              onClick={openAlertSettings}
+              className="text-muted-foreground hover:text-foreground p-2 rounded-md hover:bg-accent transition-colors"
+              aria-label="알림 설정"
+            >
+              <Bell className="h-4 w-4" />
+            </button>
             <span className="text-xs text-muted-foreground">{user?.username}</span>
             <button
               onClick={() => logoutMutation.mutate()}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Bell, BellRing, X } from "lucide-react";
+import { ALERT_SOUNDS, getAlertSound, setAlertSound, playAlertSound, getAudioCtx } from "@/lib/alertSound";
+import { Bell, BellRing, Check, Play, X } from "lucide-react";
 
 // 키오스크 직원 호출 배너 + 이 기기 알림 받기(웹푸시 구독)
 // 서버: server/staffAlerts.ts
@@ -20,48 +21,11 @@ function urlB64ToUint8Array(base64: string) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
 
-// 띵동 (Web Audio로 합성 — 파일 없음). 브라우저 정책상 화면을 한 번이라도 터치한 뒤부터 소리가 난다.
-let audioCtx: AudioContext | null = null;
-function getCtx() {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
-    return audioCtx;
-  } catch { return null; }
-}
-let lastDing = 0;
-export function playDingDong() {
-  if (Date.now() - lastDing < 3000) return; // 푸시·폴링이 겹쳐 두 번 울리지 않게
-  lastDing = Date.now();
-  const ctx = getCtx();
-  if (!ctx) return;
-  // 컴프레서로 피크를 눌러 전체 음량을 최대한 끌어올린다 (기기 '미디어 음량'을 따른다)
-  const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -24; comp.knee.value = 10; comp.ratio.value = 8;
-  comp.attack.value = 0.003; comp.release.value = 0.25;
-  const master = ctx.createGain();
-  master.gain.value = 1.8;
-  comp.connect(master).connect(ctx.destination);
-  const tone = (freq: number, start: number) => {
-    // 기본음 + 배음(옥타브·5도)을 섞어 작은 폰 스피커에서도 또렷하게
-    ([[1, 1], [2, 0.5], [3, 0.25]] as const).forEach(([mult, vol]) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = mult === 1 ? "triangle" : "sine";
-      o.frequency.value = freq * mult;
-      const t0 = ctx.currentTime + start;
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.3);
-      o.connect(g).connect(comp);
-      o.start(t0);
-      o.stop(t0 + 1.4);
-    });
-  };
-  tone(659.25, 0);    // 띵 (미)
-  tone(523.25, 0.45); // 동 (도)
-  try { navigator.vibrate?.([200, 100, 300]); } catch { /* 무시 */ }
-}
+const playDingDong = () => playAlertSound();
+
+// 헤더·사이드바의 🔔 버튼이 이 이벤트로 알림 설정 창을 연다
+export const OPEN_ALERT_SETTINGS = "open-alert-settings";
+export const openAlertSettings = () => window.dispatchEvent(new Event(OPEN_ALERT_SETTINGS));
 
 function sameKey(sub: PushSubscription, vapidKey: string) {
   const have = sub.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey as ArrayBuffer) : null;
@@ -144,7 +108,7 @@ export default function StaffAlertBar() {
   const seenRef = useRef<Set<number> | null>(null);
   useEffect(() => {
     // 첫 터치에서 오디오 잠금 해제
-    const unlock = () => { getCtx(); window.removeEventListener("pointerdown", unlock); };
+    const unlock = () => { getAudioCtx(); window.removeEventListener("pointerdown", unlock); };
     window.addEventListener("pointerdown", unlock);
     return () => window.removeEventListener("pointerdown", unlock);
   }, []);
@@ -172,6 +136,14 @@ export default function StaffAlertBar() {
     const t = setInterval(playDingDong, 30_000);
     return () => clearInterval(t);
   }, [ringing]);
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sound, setSound] = useState(getAlertSound);
+  useEffect(() => {
+    const open = () => setSettingsOpen(true);
+    window.addEventListener(OPEN_ALERT_SETTINGS, open);
+    return () => window.removeEventListener(OPEN_ALERT_SETTINGS, open);
+  }, []);
 
   if (!isStaff) return null;
 
@@ -217,6 +189,66 @@ export default function StaffAlertBar() {
           <button onClick={dismiss} className="text-muted-foreground" aria-label="닫기">
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setSettingsOpen(false)}>
+          <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold">키오스크 호출 알림 설정</h2>
+              <button onClick={() => setSettingsOpen(false)} className="text-muted-foreground p-1" aria-label="닫기"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium mb-1">알림음 <span className="text-xs text-muted-foreground font-normal">(이 기기에만 적용)</span></p>
+              <p className="text-xs text-muted-foreground mb-2">운영시스템 화면이 켜져 있을 때 울립니다. 크기는 기기의 미디어 음량을 따릅니다.</p>
+              <div className="space-y-1.5">
+                {ALERT_SOUNDS.map(snd => {
+                  const selected = sound === snd.key;
+                  return (
+                    <div key={snd.key}
+                      className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer ${selected ? "border-primary bg-primary/10" : "border-border hover:bg-accent"}`}
+                      onClick={() => { setSound(snd.key); setAlertSound(snd.key); playAlertSound(snd.key, true); }}>
+                      <div className={`h-5 w-5 rounded-full border flex items-center justify-center shrink-0 ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}>
+                        {selected && <Check className="h-3 w-3" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{snd.label}</p>
+                        <p className="text-xs text-muted-foreground">{snd.desc}</p>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); playAlertSound(snd.key, true); }}
+                        className="text-xs text-primary bg-primary/15 px-2.5 py-1 rounded-md flex items-center gap-1 shrink-0">
+                        <Play className="h-3 w-3" /> 듣기
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <p className="text-sm font-medium mb-1">휴대폰 알림창 알림</p>
+              <p className="text-xs text-muted-foreground mb-2">
+                {pushState === "on" ? "이 기기에서 받는 중입니다. 알림창 소리는 휴대폰 알림음·알림 음량을 따릅니다(무음 모드면 진동만)."
+                  : pushState === "denied" ? "브라우저에서 알림이 차단돼 있습니다. 주소창 왼쪽 아이콘 → 권한 → 알림 → 허용으로 바꿔 주세요."
+                  : pushState === "ios-install" ? "아이폰은 Safari 공유 → '홈 화면에 추가'한 앱에서 열어야 받을 수 있습니다."
+                  : pushState === "unsupported" ? "이 브라우저는 알림을 지원하지 않습니다."
+                  : "아직 이 기기에서 받지 않습니다."}
+              </p>
+              <div className="flex gap-2">
+                {pushState === "none" && (
+                  <button disabled={busy} onClick={enablePush} className="text-sm font-medium bg-primary text-primary-foreground px-3 py-1.5 rounded-md disabled:opacity-50">
+                    {busy ? "설정 중…" : "알림 켜기"}
+                  </button>
+                )}
+                {pushState === "on" && (
+                  <button disabled={testMut.isPending} onClick={() => testMut.mutate()} className="text-sm font-medium bg-primary/15 text-primary px-3 py-1.5 rounded-md disabled:opacity-50">
+                    {testMut.isPending ? "보내는 중…" : testMut.data ? `테스트 알림 보냄 (${testMut.data.sent}대)` : "테스트 알림 보내기"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </>
