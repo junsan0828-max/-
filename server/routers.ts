@@ -6741,15 +6741,53 @@ const attendanceChecksRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const role = ctx.user.role;
-      if (!ctx.user.trainerId && role !== "admin" && role !== "sub_admin")
+      const isAdmin = role === "admin" || role === "sub_admin";
+      if (!ctx.user.trainerId && !isAdmin)
         throw new TRPCError({ code: "FORBIDDEN" });
+      // 본인 담당 회원이거나 본인이 찍은 출석만 취소 가능 (관리자는 전체)
+      if (!isAdmin) {
+        const [m] = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+        const [chk] = await db.select({ trainerId: attendanceChecks.trainerId }).from(attendanceChecks)
+          .where(and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.date))).limit(1);
+        if (m?.trainerId !== ctx.user.trainerId && chk?.trainerId !== ctx.user.trainerId)
+          throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원의 출석만 취소할 수 있습니다." });
+      }
       await db.delete(attendanceChecks).where(
         and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.date))
       );
       await db.delete(attendances).where(
         and(eq(attendances.memberId, input.memberId), eq(attendances.attendDate, input.date))
       );
-      return { success: true };
+
+      // 출석 체크로 차감된 PT 1회도 되돌린다 (예전엔 출석만 지워져 잔여 횟수가 줄어든 채 남았다).
+      // 운동 내용이 적힌 수업일지는 지우지 않는다 — 사람이 쓴 기록이므로 PT 관리에서 직접 삭제하게 안내.
+      const logs = await db.select({
+        id: ptSessionLogs.id, packageId: ptSessionLogs.packageId, isDraft: ptSessionLogs.isDraft,
+        notes: ptSessionLogs.notes, bodyPart: ptSessionLogs.bodyPart, exercisesJson: ptSessionLogs.exercisesJson,
+        goal: ptSessionLogs.goal, feedback: ptSessionLogs.feedback,
+      }).from(ptSessionLogs)
+        .where(and(eq(ptSessionLogs.memberId, input.memberId), eq(ptSessionLogs.sessionDate, input.date)));
+      const hasContent = (l: typeof logs[number]) =>
+        [l.notes, l.bodyPart, l.goal, l.feedback].some(v => (v ?? "").trim() !== "")
+        || ((l.exercisesJson ?? "").trim() !== "" && l.exercisesJson !== "[]");
+      let restored = 0;
+      let keptWithContent = 0;
+      for (const l of logs) {
+        if (hasContent(l)) { keptWithContent++; continue; }
+        await db.delete(ptSessionLogs).where(eq(ptSessionLogs.id, l.id));
+        if (l.packageId && !l.isDraft) {
+          const [pkg] = await db.select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+            .from(ptPackages).where(eq(ptPackages.id, l.packageId)).limit(1);
+          if (pkg) {
+            const newUsed = Math.max(0, pkg.usedSessions - 1);
+            await db.update(ptPackages)
+              .set({ usedSessions: newUsed, status: newUsed < pkg.totalSessions ? "active" : "completed" })
+              .where(eq(ptPackages.id, l.packageId));
+            restored++;
+          }
+        }
+      }
+      return { success: true, restored, keptWithContent };
     }),
 });
 

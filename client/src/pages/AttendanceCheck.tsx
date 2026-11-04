@@ -56,7 +56,8 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
-  const dateParam = params.get("date") ?? new Date().toISOString().split("T")[0];
+  // KST 오늘 (UTC toISOString은 오전 9시 전이면 어제 날짜가 된다)
+  const dateParam = params.get("date") ?? new Date(Date.now() + 9 * 3600_000).toISOString().split("T")[0];
   const fromMember = params.get("from") === "member";
   const backTarget = fromMember ? `/members/${memberId}` : `/attendance?date=${dateParam}`;
 
@@ -127,9 +128,12 @@ export default function AttendanceCheck({ memberId }: Props) {
     setNotes(existing.notes ?? "");
   }, [existing]);
 
+  const utils = trpc.useUtils();
   const deleteMutation = trpc.attendanceChecks.delete.useMutation({
-    onSuccess: () => {
-      toast.success("출석이 취소되었습니다.");
+    onSuccess: (r: any) => {
+      toast.success(r?.restored ? `출석이 취소되었습니다. PT ${r.restored}회 복구` : "출석이 취소되었습니다.");
+      if (r?.keptWithContent) toast.warning("운동 내용이 적힌 수업일지가 있어 그 회차는 남겨뒀습니다. PT 관리에서 수업일지를 삭제하면 횟수가 복구됩니다.");
+      utils.pt.invalidate();
       setLocation(backTarget);
     },
     onError: (err) => toast.error(err.message || "취소 실패"),
@@ -522,7 +526,7 @@ export default function AttendanceCheck({ memberId }: Props) {
           <DialogHeader>
             <DialogTitle>출석 취소</DialogTitle>
             <DialogDescription>
-              {member?.name}님의 출석 기록을 삭제하고 미출석 상태로 되돌립니다.
+              {member?.name}님의 출석 기록을 삭제하고 미출석 상태로 되돌립니다. 이 날짜에 차감된 PT 횟수도 1회 복구됩니다.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 pt-1">
