@@ -59,23 +59,86 @@ export const STAFF_ALERT_MIGRATIONS = [
   )`,
   `ALTER TABLE kiosk_consult_requests ADD COLUMN IF NOT EXISTS "branchNo" INTEGER`,
   `ALTER TABLE kiosk_consult_requests ADD COLUMN IF NOT EXISTS "opsHandledAt" TEXT`,
+  // 직원별 알림 설정 (관리자 설정 > 키오스크 알림). 행이 없으면 기본값(역할 기준·항상)
+  `CREATE TABLE IF NOT EXISTS staff_alert_prefs (
+    "userId" INTEGER PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    "staffCall" INTEGER NOT NULL DEFAULT 1,
+    consult INTEGER NOT NULL DEFAULT 1,
+    branches TEXT,
+    schedule TEXT,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`,
 ];
 
 type PushPayload = { title: string; body: string; url: string; tag?: string; requireInteraction?: boolean };
 
-/** 역할·지점 기준 수신자에게 푸시. userIds를 주면 그 사람에게만. 보낸 기기 수를 돌려준다. */
-export async function sendStaffPush(branchNo: number | null, payload: PushPayload, userIds?: number[]): Promise<number> {
-  const subs = userIds
-    ? await pool.query(`SELECT endpoint, p256dh, auth FROM ops_push_subscriptions WHERE "userId" = ANY($1)`, [userIds])
-    : await pool.query(
-      `SELECT s.endpoint, s.p256dh, s.auth
-         FROM ops_push_subscriptions s
-         JOIN users u ON u.id = s."userId"
-         LEFT JOIN trainers t ON t."userId" = u.id
-        WHERE u.role IN ('admin', 'sub_admin', 'consultant')
-           OR (u.role = 'trainer' AND ($1::int IS NULL OR t."branchId" = $1
-               OR EXISTS (SELECT 1 FROM trainer_branches tb WHERE tb."trainerId" = t.id AND tb."branchId" = $1)))`,
-      [branchNo]);
+export type AlertKind = "staffCall" | "consult" | "test";
+/** 요일별 근무시간. 0=월 … 6=일. null이면 항상 받음 */
+export type DaySchedule = { on: boolean; start: string; end: string };
+
+type PrefRow = {
+  userId: number; username: string; role: string; trainerName: string | null; trainerBranches: number[];
+  enabled: boolean; staffCall: boolean; consult: boolean; branches: number[] | null; schedule: DaySchedule[] | null; hasPref: boolean;
+};
+
+async function loadPrefs(): Promise<PrefRow[]> {
+  const r = await pool.query(
+    `SELECT u.id, u.username, u.role, t."trainerName",
+            ARRAY_REMOVE(ARRAY(SELECT tb."branchId" FROM trainer_branches tb WHERE tb."trainerId" = t.id) || t."branchId", NULL) AS tb,
+            p."userId" AS "prefUser", p.enabled, p."staffCall", p.consult, p.branches, p.schedule
+       FROM users u
+       LEFT JOIN trainers t ON t."userId" = u.id
+       LEFT JOIN staff_alert_prefs p ON p."userId" = u.id
+      WHERE u.role IN ('admin', 'sub_admin', 'consultant', 'trainer')
+      ORDER BY CASE u.role WHEN 'admin' THEN 0 WHEN 'sub_admin' THEN 1 WHEN 'consultant' THEN 2 ELSE 3 END, u.username`);
+  const parse = <T,>(v: string | null): T | null => { if (!v) return null; try { return JSON.parse(v) as T; } catch { return null; } };
+  return r.rows.map((x: any) => ({
+    userId: x.id, username: x.username, role: x.role, trainerName: x.trainerName,
+    trainerBranches: [...new Set<number>((x.tb ?? []).map(Number))],
+    hasPref: x.prefUser != null,
+    enabled: x.prefUser == null ? true : x.enabled === 1,
+    staffCall: x.prefUser == null ? true : x.staffCall === 1,
+    consult: x.prefUser == null ? true : x.consult === 1,
+    branches: parse<number[]>(x.branches),
+    schedule: parse<DaySchedule[]>(x.schedule),
+  }));
+}
+
+/** 받을 지점: 직접 지정했으면 그것, 아니면 역할 기준(트레이너=소속 지점, 그 외=전 지점) */
+function effectiveBranches(p: PrefRow): number[] | null {
+  if (p.branches && p.branches.length) return p.branches;
+  if (p.role === "trainer") return p.trainerBranches.length ? p.trainerBranches : [];
+  return null; // 전 지점
+}
+
+/** KST 지금이 근무시간인가 (자정 넘는 시간대 지원: 22:00~02:00) */
+export function onDutyNow(schedule: DaySchedule[] | null, now = new Date()): boolean {
+  if (!schedule || schedule.length !== 7) return true;
+  const k = new Date(now.getTime() + 9 * 3600_000);
+  const dow = (k.getUTCDay() + 6) % 7;
+  const hm = `${String(k.getUTCHours()).padStart(2, "0")}:${String(k.getUTCMinutes()).padStart(2, "0")}`;
+  const today = schedule[dow];
+  if (today?.on) {
+    if (today.start <= today.end ? (hm >= today.start && hm < today.end) : hm >= today.start) return true;
+  }
+  const yest = schedule[(dow + 6) % 7]; // 어제 시작해 자정을 넘긴 근무
+  return !!(yest?.on && yest.start > yest.end && hm < yest.end);
+}
+
+function receives(p: PrefRow, kind: AlertKind, branchNo: number | null): boolean {
+  if (kind === "test") return true;
+  if (!p.enabled || !p[kind]) return false;
+  const br = effectiveBranches(p);
+  if (branchNo != null && br !== null && !br.includes(branchNo)) return false;
+  return onDutyNow(p.schedule);
+}
+
+/** 설정(켜짐·종류·지점·근무시간)에 맞는 수신자에게 푸시. userIds를 주면 그 사람에게만(테스트용). 보낸 기기 수를 돌려준다. */
+export async function sendStaffPush(branchNo: number | null, payload: PushPayload, userIds?: number[], kind: AlertKind = "staffCall"): Promise<number> {
+  const targets = userIds ?? (await loadPrefs()).filter(p => receives(p, kind, branchNo)).map(p => p.userId);
+  if (!targets.length) return 0;
+  const subs = await pool.query(`SELECT endpoint, p256dh, auth FROM ops_push_subscriptions WHERE "userId" = ANY($1)`, [targets]);
   const body = JSON.stringify(payload);
   let sent = 0;
   await Promise.all(subs.rows.map(async (s: any) => {
@@ -102,7 +165,7 @@ async function notifyStaffCall(callId: number, branchNo: number | null): Promise
   return sendStaffPush(branchNo, {
     title: `🔔 ${branchPrefix(branchNo)}직원 호출`, body: "키오스크 앞에서 회원님이 기다리고 있어요.",
     url: "/", tag: `staff-call-${callId}`, requireInteraction: true,
-  });
+  }, undefined, "staffCall");
 }
 
 type ConsultInput = { branchNo?: unknown; consultType?: any; phone?: unknown; name?: unknown; purpose?: unknown; kioskRequestId?: unknown };
@@ -160,7 +223,7 @@ async function handleConsult(b: ConsultInput): Promise<{ error: string } | { lea
     body: [who, fmtPhone(digits), purpose].filter(Boolean).join(" · "),
     url: member ? `/members/${member.id}` : "/leads",
     tag: `consult-${digits}`,
-  });
+  }, undefined, "consult");
   return { leadId, leadCreated, memberId: member?.id ?? null, sent };
 }
 
@@ -251,6 +314,11 @@ const staffProcedure = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+const adminProcedure = staffProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 설정할 수 있습니다." });
+  return next();
+});
+
 async function myBranchIds(user: AuthUser): Promise<number[] | null> {
   if (user.role !== "trainer" || !user.trainerId) return null; // null = 전 지점
   const r = await pool.query(
@@ -283,20 +351,65 @@ export const staffAlertsRouter = t.router({
     }),
 
   test: staffProcedure.mutation(async ({ ctx }) => {
-    const sent = await sendStaffPush(null, { title: "✅ 알림 테스트", body: "이 기기에서 키오스크 호출·상담 알림을 받습니다.", url: "/", tag: "test" }, [ctx.user.id]);
+    const sent = await sendStaffPush(null, { title: "✅ 알림 테스트", body: "이 기기에서 키오스크 호출·상담 알림을 받습니다.", url: "/", tag: "test" }, [ctx.user.id], "test");
     return { sent };
   }),
 
-  /** 관리자: 알림 받는 직원 현황 */
-  subscribers: staffProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+  // ─── 관리자 설정 > 키오스크 알림 ───
+  adminList: adminProcedure.query(async () => {
+    const prefs = await loadPrefs();
+    const dev = await pool.query(`SELECT "userId", COUNT(*)::int AS n, MAX("createdAt") AS last FROM ops_push_subscriptions GROUP BY "userId"`);
+    const devMap = new Map(dev.rows.map((d: any) => [Number(d.userId), d]));
+    return prefs.map(p => ({
+      ...p,
+      defaultBranches: p.role === "trainer" ? p.trainerBranches : null,
+      devices: (devMap.get(p.userId) as any)?.n ?? 0,
+      onDuty: p.enabled && onDutyNow(p.schedule),
+    }));
+  }),
+
+  adminSave: adminProcedure
+    .input(z.object({
+      userId: z.number(),
+      enabled: z.boolean(), staffCall: z.boolean(), consult: z.boolean(),
+      branches: z.array(z.number().int()).nullable(),
+      schedule: z.array(z.object({ on: z.boolean(), start: z.string().regex(/^\d{2}:\d{2}$/), end: z.string().regex(/^\d{2}:\d{2}$/) })).length(7).nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO staff_alert_prefs ("userId", enabled, "staffCall", consult, branches, schedule, "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, now()::text)
+         ON CONFLICT ("userId") DO UPDATE SET enabled = $2, "staffCall" = $3, consult = $4, branches = $5, schedule = $6, "updatedAt" = now()::text`,
+        [input.userId, input.enabled ? 1 : 0, input.staffCall ? 1 : 0, input.consult ? 1 : 0,
+          input.branches && input.branches.length ? JSON.stringify(input.branches) : null,
+          input.schedule ? JSON.stringify(input.schedule) : null]);
+      return { ok: true };
+    }),
+
+  /** 테스트 알림: userId 지정 시 그 사람, 없으면 알림 켠 전 직원 (근무시간 무시) */
+  adminTest: adminProcedure
+    .input(z.object({ userId: z.number().optional() }))
+    .mutation(async ({ input }) => {
+      const ids = input.userId ? [input.userId] : (await loadPrefs()).filter(p => p.enabled).map(p => p.userId);
+      const sent = await sendStaffPush(null, { title: "✅ 알림 테스트 (관리자)", body: "키오스크 호출·상담 알림이 이 기기로 옵니다.", url: "/", tag: "test" }, ids, "test");
+      return { sent };
+    }),
+
+  /** 최근 호출 기록 + 응답 시간 */
+  callLog: adminProcedure.query(async () => {
     const r = await pool.query(
-      `SELECT u.username, u.role, t."trainerName", COUNT(s.id)::int AS devices
-         FROM users u LEFT JOIN trainers t ON t."userId" = u.id
-         LEFT JOIN ops_push_subscriptions s ON s."userId" = u.id
-        WHERE u.role IN ('admin', 'sub_admin', 'consultant', 'trainer')
-        GROUP BY u.id, u.username, u.role, t."trainerName" ORDER BY u.role, u.username`);
-    return r.rows as { username: string; role: string; trainerName: string | null; devices: number }[];
+      `SELECT c.id, c.message, c.status, c."createdAt", c."acknowledgedAt", c."branchNo", u.username AS "ackBy", t."trainerName" AS "ackName"
+         FROM staff_call_log c
+         LEFT JOIN users u ON u.id = c."acknowledgedBy"
+         LEFT JOIN trainers t ON t."userId" = u.id
+        WHERE c.message NOT LIKE '%[테스트]%'
+        ORDER BY c.id DESC LIMIT 30`);
+    return r.rows.map((x: any) => ({
+      id: x.id as number, message: x.message as string, status: x.status as string, branchNo: x.branchNo as number | null,
+      createdAt: String(x.createdAt).slice(0, 16).replace("T", " "),
+      ackBy: (x.ackName ?? x.ackBy) as string | null,
+      responseMin: x.acknowledgedAt && x.ackBy ? Math.max(0, Math.round((Date.parse(x.acknowledgedAt) - Date.parse(x.createdAt)) / 60_000)) : null,
+    }));
   }),
 
   /** 최근 2시간 미확인 호출 (트레이너는 자기 지점만) */

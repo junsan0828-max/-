@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import StaffAlertSettings from "@/components/StaffAlertSettings";
 import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -1642,6 +1643,9 @@ export default function Admin() {
 
       {/* 부관리자 계정 관리 */}
       {isAdmin && <SubAdminSection />}
+
+      {/* 키오스크 직원 호출·상담 알림 설정 */}
+      {isAdmin && <StaffAlertSettings />}
 
       </>)}
       </>)}
