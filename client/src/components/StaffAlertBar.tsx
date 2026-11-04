@@ -29,7 +29,10 @@ function getCtx() {
     return audioCtx;
   } catch { return null; }
 }
+let lastDing = 0;
 export function playDingDong() {
+  if (Date.now() - lastDing < 3000) return; // 푸시·폴링이 겹쳐 두 번 울리지 않게
+  lastDing = Date.now();
   const ctx = getCtx();
   if (!ctx) return;
   const tone = (freq: number, start: number) => {
@@ -142,6 +145,16 @@ export default function StaffAlertBar() {
     ids.forEach(id => seenRef.current!.add(id));
     if (fresh.length) playDingDong();
   }, [calls]);
+  // 서비스워커가 푸시를 받으면 즉시 띵동 + 목록 갱신
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type === "staff-call") { playDingDong(); utils.staffAlerts.pendingCalls.invalidate(); }
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker.removeEventListener("message", onMsg);
+  }, [utils]);
+
   const ringing = !!calls?.some(c => c.minutesAgo < 5);
   useEffect(() => {
     if (!ringing) return;
