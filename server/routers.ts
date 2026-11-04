@@ -6303,16 +6303,16 @@ const CONSULT_TYPE_LABEL: Record<string, string> = { new: "신규 상담", renew
 const kioskBranchNo = z.number().int().min(1).max(2).optional();
 const branchPrefix = (branchNo?: number) => (branchNo ? `[${branchNo}호점] ` : "");
 
-// 통합운영시스템 연동: OPS_API_URL·OPS_API_KEY가 설정되면 상담 접수·직원 호출을 그쪽으로 넘긴다.
-// 통합운영시스템이 받으면(2xx) 알림·CRM은 그쪽이 담당하고, 미설정·실패·5초 초과면 false → 여기서 직접 푸시.
+// 통합운영시스템 연동 (/api/booking과 같은 방식): 상담 접수·직원 호출·등록 신청을 그쪽으로 넘긴다.
+// 통합운영시스템이 받으면(2xx) 알림·CRM은 그쪽이 담당하고, 실패·5초 초과면 false → 여기서 직접 푸시.
+const OPS_API_URL = process.env.OPS_API_URL || "https://remarkable-tenderness-production.up.railway.app";
+
 async function forwardToOps(path: string, body: Record<string, unknown>): Promise<boolean> {
-  const base = process.env.OPS_API_URL;
   const key = process.env.OPS_API_KEY;
-  if (!base || !key) return false;
   try {
-    const res = await fetch(new URL(path, base), {
+    const res = await fetch(new URL(path, OPS_API_URL), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-kiosk-key": key },
+      headers: { "Content-Type": "application/json", ...(key ? { "x-kiosk-key": key } : {}) },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });
