@@ -58,14 +58,17 @@ async function registerPush() {
     const vapidJson = await vapidRes.json();
     const vapidKey = vapidJson?.result?.data;
     if (!vapidKey) return;
-    const existing = await reg.pushManager.getSubscription();
-    let sub = existing;
-    if (!sub) {
-      const raw = vapidKey.replace(/-/g, "+").replace(/_/g, "/");
-      const padded = raw.padEnd(raw.length + (4 - raw.length % 4) % 4, "=");
-      const keyBytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
-      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
+    const raw = vapidKey.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = raw.padEnd(raw.length + (4 - raw.length % 4) % 4, "=");
+    const keyBytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+    let sub = await reg.pushManager.getSubscription();
+    // 서버 VAPID 키가 바뀌었으면(2026-11-04 교체) 다시 구독
+    const have = sub?.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey as ArrayBuffer) : null;
+    if (sub && !(have && have.length === keyBytes.length && have.every((b, i) => b === keyBytes[i]))) {
+      await sub.unsubscribe().catch(() => {});
+      sub = null;
     }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
     const { endpoint, keys } = sub.toJSON() as any;
     await fetch("/trpc/gymPlus.savePushSubscription", {
       method: "POST",

@@ -49,6 +49,13 @@ export function playDingDong() {
   try { navigator.vibrate?.([200, 100, 300]); } catch { /* 무시 */ }
 }
 
+function sameKey(sub: PushSubscription, vapidKey: string) {
+  const have = sub.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey as ArrayBuffer) : null;
+  if (!have) return false;
+  const want = urlB64ToUint8Array(vapidKey);
+  return have.length === want.length && have.every((b, i) => b === want[i]);
+}
+
 function safeGet(k: string) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k: string, v: string) { try { localStorage.setItem(k, v); } catch { /* 무시 */ } }
 
@@ -81,7 +88,12 @@ export default function StaffAlertBar() {
     (async () => {
       try {
         const reg = await navigator.serviceWorker.register("/sw.js");
-        const sub = await reg.pushManager.getSubscription();
+        let sub = await reg.pushManager.getSubscription();
+        // 서버 키가 바뀌었으면(예: 2026-11-04 키 교체) 권한은 그대로 두고 조용히 다시 구독
+        if (sub && Notification.permission === "granted" && !sameKey(sub, vapidKey)) {
+          await sub.unsubscribe().catch(() => {});
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(vapidKey) });
+        }
         if (sub && Notification.permission === "granted") {
           const j = sub.toJSON() as any;
           subscribeMut.mutate({ endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, userAgent: navigator.userAgent });
@@ -103,8 +115,7 @@ export default function StaffAlertBar() {
       let sub = await reg.pushManager.getSubscription();
       // 다른 키(예전 회원앱 등)로 구독돼 있으면 새로 받는다
       const want = urlB64ToUint8Array(vapidKey);
-      const have = sub?.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey as ArrayBuffer) : null;
-      if (sub && have && (have.length !== want.length || have.some((b, i) => b !== want[i]))) { await sub.unsubscribe(); sub = null; }
+      if (sub && !sameKey(sub, vapidKey)) { await sub.unsubscribe(); sub = null; }
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
       const j = sub.toJSON() as any;
       await subscribeMut.mutateAsync({ endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, userAgent: navigator.userAgent });

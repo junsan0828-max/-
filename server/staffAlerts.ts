@@ -16,8 +16,10 @@ import { pool } from "./db";
 import type { AuthUser } from "./auth";
 import type { Request } from "express";
 
-export const VAPID_PUBLIC = "BK_eYZuRk27SeTqaVTc1Ui5eK8fYjm_6CfLZfQK4L8eqhnqxhqA38lplk5Ez4064IN_3ag-kSTQkLxiuRn91-8E";
-export const VAPID_PRIVATE = "Q-8EMtpbLdJf3VQqrfE4A8ZyBrtvVxfw4dp9h_31Ahc";
+// 웹푸시 VAPID 키. 예전 하드코딩 키는 P-256 곡선 위의 점이 아니라 FCM이 전부 403으로 거부했다(2026-11-04 발견).
+// 환경변수(OPS_VAPID_PUBLIC_KEY / OPS_VAPID_PRIVATE_KEY)가 있으면 우선. 바꾸면 기존 구독은 모두 다시 받아야 한다.
+export const VAPID_PUBLIC = process.env.OPS_VAPID_PUBLIC_KEY || "BL5SUgn_dXfHLEX3bIh7mnv9FwV5u-A8jkAvH8rLEWABwkTS8K_On6ziKorm8IdR571epMIuT1R1UpKK3ehhK-A";
+export const VAPID_PRIVATE = process.env.OPS_VAPID_PRIVATE_KEY || "YBgwoKIvKQPhjvbrAur6b3bOAoAs6oC3I4k_T2YcDmA";
 const VAPID = { subject: "mailto:admin@ziantgym.com", publicKey: VAPID_PUBLIC, privateKey: VAPID_PRIVATE };
 
 const BRANCH_LABEL: Record<number, string> = { 1: "1호점", 2: "2호점" };
