@@ -695,6 +695,7 @@ export default function ConsultKiosk() {
               <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">이름</label>
               <input
                 type="text"
+                autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="성함을 입력해 주세요"
