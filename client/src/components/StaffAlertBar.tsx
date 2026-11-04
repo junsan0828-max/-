@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Bell, BellRing, X } from "lucide-react";
 
@@ -20,6 +20,35 @@ function urlB64ToUint8Array(base64: string) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
 
+// 띵동 (Web Audio로 합성 — 파일 없음). 브라우저 정책상 화면을 한 번이라도 터치한 뒤부터 소리가 난다.
+let audioCtx: AudioContext | null = null;
+function getCtx() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    return audioCtx;
+  } catch { return null; }
+}
+export function playDingDong() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const tone = (freq: number, start: number) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+    g.gain.exponentialRampToValueAtTime(0.6, ctx.currentTime + start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + 1.1);
+    o.connect(g).connect(ctx.destination);
+    o.start(ctx.currentTime + start);
+    o.stop(ctx.currentTime + start + 1.2);
+  };
+  tone(659.25, 0);    // 띵 (미)
+  tone(523.25, 0.45); // 동 (도)
+  try { navigator.vibrate?.([200, 100, 300]); } catch { /* 무시 */ }
+}
+
 function safeGet(k: string) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k: string, v: string) { try { localStorage.setItem(k, v); } catch { /* 무시 */ } }
 
@@ -29,7 +58,7 @@ export default function StaffAlertBar() {
   const utils = trpc.useUtils();
 
   const { data: calls } = trpc.staffAlerts.pendingCalls.useQuery(undefined, {
-    enabled: isStaff, refetchInterval: 15_000, refetchIntervalInBackground: false,
+    enabled: isStaff, refetchInterval: 10_000, refetchIntervalInBackground: false,
   });
   const ack = trpc.staffAlerts.acknowledge.useMutation({ onSuccess: () => utils.staffAlerts.pendingCalls.invalidate() });
   const { data: vapidKey } = trpc.staffAlerts.vapidKey.useQuery(undefined, { enabled: isStaff, staleTime: Infinity });
@@ -85,6 +114,29 @@ export default function StaffAlertBar() {
       alert("알림 설정에 실패했습니다: " + (e?.message ?? e));
     } finally { setBusy(false); }
   };
+
+  // 새 호출이 들어오면 띵동. 확인 전까지 30초마다 다시 울림(최대 5분).
+  const seenRef = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    // 첫 터치에서 오디오 잠금 해제
+    const unlock = () => { getCtx(); window.removeEventListener("pointerdown", unlock); };
+    window.addEventListener("pointerdown", unlock);
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+  useEffect(() => {
+    if (!calls) return;
+    const ids = calls.map(c => c.id);
+    if (seenRef.current === null) { seenRef.current = new Set(ids); if (calls.some(c => c.minutesAgo <= 1)) playDingDong(); return; }
+    const fresh = ids.filter(id => !seenRef.current!.has(id));
+    ids.forEach(id => seenRef.current!.add(id));
+    if (fresh.length) playDingDong();
+  }, [calls]);
+  const ringing = !!calls?.some(c => c.minutesAgo < 5);
+  useEffect(() => {
+    if (!ringing) return;
+    const t = setInterval(playDingDong, 30_000);
+    return () => clearInterval(t);
+  }, [ringing]);
 
   if (!isStaff) return null;
 
