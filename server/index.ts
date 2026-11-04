@@ -780,6 +780,19 @@ async function initDatabase() {
       "acknowledgedAt" TEXT
     )`,
     `ALTER TABLE kiosk_consult_requests ADD COLUMN IF NOT EXISTS "branchNo" INTEGER`,
+    // 상담 키오스크 이벤트 등록 신청 (결제는 데스크에서 직원이 처리)
+    `CREATE TABLE IF NOT EXISTS kiosk_registration_requests (
+      id SERIAL PRIMARY KEY,
+      "branchNo" INTEGER,
+      "eventId" TEXT NOT NULL,
+      "eventTitle" TEXT NOT NULL,
+      product TEXT NOT NULL,
+      period TEXT,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "branchNo" INTEGER`,
     // 직원 푸시 구독 (어드민/트레이너용)
     `CREATE TABLE IF NOT EXISTS staff_push_subscriptions (

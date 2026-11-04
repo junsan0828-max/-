@@ -7006,6 +7006,42 @@ const kioskRouter = t.router({
       return { id: res.rows[0].id, memberName };
     }),
 
+  // ─── 상담 키오스크: 이벤트 등록 신청 ─────────────────────────────────────────
+  submitRegistration: publicProcedure
+    .input(z.object({
+      branchNo: kioskBranchNo,
+      eventId: z.string().min(1).max(50),
+      eventTitle: z.string().min(1).max(100),
+      product: z.enum(["membership", "pt777"]),
+      period: z.enum(["1개월", "3개월", "6개월", "12개월"]).optional(),
+      name: z.string().trim().min(1).max(50),
+      phone: z.string().min(9),
+    }))
+    .mutation(async ({ input }) => {
+      const digits = input.phone.replace(/\D/g, "");
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+      const res = await pool.query(
+        `INSERT INTO kiosk_registration_requests ("branchNo", "eventId", "eventTitle", product, period, name, phone, "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [input.branchNo ?? null, input.eventId, input.eventTitle, input.product, input.period ?? null, input.name, digits, kstNow]
+      );
+      const id = res.rows[0].id as number;
+
+      const phone = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : digits;
+      forwardToOps("/api/kiosk/registration", {
+        sourceId: id, branchNo: input.branchNo ?? null, eventId: input.eventId, eventTitle: input.eventTitle,
+        product: input.product, period: input.period ?? null, name: input.name, phone: digits, createdAt: kstNow,
+      })
+        .then((accepted) => accepted ? undefined : sendKioskPush(input.branchNo, {
+          title: `🧾 ${branchPrefix(input.branchNo)}이벤트 등록 신청`,
+          body: [input.name, phone, input.product === "pt777" ? "777 맞춤 PT" : input.period, input.eventTitle].filter(Boolean).join(" · "),
+          url: "/",
+        }))
+        .catch((e) => console.error("[registration push]", e));
+
+      return { id };
+    }),
+
   // ─── 상담 키오스크: 관리자 목록 조회 ─────────────────────────────────────────
   getConsultRequests: adminOnlyProcedure
     .input(z.object({ status: z.string().optional() }))

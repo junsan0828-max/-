@@ -13,6 +13,8 @@ type Stage =
   | "payment_wait"
   | "info_display"
   | "event_display"
+  | "register_input"
+  | "register_done"
   | "staff_calling"
   | "staff_called"
   | "not_found"
@@ -76,6 +78,46 @@ const IDLE_RESET_MS = 60_000;
 
 const VAT_NOTE ="* 카드 및 시루 결제 시 부가세 10%";
 
+// 이벤트 안내 카드 — 누르면 해당 이벤트로 등록 신청 화면으로 이동 (branch 없으면 전 지점 공통)
+type KioskEvent = { id: string; branch?: number; title: string; benefit: string; product: "membership" | "pt777"; period?: string };
+const KIOSK_EVENTS: KioskEvent[] = [
+  { id: "b1-6m", branch: 1, title: "6개월 등록 시", benefit: "1개월 무료 추가 (총 7개월)", product: "membership", period: "6개월" },
+  { id: "b1-12m", branch: 1, title: "12개월 등록 시", benefit: "운동복 증정", product: "membership", period: "12개월" },
+  { id: "b2-any", branch: 2, title: "등록 시", benefit: "운동복 + 락커 서비스 제공", product: "membership" },
+  { id: "pt777", title: "777 맞춤 PT", benefit: "맞춤 PT 17회 · 헬스 이용권 2개월 · 락커 서비스", product: "pt777" },
+];
+const PT777_PRICE = "777,000원";
+
+function PhoneKeypad({ phone, onKey }: { phone: string; onKey: (key: string) => void }) {
+  return (
+    <>
+      <div className="mb-5">
+        <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">전화번호</label>
+        <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-xl font-mono tracking-widest min-h-[3.5rem]">
+          {phone || <span className="text-slate-400 text-base font-normal">숫자를 입력해 주세요</span>}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-6">
+        {["1","2","3","4","5","6","7","8","9","←","0","지우기"].map((key) => (
+          <button
+            key={key}
+            onClick={() => onKey(key)}
+            className={`py-3 rounded-xl text-lg font-bold transition-colors ${
+              key === "지우기"
+                ? "text-red-500 bg-red-50 border border-red-200 text-sm"
+                : key === "←"
+                ? "text-slate-600 bg-white border border-slate-200"
+                : "text-slate-900 bg-white border border-slate-200 active:bg-slate-100"
+            }`}
+          >
+            {key}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 const BRANCH_EVENT_ROWS: Record<number, string[]> = {
   1: ["6개월 등록 → 1개월 추가", "12개월 등록 → 운동복 증정", "12월 31일까지"],
   2: ["등록 시 → 운동복 + 락커 서비스 제공", "12월 31일까지"],
@@ -108,6 +150,8 @@ export default function ConsultKiosk() {
   const [memberName, setMemberName] = useState("");
   const [showConsultModal, setShowConsultModal] = useState(false);
   const [waitType, setWaitType] = useState<"wait" | "callback">("wait");
+  const [selectedEvent, setSelectedEvent] = useState<KioskEvent | null>(null);
+  const [regPeriod, setRegPeriod] = useState("");
 
   const phoneRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -131,6 +175,11 @@ export default function ConsultKiosk() {
     return () => { html.style.fontSize = prev; };
   }, []);
 
+  const registerMut = trpc.kiosk.submitRegistration.useMutation({
+    onSuccess: () => setStage("register_done"),
+    onError: () => setStage("error"),
+  });
+
   const callStaffMut = trpc.kiosk.callStaff.useMutation({
     onSuccess: () => setStage("staff_called"),
     onError: () => setStage("staff_called"), // 실패해도 완료로 보여줌
@@ -140,6 +189,7 @@ export default function ConsultKiosk() {
     setStage("main_select");
     setShowConsultModal(false);
     setWaitType("wait");
+    setSelectedEvent(null); setRegPeriod("");
     setName(""); setPhone(""); setPurpose(""); setMemberName("");
   }, []);
 
@@ -180,6 +230,26 @@ export default function ConsultKiosk() {
     if (digits.length < 9) return;
     const resolvedPurpose = purpose || (consultType === "new" ? (waitType === "callback" ? "연락 요청" : "기다리기") : undefined);
     submitMut.mutate({ consultType, name: name || undefined, phone: digits, purpose: resolvedPurpose, branchNo });
+  };
+
+  const startRegistration = (ev: KioskEvent) => {
+    setSelectedEvent(ev);
+    setRegPeriod(ev.period ?? "");
+    setName(""); setPhone("");
+    setStage("register_input");
+  };
+
+  const handleRegister = () => {
+    if (!selectedEvent) return;
+    registerMut.mutate({
+      branchNo,
+      eventId: selectedEvent.id,
+      eventTitle: `${selectedEvent.title} ${selectedEvent.benefit}`,
+      product: selectedEvent.product,
+      period: selectedEvent.product === "membership" ? (regPeriod as "1개월" | "3개월" | "6개월" | "12개월") : undefined,
+      name: name.trim(),
+      phone: phone.replace(/\D/g, ""),
+    });
   };
 
   const handleCallStaff = () => {
@@ -460,31 +530,8 @@ export default function ConsultKiosk() {
             </div>
           </div>
 
-          <div className="mb-5">
-            <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">전화번호</label>
-            <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-xl font-mono tracking-widest min-h-[3.5rem]">
-              {phone || <span className="text-slate-400 text-base font-normal">숫자를 입력해 주세요</span>}
-            </div>
-            <input ref={phoneRef} type="tel" className="sr-only" readOnly value={phone} />
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 mb-6">
-            {["1","2","3","4","5","6","7","8","9","←","0","지우기"].map((key) => (
-              <button
-                key={key}
-                onClick={() => handlePhoneKey(key)}
-                className={`py-3 rounded-xl text-lg font-bold transition-colors ${
-                  key === "지우기"
-                    ? "text-red-500 bg-red-50 border border-red-200 text-sm"
-                    : key === "←"
-                    ? "text-slate-600 bg-white border border-slate-200"
-                    : "text-slate-900 bg-white border border-slate-200 active:bg-slate-100"
-                }`}
-              >
-                {key}
-              </button>
-            ))}
-          </div>
+          <input ref={phoneRef} type="tel" className="sr-only" readOnly value={phone} />
+          <PhoneKeypad phone={phone} onKey={handlePhoneKey} />
 
           <button
             onClick={handleSubmit}
@@ -576,52 +623,113 @@ export default function ConsultKiosk() {
             <p className="text-slate-900 font-bold text-lg mt-1">진행 중인 이벤트</p>
           </div>
 
-          {/* 1호점 이벤트 */}
-          {branchNo !== 2 && <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
-            <p className="text-purple-600 text-[0.625rem] tracking-widest uppercase mb-3">1호점 (정왕점)</p>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
-                <div>
-                  <p className="text-slate-900 font-bold text-sm">6개월 등록 시</p>
-                  <p className="text-slate-600 text-sm">→ 1개월 무료 추가 (총 7개월)</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
-                <div>
-                  <p className="text-slate-900 font-bold text-sm">12개월 등록 시</p>
-                  <p className="text-slate-600 text-sm">→ 운동복 증정</p>
-                </div>
-              </div>
-            </div>
-          </div>}
-
-          {/* 2호점 이벤트 */}
-          {branchNo !== 1 && <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] px-5 py-5">
-            <p className="text-purple-600 text-[0.625rem] tracking-widest uppercase mb-3">2호점 (시흥점)</p>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0" />
-                <div>
-                  <p className="text-slate-900 font-bold text-sm">등록 시</p>
-                  <p className="text-slate-600 text-sm">→ 운동복 + 락커 서비스 제공</p>
-                </div>
-              </div>
-            </div>
-          </div>}
-
-          {/* 777 PT */}
-          <div className="rounded-2xl border border-[#60A5FA]/20 bg-[#1D4ED8]/[0.07] px-5 py-5">
-            <p className="text-[#2563EB] text-[0.625rem] tracking-widest uppercase mb-3">777 맞춤 PT</p>
-            <p className="text-slate-900 font-bold text-sm mb-1">연 1회 한정 특별 프로그램</p>
-            <p className="text-slate-600 text-sm">맞춤 PT 17회 · 헬스 이용권 2개월 · 락커 서비스</p>
-            <p className="text-[#2563EB] font-bold text-base mt-2">777,000원</p>
-          </div>
+          {KIOSK_EVENTS.filter((ev) => !ev.branch || !branchNo || ev.branch === branchNo).map((ev) => {
+            const pt = ev.product === "pt777";
+            return (
+              <button
+                key={ev.id}
+                onClick={() => startRegistration(ev)}
+                className={`w-full text-left rounded-2xl border px-5 py-5 transition-colors ${pt ? "border-[#60A5FA]/30 bg-[#1D4ED8]/[0.07] active:bg-[#1D4ED8]/15" : "border-purple-500/25 bg-purple-500/[0.06] active:bg-purple-500/15"}`}
+              >
+                <p className={`text-[0.625rem] tracking-widest uppercase mb-2 ${pt ? "text-[#2563EB]" : "text-purple-600"}`}>
+                  {pt ? "연 1회 한정 특별 프로그램" : BRANCH_LABEL[ev.branch!]}
+                </p>
+                <p className="text-slate-900 font-bold text-base">{ev.title}</p>
+                <p className="text-slate-600 text-sm mt-0.5">→ {ev.benefit}</p>
+                {pt && <p className="text-[#2563EB] font-bold text-base mt-2">{PT777_PRICE}</p>}
+                <p className={`text-sm font-bold mt-3 ${pt ? "text-[#2563EB]" : "text-purple-600"}`}>이 이벤트로 등록하기 →</p>
+              </button>
+            );
+          })}
 
           <button onClick={doReset} className="w-full py-4 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold">
             처음으로 →
           </button>
+        </div>
+      )}
+
+      {/* ── 이벤트 등록 신청 ── */}
+      {stage === "register_input" && selectedEvent && (() => {
+        const prices = MEMBERSHIP_PRICES[branchNo ?? 1];
+        const periods = selectedEvent.period ? prices.filter(([p]) => p === selectedEvent.period) : prices;
+        const needPeriod = selectedEvent.product === "membership";
+        const ready = name.trim().length > 0 && phone.length >= 9 && (!needPeriod || !!regPeriod);
+        return (
+          <div className="w-full max-w-sm">
+            <button onClick={() => setStage("event_display")} className="flex items-center gap-1 text-slate-400 text-sm mb-4 hover:text-slate-700 transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+              돌아가기
+            </button>
+
+            <p className="text-purple-600 text-xs font-bold tracking-widest uppercase mb-1">이벤트 등록 신청</p>
+            <p className="text-slate-900 font-bold text-base">{selectedEvent.title}</p>
+            <p className="text-slate-500 text-sm mb-4">→ {selectedEvent.benefit}</p>
+
+            {needPeriod ? (
+              <div className="mb-4">
+                <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">기간</label>
+                <div className={`grid gap-2 ${periods.length > 1 ? "grid-cols-4" : "grid-cols-1"}`}>
+                  {periods.map(([p, price]) => (
+                    <button
+                      key={p}
+                      onClick={() => setRegPeriod(p)}
+                      className={`rounded-xl border px-1 py-2.5 text-center transition-colors ${regPeriod === p ? "bg-[#1D4ED8] border-[#1D4ED8] text-white" : "bg-white border-slate-200 text-slate-900"}`}
+                    >
+                      <p className="text-sm font-bold">{p}</p>
+                      <p className={`text-xs ${regPeriod === p ? "text-white/80" : "text-slate-500"}`}>{price}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-slate-500 text-xs mt-2">{VAT_NOTE}</p>
+              </div>
+            ) : (
+              <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 flex justify-between items-center">
+                <span className="text-slate-600 text-sm">결제 금액</span>
+                <span className="text-slate-900 font-bold">{PT777_PRICE}</span>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">이름</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="성함을 입력해 주세요"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-base placeholder-slate-400 focus:outline-none focus:border-blue-300"
+              />
+            </div>
+
+            <PhoneKeypad phone={phone} onKey={handlePhoneKey} />
+
+            <button
+              onClick={handleRegister}
+              disabled={!ready || registerMut.isPending}
+              className="w-full py-4 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-30 transition-colors"
+            >
+              {registerMut.isPending ? "접수 중..." : "등록 신청하기"}
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* ── 등록 신청 완료 ── */}
+      {stage === "register_done" && (
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-purple-500/15 flex items-center justify-center mx-auto">
+            <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10 text-purple-600" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 20 L17 27 L30 13" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-slate-900 font-bold text-2xl mb-2">{name.trim() ? `${name.trim()}님, ` : ""}등록 신청 완료!</p>
+            <p className="text-slate-500 text-sm leading-relaxed">
+              직원이 곧 결제와 등록을<br />도와드립니다. 잠시만 기다려 주세요.
+            </p>
+          </div>
+          <AutoCloseBar durationMs={10000} active={stage === "register_done"} onClose={doReset} />
         </div>
       )}
 
