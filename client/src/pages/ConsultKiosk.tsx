@@ -128,7 +128,28 @@ function infoItems(branchNo = 1) {
     { title: "헬스 이용권", rows: MEMBERSHIP_PRICES[branchNo].map(([p, v]) => `${p} ${v}`) },
     { title: "연말 이벤트", rows: BRANCH_EVENT_ROWS[branchNo] },
     { title: "777 맞춤 PT", rows: ["17회 맞춤 지도", "헬스 이용권 2개월 포함", "락커 서비스 포함", "777,000원"] },
-    { title: "운영 시간", rows: ["평일 06:00 – 23:00", "주말 08:00 – 20:00", "공휴일 08:00 – 20:00"] },
+    { title: "운영 시간", rows: BRANCH_INFO[branchNo].hours },
+  ];
+}
+
+// 지점 정보 (랜딩페이지 BRANCH와 동일하게 유지)
+const BRANCH_INFO: Record<number, { hours: string[]; address: string; phone: string }> = {
+  1: { hours: ["평일 08:00 – 23:00", "토요일 10:00 – 17:00", "일요일 휴무"], address: "경기도 시흥시 함송로 29번길 5, 다나빌딩 2/3층", phone: "0507-1482-3349" },
+  2: { hours: ["평일 07:30 – 23:00", "토요일 10:00 – 17:00", "일요일 휴무"], address: "경기도 시흥시 중심상가로 181, 삼화빌딩 4층", phone: "0507-1457-4003" },
+};
+
+// 자주 묻는 질문 — 시스템(랜딩·짐플러스 앱)에 이미 안내 중인 내용만 사용
+function faqItems(branchNo = 1) {
+  const b = BRANCH_INFO[branchNo];
+  return [
+    { q: "운영 시간이 어떻게 되나요?", a: `${b.hours.join(" · ")}입니다.` },
+    { q: "처음인데 어떻게 시작하나요?", a: "자이언트짐은 운동 시작 전 모든 회원에게 체형분석을 실시합니다. 홈 화면의 '상담 신청'을 눌러 주시면 직원이 안내해 드립니다." },
+    { q: "헬스 이용권에는 무엇이 포함되나요?", a: "체형분석, 체성분 측정, 운동 상담이 포함됩니다." },
+    { q: "결제는 어떻게 하나요?", a: "카드, 시루, 계좌이체로 결제할 수 있습니다. 카드와 시루 결제 시 부가세 10%가 추가됩니다." },
+    { q: "회원권 정지·양도·해지는 어떻게 하나요?", a: "ZIANTGYM+ 앱의 내 정보에서 신청할 수 있습니다. 정지하면 정지한 기간만큼 만료일이 자동으로 연장됩니다." },
+    { q: "해지하면 환불되나요?", a: "계약금액의 10%를 위약금으로 공제한 뒤 남은 기간만큼 비례해 환불해 드립니다. 환불은 영업일 기준 3~5일 걸립니다." },
+    { q: "777 맞춤 PT는 무엇인가요?", a: "연 1회 한정 프로그램으로, 맞춤 PT 17회와 헬스 이용권 2개월, 락커 서비스가 포함된 777,000원 상품입니다." },
+    { q: "위치와 연락처를 알려주세요.", a: `${BRANCH_LABEL[branchNo]} · ${b.address} · Tel. ${b.phone}` },
   ];
 }
 
@@ -152,6 +173,8 @@ export default function ConsultKiosk() {
   const [waitType, setWaitType] = useState<"wait" | "callback">("wait");
   const [selectedEvent, setSelectedEvent] = useState<KioskEvent | null>(null);
   const [regPeriod, setRegPeriod] = useState("");
+  const [infoTab, setInfoTab] = useState<"info" | "faq">("info");
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const phoneRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -190,6 +213,7 @@ export default function ConsultKiosk() {
     setShowConsultModal(false);
     setWaitType("wait");
     setSelectedEvent(null); setRegPeriod("");
+    setInfoTab("info"); setOpenFaq(null);
     setName(""); setPhone(""); setPurpose(""); setMemberName("");
   }, []);
 
@@ -598,7 +622,39 @@ export default function ConsultKiosk() {
       {/* ── 안내 설명 ── */}
       {stage === "info_display" && (
         <div className="w-full max-w-sm space-y-4">
-          {infoItems(branchNo).map((item) => (
+          <div className="flex bg-white border border-slate-200 rounded-xl p-1 gap-1">
+            {([["info", "요금 · 운영 안내"], ["faq", "자주 묻는 질문"]] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => { setInfoTab(key); setOpenFaq(null); }}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-colors ${infoTab === key ? "bg-[#1D4ED8] text-white" : "text-slate-500"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {infoTab === "faq" && (
+            <div className="space-y-2">
+              {faqItems(branchNo).map((f, i) => (
+                <button
+                  key={f.q}
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full text-left rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-slate-900 font-bold text-sm"><span className="text-[#2563EB] mr-1.5">Q.</span>{f.q}</p>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${openFaq === i ? "rotate-180" : ""}`}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </div>
+                  {openFaq === i && <p className="text-slate-600 text-sm leading-relaxed mt-3">{f.a}</p>}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {infoTab === "info" && infoItems(branchNo).map((item) => (
             <div key={item.title} className="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4">
               <p className="text-slate-500 text-[0.625rem] tracking-widest uppercase mb-3">{item.title}</p>
               <div className="space-y-1.5">
