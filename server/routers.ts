@@ -6303,6 +6303,27 @@ const CONSULT_TYPE_LABEL: Record<string, string> = { new: "신규 상담", renew
 const kioskBranchNo = z.number().int().min(1).max(2).optional();
 const branchPrefix = (branchNo?: number) => (branchNo ? `[${branchNo}호점] ` : "");
 
+// 통합운영시스템 연동: OPS_API_URL·OPS_API_KEY가 설정되면 상담 접수·직원 호출을 그쪽으로 넘긴다.
+// 통합운영시스템이 받으면(2xx) 알림·CRM은 그쪽이 담당하고, 미설정·실패·5초 초과면 false → 여기서 직접 푸시.
+async function forwardToOps(path: string, body: Record<string, unknown>): Promise<boolean> {
+  const base = process.env.OPS_API_URL;
+  const key = process.env.OPS_API_KEY;
+  if (!base || !key) return false;
+  try {
+    const res = await fetch(new URL(path, base), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-kiosk-key": key },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) console.error(`[ops forward] ${path} → ${res.status}`);
+    return res.ok;
+  } catch (e) {
+    console.error(`[ops forward] ${path} 실패`, e);
+    return false;
+  }
+}
+
 async function sendKioskPush(branchNo: number | undefined, payload: { title: string; body: string; url: string }) {
   // 지점 미지정 주소로 접속한 경우 누락되지 않도록 전 지점 수신자에게 보냄
   const usernames = branchNo ? KIOSK_NOTIFY_USERNAMES[branchNo] : [...new Set(Object.values(KIOSK_NOTIFY_USERNAMES).flat())];
@@ -6971,13 +6992,16 @@ const kioskRouter = t.router({
         ]
       );
 
-      notifyConsultRecipients({
+      const consult = {
         branchNo: input.branchNo,
         consultType: input.consultType,
         name: input.name ?? memberName ?? null,
         phone: digits,
         purpose: input.purpose ?? null,
-      }).catch((e) => console.error("[consult push]", e));
+      };
+      forwardToOps("/api/kiosk/consult", { sourceId: res.rows[0].id, ...consult, branchNo: consult.branchNo ?? null, createdAt: kstNow })
+        .then((accepted) => (accepted ? undefined : notifyConsultRecipients(consult)))
+        .catch((e) => console.error("[consult push]", e));
 
       return { id: res.rows[0].id, memberName };
     }),
@@ -7031,7 +7055,8 @@ const kioskRouter = t.router({
       );
       const callId = res.rows[0]?.id;
 
-      sendKioskPush(input.branchNo, { title: "🔔 직원 호출", body: msg, url: "/" })
+      forwardToOps("/api/kiosk/staff-call", { sourceId: callId, branchNo: input.branchNo ?? null, message: msg, createdAt: kstNow })
+        .then((accepted) => (accepted ? undefined : sendKioskPush(input.branchNo, { title: "🔔 직원 호출", body: msg, url: "/" })))
         .catch((e) => console.error("[staff call push]", e));
       return { ok: true, callId };
     }),
