@@ -17,6 +17,7 @@ import { generateHealthReportHTML } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
 import { createBranchManagerMcpRouter, getBranchManagerProtectedResourceMetadata } from "./branchManagerMcp";
 import { autoCompleteExpiredTransfers } from "./transferRouter";
+import { registerKioskRoutes, STAFF_ALERT_MIGRATIONS } from "./staffAlerts";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -348,6 +349,9 @@ app.get("/api/transfer/:token", async (req, res) => {
     res.status(500).json({ error: "오류" });
   }
 });
+
+// ─── 키오스크 → 직원 알림 공개 API (staffAlerts.ts) ───
+registerKioskRoutes(app);
 
 // ─── 공개 체형분석 예약 API (자이언트짐++ 랜딩페이지에서 호출) ─────────────────
 app.get("/api/booking/ping", (_req, res) => {
@@ -1010,6 +1014,7 @@ async function initDatabase() {
 
   // 신규 컬럼 마이그레이션 (IF NOT EXISTS)
   const alterStatements = [
+    ...STAFF_ALERT_MIGRATIONS,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,

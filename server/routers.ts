@@ -53,8 +53,7 @@ import {
 } from "../drizzle/schema";
 import webpush from "web-push";
 
-const VAPID_PUBLIC = "BK_eYZuRk27SeTqaVTc1Ui5eK8fYjm_6CfLZfQK4L8eqhnqxhqA38lplk5Ez4064IN_3ag-kSTQkLxiuRn91-8E";
-const VAPID_PRIVATE = "Q-8EMtpbLdJf3VQqrfE4A8ZyBrtvVxfw4dp9h_31Ahc";
+import { VAPID_PUBLIC, VAPID_PRIVATE, staffAlertsRouter } from "./staffAlerts";
 
 webpush.setVapidDetails("mailto:admin@ziantgym.com", VAPID_PUBLIC, VAPID_PRIVATE);
 import type { AuthUser } from "./auth";
@@ -8670,6 +8669,7 @@ export const appRouter = t.router({
   consultantData: consultantDataRouter,
   bodyAnalysis: bodyAnalysisRouter,
   dataHealth: dataHealthRouter,
+  staffAlerts: staffAlertsRouter,
 });
 
 export type AppRouter = typeof appRouter;

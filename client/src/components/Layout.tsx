@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Logo from "./Logo";
 import NoticeLoginPopup from "./NoticeLoginPopup";
+import StaffAlertBar from "./StaffAlertBar";
 
 const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
 
@@ -291,6 +292,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         )}
+
+        <StaffAlertBar />
 
         {/* 콘텐츠 */}
         <main ref={mainRef} className="flex-1 overflow-y-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom)', WebkitOverflowScrolling: 'auto' }}>

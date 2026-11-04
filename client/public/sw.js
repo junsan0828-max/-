@@ -9,6 +9,8 @@ self.addEventListener("push", (event) => {
       badge: "/icon-192.svg",
       data: { url: data.url || "/gym-plus/messages" },
       vibrate: [200, 100, 200],
+      ...(data.tag ? { tag: data.tag, renotify: true } : {}),
+      ...(data.requireInteraction ? { requireInteraction: true } : {}),
     })
   );
 });
