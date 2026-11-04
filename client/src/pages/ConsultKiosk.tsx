@@ -198,6 +198,36 @@ export default function ConsultKiosk() {
     return () => { html.style.fontSize = prev; };
   }, []);
 
+  // 키오스크 화면이 꺼지지 않도록 화면 켜짐 유지 요청 (탭 전환·최소화 후 돌아오거나 OS가 해제하면 다시 요청)
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let pending = false;
+    let disposed = false;
+    const acquire = async () => {
+      if (disposed || pending || document.visibilityState !== "visible" || (lock && !lock.released)) return;
+      pending = true;
+      try {
+        const l = await navigator.wakeLock.request("screen");
+        if (disposed) l.release().catch(() => {});
+        else lock = l;
+      } catch {
+        // 절전 모드·권한 정책 등으로 거부되면 다음 터치 때 재시도
+      } finally {
+        pending = false;
+      }
+    };
+    acquire();
+    document.addEventListener("visibilitychange", acquire);
+    window.addEventListener("pointerdown", acquire);
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", acquire);
+      window.removeEventListener("pointerdown", acquire);
+      lock?.release().catch(() => {});
+    };
+  }, []);
+
   const registerMut = trpc.kiosk.submitRegistration.useMutation({
     onSuccess: () => setStage("register_done"),
     onError: () => setStage("error"),
