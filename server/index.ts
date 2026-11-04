@@ -17,7 +17,7 @@ import { generateHealthReportHTML } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
 import { createBranchManagerMcpRouter, getBranchManagerProtectedResourceMetadata } from "./branchManagerMcp";
 import { autoCompleteExpiredTransfers } from "./transferRouter";
-import { registerKioskRoutes, STAFF_ALERT_MIGRATIONS } from "./staffAlerts";
+import { registerKioskRoutes, STAFF_ALERT_MIGRATIONS, startKioskPoller } from "./staffAlerts";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -3134,6 +3134,9 @@ async function start() {
 
   // 노션 일일/주간/월간 브리핑 자동 발송 (NOTION_API_TOKEN/NOTION_BRIEFING_PAGE_ID 설정 시에만 동작)
   startNotionBriefingScheduler();
+
+  // 키오스크 직원 호출·상담 접수 수거 → 직원 푸시 (자이언트짐++가 공유 테이블에 직접 쓰는 경우 대비, 10초마다)
+  startKioskPoller();
 
   // 양도 계약 자동 완료: 서버 시작 시 1회 + 매일 1회 (자정 KST)
   try {

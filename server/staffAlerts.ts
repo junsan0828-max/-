@@ -49,6 +49,14 @@ export const STAFF_ALERT_MIGRATIONS = [
   )`,
   `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "branchNo" INTEGER`,
   `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "acknowledgedBy" INTEGER`,
+  // 푸시 발송 표시 (API·폴러 중 먼저 잡은 쪽만 보낸다 → 중복 알림 방지)
+  `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "opsNotifiedAt" TEXT`,
+  `CREATE TABLE IF NOT EXISTS kiosk_consult_requests (
+    id SERIAL PRIMARY KEY, "consultType" TEXT NOT NULL, name TEXT, phone TEXT NOT NULL, purpose TEXT,
+    status TEXT NOT NULL DEFAULT 'pending', "staffNote" TEXT, "createdAt" TEXT NOT NULL DEFAULT now()::text, "processedAt" TEXT
+  )`,
+  `ALTER TABLE kiosk_consult_requests ADD COLUMN IF NOT EXISTS "branchNo" INTEGER`,
+  `ALTER TABLE kiosk_consult_requests ADD COLUMN IF NOT EXISTS "opsHandledAt" TEXT`,
 ];
 
 type PushPayload = { title: string; body: string; url: string; tag?: string; requireInteraction?: boolean };
@@ -84,6 +92,100 @@ export async function sendStaffPush(branchNo: number | null, payload: PushPayloa
   return sent;
 }
 
+/** 직원 호출 푸시 — 먼저 표시를 잡은 쪽만 보낸다(API·폴러 중복 방지, 멱등) */
+async function notifyStaffCall(callId: number, branchNo: number | null): Promise<number> {
+  const claim = await pool.query(
+    `UPDATE staff_call_log SET "opsNotifiedAt" = $1 WHERE id = $2 AND "opsNotifiedAt" IS NULL RETURNING id`, [kstIso(), callId]);
+  if (claim.rowCount === 0) return 0;
+  return sendStaffPush(branchNo, {
+    title: `🔔 ${branchPrefix(branchNo)}직원 호출`, body: "키오스크 앞에서 회원님이 기다리고 있어요.",
+    url: "/", tag: `staff-call-${callId}`, requireInteraction: true,
+  });
+}
+
+type ConsultInput = { branchNo?: unknown; consultType?: any; phone?: unknown; name?: unknown; purpose?: unknown; kioskRequestId?: unknown };
+
+/** 키오스크 상담 접수 처리: (신규면) 상담 CRM 카드 + 직원 푸시. kioskRequestId가 있으면 그 요청은 한 번만 처리한다. */
+async function handleConsult(b: ConsultInput): Promise<{ error: string } | { leadId: number | null; leadCreated: boolean; memberId: number | null; sent: number; already?: boolean }> {
+  const reqId = Number(b.kioskRequestId) || null;
+  if (reqId) {
+    const claim = await pool.query(
+      `UPDATE kiosk_consult_requests SET "opsHandledAt" = $1 WHERE id = $2 AND "opsHandledAt" IS NULL RETURNING id`, [kstIso(), reqId]);
+    if (claim.rowCount === 0) {
+      const exists = await pool.query(`SELECT 1 FROM kiosk_consult_requests WHERE id = $1`, [reqId]);
+      if (exists.rowCount) return { leadId: null, leadCreated: false, memberId: null, sent: 0, already: true };
+    }
+  }
+  const branchNo = parseBranch(b.branchNo);
+  const consultType = ["new", "renew", "pt"].includes(b.consultType) ? b.consultType as string : "new";
+  const digits = String(b.phone ?? "").replace(/\D/g, "");
+  if (digits.length < 9) return { error: "연락처를 확인해 주세요." };
+  const name = String(b.name ?? "").trim().slice(0, 50) || null;
+  const purpose = String(b.purpose ?? "").trim().slice(0, 200) || null;
+  const label = CONSULT_LABEL[consultType];
+  const now = new Date().toISOString();
+
+  // 기존 회원 여부 (재등록 상담·기존회원 PT 상담 대비)
+  const m = await pool.query(
+    `SELECT m.id, m.name, t."trainerName" FROM members m LEFT JOIN trainers t ON t.id = m."trainerId"
+      WHERE REGEXP_REPLACE(COALESCE(m.phone, ''), '[^0-9]', '', 'g') = $1
+      ORDER BY m."membershipEnd" DESC NULLS LAST LIMIT 1`, [digits]);
+  const member = m.rows[0] as { id: number; name: string; trainerName: string | null } | undefined;
+
+  // 상담 CRM 카드: 기존 회원이 아니면 생성. 같은 번호 카드가 30일 안에 있으면 새로 만들지 않는다(중복 방지는 생성 시점에서).
+  let leadId: number | null = null;
+  let leadCreated = false;
+  if (!member) {
+    const dup = await pool.query(
+      `SELECT id FROM leads WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $1 AND "createdAt" >= $2 ORDER BY id DESC LIMIT 1`,
+      [digits, new Date(Date.now() - 30 * 86400_000).toISOString()]);
+    if (dup.rows[0]) {
+      leadId = dup.rows[0].id;
+    } else {
+      const memo = [`[키오스크 ${BRANCH_LABEL[branchNo ?? 0] ?? ""} ${label}]`, b.kioskRequestId ? `#${b.kioskRequestId}` : ""].join(" ").trim();
+      const ins = await pool.query(
+        `INSERT INTO leads (name, phone, "branchId", status, "consultationType", "consultationSubTypes", "interestType", "exercisePurpose", memo, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, 'pending', '키오스크', $4, $5, $6, $7, $8, $8) RETURNING id`,
+        [name ?? "키오스크 방문", fmtPhone(digits), branchNo, label.replace(" ", ""), consultType === "pt" ? "PT" : null, purpose, memo, now]);
+      leadId = ins.rows[0].id;
+      leadCreated = true;
+    }
+  }
+
+  const who = member ? `${member.name} 회원${member.trainerName ? ` (담당 ${member.trainerName})` : ""}` : (name ?? "방문객");
+  const sent = await sendStaffPush(branchNo, {
+    title: `📝 ${branchPrefix(branchNo)}${label} 접수`,
+    body: [who, fmtPhone(digits), purpose].filter(Boolean).join(" · "),
+    url: member ? `/members/${member.id}` : "/leads",
+    tag: `consult-${digits}`,
+  });
+  return { leadId, leadCreated, memberId: member?.id ?? null, sent };
+}
+
+/**
+ * 자이언트짐++가 아직 API를 부르지 않고 공유 테이블에 직접 쓰는 경우를 위한 수거기.
+ * 최근 5분 안에 생긴, 아직 처리 표시가 없는 호출·상담만 처리한다 → 재시작해도 옛 건을 다시 보내지 않는다(멱등).
+ */
+export function startKioskPoller() {
+  const tick = async () => {
+    try {
+      const since = kstIso(-5 * 60_000);
+      const calls = await pool.query(
+        `SELECT id, "branchNo" FROM staff_call_log WHERE "opsNotifiedAt" IS NULL AND status = 'pending' AND "createdAt" >= $1 ORDER BY id`, [since]);
+      for (const c of calls.rows) await notifyStaffCall(c.id, c.branchNo ?? null);
+      const reqs = await pool.query(
+        `SELECT id, "consultType", name, phone, purpose, "branchNo" FROM kiosk_consult_requests
+          WHERE "opsHandledAt" IS NULL AND "createdAt" >= $1 ORDER BY id`, [since]);
+      for (const r of reqs.rows) {
+        await handleConsult({ branchNo: r.branchNo, consultType: r.consultType, phone: r.phone, name: r.name, purpose: r.purpose, kioskRequestId: r.id });
+      }
+    } catch (e) {
+      console.error("[kiosk poller]", (e as Error).message);
+    }
+  };
+  setInterval(tick, 10_000);
+}
+
 // ─── 공개 API (키오스크 → 통합운영) ─────────────────────────────────────────────
 const hits = new Map<string, number[]>();
 function rateLimited(ip: string, max = 20, windowMs = 60_000) {
@@ -117,10 +219,7 @@ export function registerKioskRoutes(app: express.Express) {
         `INSERT INTO staff_call_log (message, status, "createdAt", "branchNo") VALUES ($1, 'pending', $2, $3) RETURNING id`,
         [message, kstIso(), branchNo]);
       const callId = ins.rows[0].id;
-      const sent = await sendStaffPush(branchNo, {
-        title: `🔔 ${branchPrefix(branchNo)}직원 호출`, body: "키오스크 앞에서 회원님이 기다리고 있어요.",
-        url: "/", tag: `staff-call-${callId}`, requireInteraction: true,
-      });
+      const sent = await notifyStaffCall(callId, branchNo);
       return res.json({ ok: true, callId, sent });
     } catch (e) {
       console.error("/api/kiosk/staff-call", e);
@@ -132,51 +231,9 @@ export function registerKioskRoutes(app: express.Express) {
     if (!checkKey(req)) return res.status(401).json({ error: "unauthorized" });
     if (rateLimited(req.ip ?? "?")) return res.status(429).json({ error: "too many requests" });
     try {
-      const b = req.body ?? {};
-      const branchNo = parseBranch(b.branchNo);
-      const consultType = ["new", "renew", "pt"].includes(b.consultType) ? b.consultType as string : "new";
-      const digits = String(b.phone ?? "").replace(/\D/g, "");
-      if (digits.length < 9) return res.status(400).json({ error: "연락처를 확인해 주세요." });
-      const name = String(b.name ?? "").trim().slice(0, 50) || null;
-      const purpose = String(b.purpose ?? "").trim().slice(0, 200) || null;
-      const label = CONSULT_LABEL[consultType];
-      const now = new Date().toISOString();
-
-      // 기존 회원 여부 (재등록 상담·기존회원 PT 상담 대비)
-      const m = await pool.query(
-        `SELECT m.id, m.name, t."trainerName" FROM members m LEFT JOIN trainers t ON t.id = m."trainerId"
-          WHERE REGEXP_REPLACE(COALESCE(m.phone, ''), '[^0-9]', '', 'g') = $1
-          ORDER BY m."membershipEnd" DESC NULLS LAST LIMIT 1`, [digits]);
-      const member = m.rows[0] as { id: number; name: string; trainerName: string | null } | undefined;
-
-      // 상담 CRM 카드: 기존 회원이 아니면 생성. 같은 번호 카드가 30일 안에 있으면 새로 만들지 않는다(중복 방지는 생성 시점에서).
-      let leadId: number | null = null;
-      let leadCreated = false;
-      if (!member) {
-        const dup = await pool.query(
-          `SELECT id FROM leads WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $1 AND "createdAt" >= $2 ORDER BY id DESC LIMIT 1`,
-          [digits, new Date(Date.now() - 30 * 86400_000).toISOString()]);
-        if (dup.rows[0]) {
-          leadId = dup.rows[0].id;
-        } else {
-          const memo = [`[키오스크 ${BRANCH_LABEL[branchNo ?? 0] ?? ""} ${label}]`, b.kioskRequestId ? `#${b.kioskRequestId}` : ""].join(" ").trim();
-          const ins = await pool.query(
-            `INSERT INTO leads (name, phone, "branchId", status, "consultationType", "consultationSubTypes", "interestType", "exercisePurpose", memo, "createdAt", "updatedAt")
-             VALUES ($1, $2, $3, 'pending', '키오스크', $4, $5, $6, $7, $8, $8) RETURNING id`,
-            [name ?? "키오스크 방문", fmtPhone(digits), branchNo, label.replace(" ", ""), consultType === "pt" ? "PT" : null, purpose, memo, now]);
-          leadId = ins.rows[0].id;
-          leadCreated = true;
-        }
-      }
-
-      const who = member ? `${member.name} 회원${member.trainerName ? ` (담당 ${member.trainerName})` : ""}` : (name ?? "방문객");
-      const sent = await sendStaffPush(branchNo, {
-        title: `📝 ${branchPrefix(branchNo)}${label} 접수`,
-        body: [who, fmtPhone(digits), purpose].filter(Boolean).join(" · "),
-        url: member ? `/members/${member.id}` : "/leads",
-        tag: `consult-${digits}`,
-      });
-      return res.json({ ok: true, leadId, leadCreated, memberId: member?.id ?? null, sent });
+      const r = await handleConsult(req.body ?? {});
+      if ("error" in r) return res.status(400).json(r);
+      return res.json({ ok: true, ...r });
     } catch (e) {
       console.error("/api/kiosk/consult", e);
       return res.status(500).json({ error: "서버 오류" });
