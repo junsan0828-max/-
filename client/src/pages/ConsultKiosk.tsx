@@ -75,6 +75,7 @@ const MEMBERSHIP_PRICES: Record<number, [string, string][]> = {
 };
 
 const IDLE_RESET_MS = 60_000;
+const UPDATE_CHECK_MS = 2 * 60_000;
 
 const VAT_NOTE ="* 카드 및 시루 결제 시 부가세 10%";
 
@@ -202,6 +203,38 @@ export default function ConsultKiosk() {
     const prev = html.style.fontSize;
     html.style.fontSize = "clamp(16px, min(3.4vw, 1.9vh), 48px)";
     return () => { html.style.fontSize = prev; };
+  }, []);
+
+  // 새 버전이 배포되면 홈 화면에서 30초 이상 아무도 쓰지 않을 때 자동 새로고침 (손님 사용 중에는 절대 안 함)
+  const idleOnHomeRef = useRef({ stage, showConsultModal });
+  idleOnHomeRef.current = { stage, showConsultModal };
+  useEffect(() => {
+    const current = document.querySelector('script[src*="/assets/index-"]')?.getAttribute("src");
+    if (!current) return;
+    let lastTouch = Date.now();
+    const touch = () => { lastTouch = Date.now(); };
+    window.addEventListener("pointerdown", touch, true);
+    window.addEventListener("keydown", touch, true);
+    let updateReady = false;
+    const check = async () => {
+      if (!updateReady) {
+        try {
+          const html = await (await fetch("/", { cache: "no-store" })).text();
+          const latest = html.match(/\/assets\/index-[^"']+\.js/)?.[0];
+          updateReady = !!latest && latest !== current;
+        } catch {
+          return;
+        }
+      }
+      const { stage: s, showConsultModal: modal } = idleOnHomeRef.current;
+      if (updateReady && s === "main_select" && !modal && Date.now() - lastTouch > 30_000) window.location.reload();
+    };
+    const timer = setInterval(check, UPDATE_CHECK_MS);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("pointerdown", touch, true);
+      window.removeEventListener("keydown", touch, true);
+    };
   }, []);
 
   // 키오스크 화면이 꺼지지 않도록 화면 켜짐 유지 요청 (탭 전환·최소화 후 돌아오거나 OS가 해제하면 다시 요청)
