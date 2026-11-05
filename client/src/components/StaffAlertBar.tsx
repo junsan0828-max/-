@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { ALERT_SOUNDS, getAlertSound, setAlertSound, playAlertSound, getAudioCtx } from "@/lib/alertSound";
+import { playAlertSound, getAudioCtx } from "@/lib/alertSound";
+import AlertSoundPicker from "./AlertSoundPicker";
 import { Bell, BellRing, Check, Play, X } from "lucide-react";
 
 // 키오스크 직원 호출 배너 + 이 기기 알림 받기(웹푸시 구독)
@@ -138,7 +139,6 @@ export default function StaffAlertBar() {
   }, [ringing]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [sound, setSound] = useState(getAlertSound);
   useEffect(() => {
     const open = () => setSettingsOpen(true);
     window.addEventListener(OPEN_ALERT_SETTINGS, open);
@@ -200,30 +200,8 @@ export default function StaffAlertBar() {
             </div>
 
             <div>
-              <p className="text-sm font-medium mb-1">알림음 <span className="text-xs text-muted-foreground font-normal">(이 기기에만 적용)</span></p>
-              <p className="text-xs text-muted-foreground mb-2">운영시스템 화면이 켜져 있을 때 울립니다. 크기는 기기의 미디어 음량을 따릅니다.</p>
-              <div className="space-y-1.5">
-                {ALERT_SOUNDS.map(snd => {
-                  const selected = sound === snd.key;
-                  return (
-                    <div key={snd.key}
-                      className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer ${selected ? "border-primary bg-primary/10" : "border-border hover:bg-accent"}`}
-                      onClick={() => { setSound(snd.key); setAlertSound(snd.key); playAlertSound(snd.key, true); }}>
-                      <div className={`h-5 w-5 rounded-full border flex items-center justify-center shrink-0 ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}>
-                        {selected && <Check className="h-3 w-3" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{snd.label}</p>
-                        <p className="text-xs text-muted-foreground">{snd.desc}</p>
-                      </div>
-                      <button onClick={e => { e.stopPropagation(); playAlertSound(snd.key, true); }}
-                        className="text-xs text-primary bg-primary/15 px-2.5 py-1 rounded-md flex items-center gap-1 shrink-0">
-                        <Play className="h-3 w-3" /> 듣기
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <p className="text-xs text-muted-foreground mb-2">운영시스템 화면이 켜져 있을 때 울리는 소리입니다.</p>
+              <AlertSoundPicker />
             </div>
 
             <div className="border-t border-border pt-4">
@@ -248,6 +226,12 @@ export default function StaffAlertBar() {
                 )}
               </div>
             </div>
+
+            {me?.role === "admin" && (
+              <a href="/admin?tab=alert" className="block text-center text-sm font-medium text-primary border border-primary/30 rounded-md py-2">
+                받는 직원·지점·근무시간 설정 →
+              </a>
+            )}
           </div>
         </div>
       )}

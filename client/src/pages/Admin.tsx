@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import StaffAlertSettings from "@/components/StaffAlertSettings";
+import AlertSoundPicker from "@/components/AlertSoundPicker";
 import { fmtPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -528,7 +529,9 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
-  const [adminTab, setAdminTab] = useState<"data" | "staff">("data");
+  const [adminTab, setAdminTab] = useState<"data" | "staff" | "alert">(() => {
+    try { const t = new URLSearchParams(window.location.search).get("tab"); return t === "staff" || t === "alert" ? t : "data"; } catch { return "data"; }
+  });
 
   // 서비스 단가 설정
   const { data: gymSettings, refetch: refetchGymSettings } = trpc.gym.settings.get.useQuery();
@@ -592,7 +595,28 @@ export default function Admin() {
         >
           인원 · 계정 관리
         </button>
+        {isAdmin && (
+          <button
+            onClick={() => setAdminTab("alert")}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "alert" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            직원 호출 알림
+          </button>
+        )}
       </div>
+
+      {adminTab === "alert" && isAdmin && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">알림 소리</CardTitle>
+              <p className="text-xs text-muted-foreground">운영시스템 화면이 켜져 있을 때 울리는 소리입니다. 기기마다 따로 저장되니, 카운터 PC·태블릿에서 열어 맞춰 두세요.</p>
+            </CardHeader>
+            <CardContent><AlertSoundPicker /></CardContent>
+          </Card>
+          <StaffAlertSettings />
+        </div>
+      )}
 
       {/* 계정 설정 */}
       {(<>
@@ -1643,9 +1667,6 @@ export default function Admin() {
 
       {/* 부관리자 계정 관리 */}
       {isAdmin && <SubAdminSection />}
-
-      {/* 키오스크 직원 호출·상담 알림 설정 */}
-      {isAdmin && <StaffAlertSettings />}
 
       </>)}
       </>)}

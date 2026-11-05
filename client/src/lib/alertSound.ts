@@ -27,6 +27,15 @@ export function setAlertSound(k: string) {
   try { localStorage.setItem(KEY, k); } catch { /* 무시 */ }
 }
 
+// 음량 0~100 (기기별). 100 = 찌그러짐 없는 최대치
+const VOL_KEY = "staffAlertVolume";
+export function getAlertVolume(): number {
+  try { const v = Number(localStorage.getItem(VOL_KEY)); return Number.isFinite(v) && v > 0 ? Math.min(100, v) : 100; } catch { return 100; }
+}
+export function setAlertVolume(v: number) {
+  try { localStorage.setItem(VOL_KEY, String(Math.round(Math.min(100, Math.max(5, v))))); } catch { /* 무시 */ }
+}
+
 let audioCtx: AudioContext | null = null;
 export function getAudioCtx() {
   try {
@@ -38,7 +47,7 @@ export function getAudioCtx() {
 
 let last = 0;
 /** 알림음 재생. preview=true면 연속 재생 제한 없이(미리듣기) */
-export function playAlertSound(kind?: string, preview = false) {
+export function playAlertSound(kind?: string, preview = false, volume?: number) {
   if (!preview && Date.now() - last < 3000) return; // 푸시·폴링이 겹쳐 두 번 울리지 않게
   last = Date.now();
   const ctx = getAudioCtx();
@@ -50,7 +59,7 @@ export function playAlertSound(kind?: string, preview = false) {
   comp.threshold.value = -24; comp.knee.value = 10; comp.ratio.value = 8;
   comp.attack.value = 0.003; comp.release.value = 0.25;
   const master = ctx.createGain();
-  master.gain.value = 1.7;
+  master.gain.value = 1.7 * ((volume ?? getAlertVolume()) / 100);
   comp.connect(master).connect(ctx.destination);
 
   for (const n of sound.notes) {
