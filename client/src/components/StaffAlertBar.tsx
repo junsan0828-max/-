@@ -49,6 +49,7 @@ export default function StaffAlertBar() {
   const ack = trpc.staffAlerts.acknowledge.useMutation({ onSuccess: () => utils.staffAlerts.pendingCalls.invalidate() });
   const { data: vapidKey } = trpc.staffAlerts.vapidKey.useQuery(undefined, { enabled: isStaff, staleTime: Infinity });
   const subscribeMut = trpc.staffAlerts.subscribe.useMutation();
+  const { data: myStatus } = trpc.staffAlerts.myStatus.useQuery(undefined, { enabled: isStaff, staleTime: 5 * 60_000 });
   const testMut = trpc.staffAlerts.test.useMutation();
 
   // none = 아직 안 켬 / on = 이 기기 수신 중 / denied = 브라우저에서 차단 / unsupported
@@ -148,7 +149,10 @@ export default function StaffAlertBar() {
   if (!isStaff) return null;
 
   const dismiss = () => { safeSet(DISMISS_KEY, String(Date.now())); setDismissed(true); };
-  const showPrompt = !dismissed && (pushState === "none" || pushState === "ios-install");
+  // 알림 대상 직원은 이 기기에서 알림 켜기가 필수 (대표 결정 2026-11-05). 켜기 전에는 화면을 쓸 수 없다.
+  // 받는 시간은 관리자가 정한 근무시간으로 서버가 자동 판단한다.
+  const mustEnable = !!myStatus?.required && (pushState === "none" || pushState === "denied");
+  const showPrompt = !mustEnable && !dismissed && pushState === "ios-install";
 
   return (
     <>
@@ -191,6 +195,33 @@ export default function StaffAlertBar() {
           </button>
         </div>
       )}
+      {mustEnable && (
+        <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6 text-center space-y-4">
+            <BellRing className="h-10 w-10 text-primary mx-auto" />
+            <h2 className="text-lg font-bold">알림 켜기가 필요합니다</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              키오스크 직원 호출·상담 접수 알림은 <b className="text-foreground">필수</b>입니다.
+              관리자가 정한 근무시간에만 자동으로 울리고, 근무시간 외에는 오지 않습니다.
+            </p>
+            {pushState === "denied" ? (
+              <div className="text-left text-xs bg-red-500/10 text-red-400 rounded-lg p-3 space-y-1">
+                <p className="font-semibold">이 기기에서 알림이 차단돼 있습니다.</p>
+                <p>크롬 주소창 왼쪽 아이콘(🔒 또는 ⚙) → <b>권한</b> → <b>알림</b> → <b>허용</b>으로 바꾼 뒤 아래 버튼을 누르세요.</p>
+                <p>앱으로 설치했다면: 휴대폰 설정 → 애플리케이션 → 이 앱(또는 Chrome) → 알림 → 허용.</p>
+              </div>
+            ) : null}
+            <button
+              disabled={busy}
+              onClick={() => (pushState === "denied" && Notification.permission === "denied") ? window.location.reload() : enablePush()}
+              className="w-full text-base font-bold bg-primary text-primary-foreground py-3 rounded-xl disabled:opacity-50"
+            >
+              {busy ? "설정 중…" : pushState === "denied" ? "허용했어요 · 다시 확인" : "알림 켜기"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {settingsOpen && (
         <div className="fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setSettingsOpen(false)}>
           <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()}>

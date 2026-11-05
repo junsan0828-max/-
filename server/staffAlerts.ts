@@ -350,6 +350,12 @@ export const staffAlertsRouter = t.router({
       return { ok: true };
     }),
 
+  /** 내 알림 대상 여부 (관리자가 '알림 받기'를 켠 직원은 기기 알림 켜기가 필수) */
+  myStatus: staffProcedure.query(async ({ ctx }) => {
+    const p = (await loadPrefs()).find(x => x.userId === ctx.user.id);
+    return { required: !!p?.enabled, onDuty: !!p && p.enabled && onDutyNow(p.schedule), scheduleSet: !!p?.schedule };
+  }),
+
   test: staffProcedure.mutation(async ({ ctx }) => {
     const sent = await sendStaffPush(null, { title: "✅ 알림 테스트", body: "이 기기에서 키오스크 호출·상담 알림을 받습니다.", url: "/", tag: "test" }, [ctx.user.id], "test");
     return { sent };
