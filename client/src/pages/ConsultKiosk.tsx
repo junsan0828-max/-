@@ -132,6 +132,8 @@ function infoItems(branchNo = 1) {
   ];
 }
 
+const FAQ_PER_PAGE = 5;
+
 const HOLIDAY_NOTE = "공휴일 탄력 운영 (사전 공지)";
 
 // 지점 정보 (랜딩페이지 BRANCH와 동일하게 유지)
@@ -178,6 +180,7 @@ export default function ConsultKiosk() {
   const [regPeriod, setRegPeriod] = useState("");
   const [infoTab, setInfoTab] = useState<"info" | "faq">("info");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [faqPage, setFaqPage] = useState(0);
 
   const phoneRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -246,7 +249,7 @@ export default function ConsultKiosk() {
     setShowConsultModal(false);
     setWaitType("wait");
     setSelectedEvent(null); setRegPeriod("");
-    setInfoTab("info"); setOpenFaq(null);
+    setInfoTab("info"); setOpenFaq(null); setFaqPage(0);
     setName(""); setPhone(""); setPurpose(""); setMemberName("");
   }, []);
 
@@ -659,7 +662,7 @@ export default function ConsultKiosk() {
             {([["info", "요금 · 운영 안내"], ["faq", "자주 묻는 질문"]] as const).map(([key, label]) => (
               <button
                 key={key}
-                onClick={() => { setInfoTab(key); setOpenFaq(null); }}
+                onClick={() => { setInfoTab(key); setOpenFaq(null); setFaqPage(0); }}
                 className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-colors ${infoTab === key ? "bg-[#1D4ED8] text-white" : "text-slate-500"}`}
               >
                 {label}
@@ -667,9 +670,13 @@ export default function ConsultKiosk() {
             ))}
           </div>
 
-          {infoTab === "faq" && (
+          {infoTab === "faq" && (() => {
+            const all = faqItems(branchNo);
+            const pages = Math.ceil(all.length / FAQ_PER_PAGE);
+            const start = faqPage * FAQ_PER_PAGE;
+            return (
             <div className="space-y-2">
-              {faqItems(branchNo).map((f, i) => (
+              {all.slice(start, start + FAQ_PER_PAGE).map((f, j) => { const i = start + j; return (
                 <button
                   key={f.q}
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
@@ -683,9 +690,23 @@ export default function ConsultKiosk() {
                   </div>
                   {openFaq === i && <p className="text-slate-600 text-sm leading-relaxed mt-3">{f.a}</p>}
                 </button>
-              ))}
+              ); })}
+              {pages > 1 && (
+                <div className="flex justify-center gap-2 pt-2">
+                  {Array.from({ length: pages }, (_, n) => (
+                    <button
+                      key={n}
+                      onClick={() => { setFaqPage(n); setOpenFaq(null); }}
+                      className={`w-11 h-11 rounded-xl text-base font-bold border transition-colors ${faqPage === n ? "bg-[#1D4ED8] border-[#1D4ED8] text-white" : "bg-white border-slate-200 text-slate-500"}`}
+                    >
+                      {n + 1}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {infoTab === "info" && infoItems(branchNo).map((item) => (
             <div key={item.title} className="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4">
