@@ -50,6 +50,12 @@ function Editor({ row, onSaved }: { row: Row; onSaved: () => void }) {
 
   return (
     <div className="mt-3 space-y-4 border-t border-border pt-3">
+      {row.devices === 0 && (
+        <p className="text-xs rounded-md bg-red-500/10 text-red-400 px-3 py-2">
+          아직 알림을 켠 휴대폰이 없어 설정을 저장해도 알림이 가지 않습니다.
+          이 직원이 자기 휴대폰으로 운영시스템에 로그인 → 오른쪽 위 🔔 → <b>알림 켜기</b>를 해야 합니다.
+        </p>
+      )}
       <label className="flex items-center justify-between">
         <span className="text-sm font-medium">알림 받기</span>
         <input type="checkbox" className="h-5 w-5 accent-primary" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
@@ -148,7 +154,8 @@ export default function StaffAlertSettings() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2"><Bell className="h-4 w-4" /> 키오스크 알림 설정</CardTitle>
         <p className="text-xs text-muted-foreground">
-          키오스크 직원 호출·상담 접수 알림을 누가, 어느 지점, 언제 받을지 정합니다. 휴대폰 알림은 각 직원이 자기 기기에서 🔔 → 알림 켜기를 해야 옵니다.
+          키오스크 직원 호출·상담 접수 알림을 누가, 어느 지점, 언제 받을지 정합니다.
+          오른쪽 <b>휴대폰 미등록</b>은 그 직원이 아직 자기 휴대폰에서 🔔 → 알림 켜기를 안 했다는 뜻입니다(관리자가 대신 켤 수 없음).
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -185,7 +192,7 @@ export default function StaffAlertSettings() {
                     </p>
                   </div>
                   <span className={`text-[11px] flex items-center gap-1 shrink-0 ${r.devices ? "text-emerald-500" : "text-red-500"}`}>
-                    <Smartphone className="h-3.5 w-3.5" />{r.devices ? `${r.devices}대` : "미설정"}
+                    <Smartphone className="h-3.5 w-3.5" />{r.devices ? `휴대폰 ${r.devices}대` : "휴대폰 미등록"}
                   </span>
                   {open === r.userId ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </button>
