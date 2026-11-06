@@ -77,6 +77,8 @@ const MEMBERSHIP_PRICES: Record<number, [string, string][]> = {
 const IDLE_RESET_MS = 60_000;
 const UPDATE_CHECK_MS = 2 * 60_000;
 
+const CARD_PAY_NOTE = "카드 결제는 옆에 있는 키오스크를 이용해 주세요";
+
 const VAT_NOTE ="* 카드 및 시루 결제 시 부가세 10%";
 
 // 이벤트 안내 카드 — 누르면 해당 이벤트로 등록 신청 화면으로 이동 (branch 없으면 전 지점 공통)
@@ -151,7 +153,7 @@ function faqItems(branchNo = 1) {
     { q: "처음인데 어떻게 시작하나요?", a: "자이언트짐은 운동 시작 전 모든 회원에게 체형분석을 실시합니다. 홈 화면의 '상담 신청'을 눌러 주시면 직원이 안내해 드립니다." },
     { q: "등록하고 첫 방문인데 어떻게 하나요?", a: "센터에 오시면 데스크에 있는 출석 체크를 먼저 해 주세요. 그다음 운동복과 운동화로 갈아입고 이용하시면 됩니다." },
     { q: "헬스 이용권에는 무엇이 포함되나요?", a: "체형분석, 체성분 측정, 운동 상담이 포함됩니다." },
-    { q: "결제는 어떻게 하나요?", a: "카드, 시루, 계좌이체로 결제할 수 있습니다. 카드와 시루 결제 시 부가세 10%가 추가됩니다." },
+    { q: "결제는 어떻게 하나요?", a: "카드, 시루, 계좌이체로 결제할 수 있습니다. 카드 결제는 옆에 있는 결제 키오스크를 이용해 주세요. 카드와 시루 결제 시 부가세 10%가 추가됩니다." },
     { q: "회원권 정지·양도·해지는 어떻게 하나요?", a: "ZIANTGYM+ 앱의 내 정보에서 신청할 수 있습니다. 정지하면 정지한 기간만큼 만료일이 자동으로 연장됩니다." },
     { q: "해지하면 환불되나요?", a: "계약금액의 10%를 위약금으로 공제한 뒤 남은 기간만큼 비례해 환불해 드립니다. 환불은 영업일 기준 3~5일 걸립니다." },
     { q: "777 맞춤 PT는 무엇인가요?", a: "연 1회 한정 프로그램으로, 맞춤 PT 17회와 헬스 이용권 2개월, 락커 서비스가 포함된 777,000원 상품입니다." },
@@ -671,6 +673,12 @@ export default function ConsultKiosk() {
               직원이 곧 안내해 드립니다.<br />잠시만 기다려 주세요.
             </p>
           </div>
+          <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-4 flex items-center gap-3 text-left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7 text-amber-600 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+            </svg>
+            <p className="text-amber-800 font-bold text-base">{CARD_PAY_NOTE}</p>
+          </div>
           <div className="rounded-2xl border border-[#059669]/20 bg-[#059669]/8 px-5 py-4 text-left space-y-2">
             <p className="text-slate-500 text-xs tracking-widest uppercase mb-3">이용권 안내</p>
             {MEMBERSHIP_PRICES[branchNo ?? 1].map(([period, price]) => (
@@ -872,6 +880,12 @@ export default function ConsultKiosk() {
             <p className="text-slate-500 text-sm leading-relaxed">
               직원이 곧 결제와 등록을<br />도와드립니다. 잠시만 기다려 주세요.
             </p>
+          </div>
+          <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-4 flex items-center gap-3 text-left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7 text-amber-600 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+            </svg>
+            <p className="text-amber-800 font-bold text-base">{CARD_PAY_NOTE}</p>
           </div>
           <AutoCloseBar durationMs={10000} active={stage === "register_done"} onClose={doReset} />
         </div>
