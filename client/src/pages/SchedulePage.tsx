@@ -425,7 +425,8 @@ export default function SchedulePage() {
             className="grid"
             style={{
               gridTemplateColumns: "36px repeat(6, minmax(46px, 1fr))",
-              gap: "3px",
+              columnGap: "0px",
+              rowGap: "0px",
             }}
           >
             {/* 좌상 코너 */}
@@ -455,11 +456,13 @@ export default function SchedulePage() {
             {visibleHours.map(h => (
               <Fragment key={h}>
                 {/* 시간 레이블 (sticky left) */}
-                <div className="sticky left-0 z-10 bg-background text-[11px] text-muted-foreground text-right pr-1 pt-2 tabular-nums leading-none self-start">
+                <div className={`sticky left-0 z-10 text-[11px] text-muted-foreground text-right pr-1 pt-2 tabular-nums leading-none border-t-2 border-border bg-background ${h % 2 ? "shadow-[inset_0_0_0_999px_rgba(255,255,255,0.04)]" : ""}`}>
                   {String(h).padStart(2, "0")}시
                 </div>
 
-                {weekDates.map((d, wd) => {
+                {weekDates.map((d, wd) => (
+                  // 시간대 구분: 위쪽 굵은 선 + 홀수 시간 배경을 살짝 밝게
+                  <div key={wd} className={`flex flex-col [&>*]:flex-1 border-t-2 border-border px-[1.5px] py-[3px] ${h % 2 ? "bg-white/[0.04]" : ""}`}>{(() => {
                   const cell = grid[`${wd}-${h}`] ?? [];
                   // skipped(미리 취소) 일정은 고정 수업을 가리기만 하고 칸에는 보이지 않는다
                   const top = cell.find(s => s.status !== "skipped"
@@ -578,13 +581,12 @@ export default function SchedulePage() {
                                 <span className="block truncate text-[10px] text-amber-300/90">{s.trainerName ?? "담당없음"}</span>
                               )}
                               {sEt !== "pt" && <span className="block text-[9px] opacity-60 font-medium">{EVENT_LABELS[sEt]}</span>}
-                              <span className="font-medium flex items-baseline gap-0.5 min-w-0">
+                              {/* 시간은 왼쪽 시간 줄로 알 수 있어 생략 — 정각이 아닐 때만 :30처럼 표시 */}
+                              <span className="font-medium flex items-center gap-0.5 min-w-0">
                                 <span className="block truncate">{s.memberName ?? s.notes ?? "미배정"}</span>
                                 {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className="text-[9px] text-orange-300/80 font-bold shrink-0">{bi + 1}</span> : null; })()}
-                              </span>
-                              <span className="opacity-70 flex items-center gap-0.5">
-                                {s.scheduledTime}
-                                {s.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
+                                {(s.scheduledTime ?? "").slice(3, 5) !== "00" && s.scheduledTime && <span className="text-[9px] opacity-70 shrink-0">:{s.scheduledTime.slice(3, 5)}</span>}
+                                {s.isRecurring === 1 && <Repeat className="h-2.5 w-2.5 opacity-60 shrink-0" />}
                               </span>
                             </button>
                           );
@@ -661,25 +663,24 @@ export default function SchedulePage() {
                           {(top.memberName || et !== "meeting") && (() => {
                             const bIdx = top.branchId != null ? (branchIndexMap.get(top.branchId) ?? 0) : 0;
                             return (
-                              <span className="font-medium flex items-baseline gap-0.5 min-w-0">
+                              <span className="font-medium flex items-center gap-0.5 min-w-0">
                                 <span className="truncate">{top.memberName ?? top.notes ?? "미배정"}</span>
                                 {bIdx > 0 && (
                                   <span className="text-[9px] text-orange-300/80 font-bold shrink-0 leading-none">{bIdx + 1}</span>
                                 )}
+                                {top.scheduledTime && top.scheduledTime.slice(3, 5) !== "00" && <span className="text-[9px] opacity-70 shrink-0">:{top.scheduledTime.slice(3, 5)}</span>}
+                                {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5 opacity-60 shrink-0" />}
                               </span>
                             );
                           })()}
-                          <span className="opacity-70 flex items-center gap-0.5">
-                            {top.scheduledTime}
-                            {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5" />}
-                          </span>
                         </>
                       ) : (
                         <Plus className="h-3 w-3 text-muted-foreground/40" />
                       )}
                     </button>
                   );
-                })}
+                })()}</div>
+                ))}
               </Fragment>
             ))}
           </div>
