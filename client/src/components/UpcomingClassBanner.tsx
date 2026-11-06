@@ -375,7 +375,7 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
           </button>
         </div>
         {/* 캔버스 — flex-1로 남은 공간 전부 사용 */}
-        <div className="flex-1 relative border-b border-border bg-slate-950" style={{ touchAction: "none" }}>
+        <div data-keep-dark className="flex-1 relative border-b border-border bg-slate-950" style={{ touchAction: "none" }}>
           <FullscreenSignaturePad
             onSign={setSigDataUrl}
             onClear={() => setSigDataUrl(null)}

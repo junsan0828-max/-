@@ -62,16 +62,17 @@ const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
 
 // 어드민 전체보기: 트레이너별 색상 팔레트 (id 오름차순으로 순서 고정)
 const TRAINER_PALETTE = [
-  { cell: "bg-sky-500/20 border-sky-500/50 hover:bg-sky-500/30",         dot: "bg-sky-400" },
-  { cell: "bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/30", dot: "bg-emerald-400" },
-  { cell: "bg-amber-500/20 border-amber-500/50 hover:bg-amber-500/30",    dot: "bg-amber-400" },
-  { cell: "bg-rose-500/20 border-rose-500/50 hover:bg-rose-500/30",       dot: "bg-rose-400" },
-  { cell: "bg-violet-500/20 border-violet-500/50 hover:bg-violet-500/30", dot: "bg-violet-400" },
-  { cell: "bg-pink-500/20 border-pink-500/50 hover:bg-pink-500/30",       dot: "bg-pink-400" },
-  { cell: "bg-teal-500/20 border-teal-500/50 hover:bg-teal-500/30",       dot: "bg-teal-400" },
-  { cell: "bg-orange-500/20 border-orange-500/50 hover:bg-orange-500/30", dot: "bg-orange-400" },
-  { cell: "bg-lime-500/20 border-lime-500/50 hover:bg-lime-500/30",       dot: "bg-lime-400" },
-  { cell: "bg-indigo-500/20 border-indigo-500/50 hover:bg-indigo-500/30", dot: "bg-indigo-400" },
+  // 밝은 테마(흰 배경)용: 진한 바탕 + 흰 글씨 (2026-11-06)
+  { cell: "bg-sky-600 border-sky-700 hover:bg-sky-700 text-white",             dot: "bg-sky-600" },
+  { cell: "bg-emerald-600 border-emerald-700 hover:bg-emerald-700 text-white", dot: "bg-emerald-600" },
+  { cell: "bg-amber-600 border-amber-700 hover:bg-amber-700 text-white",       dot: "bg-amber-600" },
+  { cell: "bg-rose-600 border-rose-700 hover:bg-rose-700 text-white",          dot: "bg-rose-600" },
+  { cell: "bg-violet-600 border-violet-700 hover:bg-violet-700 text-white",    dot: "bg-violet-600" },
+  { cell: "bg-pink-600 border-pink-700 hover:bg-pink-700 text-white",          dot: "bg-pink-600" },
+  { cell: "bg-teal-600 border-teal-700 hover:bg-teal-700 text-white",          dot: "bg-teal-600" },
+  { cell: "bg-orange-600 border-orange-700 hover:bg-orange-700 text-white",    dot: "bg-orange-600" },
+  { cell: "bg-lime-700 border-lime-700 hover:bg-lime-700/90 text-white",       dot: "bg-lime-700" },
+  { cell: "bg-indigo-700 border-indigo-700 hover:bg-indigo-700/90 text-white", dot: "bg-indigo-700" },
 ];
 const PALETTE_NAMES = ["하늘", "초록", "노랑", "빨강", "보라", "분홍", "청록", "주황", "연두", "남색"];
 
@@ -612,20 +613,20 @@ export default function SchedulePage() {
                                 : p.cell
                               }`}
                             >
-                              {sDone && <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />}
+                              {sDone && <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-white" />}
                               {(sSt === "cancelled" || sSt === "noshow") && (
                                 <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${sSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
                                   {sSt === "cancelled" ? (sEt === "pt" ? "캔슬" : "취소") : "노쇼"}
                                 </span>
                               )}
                               {viewingAll && (
-                                <span className="block truncate text-[10px] text-amber-300/90">{s.trainerName ?? "담당없음"}</span>
+                                <span className="block truncate text-[10px] text-white/80">{s.trainerName ?? "담당없음"}</span>
                               )}
                               {/* 시간은 왼쪽 시간 줄로 알 수 있어 생략 — 정각이 아닐 때만 :30처럼 표시 */}
                               <span className="font-medium flex items-center gap-0.5 min-w-0">
                                 <span className="block truncate">{s.memberName ?? s.notes ?? "미배정"}</span>
-                                {sEt !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-white/10">{EVENT_LABELS[sEt]}</span>}
-                                {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className="text-[9px] text-orange-300/80 font-bold shrink-0">{bi + 1}</span> : null; })()}
+                                {sEt !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-black/20">{EVENT_LABELS[sEt]}</span>}
+                                {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className="text-[9px] text-white font-bold underline shrink-0">{bi + 1}</span> : null; })()}
                                 {(s.scheduledTime ?? "").slice(3, 5) !== "00" && s.scheduledTime && <span className="text-[9px] opacity-70 shrink-0">:{s.scheduledTime.slice(3, 5)}</span>}
                               </span>
                             </button>
@@ -682,7 +683,7 @@ export default function SchedulePage() {
                       {top ? (
                         <>
                           {isDone && (
-                            <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />
+                            <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-white" />
                           )}
                           {(topSt === "cancelled" || topSt === "noshow") && (
                             <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${topSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
@@ -690,7 +691,7 @@ export default function SchedulePage() {
                             </span>
                           )}
                           {viewingAll && (
-                            <span className="block truncate text-[10px] text-amber-300/90">
+                            <span className="block truncate text-[10px] text-white/80">
                               {top.trainerName ?? "담당없음"}
                             </span>
                           )}
@@ -706,9 +707,9 @@ export default function SchedulePage() {
                             return (
                               <span className="font-medium flex items-center gap-0.5 min-w-0">
                                 <span className="truncate">{top.memberName ?? top.notes ?? "미배정"}</span>
-                                {et !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-white/10">{EVENT_LABELS[et]}</span>}
+                                {et !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-black/20">{EVENT_LABELS[et]}</span>}
                                 {bIdx > 0 && (
-                                  <span className="text-[9px] text-orange-300/80 font-bold shrink-0 leading-none">{bIdx + 1}</span>
+                                  <span className="text-[9px] text-white font-bold underline shrink-0 leading-none">{bIdx + 1}</span>
                                 )}
                                 {top.scheduledTime && top.scheduledTime.slice(3, 5) !== "00" && <span className="text-[9px] opacity-70 shrink-0">:{top.scheduledTime.slice(3, 5)}</span>}
                               </span>
