@@ -253,6 +253,9 @@ function PTReportButtons({ packageId, memberId, totalSessions, usedSessions }: {
   );
 }
 
+// 운동 메모: 0건(미사용)이라 숨김 (2026-11-06 대표 결정). 데이터·API는 그대로 두고 화면만 감춘다.
+const SHOW_WORKOUT_MEMO = false;
+
 export default function MemberDetail({ memberId }: Props) {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
@@ -661,7 +664,7 @@ export default function MemberDetail({ memberId }: Props) {
       utils.members.getStats.invalidate({ memberId });
       utils.pt.sessionLogs.invalidate({ memberId });
       setSessionMemoContent("");
-      setSessionMemoOpen(true);
+      if (SHOW_WORKOUT_MEMO) setSessionMemoOpen(true);
     },
     onError: (err) => toast.error(err.message || "세션 사용 실패"),
     onSettled: () => { sessionSubmittingRef.current = false; },
@@ -2484,8 +2487,8 @@ export default function MemberDetail({ memberId }: Props) {
 
         {/* ── 트레이닝 탭 ── */}
         <TabsContent value="training" className="mt-4">
-          {/* 서브탭 */}
-          <div className="flex gap-1 mb-4 bg-accent/20 p-1 rounded-lg">
+          {/* 서브탭 (운동 메모 숨김 상태면 트레이닝 일지만 있으므로 탭 줄 자체를 숨긴다) */}
+          {SHOW_WORKOUT_MEMO && <div className="flex gap-1 mb-4 bg-accent/20 p-1 rounded-lg">
             <button
               onClick={() => setTrainingSubTab("journal")}
               className={`flex-1 py-1.5 text-xs rounded-md font-medium transition-colors ${trainingSubTab === "journal" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
@@ -2498,7 +2501,7 @@ export default function MemberDetail({ memberId }: Props) {
             >
               메모
             </button>
-          </div>
+          </div>}
 
           {/* ── 트레이닝 일지 서브탭 ── */}
           {trainingSubTab === "journal" && (
@@ -2596,7 +2599,7 @@ export default function MemberDetail({ memberId }: Props) {
           )}
 
           {/* ── 메모 서브탭 ── */}
-          {trainingSubTab === "memo" && (
+          {SHOW_WORKOUT_MEMO && trainingSubTab === "memo" && (
             <div className="space-y-3">
               <div className="flex gap-2">
                 <Input
