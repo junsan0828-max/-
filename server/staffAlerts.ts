@@ -53,6 +53,7 @@ export const STAFF_ALERT_MIGRATIONS = [
   `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "acknowledgedBy" INTEGER`,
   // 푸시 발송 표시 (API·폴러 중 먼저 잡은 쪽만 보낸다 → 중복 알림 방지)
   `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "opsNotifiedAt" TEXT`,
+  `ALTER TABLE staff_call_log ADD COLUMN IF NOT EXISTS "renotifyCount" INTEGER NOT NULL DEFAULT 0`,
   `CREATE TABLE IF NOT EXISTS kiosk_consult_requests (
     id SERIAL PRIMARY KEY, "consultType" TEXT NOT NULL, name TEXT, phone TEXT NOT NULL, purpose TEXT,
     status TEXT NOT NULL DEFAULT 'pending', "staffNote" TEXT, "createdAt" TEXT NOT NULL DEFAULT now()::text, "processedAt" TEXT
@@ -231,6 +232,9 @@ async function handleConsult(b: ConsultInput): Promise<{ error: string } | { lea
  * 자이언트짐++가 아직 API를 부르지 않고 공유 테이블에 직접 쓰는 경우를 위한 수거기.
  * 최근 5분 안에 생긴, 아직 처리 표시가 없는 호출·상담만 처리한다 → 재시작해도 옛 건을 다시 보내지 않는다(멱등).
  */
+const RENOTIFY_EVERY_MS = 60_000;
+const RENOTIFY_MAX = 3;
+
 export function startKioskPoller() {
   const tick = async () => {
     try {
@@ -238,6 +242,25 @@ export function startKioskPoller() {
       const calls = await pool.query(
         `SELECT id, "branchNo" FROM staff_call_log WHERE "opsNotifiedAt" IS NULL AND status = 'pending' AND "createdAt" >= $1 ORDER BY id`, [since]);
       for (const c of calls.rows) await notifyStaffCall(c.id, c.branchNo ?? null);
+
+      // 아무도 [제가 갈게요]를 안 누르면 1분마다 다시 울린다 (최대 3번). 휴대폰 '알림 반복' 설정과 무관하게 동작.
+      const due = await pool.query(
+        `SELECT id, "branchNo", "renotifyCount", "opsNotifiedAt" FROM staff_call_log
+          WHERE status = 'pending' AND "opsNotifiedAt" IS NOT NULL AND "renotifyCount" < $1
+            AND "opsNotifiedAt" <= $2 AND "createdAt" >= $3 ORDER BY id`,
+        [RENOTIFY_MAX, kstIso(-RENOTIFY_EVERY_MS), kstIso(-10 * 60_000)]);
+      for (const c of due.rows) {
+        const claim = await pool.query(
+          `UPDATE staff_call_log SET "opsNotifiedAt" = $1, "renotifyCount" = "renotifyCount" + 1
+            WHERE id = $2 AND status = 'pending' AND "opsNotifiedAt" = $3 RETURNING "renotifyCount"`,
+          [kstIso(), c.id, c.opsNotifiedAt]);
+        if (!claim.rowCount) continue;
+        const n = claim.rows[0].renotifyCount;
+        await sendStaffPush(c.branchNo ?? null, {
+          title: `🔔 ${branchPrefix(c.branchNo)}직원 호출 (다시 알림 ${n})`, body: "아직 아무도 확인하지 않았어요. 키오스크로 가 주세요.",
+          url: "/", tag: `staff-call-${c.id}-r${n}`, requireInteraction: true,
+        }, undefined, "staffCall");
+      }
       const reqs = await pool.query(
         `SELECT id, "consultType", name, phone, purpose, "branchNo" FROM kiosk_consult_requests
           WHERE "opsHandledAt" IS NULL AND "createdAt" >= $1 ORDER BY id`, [since]);
