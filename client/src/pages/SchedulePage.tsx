@@ -580,10 +580,10 @@ export default function SchedulePage() {
                               {viewingAll && (
                                 <span className="block truncate text-[10px] text-amber-300/90">{s.trainerName ?? "담당없음"}</span>
                               )}
-                              {sEt !== "pt" && <span className="block text-[9px] opacity-60 font-medium">{EVENT_LABELS[sEt]}</span>}
                               {/* 시간은 왼쪽 시간 줄로 알 수 있어 생략 — 정각이 아닐 때만 :30처럼 표시 */}
                               <span className="font-medium flex items-center gap-0.5 min-w-0">
                                 <span className="block truncate">{s.memberName ?? s.notes ?? "미배정"}</span>
+                                {sEt !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-white/10">{EVENT_LABELS[sEt]}</span>}
                                 {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className="text-[9px] text-orange-300/80 font-bold shrink-0">{bi + 1}</span> : null; })()}
                                 {(s.scheduledTime ?? "").slice(3, 5) !== "00" && s.scheduledTime && <span className="text-[9px] opacity-70 shrink-0">:{s.scheduledTime.slice(3, 5)}</span>}
                                 {s.isRecurring === 1 && <Repeat className="h-2.5 w-2.5 opacity-60 shrink-0" />}
@@ -654,7 +654,8 @@ export default function SchedulePage() {
                               {top.trainerName ?? "담당없음"}
                             </span>
                           )}
-                          {et !== "pt" && (
+                          {/* 회원 없는 회의·기타는 유형만 한 줄로 */}
+                          {et !== "pt" && !top.memberName && et === "meeting" && (
                             <span className="block text-[9px] opacity-60 font-medium">
                               {EVENT_LABELS[et]}
                             </span>
@@ -665,6 +666,7 @@ export default function SchedulePage() {
                             return (
                               <span className="font-medium flex items-center gap-0.5 min-w-0">
                                 <span className="truncate">{top.memberName ?? top.notes ?? "미배정"}</span>
+                                {et !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-white/10">{EVENT_LABELS[et]}</span>}
                                 {bIdx > 0 && (
                                   <span className="text-[9px] text-orange-300/80 font-bold shrink-0 leading-none">{bIdx + 1}</span>
                                 )}
