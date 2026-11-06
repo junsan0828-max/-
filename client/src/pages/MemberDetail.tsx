@@ -1307,7 +1307,17 @@ export default function MemberDetail({ memberId }: Props) {
                           className="text-xs px-2 py-0.5 rounded border border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/10 transition-colors"
                         >정지</button>
                         <button
-                          onClick={() => toggleStatusMutation.mutate({ id: memberId, status: "inactive" })}
+                          onClick={() => {
+                            // 실수 방지: 한 번 눌러 바로 종료되면 출입 키오스크에서 '출입 제한'으로 막힌다 (2026-11-06 천진희)
+                            const kst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+                            const remainPt = (ptPackages ?? []).filter((p: any) => p.status === "active" && p.usedSessions < p.totalSessions)
+                              .map((p: any) => `${p.packageName} ${p.totalSessions - p.usedSessions}회`);
+                            const remainGym = member.membershipEnd && member.membershipEnd >= kst ? `회원권 ${member.membershipEnd}까지` : null;
+                            const warn = [remainGym, ...remainPt].filter(Boolean);
+                            const msg = `${member.name} 회원을 '종료' 처리할까요?\n\n종료하면 출입 키오스크에서 출입이 막힙니다.`
+                              + (warn.length ? `\n\n⚠️ 아직 남아 있습니다: ${warn.join(", ")}\n계속 다니는 회원이면 '취소'를 누르세요.` : "");
+                            if (window.confirm(msg)) toggleStatusMutation.mutate({ id: memberId, status: "inactive" });
+                          }}
                           className="text-xs px-2 py-0.5 rounded border border-gray-400/50 text-gray-400 hover:bg-gray-400/10 transition-colors"
                         >종료</button>
                         {!isTransferee && (
