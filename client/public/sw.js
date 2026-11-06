@@ -3,9 +3,11 @@ self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data.json(); } catch { data = { title: "새 메시지", body: event.data.text() }; }
   // 운영시스템 화면이 열려 있으면 바로 알려 띵동을 울리게 한다 (10초 폴링을 기다리지 않음)
-  if (data.tag && String(data.tag).startsWith("staff-call")) {
+  // 테스트 알림도 화면이 열려 있으면 같은 띵동을 울려 소리까지 확인할 수 있게 한다
+  const tag = String(data.tag || "");
+  if (tag.startsWith("staff-call") || tag === "test") {
     clients.matchAll({ type: "window", includeUncontrolled: true })
-      .then((list) => list.forEach((c) => c.postMessage({ type: "staff-call" })));
+      .then((list) => list.forEach((c) => c.postMessage({ type: tag === "test" ? "test-alert" : "staff-call" })));
   }
   event.waitUntil(
     self.registration.showNotification(data.title || "ZIANTGYM+", {

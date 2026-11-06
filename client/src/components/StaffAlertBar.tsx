@@ -127,6 +127,7 @@ export default function StaffAlertBar() {
     if (!("serviceWorker" in navigator)) return;
     const onMsg = (e: MessageEvent) => {
       if (e.data?.type === "staff-call") { playDingDong(); utils.staffAlerts.pendingCalls.invalidate(); }
+      if (e.data?.type === "test-alert") playAlertSound(undefined, true);
     };
     navigator.serviceWorker.addEventListener("message", onMsg);
     return () => navigator.serviceWorker.removeEventListener("message", onMsg);
