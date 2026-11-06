@@ -16,6 +16,14 @@ const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.rail
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
+  // 직원용 화면은 밝은 테마(흰 배경 + 짙은 남색). 모달(포털)까지 적용되도록 <html>에 클래스를 단다.
+  useEffect(() => {
+    document.documentElement.classList.add("ops-light");
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const prev = meta?.getAttribute("content");
+    meta?.setAttribute("content", "#162457");
+    return () => { document.documentElement.classList.remove("ops-light"); if (prev) meta?.setAttribute("content", prev); };
+  }, []);
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => window.location.reload(),
     onError: () => toast.error("로그아웃 실패"),
@@ -242,7 +250,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 모바일 드로어 패널 (전체 계정) */}
       <aside
-        className={`md:hidden fixed top-0 left-0 h-full w-64 z-50 bg-card border-r border-border transform transition-transform duration-300 ease-in-out ${
+        className={`navy-surface md:hidden fixed top-0 left-0 h-full w-64 z-50 bg-card border-r border-border transform transition-transform duration-300 ease-in-out ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
@@ -251,7 +259,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* 데스크탑 사이드바 */}
-      <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
+      <aside className="navy-surface hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
         <SidebarContent />
       </aside>
 
@@ -260,7 +268,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* 모바일 상단 헤더 (전체 계정 동일) */}
         <header
-          className="md:hidden sticky top-0 z-30 bg-card border-b border-border px-4 flex items-center justify-between shrink-0"
+          className="navy-surface md:hidden sticky top-0 z-30 bg-card border-b border-border px-4 flex items-center justify-between shrink-0"
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)', paddingBottom: '0.75rem' }}
         >
           <button
