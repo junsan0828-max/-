@@ -62,19 +62,21 @@ const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
 
 // 어드민 전체보기: 트레이너별 색상 팔레트 (id 오름차순으로 순서 고정)
 const TRAINER_PALETTE = [
-  // 밝은 테마(흰 배경)용: 진한 바탕 + 흰 글씨 (2026-11-06)
-  { cell: "bg-sky-600 border-sky-700 hover:bg-sky-700 text-white",             dot: "bg-sky-600" },
+  // 밝은 테마용 진한 바탕 + 흰 글씨. 빨강(캔슬·노쇼)·파랑(상담·밸체 등 PT 외 일정)은 의미색이라 트레이너 색에서 뺐다 (2026-11-06)
+  { cell: "bg-gray-900 border-gray-900 hover:bg-gray-800 text-white",          dot: "bg-gray-900" },
   { cell: "bg-emerald-600 border-emerald-700 hover:bg-emerald-700 text-white", dot: "bg-emerald-600" },
   { cell: "bg-amber-600 border-amber-700 hover:bg-amber-700 text-white",       dot: "bg-amber-600" },
-  { cell: "bg-rose-600 border-rose-700 hover:bg-rose-700 text-white",          dot: "bg-rose-600" },
+  { cell: "bg-stone-600 border-stone-700 hover:bg-stone-700 text-white",       dot: "bg-stone-600" },
   { cell: "bg-violet-600 border-violet-700 hover:bg-violet-700 text-white",    dot: "bg-violet-600" },
   { cell: "bg-pink-600 border-pink-700 hover:bg-pink-700 text-white",          dot: "bg-pink-600" },
   { cell: "bg-teal-600 border-teal-700 hover:bg-teal-700 text-white",          dot: "bg-teal-600" },
   { cell: "bg-orange-600 border-orange-700 hover:bg-orange-700 text-white",    dot: "bg-orange-600" },
   { cell: "bg-lime-700 border-lime-700 hover:bg-lime-700/90 text-white",       dot: "bg-lime-700" },
-  { cell: "bg-indigo-700 border-indigo-700 hover:bg-indigo-700/90 text-white", dot: "bg-indigo-700" },
+  { cell: "bg-fuchsia-700 border-fuchsia-700 hover:bg-fuchsia-700/90 text-white", dot: "bg-fuchsia-700" },
 ];
-const PALETTE_NAMES = ["하늘", "초록", "노랑", "빨강", "보라", "분홍", "청록", "주황", "연두", "남색"];
+// PT 외 일정(밸체·상담·체험·회의·기타)은 트레이너와 무관하게 파랑으로 통일
+const NON_PT_CELL = "bg-blue-600 border-blue-700 hover:bg-blue-700 text-white";
+const PALETTE_NAMES = ["검정", "초록", "노랑", "갈색", "보라", "분홍", "청록", "주황", "연두", "자주"];
 
 type Slot = {
   id: number;
@@ -607,26 +609,27 @@ export default function SchedulePage() {
                               }}
                               className={`relative w-full rounded-lg border px-1 py-1 text-left text-[11px] leading-tight transition-all select-none ${
                                 sSelected ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
-                                : sSt === "noshow" ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
-                                : sSt === "cancelled" ? "bg-amber-950/30 border-dashed border-amber-600/40 text-amber-200/60"
+                                : sSt === "noshow" ? "bg-red-100 border-red-500 text-red-800"
+                                : sSt === "cancelled" ? "bg-red-50 border-dashed border-red-400 text-red-700"
                                 : sDone ? "bg-slate-100 border-slate-300 text-slate-500 hover:bg-slate-200"
+                                : sEt !== "pt" ? NON_PT_CELL
                                 : p.cell
                               }`}
                             >
                               {sDone && <CheckCircle2 className="h-4 w-4 absolute top-0.5 right-0.5 text-white fill-emerald-600" />}
                               {(sSt === "cancelled" || sSt === "noshow") && (
-                                <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${sSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
+                                <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${sSt === "cancelled" ? "text-red-600" : "text-red-700"}`}>
                                   {sSt === "cancelled" ? (sEt === "pt" ? "캔슬" : "취소") : "노쇼"}
                                 </span>
                               )}
                               {viewingAll && (
-                                <span className={`block truncate text-[10px] ${sDone ? "text-slate-400" : "text-white/80"}`}>{s.trainerName ?? "담당없음"}</span>
+                                <span className={`block truncate text-[10px] ${sDone || sSt === "cancelled" || sSt === "noshow" ? "text-slate-500" : "text-white/80"}`}>{s.trainerName ?? "담당없음"}</span>
                               )}
                               {/* 시간은 왼쪽 시간 줄로 알 수 있어 생략 — 정각이 아닐 때만 :30처럼 표시 */}
                               <span className="font-medium flex items-center gap-0.5 min-w-0">
                                 <span className="block truncate">{s.memberName ?? s.notes ?? "미배정"}</span>
                                 {sEt !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-black/20">{EVENT_LABELS[sEt]}</span>}
-                                {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className={`text-[9px] font-bold underline shrink-0 ${sDone ? "text-orange-600" : "text-white"}`}>{bi + 1}</span> : null; })()}
+                                {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className={`text-[9px] font-bold underline shrink-0 ${sDone || sSt === "cancelled" || sSt === "noshow" ? "text-orange-600" : "text-white"}`}>{bi + 1}</span> : null; })()}
                                 {(s.scheduledTime ?? "").slice(3, 5) !== "00" && s.scheduledTime && <span className="text-[9px] opacity-70 shrink-0">:{s.scheduledTime.slice(3, 5)}</span>}
                               </span>
                             </button>
@@ -667,11 +670,13 @@ export default function SchedulePage() {
                           ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
                           : top
                             ? topSt === "noshow"
-                              ? "bg-rose-950/50 border-rose-700/40 text-rose-200/70"
+                              ? "bg-red-100 border-red-500 text-red-800"
                               : topSt === "cancelled"
-                              ? "bg-amber-950/30 border-dashed border-amber-600/40 text-amber-200/60"
+                              ? "bg-red-50 border-dashed border-red-400 text-red-700"
                               : isDone
                               ? "bg-slate-100 border-slate-300 text-slate-500 hover:bg-slate-200"
+                              : et !== "pt"
+                              ? NON_PT_CELL
                               : tColor
                                 ? tColor.cell
                                 : colors.filled
@@ -686,12 +691,12 @@ export default function SchedulePage() {
                             <CheckCircle2 className="h-4 w-4 absolute top-0.5 right-0.5 text-white fill-emerald-600" />
                           )}
                           {(topSt === "cancelled" || topSt === "noshow") && (
-                            <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${topSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
+                            <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${topSt === "cancelled" ? "text-red-600" : "text-red-700"}`}>
                               {topSt === "cancelled" ? (et === "pt" ? "캔슬" : "취소") : "노쇼"}
                             </span>
                           )}
                           {viewingAll && (
-                            <span className={`block truncate text-[10px] ${isDone ? "text-slate-400" : "text-white/80"}`}>
+                            <span className={`block truncate text-[10px] ${isDone || topSt === "cancelled" || topSt === "noshow" ? "text-slate-500" : "text-white/80"}`}>
                               {top.trainerName ?? "담당없음"}
                             </span>
                           )}
@@ -709,7 +714,7 @@ export default function SchedulePage() {
                                 <span className="truncate">{top.memberName ?? top.notes ?? "미배정"}</span>
                                 {et !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-black/20">{EVENT_LABELS[et]}</span>}
                                 {bIdx > 0 && (
-                                  <span className={`text-[9px] font-bold underline shrink-0 leading-none ${isDone ? "text-orange-600" : "text-white"}`}>{bIdx + 1}</span>
+                                  <span className={`text-[9px] font-bold underline shrink-0 leading-none ${isDone || topSt === "cancelled" || topSt === "noshow" ? "text-orange-600" : "text-white"}`}>{bIdx + 1}</span>
                                 )}
                                 {top.scheduledTime && top.scheduledTime.slice(3, 5) !== "00" && <span className="text-[9px] opacity-70 shrink-0">:{top.scheduledTime.slice(3, 5)}</span>}
                               </span>
