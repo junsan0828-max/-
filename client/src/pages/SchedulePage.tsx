@@ -586,7 +586,6 @@ export default function SchedulePage() {
                                 {sEt !== "pt" && <span className="text-[9px] opacity-70 font-medium shrink-0 px-1 rounded bg-white/10">{EVENT_LABELS[sEt]}</span>}
                                 {(() => { const bi = s.branchId != null ? (branchIndexMap.get(s.branchId) ?? 0) : 0; return bi > 0 ? <span className="text-[9px] text-orange-300/80 font-bold shrink-0">{bi + 1}</span> : null; })()}
                                 {(s.scheduledTime ?? "").slice(3, 5) !== "00" && s.scheduledTime && <span className="text-[9px] opacity-70 shrink-0">:{s.scheduledTime.slice(3, 5)}</span>}
-                                {s.isRecurring === 1 && <Repeat className="h-2.5 w-2.5 opacity-60 shrink-0" />}
                               </span>
                             </button>
                           );
@@ -671,7 +670,6 @@ export default function SchedulePage() {
                                   <span className="text-[9px] text-orange-300/80 font-bold shrink-0 leading-none">{bIdx + 1}</span>
                                 )}
                                 {top.scheduledTime && top.scheduledTime.slice(3, 5) !== "00" && <span className="text-[9px] opacity-70 shrink-0">:{top.scheduledTime.slice(3, 5)}</span>}
-                                {top.isRecurring === 1 && <Repeat className="h-2.5 w-2.5 opacity-60 shrink-0" />}
                               </span>
                             );
                           })()}
