@@ -24,22 +24,28 @@ app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-const pgStore = new PgSession({
-  pool,
-  tableName: "session",
-  createTableIfMissing: true,
-  disableTouch: true,
-  errorLog: (err: Error) => console.error("session store error:", err.message),
-});
 
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
-});
+// ─── 앱별 독립 세션 미들웨어 ────────────────────────────────────────────────────
+// 각 서비스(자이언트짐, ZIANTGYM+/핏스텝/핏트레이너프로)가 완전히 분리된
+// 세션 쿠키를 사용하도록 별도 세션 인스턴스를 생성합니다.
+// 한 앱 로그인·로그아웃이 다른 앱 세션에 영향을 주지 않습니다.
 
-app.use(
-  session({
-    store: pgStore,
-    secret: process.env.SESSION_SECRET || "trainer-app-secret",
+function makeSession(opts: {
+  cookieName: string;
+  tableName: string;
+  secret: string;
+}) {
+  const store = new PgSession({
+    pool,
+    tableName: opts.tableName,
+    createTableIfMissing: true,
+    disableTouch: true,
+    errorLog: (err: Error) => console.error(`[${opts.cookieName}] session store error:`, err.message),
+  });
+  return session({
+    name: opts.cookieName,
+    store,
+    secret: opts.secret,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -47,8 +53,78 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
-  })
-);
+  });
+}
+
+/** 자이언트짐 메인 관리시스템 세션 (쿠키명: ziantgym.sid) */
+const ziantgymSession = makeSession({
+  cookieName: "ziantgym.sid",
+  tableName: "session",
+  secret: process.env.SESSION_SECRET || "trainer-app-secret",
+});
+
+/** ZIANTGYM+ 회원앱 세션 (쿠키명: gymplus.sid) */
+const gymPlusSession = makeSession({
+  cookieName: "gymplus.sid",
+  tableName: "gymplus_session",
+  secret: process.env.GYMPLUS_SESSION_SECRET || process.env.SESSION_SECRET || "gymplus-app-secret",
+});
+
+/** 핏스텝 세션 (쿠키명: fitstep.sid) */
+const fitStepSession = makeSession({
+  cookieName: "fitstep.sid",
+  tableName: "fitstep_session",
+  secret: process.env.FITSTEP_SESSION_SECRET || process.env.SESSION_SECRET || "fitstep-app-secret",
+});
+
+/** 미니서비스 핏트레이너프로 세션 (쿠키명: fittrainer.sid) */
+const fitTrainerSession = makeSession({
+  cookieName: "fittrainer.sid",
+  tableName: "fittrainer_session",
+  secret: process.env.FITTRAINER_SESSION_SECRET || process.env.SESSION_SECRET || "fittrainer-app-secret",
+});
+
+/**
+ * 경로 기반 세션 라우터
+ * tRPC 프로시저 이름 접두사로 적절한 세션 미들웨어를 선택합니다.
+ * - gymPlus.*       → gymplus.sid   (ZIANTGYM+ 회원앱)
+ * - fitStep.*       → fitstep.sid   (핏스텝)
+ * - fitTrainer.*    → fittrainer.sid (핏트레이너프로)
+ * - 그 외 모두      → ziantgym.sid  (자이언트짐 관리시스템)
+ */
+function appSessionMiddleware(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  const url = req.path ?? "";
+  if (url.startsWith("/gymPlus.") || url.startsWith("/gymPlus/")) {
+    return gymPlusSession(req, res, next);
+  }
+  if (url.startsWith("/fitStep.") || url.startsWith("/fitStep/")) {
+    return fitStepSession(req, res, next);
+  }
+  if (url.startsWith("/fitTrainer.") || url.startsWith("/fitTrainer/")) {
+    return fitTrainerSession(req, res, next);
+  }
+  return ziantgymSession(req, res, next);
+}
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+});
+
+// /trpc 이하에서는 프로시저명 기반 세션 선택
+app.use("/trpc", appSessionMiddleware);
+// REST 엔드포인트별 세션
+app.use("/api/gymplus", gymPlusSession);
+app.use("/api/fitstep", fitStepSession);
+app.use("/api/fittrainer", fitTrainerSession);
+// 그 외 (관리시스템 REST API, static 등) — 아직 세션 없는 경우에만 적용
+app.use((req, res, next) => {
+  if ((req as any).session) return next();
+  return ziantgymSession(req, res, next);
+});
 
 // tRPC API
 app.use(
