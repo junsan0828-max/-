@@ -176,6 +176,11 @@ export const dataHealthRouter = t.router({
       WHERE (sl."isDraft" IS NULL OR sl."isDraft" = 0)
       GROUP BY m.name, t."trainerName", sl."memberId", sl."sessionDate"
       HAVING COUNT(*) > 1
+         -- 스케줄에 그날 완료·노쇼 수업이 그만큼 있으면 하루 두 번 수업(정상)으로 본다 (2026-11-05)
+         AND COUNT(*) > (SELECT COUNT(*) FROM schedules s
+                          WHERE s."memberId" = sl."memberId" AND s."scheduledDate" = sl."sessionDate"
+                            AND s."isRecurring" = 0 AND s.status IN ('done', 'noshow')
+                            AND COALESCE(s."eventType", 'pt') = 'pt')
       ORDER BY COUNT(*) DESC, m.name
       LIMIT 50
     `);
@@ -847,6 +852,28 @@ export const dataHealthRouter = t.router({
       severity: "warning",
       description: "종료된 회원이면 완료 처리하고, 계속 다닌다면 회원권을 연장해야 합니다. 방치하면 만료 회원이 진행중으로 잡힙니다.",
       rows: expiredWithSessions.rows,
+    });
+
+    // 비활성(inactive) 상태인데 회원권 기간이나 PT 잔여가 남은 회원 → 출입 키오스크에서 "출입 제한" 으로 막힌다.
+    // (2026-11-06 천진희: 10/27 비활성으로 바뀐 뒤 PT 진행 중인데 키오스크 출입이 막힘)
+    const inactiveValid = await pool.query(`
+      SELECT m.name AS "회원", m.phone AS "연락처", m."membershipEnd" AS "회원권 만료",
+             (SELECT string_agg(p."packageName" || ' ' || p."usedSessions" || '/' || p."totalSessions", ', ')
+                FROM pt_packages p WHERE p."memberId" = m.id AND p.status = 'active' AND p."usedSessions" < p."totalSessions") AS "PT 잔여",
+             substring(m."updatedAt", 1, 10) AS "마지막 수정"
+      FROM members m
+      WHERE m.status = 'inactive'
+        AND (m."membershipEnd" >= (now() + interval '9 hours')::date::text
+             OR EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = m.id AND p.status = 'active' AND p."usedSessions" < p."totalSessions"))
+      ORDER BY m."updatedAt" DESC
+      LIMIT 50
+    `);
+    groups.push({
+      key: "inactive_with_valid",
+      title: "비활성 회원인데 회원권·PT가 남음 (키오스크 출입 막힘)",
+      severity: "warning",
+      description: "회원 상태가 '비활성'이면 출입 키오스크에서 '출입이 제한된 회원입니다 · 관리자에게 문의'가 뜹니다. 계속 다니는 회원이면 회원 정보에서 상태를 '활성'으로 바꾸고, 환불·종료 회원이면 회원권 만료일·PT 상태를 정리하세요.",
+      rows: inactiveValid.rows,
     });
 
     // 스케줄에서 PT 수업을 완료/노쇼 처리했는데 수업일지(차감)가 없는 건.
