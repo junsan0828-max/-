@@ -149,12 +149,15 @@ function infoItems(branchNo = 1) {
 
 const FAQ_PER_PAGE = 5;
 
+const BANK_NAME = "카카오뱅크";
+const ACCOUNT_HOLDER = "이준산";
+
 const HOLIDAY_NOTE = "공휴일 탄력 운영 (사전 공지)";
 
 // 지점 정보 (랜딩페이지 BRANCH와 동일하게 유지)
-const BRANCH_INFO: Record<number, { hours: string[]; address: string; phone: string }> = {
-  1: { hours: ["평일 08:00 – 23:00", "토요일 10:00 – 17:00", "일요일 휴무", HOLIDAY_NOTE], address: "경기도 시흥시 함송로 29번길 5, 다나빌딩 2/3층", phone: "0507-1482-3349" },
-  2: { hours: ["평일 07:30 – 23:00", "토요일 10:00 – 17:00", "일요일 휴무", HOLIDAY_NOTE], address: "경기도 시흥시 중심상가로 181, 삼화빌딩 4층", phone: "0507-1457-4003" },
+const BRANCH_INFO: Record<number, { hours: string[]; address: string; phone: string; account: string }> = {
+  1: { hours: ["평일 08:00 – 23:00", "토요일 10:00 – 17:00", "일요일 휴무", HOLIDAY_NOTE], address: "경기도 시흥시 함송로 29번길 5, 다나빌딩 2/3층", phone: "0507-1482-3349", account: "3333-05-2664409" },
+  2: { hours: ["평일 07:30 – 23:00", "토요일 10:00 – 17:00", "일요일 휴무", HOLIDAY_NOTE], address: "경기도 시흥시 중심상가로 181, 삼화빌딩 4층", phone: "0507-1457-4003", account: "79420-21-15290" },
 };
 
 // 자주 묻는 질문 — 시스템(랜딩·짐플러스 앱)에 이미 안내 중인 내용만 사용
@@ -165,7 +168,7 @@ function faqItems(branchNo = 1) {
     { q: "처음인데 어떻게 시작하나요?", a: "자이언트짐은 운동 시작 전 모든 회원에게 체형분석을 실시합니다. 홈 화면의 '상담 신청'을 눌러 주시면 직원이 안내해 드립니다." },
     { q: "등록하고 첫 방문인데 어떻게 하나요?", a: "센터에 오시면 데스크에 있는 출석 체크를 먼저 해 주세요. 그다음 운동복과 운동화로 갈아입고 이용하시면 됩니다." },
     { q: "헬스 이용권에는 무엇이 포함되나요?", a: "체형분석, 체성분 측정, 운동 상담이 포함됩니다." },
-    { q: "결제는 어떻게 하나요?", a: "카드, 시루, 계좌이체로 결제할 수 있습니다. 카드 결제는 옆에 있는 카드 전용 키오스크를 이용해 주세요. 카드와 시루 결제 시 부가세 10%가 추가됩니다." },
+    { q: "결제는 어떻게 하나요?", a: `카드, 시루, 계좌이체로 결제할 수 있습니다. 카드 결제는 옆에 있는 카드 전용 키오스크를 이용해 주세요. 계좌이체는 ${BANK_NAME} ${b.account} (예금주 ${ACCOUNT_HOLDER})로 보내 주세요. 카드와 시루 결제 시 부가세 10%가 추가됩니다.` },
     { q: "회원권 정지·양도·해지는 어떻게 하나요?", a: "ZIANTGYM+ 앱의 내 정보에서 신청할 수 있습니다. 정지하면 정지한 기간만큼 만료일이 자동으로 연장됩니다." },
     { q: "해지하면 환불되나요?", a: "계약금액의 10%를 위약금으로 공제한 뒤 남은 기간만큼 비례해 환불해 드립니다. 환불은 영업일 기준 3~5일 걸립니다." },
     { q: "777 맞춤 PT는 무엇인가요?", a: "연 1회 한정 프로그램으로, 맞춤 PT 17회와 헬스 이용권 2개월, 락커 서비스가 포함된 777,000원 상품입니다." },
@@ -695,6 +698,11 @@ export default function ConsultKiosk() {
               </div>
             ))}
             <p className="text-slate-500 text-xs pt-2">{VAT_NOTE}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left">
+            <p className="text-slate-500 text-xs tracking-widest uppercase mb-2">계좌이체</p>
+            <p className="text-slate-900 font-bold text-lg tracking-wide">{BANK_NAME} {BRANCH_INFO[branchNo ?? 1].account}</p>
+            <p className="text-slate-500 text-sm mt-0.5">예금주 {ACCOUNT_HOLDER}</p>
           </div>
           <button onClick={doReset} className="w-full py-3.5 rounded-xl border border-slate-200 text-slate-500 text-sm">
             처음으로 →
