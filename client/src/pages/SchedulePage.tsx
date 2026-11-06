@@ -615,7 +615,7 @@ export default function SchedulePage() {
                               {sDone && <CheckCircle2 className="h-2.5 w-2.5 absolute top-1 right-1 text-emerald-400/70" />}
                               {(sSt === "cancelled" || sSt === "noshow") && (
                                 <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${sSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
-                                  {sSt === "cancelled" ? "캔슬" : "노쇼"}
+                                  {sSt === "cancelled" ? (sEt === "pt" ? "캔슬" : "취소") : "노쇼"}
                                 </span>
                               )}
                               {viewingAll && (
@@ -686,7 +686,7 @@ export default function SchedulePage() {
                           )}
                           {(topSt === "cancelled" || topSt === "noshow") && (
                             <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${topSt === "cancelled" ? "text-amber-400" : "text-rose-400"}`}>
-                              {topSt === "cancelled" ? "캔슬" : "노쇼"}
+                              {topSt === "cancelled" ? (et === "pt" ? "캔슬" : "취소") : "노쇼"}
                             </span>
                           )}
                           {viewingAll && (
@@ -867,7 +867,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
   const reportDeduct = (label: string, res: { sessionResult?: { remaining: number } | null; skipReason?: string | null }) => {
     if (res.sessionResult) toast.success(`${label} — PT 1회 차감 (잔여 ${res.sessionResult.remaining}회)`);
     else if (res.skipReason) toast.warning(`${label} 처리됐지만 PT 차감 안 됨: ${SKIP_REASON_LABEL[res.skipReason] ?? res.skipReason}`, { duration: 8000 });
-    else toast.success(`${label} 처리됨 (PT 수업 아님 — 차감 없음)`);
+    else toast.success(eventType === "pt" ? `${label} 처리됨` : "진행 완료로 처리했습니다");
   };
   const retryDeductMutation = trpc.schedules.retryDeduct.useMutation({
     onSuccess: (res) => {
@@ -898,7 +898,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
 
   const recordOccurrenceMutation = trpc.schedules.recordOccurrence.useMutation({
     onSuccess: (res, v) => {
-      if (v.mode === "cancelled") toast.success("캔슬(당일 취소)로 처리했습니다");
+      if (v.mode === "cancelled") toast.success(eventType === "pt" ? "캔슬(당일 취소)로 처리했습니다" : "일정을 취소했습니다");
       else reportDeduct(v.mode === "done" ? "수업 체크" : "노쇼", res);
       onSaved();
     },
@@ -908,7 +908,10 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
   const checkPastFixed = (mode: "done" | "noshow") => {
     const label = mode === "done" ? "완료" : "노쇼";
     const deductMsg = mode === "done" ? "PT 세션 1회가 차감됩니다." : "노쇼 처리되며 PT 세션 1회가 차감됩니다.";
-    if (!confirm(`${date} ${time} 수업을 ${label} 처리합니다. ${deductMsg}`)) return;
+    const ok = eventType === "pt"
+      ? confirm(`${date} ${time} 수업을 ${label} 처리합니다. ${deductMsg}`)
+      : confirm(`${date} ${time} 일정을 진행 완료로 처리합니다.`);
+    if (!ok) return;
     // 고정 수업 회차: 서버에서 생성+차감을 한 번에 (중간 실패로 '예정'만 남는 일 방지)
     if (target?.isRecurring === 1) { recordOccurrenceMutation.mutate({ templateId: target.id, date, mode }); return; }
     const freeText = !memberId && memberInput.trim() ? memberInput.trim() : undefined;
@@ -1095,7 +1098,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
           <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-xs text-emerald-300 flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              수업 완료됨
+              {eventType === "pt" ? "수업 완료됨" : "진행 완료됨"}
             </span>
             {target.isRecurring !== 1 && (eventType === "pt") && (
               <button
@@ -1110,7 +1113,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
             <button
               type="button"
               onClick={() => {
-                if (confirm("완료를 취소하면 PT 세션 1회가 복구됩니다. 진행할까요?")) {
+                if (confirm(eventType === "pt" ? "완료를 취소하면 PT 세션 1회가 복구됩니다. 진행할까요?" : "진행 완료를 취소할까요?")) {
                   cancelCompletionMutation.mutate({ scheduleId: target.id });
                 }
               }}
@@ -1125,14 +1128,14 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
 
         {target?.status === "cancelled" && (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 flex items-center justify-between gap-2">
-            <span>캔슬 처리됨 (당일 취소 · 차감 없음)</span>
+            <span>{eventType === "pt" ? "캔슬 처리됨 (당일 취소 · 차감 없음)" : "취소된 일정"}</span>
             {target.isRecurring !== 1 && (
               <button type="button" disabled={busy}
                 onClick={() => {
-                  if (confirm("캔슬을 되돌립니다. 수업 체크·노쇼 처리를 다시 할 수 있습니다.")) updateMutation.mutate({ scheduleId: target.id, status: "pending" });
+                  if (confirm(eventType === "pt" ? "캔슬을 되돌립니다. 수업 체크·노쇼 처리를 다시 할 수 있습니다." : "취소를 되돌립니다.")) updateMutation.mutate({ scheduleId: target.id, status: "pending" });
                 }}
                 className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 transition-colors disabled:opacity-50">
-                <RotateCcw className="h-3 w-3" /> 캔슬 취소
+                <RotateCcw className="h-3 w-3" /> {eventType === "pt" ? "캔슬 취소" : "취소 되돌리기"}
               </button>
             )}
           </div>
@@ -1156,7 +1159,42 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
           return checkDate < todayStr || (checkDate === todayStr && checkTime <= nowTimeStr);
         })() && (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300 space-y-2">
-            <span className="font-medium">지나간 수업 — 처리 선택</span>
+            <span className="font-medium">{eventType === "pt" ? "지나간 수업 — 처리 선택" : "지나간 일정 — 처리 선택"}</span>
+            {eventType !== "pt" ? (
+              // PT 외 일정(밸체·상담·체험·회의·기타): 차감 개념이 없으므로 진행 완료 / 일정 변경 / 취소
+              <div className="flex gap-1.5">
+                <button type="button" disabled={busy}
+                  onClick={() => {
+                    if (target.isRecurring === 1) checkPastFixed("done");
+                    else if (confirm(`${target.scheduledDate} 일정을 진행 완료로 처리합니다.`))
+                      checkPastMutation.mutate({ scheduleId: target.id, sessionDate: target.scheduledDate });
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-medium transition-colors disabled:opacity-50">
+                  <CheckCircle2 className="h-3 w-3" /> 진행 완료
+                </button>
+                <button type="button" disabled={busy}
+                  onClick={() => {
+                    const el = document.getElementById("slot-time-input") as HTMLInputElement | null;
+                    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    el?.focus();
+                    toast.info("시간을 바꾸고 저장하세요. 다른 날로 옮기려면 달력에서 카드를 꾹 눌러 옮기면 됩니다.");
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-medium transition-colors disabled:opacity-50">
+                  일정 변경
+                </button>
+                <button type="button" disabled={busy}
+                  onClick={() => {
+                    if (target.isRecurring === 1) {
+                      if (confirm(`${date} 일정을 취소 처리합니다.`))
+                        recordOccurrenceMutation.mutate({ templateId: target.id, date, mode: "cancelled" });
+                    } else if (confirm(`${target.scheduledDate} 일정을 취소 처리합니다.`))
+                      updateMutation.mutate({ scheduleId: target.id, status: "cancelled" });
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition-colors disabled:opacity-50">
+                  취소
+                </button>
+              </div>
+            ) : (
             <div className="flex gap-1.5">
               <button type="button" disabled={busy}
                 onClick={() => {
@@ -1198,12 +1236,14 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
                 캔슬(차감X)
               </button>
             </div>
+            )}
           </div>
         )}
 
         <div className="space-y-1.5">
           <label className="text-xs text-muted-foreground">시간</label>
           <input
+            id="slot-time-input"
             type="time"
             step={600}
             value={time}
