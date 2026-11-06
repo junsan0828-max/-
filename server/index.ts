@@ -1092,6 +1092,7 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE schedules ADD COLUMN IF NOT EXISTS "repeatUntil" TEXT`,
+    `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "scheduleColor" INTEGER`,
     `CREATE TABLE IF NOT EXISTS service_grants (
       id SERIAL PRIMARY KEY,
       "memberId" INTEGER NOT NULL,

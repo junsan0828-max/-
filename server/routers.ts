@@ -2819,9 +2819,20 @@ const schedulesRouter = t.router({
     if (!isScheduleAdmin(ctx.user?.role)) return [];
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: trainers.id, trainerName: trainers.trainerName })
+    return db.select({ id: trainers.id, trainerName: trainers.trainerName, scheduleColor: trainers.scheduleColor })
       .from(trainers).orderBy(trainers.trainerName);
   }),
+
+  // 관리자: 스케줄에서 트레이너 색상 지정 (전 직원 화면에 공통 적용)
+  setTrainerColor: protectedProcedure
+    .input(z.object({ trainerId: z.number(), color: z.number().int().min(0).max(9) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 색상을 바꿀 수 있습니다." });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(trainers).set({ scheduleColor: input.color }).where(eq(trainers.id, input.trainerId));
+      return { ok: true };
+    }),
 
   // 주간 시간표: 그 주의 실제 수업 + 그 시점에 살아있는 고정 슬롯을 함께 돌려준다.
   // 관리자는 전체 트레이너를 보거나(trainerId 생략) 한 명만 골라 볼 수 있다.

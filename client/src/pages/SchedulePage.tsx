@@ -70,7 +70,10 @@ const TRAINER_PALETTE = [
   { cell: "bg-pink-500/20 border-pink-500/50 hover:bg-pink-500/30",       dot: "bg-pink-400" },
   { cell: "bg-teal-500/20 border-teal-500/50 hover:bg-teal-500/30",       dot: "bg-teal-400" },
   { cell: "bg-orange-500/20 border-orange-500/50 hover:bg-orange-500/30", dot: "bg-orange-400" },
+  { cell: "bg-lime-500/20 border-lime-500/50 hover:bg-lime-500/30",       dot: "bg-lime-400" },
+  { cell: "bg-indigo-500/20 border-indigo-500/50 hover:bg-indigo-500/30", dot: "bg-indigo-400" },
 ];
+const PALETTE_NAMES = ["하늘", "초록", "노랑", "빨강", "보라", "분홍", "청록", "주황", "연두", "남색"];
 
 type Slot = {
   id: number;
@@ -117,6 +120,13 @@ export default function SchedulePage() {
   const { data: access } = trpc.schedules.myAccess.useQuery();
   const isAdmin = access?.isAdmin ?? false;
   const { data: trainerOptions } = trpc.schedules.trainerOptions.useQuery(undefined, { enabled: isAdmin });
+  const { data: meUser } = trpc.auth.me.useQuery();
+  const isOwner = meUser?.role === "admin"; // 색상 변경은 대표(관리자)만
+  const [colorPickFor, setColorPickFor] = useState<number | null>(null);
+  const utilsColor = trpc.useUtils();
+  const setColorMut = trpc.schedules.setTrainerColor.useMutation({
+    onSuccess: () => { utilsColor.schedules.trainerOptions.invalidate(); setColorPickFor(null); },
+  });
   const { data: branchList } = trpc.schedules.branches.useQuery();
   const viewingAll = isAdmin && trainerFilter === null;
 
@@ -250,7 +260,8 @@ export default function SchedulePage() {
   // 트레이너 id → 팔레트 인덱스 (id 오름차순, 안정적)
   const trainerColorMap = useMemo(() => {
     const sorted = [...(trainerOptions ?? [])].sort((a, b) => a.id - b.id);
-    return new Map(sorted.map((t, i) => [t.id, i % TRAINER_PALETTE.length]));
+    // 관리자가 지정한 색 우선, 없으면 순서대로
+    return new Map(sorted.map((t: any, i) => [t.id, (t.scheduleColor ?? i) % TRAINER_PALETTE.length]));
   }, [trainerOptions]);
 
   const todayYmd = toYmd(new Date());
@@ -384,9 +395,39 @@ export default function SchedulePage() {
               const p = TRAINER_PALETTE[trainerColorMap.get(t.id) ?? 0];
               const total = ts.done + ts.pending + ts.noshow + ts.cancelled;
               return (
-                <div key={t.id} className="flex items-center gap-2 text-xs">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
-                  <span className="w-14 text-foreground/80 font-medium">{t.trainerName}</span>
+                <div key={t.id} className="relative flex items-center gap-2 text-xs">
+                  {isOwner ? (
+                    <button
+                      onClick={() => setColorPickFor(colorPickFor === t.id ? null : t.id)}
+                      className="flex items-center gap-2 rounded px-1 -mx-1 hover:bg-accent"
+                      title="눌러서 색상 변경"
+                    >
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.dot}`} />
+                      <span className="w-14 text-left text-foreground/80 font-medium underline decoration-dotted underline-offset-2">{t.trainerName}</span>
+                    </button>
+                  ) : (<>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
+                    <span className="w-14 text-foreground/80 font-medium">{t.trainerName}</span>
+                  </>)}
+                  {colorPickFor === t.id && (
+                    <div className="absolute left-0 top-6 z-40 bg-card border border-border rounded-xl p-2 shadow-xl grid grid-cols-5 gap-1.5 w-[260px]">
+                      {TRAINER_PALETTE.map((c, ci) => {
+                        const usedBy = [...(trainerOptions ?? [])].find(o => o.id !== t.id && trainerColorMap.get(o.id) === ci);
+                        const cur = trainerColorMap.get(t.id) === ci;
+                        return (
+                          <button
+                            key={ci}
+                            disabled={setColorMut.isPending}
+                            onClick={() => setColorMut.mutate({ trainerId: t.id, color: ci })}
+                            className={`rounded-md border px-1 py-1 text-[10px] leading-tight text-left ${c.cell} ${cur ? "ring-2 ring-white" : ""}`}
+                          >
+                            <span className="block font-semibold">{PALETTE_NAMES[ci]}</span>
+                            <span className="block truncate opacity-70">{usedBy ? usedBy.trainerName : "\u00a0"}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 flex-1">
                     <span className="text-emerald-400">{ts.done}완료</span>
                     {ts.pending > 0 && <span className="text-sky-400">{ts.pending}예정</span>}

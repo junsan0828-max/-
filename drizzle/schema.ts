@@ -30,6 +30,7 @@ export const trainers = pgTable("trainers", {
   phone: text("phone"),
   email: text("email"),
   branchId: integer("branchId"),
+  scheduleColor: integer("scheduleColor"), // 스케줄 색상 팔레트 인덱스(0~9), 관리자가 지정
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
