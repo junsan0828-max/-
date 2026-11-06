@@ -10,7 +10,14 @@ export interface AuthUser {
 
 declare module "express-session" {
   interface SessionData {
+    // 자이언트짐 관리시스템 (ziantgym.sid)
     user?: AuthUser;
+    // ZIANTGYM+ 회원앱 (gymplus.sid)
+    gymPlusMemberId?: number;
+    // 핏스텝 (fitstep.sid)
+    fitStepMemberId?: number;
+    // 미니서비스 핏트레이너프로 (fittrainer.sid)
+    fitTrainerMemberId?: number;
   }
 }
 

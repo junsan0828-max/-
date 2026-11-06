@@ -4237,7 +4237,8 @@ const trainingManualRouter = t.router({
 // ─── ZIANTGYM+ 회원앱 ─────────────────────────────────────────────────────────
 
 const gymPlusProtected = t.procedure.use(({ ctx, next }) => {
-  const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+  // gymplus.sid 쿠키 세션에서 회원 ID를 읽음 (자이언트짐 관리세션과 분리)
+  const gymMemberId = ctx.req.session.gymPlusMemberId;
   if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
   return next({ ctx: { ...ctx, gymPlusMemberId: gymMemberId } });
 });
@@ -4292,16 +4293,15 @@ const gymPlusRouter = t.router({
         const last4 = phoneDigits.slice(-4);
         if (input.password !== last4) throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다. 전화번호 뒷자리 4자리를 입력하세요." });
 
-        // admin 계정이면 통합관리 세션도 설정
+        // admin 계정이면 gymplus.sid 세션에만 회원 ID 저장 (관리시스템 세션과 분리)
         const userRow = await db.select().from(users).where(eq(users.username, input.username)).limit(1);
         if (userRow[0]?.role === "admin") {
-          const authUser = { id: userRow[0].id, username: userRow[0].username, role: userRow[0].role as any, trainerId: undefined };
-          (ctx.req.session as any).user = authUser;
+          ctx.req.session.gymPlusMemberId = member.id;
           await new Promise<void>((resolve, reject) => ctx.req.session.save((err) => err ? reject(err) : resolve()));
           return { id: member.id, username: member.username, name: member.name, isAdmin: true };
         }
 
-        (ctx.req.session as any).gymPlusMemberId = member.id;
+        ctx.req.session.gymPlusMemberId = member.id;
         await new Promise<void>((resolve, reject) => ctx.req.session.save((err) => err ? reject(err) : resolve()));
         return { id: member.id, username: member.username, name: member.name, membershipType: member.membershipType };
       }
@@ -4313,20 +4313,23 @@ const gymPlusRouter = t.router({
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
       if (userRow[0].role !== "admin") throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
 
-      const authUser = { id: userRow[0].id, username: userRow[0].username, role: userRow[0].role as any, trainerId: undefined };
-      (ctx.req.session as any).user = authUser;
+      // admin이 직접 짐플러스 로그인 — gymplus.sid 세션만 설정
+      const adminMember = allMembers.find(m => m.username === userRow[0].username);
+      if (adminMember) {
+        ctx.req.session.gymPlusMemberId = adminMember.id;
+      }
       await new Promise<void>((resolve, reject) => ctx.req.session.save((err) => err ? reject(err) : resolve()));
       return { id: userRow[0].id, username: userRow[0].username, name: userRow[0].username, isAdmin: true };
     }),
 
   memberLogout: publicProcedure.mutation(async ({ ctx }) => {
-    delete (ctx.req.session as any).gymPlusMemberId;
+    delete ctx.req.session.gymPlusMemberId;
     await new Promise<void>((resolve, reject) => ctx.req.session.save((err) => err ? reject(err) : resolve()));
     return { success: true };
   }),
 
   memberMe: publicProcedure.query(async ({ ctx }) => {
-    const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+    const gymMemberId = ctx.req.session.gymPlusMemberId;
     if (!gymMemberId) return null;
     const db = await getDb();
     if (!db) return null;
@@ -4853,7 +4856,7 @@ const gymPlusRouter = t.router({
 
   // 회원 메시지 목록 조회
   listMessages: publicProcedure.query(async ({ ctx }) => {
-    const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+    const gymMemberId = ctx.req.session.gymPlusMemberId;
     if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
     const db = await getDb();
     if (!db) return [];
@@ -4866,7 +4869,7 @@ const gymPlusRouter = t.router({
   markMessageRead: publicProcedure
     .input(z.object({ messageId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+      const gymMemberId = ctx.req.session.gymPlusMemberId;
       if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -4876,7 +4879,7 @@ const gymPlusRouter = t.router({
 
   // 읽지 않은 메시지 수
   unreadMessageCount: publicProcedure.query(async ({ ctx }) => {
-    const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+    const gymMemberId = ctx.req.session.gymPlusMemberId;
     if (!gymMemberId) return 0;
     const db = await getDb();
     if (!db) return 0;
@@ -4889,7 +4892,7 @@ const gymPlusRouter = t.router({
   savePushSubscription: publicProcedure
     .input(z.object({ endpoint: z.string(), p256dh: z.string(), auth: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+      const gymMemberId = ctx.req.session.gymPlusMemberId;
       if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
