@@ -63,19 +63,20 @@ const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
 // 어드민 전체보기: 트레이너별 색상 팔레트 (id 오름차순으로 순서 고정)
 const TRAINER_PALETTE = [
   // 밝은 테마용 진한 바탕 + 흰 글씨. 빨강(캔슬·노쇼)·파랑(상담·밸체 등 PT 외 일정)은 의미색이라 트레이너 색에서 뺐다 (2026-11-06)
-  { cell: "bg-gray-900 border-gray-900 hover:bg-gray-800 text-white",          dot: "bg-gray-900" },
-  { cell: "bg-emerald-600 border-emerald-700 hover:bg-emerald-700 text-white", dot: "bg-emerald-600" },
-  { cell: "bg-amber-600 border-amber-700 hover:bg-amber-700 text-white",       dot: "bg-amber-600" },
-  { cell: "bg-stone-600 border-stone-700 hover:bg-stone-700 text-white",       dot: "bg-stone-600" },
-  { cell: "bg-violet-600 border-violet-700 hover:bg-violet-700 text-white",    dot: "bg-violet-600" },
-  { cell: "bg-pink-600 border-pink-700 hover:bg-pink-700 text-white",          dot: "bg-pink-600" },
-  { cell: "bg-teal-600 border-teal-700 hover:bg-teal-700 text-white",          dot: "bg-teal-600" },
-  { cell: "bg-orange-600 border-orange-700 hover:bg-orange-700 text-white",    dot: "bg-orange-600" },
-  { cell: "bg-lime-700 border-lime-700 hover:bg-lime-700/90 text-white",       dot: "bg-lime-700" },
-  { cell: "bg-fuchsia-700 border-fuchsia-700 hover:bg-fuchsia-700/90 text-white", dot: "bg-fuchsia-700" },
+  { cell: "bg-gray-900 border-gray-900 hover:bg-gray-800 text-white",          dot: "bg-gray-900", soft: "bg-gray-200 border-gray-400 text-gray-600" },
+  { cell: "bg-emerald-600 border-emerald-700 hover:bg-emerald-700 text-white", dot: "bg-emerald-600", soft: "bg-emerald-100 border-emerald-300 text-emerald-800/70" },
+  { cell: "bg-amber-600 border-amber-700 hover:bg-amber-700 text-white",       dot: "bg-amber-600", soft: "bg-amber-100 border-amber-300 text-amber-800/70" },
+  { cell: "bg-stone-600 border-stone-700 hover:bg-stone-700 text-white",       dot: "bg-stone-600", soft: "bg-stone-200 border-stone-300 text-stone-700/70" },
+  { cell: "bg-violet-600 border-violet-700 hover:bg-violet-700 text-white",    dot: "bg-violet-600", soft: "bg-violet-100 border-violet-300 text-violet-800/70" },
+  { cell: "bg-pink-600 border-pink-700 hover:bg-pink-700 text-white",          dot: "bg-pink-600", soft: "bg-pink-100 border-pink-300 text-pink-800/70" },
+  { cell: "bg-teal-600 border-teal-700 hover:bg-teal-700 text-white",          dot: "bg-teal-600", soft: "bg-teal-100 border-teal-300 text-teal-800/70" },
+  { cell: "bg-orange-600 border-orange-700 hover:bg-orange-700 text-white",    dot: "bg-orange-600", soft: "bg-orange-100 border-orange-300 text-orange-800/70" },
+  { cell: "bg-lime-700 border-lime-700 hover:bg-lime-700/90 text-white",       dot: "bg-lime-700", soft: "bg-lime-100 border-lime-300 text-lime-800/70" },
+  { cell: "bg-fuchsia-700 border-fuchsia-700 hover:bg-fuchsia-700/90 text-white", dot: "bg-fuchsia-700", soft: "bg-fuchsia-100 border-fuchsia-300 text-fuchsia-800/70" },
 ];
 // PT 외 일정(밸체·상담·체험·회의·기타)은 트레이너와 무관하게 파랑으로 통일
 const NON_PT_CELL = "bg-blue-600 border-blue-700 hover:bg-blue-700 text-white";
+const NON_PT_SOFT = "bg-blue-100 border-blue-300 text-blue-800/70";
 const PALETTE_NAMES = ["검정", "초록", "노랑", "갈색", "보라", "분홍", "청록", "주황", "연두", "자주"];
 
 type Slot = {
@@ -611,7 +612,7 @@ export default function SchedulePage() {
                                 sSelected ? "ring-2 ring-primary border-primary/60 opacity-70 scale-95"
                                 : sSt === "noshow" ? "bg-red-100 border-red-500 text-red-800"
                                 : sSt === "cancelled" ? "bg-red-50 border-dashed border-red-400 text-red-700"
-                                : sDone ? "bg-slate-100 border-slate-300 text-slate-500 hover:bg-slate-200"
+                                : sDone ? (sEt !== "pt" ? NON_PT_SOFT : p.soft)
                                 : sEt !== "pt" ? NON_PT_CELL
                                 : p.cell
                               }`}
@@ -674,7 +675,7 @@ export default function SchedulePage() {
                               : topSt === "cancelled"
                               ? "bg-red-50 border-dashed border-red-400 text-red-700"
                               : isDone
-                              ? "bg-slate-100 border-slate-300 text-slate-500 hover:bg-slate-200"
+                              ? (et !== "pt" ? NON_PT_SOFT : (tColor ? tColor.soft : "bg-slate-100 border-slate-300 text-slate-500"))
                               : et !== "pt"
                               ? NON_PT_CELL
                               : tColor
