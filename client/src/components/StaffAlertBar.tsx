@@ -44,7 +44,7 @@ export default function StaffAlertBar() {
   const utils = trpc.useUtils();
 
   const { data: calls } = trpc.staffAlerts.pendingCalls.useQuery(undefined, {
-    enabled: isStaff, refetchInterval: 10_000, refetchIntervalInBackground: false,
+    enabled: isStaff, refetchInterval: 30_000, refetchIntervalInBackground: false, // 푸시 도착 시 즉시 갱신되므로 30초면 충분
   });
   const ack = trpc.staffAlerts.acknowledge.useMutation({ onSuccess: () => utils.staffAlerts.pendingCalls.invalidate() });
   const { data: vapidKey } = trpc.staffAlerts.vapidKey.useQuery(undefined, { enabled: isStaff, staleTime: Infinity });

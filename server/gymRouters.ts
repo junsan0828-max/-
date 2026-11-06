@@ -190,6 +190,16 @@ const channelsRouter = t.router({
 });
 
 // ─── Leads (CRM) ─────────────────────────────────────────────────────────────
+/** 관리상담 → 상담완료 자동 전환: 상담일 기준 7일 경과 시. 서버 시작 시 + 하루 1번 (멱등). */
+export async function autoCloseFollowupLeads() {
+  const db = await getDb();
+  if (!db) return;
+  const cutoff = new Date(Date.now() + 9 * 3600_000 - 7 * 86400_000).toISOString().substring(0, 10);
+  await db.update(leads)
+    .set({ status: "consulted", updatedAt: new Date().toISOString() })
+    .where(and(eq(leads.status, "followup"), lte(leads.consultationDate, cutoff)));
+}
+
 const leadsRouter = t.router({
   // 서명 이미지는 목록에서 빠졌으므로 계약서 출력 때만 따로 받는다
   signature: protectedProcedure
@@ -212,11 +222,7 @@ const leadsRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 관리상담 → 상담완료 자동 전환: 상담일 기준 7일 경과 시
-      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
-      await db.update(leads)
-        .set({ status: "consulted", updatedAt: new Date().toISOString() })
-        .where(and(eq(leads.status, "followup"), lte(leads.consultationDate, cutoff)));
+      // (이동) 관리상담 → 상담완료 자동 전환은 목록 조회 때마다가 아니라 하루 1번 autoCloseFollowupLeads()에서 (2026-11-06)
 
       // 필터는 전부 SQL로 내린다 — 예전엔 상담 카드 전체를 상관 서브쿼리와 함께 긁어온 뒤
       // JS에서 걸러서, 한 달치 목록 하나에 테이블 전체를 읽었다.

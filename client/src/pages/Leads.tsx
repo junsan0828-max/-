@@ -228,7 +228,7 @@ export default function LeadsPage() {
   // 트레이너도 본인 담당 회원의 재등록 신청을 보고 처리한다(서버에서 담당 건만 걸러 내려줌).
   const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery(
     { status: "pending" },
-    { refetchInterval: 30000, enabled: !!me }
+    { refetchInterval: 5 * 60_000, enabled: !!me }
   );
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
 
@@ -236,7 +236,7 @@ export default function LeadsPage() {
   const [selectedRegRequest, setSelectedRegRequest] = useState<any | null>(null);
   const { data: registrationRequests, refetch: refetchRegRequests } = trpc.gymPlus.admin_listRegistrationRequests.useQuery(
     { status: "all" },
-    { refetchInterval: 60000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
+    { refetchInterval: 5 * 60_000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
   );
   const updateRegRequestMutation = trpc.gymPlus.admin_updateRegistrationRequest.useMutation({
     onSuccess: () => { refetchRegRequests(); setSelectedRegRequest(null); toast.success("처리되었습니다"); },
@@ -312,7 +312,7 @@ export default function LeadsPage() {
   const [directForm, setDirectForm] = useState(defaultDirectForm);
 
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
-  const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, { refetchInterval: 5 * 60_000 });
   const markViewedMutation = trpc.gym.leads.markViewed.useMutation({
     onSuccess: () => { utils.gym.leads.invalidate(); },
   });

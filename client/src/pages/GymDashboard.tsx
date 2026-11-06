@@ -323,20 +323,20 @@ export default function GymDashboard() {
     staleTime: 5 * 60 * 1000,
   });
   const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, {
-    refetchInterval: 30000,
+    refetchInterval: 5 * 60_000, // 30초 → 5분 (2026-11-06 데이터 절감)
   });
   const { data: pointExt } = trpc.gym.kpi.pointExtensionSummary.useQuery({ year, month });
   const { data: me } = trpc.auth.me.useQuery();
   // 트레이너도 본인 담당 회원의 재등록 신청을 보고 처리한다(서버에서 담당 건만 걸러 내려줌).
   const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery(
     { status: "pending" },
-    { refetchInterval: 30000, enabled: !!me }
+    { refetchInterval: 5 * 60_000, enabled: !!me }
   );
   const [dismissedRenewalAlert, setDismissedRenewalAlert] = useState(false);
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const { data: pendingRegRequests } = trpc.gymPlus.admin_listRegistrationRequests.useQuery(
     { status: "pending" },
-    { refetchInterval: 60000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
+    { refetchInterval: 5 * 60_000, enabled: !!me && (me.role === "admin" || me.role === "sub_admin") }
   );
   const [dismissedRegAlert, setDismissedRegAlert] = useState(false);
   // 차트류는 전부 화면 아래쪽이다. 첫 페인트를 막는 kpi.overview와 Neon 커넥션을 두고

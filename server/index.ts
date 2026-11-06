@@ -7,6 +7,7 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter, linkOrphanUniformRevenue } from "./routers";
+import { autoCloseFollowupLeads } from "./gymRouters";
 import { db, pool, addMonths } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries, healthReports, ptReports } from "../drizzle/schema";
@@ -3146,6 +3147,7 @@ async function start() {
     console.error("양도 자동 완료 오류:", e);
   }
   try { await linkOrphanUniformRevenue(); } catch (e) { console.error("운동복 매출 연결 오류:", e); }
+  try { await autoCloseFollowupLeads(); } catch (e) { console.error("관리상담 자동 전환 오류:", e); }
   setInterval(async () => {
     try {
       await autoCompleteExpiredTransfers();
@@ -3153,6 +3155,7 @@ async function start() {
       console.error("양도 자동 완료 오류:", e);
     }
     try { await linkOrphanUniformRevenue(); } catch (e) { console.error("운동복 매출 연결 오류:", e); }
+    try { await autoCloseFollowupLeads(); } catch (e) { console.error("관리상담 자동 전환 오류:", e); }
   }, 24 * 60 * 60 * 1000);
 }
 

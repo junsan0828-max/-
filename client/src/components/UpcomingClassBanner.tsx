@@ -504,7 +504,7 @@ function CompletionModal({ slot, onClose }: { slot: Slot; onClose: () => void })
 export default function UpcomingClassBanner() {
   const utils = trpc.useUtils();
   const { data: upcoming } = trpc.schedules.todayUpcoming.useQuery(undefined, {
-    refetchInterval: 30_000,
+    refetchInterval: 5 * 60_000, // 30초 → 5분. 본인이 체크·수정하면 즉시 invalidate로 갱신된다
     staleTime: 0,
   });
   const [activeSlot, setActiveSlot] = useState<Slot | null>(null);
