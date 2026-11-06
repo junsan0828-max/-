@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, or, desc, sql, like, gte, lte, inArray, isNotNull } from "drizzle-orm";
+import { getTableColumns, eq, and, or, desc, sql, like, gte, lte, inArray, isNotNull } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { getDb, pool, recalcDietPayback } from "./db";
@@ -191,6 +191,16 @@ const channelsRouter = t.router({
 
 // ─── Leads (CRM) ─────────────────────────────────────────────────────────────
 const leadsRouter = t.router({
+  // 서명 이미지는 목록에서 빠졌으므로 계약서 출력 때만 따로 받는다
+  signature: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.select({ sig: leads.signatureDataUrl }).from(leads).where(eq(leads.id, input.id)).limit(1);
+      return row?.sig ?? null;
+    }),
+
   list: protectedProcedure
     .input(z.object({
       year: z.number().optional(),
@@ -230,8 +240,14 @@ const leadsRouter = t.router({
       if (input?.status) conds.push(eq(leads.status, input.status));
       if (input?.channelId) conds.push(eq(leads.channelId, input.channelId));
 
+      // 서명 이미지(장당 ~14KB, 70장 ≈ 1MB)는 목록에서 빼고 '있음' 표시만 보낸다 (2026-11-06).
+      // 화면은 !!signatureDataUrl 로만 쓰고, 수정 시 새 서명이 없으면 서버가 기존 값을 유지한다.
+      const leadCols = {
+        ...getTableColumns(leads),
+        signatureDataUrl: sql<string | null>`CASE WHEN ${leads.signatureDataUrl} IS NOT NULL THEN '1' END`,
+      };
       const base = db.select({
-        lead: leads,
+        lead: leadCols,
         channelName: channels.name,
         trainerName: trainers.trainerName,
         consultantName: sql<string | null>`(SELECT t."trainerName" FROM trainers t WHERE t."userId" = ${leads.assignedConsultantId} LIMIT 1)`,

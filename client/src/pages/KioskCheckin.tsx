@@ -527,7 +527,7 @@ export default function KioskCheckin() {
   }, []);
 
   const bannersQuery = trpc.access.getBanners.useQuery({ branchId }, {
-    refetchInterval: 10000,
+    refetchInterval: 10 * 60_000, // 배너는 거의 안 바뀐다 — 10초 → 10분 (2026-11-06)
     staleTime: 0,
     gcTime: 0,
     retry: 3,

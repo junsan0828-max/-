@@ -271,7 +271,12 @@ export function startKioskPoller() {
       console.error("[kiosk poller]", (e as Error).message);
     }
   };
-  setInterval(tick, 10_000);
+  // DB가 쉴 수 있게(Neon 절전) 새벽 1~5시(KST)엔 돌지 않고, 그 외엔 15초마다 (2026-11-06)
+  setInterval(() => {
+    const h = new Date(Date.now() + 9 * 3600_000).getUTCHours();
+    if (h >= 1 && h < 5) return;
+    tick();
+  }, 15_000);
 }
 
 // ─── 공개 API (키오스크 → 통합운영) ─────────────────────────────────────────────

@@ -228,6 +228,51 @@ const authRouter = t.router({
     }),
 });
 
+// 운동복 매출 회원 연결 + 운동복 구매 회원 활성화.
+// 예전엔 회원 목록을 열 때마다 실행돼 조회할 때마다 DB 쓰기가 일어났다(2026-11-06 이동).
+// 이제 서버 시작 시 1회 + 하루 1회만 돈다. memberId 없는 매출만 대상이라 두 번째부터는 0건(멱등).
+export async function linkOrphanUniformRevenue() {
+  const db = await getDb();
+  if (!db) return;
+  // 운동복 매출 중 memberId 없는 것 소급 처리 (운동복 대여 등 구형 포함)
+  const orphanUniforms = await db.select().from(revenueEntries)
+    .where(and(sql`${revenueEntries.programDetail} LIKE '%운동복%'`, isNull(revenueEntries.memberId)));
+  for (const entry of orphanUniforms) {
+    if (!entry.customerName) continue;
+    const now = new Date().toISOString();
+    // 같은 이름 기존 회원 먼저 탐색
+    const existing = await pool.query(
+      `SELECT id FROM members WHERE name = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+      [entry.customerName]
+    );
+    let targetMemberId: number | null = null;
+    if (existing.rows.length > 0) {
+      targetMemberId = existing.rows[0].id;
+      // 정지 회원이면 활성으로 전환
+      await db.update(members).set({ status: "active", updatedAt: now }).where(and(eq(members.id, targetMemberId!), or(eq(members.status, "paused"), eq(members.status, "inactive"))));
+    } else {
+      const [newMember] = await db.insert(members).values({
+        name: entry.customerName,
+        phone: entry.phone ?? undefined,
+        status: "active",
+        grade: "basic",
+        membershipStart: entry.startDate ?? undefined,
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: members.id });
+      targetMemberId = newMember?.id ?? null;
+    }
+    if (targetMemberId) {
+      await db.update(revenueEntries).set({ memberId: targetMemberId }).where(eq(revenueEntries.id, entry.id));
+      await db.execute(sql`UPDATE uniforms SET "memberId" = ${targetMemberId} WHERE "memberName" = ${entry.customerName} AND "memberId" IS NULL`);
+    }
+  }
+
+  // (제거) 예전엔 여기서 "운동복 신규 구매 이력이 있는 정지·종료 회원"을 전부 활성으로 되돌렸다.
+  // 직원이 바꾼 상태를 자동으로 되돌리는 동작이라 제거한다(CLAUDE.md 데이터 무결성 3).
+  // 새로 연결된 매출의 회원 활성화는 위 반복문에서 그 회원에게만 한다.
+}
+
 // ─── Members ─────────────────────────────────────────────────────────────────
 const membersRouter = t.router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -236,52 +281,6 @@ const membersRouter = t.router({
 
     const { role, trainerId } = ctx.user;
     if (role === "trainer" && !trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-
-    // 운동복 매출 중 memberId 없는 것 소급 처리 (운동복 대여 등 구형 포함)
-    const orphanUniforms = await db.select().from(revenueEntries)
-      .where(and(sql`${revenueEntries.programDetail} LIKE '%운동복%'`, isNull(revenueEntries.memberId)));
-    for (const entry of orphanUniforms) {
-      if (!entry.customerName) continue;
-      const now = new Date().toISOString();
-      // 같은 이름 기존 회원 먼저 탐색
-      const existing = await pool.query(
-        `SELECT id FROM members WHERE name = $1 ORDER BY "createdAt" DESC LIMIT 1`,
-        [entry.customerName]
-      );
-      let targetMemberId: number | null = null;
-      if (existing.rows.length > 0) {
-        targetMemberId = existing.rows[0].id;
-        // 정지 회원이면 활성으로 전환
-        await db.update(members).set({ status: "active", updatedAt: now }).where(and(eq(members.id, targetMemberId!), or(eq(members.status, "paused"), eq(members.status, "inactive"))));
-      } else {
-        const [newMember] = await db.insert(members).values({
-          name: entry.customerName,
-          phone: entry.phone ?? undefined,
-          status: "active",
-          grade: "basic",
-          membershipStart: entry.startDate ?? undefined,
-          createdAt: now,
-          updatedAt: now,
-        }).returning({ id: members.id });
-        targetMemberId = newMember?.id ?? null;
-      }
-      if (targetMemberId) {
-        await db.update(revenueEntries).set({ memberId: targetMemberId }).where(eq(revenueEntries.id, entry.id));
-        await db.execute(sql`UPDATE uniforms SET "memberId" = ${targetMemberId} WHERE "memberName" = ${entry.customerName} AND "memberId" IS NULL`);
-      }
-    }
-
-    // 운동복 구매로 연결된 정지 회원도 활성으로 전환
-    await pool.query(`
-      UPDATE members m SET status = 'active', "updatedAt" = NOW()::text
-      WHERE m.status IN ('paused', 'inactive')
-        AND EXISTS (
-          SELECT 1 FROM revenue_entries r
-          WHERE r."memberId" = m.id
-            AND r."programDetail" LIKE '%운동복%'
-            AND r."subType" = '신규'
-        )
-    `);
 
     const whereClause = undefined; // 트레이너·컨설턴트 모두 전체 회원 공유
 

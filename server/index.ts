@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { appRouter } from "./routers";
+import { appRouter, linkOrphanUniformRevenue } from "./routers";
 import { db, pool, addMonths } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries, healthReports, ptReports } from "../drizzle/schema";
@@ -3139,18 +3139,20 @@ async function start() {
   // 키오스크 직원 호출·상담 접수 수거 → 직원 푸시 (자이언트짐++가 공유 테이블에 직접 쓰는 경우 대비, 10초마다)
   startKioskPoller();
 
-  // 양도 계약 자동 완료: 서버 시작 시 1회 + 매일 1회 (자정 KST)
+  // 양도 계약 자동 완료 + 운동복 매출 회원 연결: 서버 시작 시 1회 + 매일 1회
   try {
     await autoCompleteExpiredTransfers();
   } catch (e) {
     console.error("양도 자동 완료 오류:", e);
   }
+  try { await linkOrphanUniformRevenue(); } catch (e) { console.error("운동복 매출 연결 오류:", e); }
   setInterval(async () => {
     try {
       await autoCompleteExpiredTransfers();
     } catch (e) {
       console.error("양도 자동 완료 오류:", e);
     }
+    try { await linkOrphanUniformRevenue(); } catch (e) { console.error("운동복 매출 연결 오류:", e); }
   }, 24 * 60 * 60 * 1000);
 }
 

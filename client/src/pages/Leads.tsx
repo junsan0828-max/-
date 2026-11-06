@@ -3282,8 +3282,9 @@ function ParQButton({ lead }: { lead: any }) {
 // ─── 등록완료 카드 내 계약서 PDF 버튼 ────────────────────────────────────────
 function ContractPdfButton({ lead }: { lead: any }) {
   const { data: entry, isLoading } = trpc.gym.revenue.byLead.useQuery({ leadId: lead.id });
+  const utils = trpc.useUtils();
 
-  function openPdf(e: React.MouseEvent) {
+  async function openPdf(e: React.MouseEvent) {
     e.stopPropagation();
     const date = lead.consultationDate
       ? new Date(lead.consultationDate).toLocaleDateString("ko-KR")
@@ -3316,13 +3317,20 @@ function ContractPdfButton({ lead }: { lead: any }) {
       p.set("startDate", entry.startDate ?? "");
     }
 
+    // 팝업 차단을 피하려고 창을 먼저 연 뒤, 서명을 받아 주소를 채운다
+    const win = window.open("about:blank", "_blank");
     if (lead.signatureDataUrl) {
-      const sigKey = `contract_sig_${Date.now()}`;
-      localStorage.setItem(sigKey, lead.signatureDataUrl);
-      p.set("sigKey", sigKey);
+      try {
+        const sig = await utils.gym.leads.signature.fetch({ id: lead.id });
+        if (sig) {
+          const sigKey = `contract_sig_${Date.now()}`;
+          localStorage.setItem(sigKey, sig);
+          p.set("sigKey", sigKey);
+        }
+      } catch { /* 서명 없이 출력 */ }
     }
-
-    window.open(`/contract-print?${p.toString()}`, "_blank");
+    const url = `/contract-print?${p.toString()}`;
+    if (win) win.location.href = url; else window.open(url, "_blank");
   }
 
   return (
