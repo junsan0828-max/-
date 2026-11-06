@@ -13,7 +13,7 @@ const eventTypeLabel: Record<string, string> = {
 };
 
 const eventTypeStyle: Record<string, string> = {
-  notice: "bg-blue-500/20 text-blue-400",
+  notice: "bg-[#0B1D3A]/15 text-[#0B1D3A]",
   event: "bg-green-500/20 text-green-400",
   promotion: "bg-orange-500/20 text-orange-400",
   points: "bg-purple-500/20 text-purple-400",
@@ -173,7 +173,7 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
           </span>
           {event.isPinned ? <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">고정</span> : null}
           {isPointsEvent && (event.pointAmount ?? 0) > 0 && (
-            <span className="text-xs bg-[#1D4ED8]/10 text-[#1D4ED8] px-2 py-0.5 rounded-full font-semibold">
+            <span className="text-xs bg-[#0B1D3A]/10 text-[#0B1D3A] px-2 py-0.5 rounded-full font-semibold">
               +{(event.pointAmount ?? 0).toLocaleString("ko-KR")}P
             </span>
           )}
@@ -244,8 +244,8 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
               </div>
 
               {/* 적립 인정 기준: 댓글 작성 후 3분 내 신청 버튼 클릭 여부를 AI가 확인 */}
-              <div className="bg-[#1D4ED8]/10 border border-[#1D4ED8]/30 rounded-xl px-3 py-2.5 space-y-1">
-                <p className="text-xs font-bold text-[#1D4ED8]">⏱ 댓글 작성 후 3분 이내에 아래 버튼을 눌러주세요</p>
+              <div className="bg-[#0B1D3A]/10 border border-[#0B1D3A]/30 rounded-xl px-3 py-2.5 space-y-1">
+                <p className="text-xs font-bold text-[#0B1D3A]">⏱ 댓글 작성 후 3분 이내에 아래 버튼을 눌러주세요</p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   AI가 댓글 작성 시각과 신청 시각을 대조해 확인하며, 다음 날 아침 포인트가 자동으로 적립됩니다.
                 </p>
@@ -298,7 +298,7 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
               /* 아직 블로그 미방문 → 적립하기 버튼 */
               <button
                 onClick={handleVisitBlog}
-                className="flex items-center justify-between w-full px-5 py-4 rounded-2xl bg-[#1D4ED8] text-white active:bg-[#1a44c2] transition-colors"
+                className="flex items-center justify-between w-full px-5 py-4 rounded-2xl bg-[#0B1D3A] text-white active:bg-[#162B52] transition-colors"
               >
                 <div>
                   <p className="text-[11px] text-white/60 font-medium tracking-wide uppercase">Step 1</p>
@@ -344,7 +344,7 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
           {claimStatus === "rejected" && (
             <button
               onClick={handleVisitBlog}
-              className="flex items-center justify-between w-full px-5 py-4 rounded-2xl bg-[#1D4ED8] text-white active:bg-[#1a44c2] transition-colors"
+              className="flex items-center justify-between w-full px-5 py-4 rounded-2xl bg-[#0B1D3A] text-white active:bg-[#162B52] transition-colors"
             >
               <div>
                 <p className="text-[11px] text-white/60 font-medium tracking-wide uppercase">Step 1</p>

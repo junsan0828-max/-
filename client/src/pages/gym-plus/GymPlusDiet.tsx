@@ -230,7 +230,7 @@ export default function GymPlusDiet() {
 
       {/* 12주 다이어트페이백 결과 리포트 */}
       {dietReport && (
-        <div className={`rounded-2xl border p-4 space-y-3 ${dietReport.isCompleted ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200" : "bg-blue-50/50 border-blue-100"}`}>
+        <div className={`rounded-2xl border p-4 space-y-3 ${dietReport.isCompleted ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200" : "bg-[#0B1D3A]/[0.03] border-[#0B1D3A]/15"}`}>
           <div className="flex items-center gap-2">
             <span className="text-base">{dietReport.isCompleted ? "🏆" : "📊"}</span>
             <div>
@@ -244,7 +244,7 @@ export default function GymPlusDiet() {
 
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-white rounded-xl p-2.5 text-center border border-gray-100">
-              <p className="text-xl font-black text-blue-600">{dietReport.totalSessions}</p>
+              <p className="text-xl font-black text-[#0B1D3A]">{dietReport.totalSessions}</p>
               <p className="text-[9px] text-gray-400 mt-0.5">수업 참여</p>
             </div>
             <div className="bg-white rounded-xl p-2.5 text-center border border-gray-100">

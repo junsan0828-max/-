@@ -28,7 +28,7 @@ const PARQ_QUESTIONS = [
 const APP_GUIDE = [
   {
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-[#1D4ED8]">
+      <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-[#0B1D3A]">
         <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
       </svg>
     ),
@@ -37,7 +37,7 @@ const APP_GUIDE = [
   },
   {
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-[#1D4ED8]">
+      <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-[#0B1D3A]">
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.328l5.603 3.113Z" />
       </svg>
@@ -187,14 +187,14 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
               {Array.from({ length: totalSteps }).map((_, i) => (
                 <div
                   key={i}
-                  className={`h-1 rounded-full transition-all ${i < stepIndex ? "bg-[#1D4ED8]" : "bg-gray-200"}`}
+                  className={`h-1 rounded-full transition-all ${i < stepIndex ? "bg-[#0B1D3A]" : "bg-gray-200"}`}
                   style={{ width: i < stepIndex ? "24px" : "8px" }}
                 />
               ))}
             </div>
             <span className="text-[11px] text-gray-400 font-medium">{stepIndex}/{totalSteps}</span>
           </div>
-          <p className="text-[11px] text-[#1D4ED8] font-bold tracking-widest uppercase">Welcome</p>
+          <p className="text-[11px] text-[#0B1D3A] font-bold tracking-widest uppercase">Welcome</p>
           <h2 className="text-[17px] font-extrabold text-[#1a2b4b] mt-0.5">
             {step === "rules" && "센터 이용규정 안내"}
             {step === "guide" && "앱 이용방법 안내"}
@@ -237,10 +237,10 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
               </div>
 
               <button
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all ${rulesAgreed ? "border-[#1D4ED8] bg-[#EEF4FF]" : "border-gray-200 bg-white"}`}
+                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all ${rulesAgreed ? "border-[#0B1D3A] bg-[#EEF1F6]" : "border-gray-200 bg-white"}`}
                 onClick={() => setRulesAgreed(v => !v)}
               >
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${rulesAgreed ? "bg-[#1D4ED8] border-[#1D4ED8]" : "border-gray-300"}`}>
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${rulesAgreed ? "bg-[#0B1D3A] border-[#0B1D3A]" : "border-gray-300"}`}>
                   {rulesAgreed && (
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth={3} stroke="white" className="w-3 h-3">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -277,9 +277,9 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
                 ))}
               </div>
 
-              <div className="bg-[#EEF4FF] border border-blue-100 rounded-xl p-3.5">
-                <p className="text-[12px] font-bold text-[#1D4ED8] mb-1">출석하기 안내</p>
-                <p className="text-[11px] text-[#1D4ED8]/80 leading-relaxed">
+              <div className="bg-[#EEF1F6] border border-[#0B1D3A]/15 rounded-xl p-3.5">
+                <p className="text-[12px] font-bold text-[#0B1D3A] mb-1">출석하기 안내</p>
+                <p className="text-[11px] text-[#0B1D3A]/80 leading-relaxed">
                   운동영상 탭 상단의 <strong>출석하기</strong> 버튼을 눌러 매일 출석을 체크하세요.
                   컨디션과 운동 부위를 입력하면 맞춤 영상을 추천받을 수 있습니다.
                 </p>
@@ -340,7 +340,7 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
                         onClick={() => setParqAnswers(prev => ({ ...prev, [i]: "yes" }))}
                       >예</button>
                       <button
-                        className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${parqAnswers[i] === "no" ? "bg-[#EEF4FF] border-[#1D4ED8] text-[#1D4ED8]" : "border-gray-200 text-gray-400"}`}
+                        className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${parqAnswers[i] === "no" ? "bg-[#EEF1F6] border-[#0B1D3A] text-[#0B1D3A]" : "border-gray-200 text-gray-400"}`}
                         onClick={() => setParqAnswers(prev => ({ ...prev, [i]: "no" }))}
                       >아니오</button>
                     </div>

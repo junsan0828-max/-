@@ -212,7 +212,7 @@ export function CheckInModal({ onClose }: { onClose: () => void }) {
             </DialogHeader>
 
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs bg-blue-500/20 text-blue-600 px-2 py-0.5 rounded-full">컨디션 {conditionScore}/5</span>
+              <span className="text-xs bg-[#0B1D3A]/15 text-[#0B1D3A] px-2 py-0.5 rounded-full">컨디션 {conditionScore}/5</span>
               <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">수면 {sleepHours}</span>
               <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">에너지 {energyLevel}</span>
               {selectedBodyParts.length > 0 && (
@@ -294,7 +294,7 @@ function VideoCard({ v, onClick }: { v: any; onClick: () => void }) {
   const thumb = v.thumbnailUrl || getAutoThumbnail(v.id, v.videoUrl);
   return (
     <div
-      className="bg-white border border-gray-100 rounded-xl overflow-hidden cursor-pointer hover:border-blue-200 hover:shadow-md transition-all"
+      className="bg-white border border-gray-100 rounded-xl overflow-hidden cursor-pointer hover:border-[#0B1D3A]/25 hover:shadow-md transition-all"
       onClick={onClick}
     >
       {thumb ? (
@@ -315,7 +315,7 @@ function VideoCard({ v, onClick }: { v: any; onClick: () => void }) {
           {v.bodyPart && <span className="text-[9px] text-gray-400">{v.bodyPart}</span>}
         </div>
         {(v.recommendedSets || v.recommendedReps) && (
-          <p className="text-[9px] text-[#1D4ED8] font-medium">
+          <p className="text-[9px] text-[#0B1D3A] font-medium">
             {[v.recommendedSets ? `${v.recommendedSets}세트` : null, v.recommendedReps].filter(Boolean).join(" · ")}
           </p>
         )}
@@ -407,7 +407,7 @@ export default function GymPlusVideos() {
         ) : (
           <button
             onClick={() => setShowCheckIn(true)}
-            className="w-full flex items-center gap-3 bg-[#1D4ED8] hover:bg-[#1a44c2] active:bg-[#1739a8] rounded-2xl px-4 py-3.5 transition-colors"
+            className="w-full flex items-center gap-3 bg-[#0B1D3A] hover:bg-[#162B52] active:bg-[#162B52] rounded-2xl px-4 py-3.5 transition-colors"
           >
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="white" className="w-4 h-4">
@@ -430,7 +430,7 @@ export default function GymPlusVideos() {
         <button
           onClick={() => setTab("gym")}
           className={`flex-1 py-3 text-sm font-medium transition-colors ${
-            tab === "gym" ? "text-[#1D4ED8] border-b-2 border-[#1D4ED8]" : "text-gray-400"
+            tab === "gym" ? "text-[#0B1D3A] border-b-2 border-[#0B1D3A]" : "text-gray-400"
           }`}
         >
           운동영상
@@ -438,7 +438,7 @@ export default function GymPlusVideos() {
         <button
           onClick={() => setTab("custom")}
           className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
-            tab === "custom" ? "text-[#1D4ED8] border-b-2 border-[#1D4ED8]" : "text-gray-400"
+            tab === "custom" ? "text-[#0B1D3A] border-b-2 border-[#0B1D3A]" : "text-gray-400"
           }`}
         >
           맞춤운동
@@ -460,7 +460,7 @@ export default function GymPlusVideos() {
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="영상 이름·부위로 검색"
-              className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-3 py-2.5 text-sm placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]/30"
+              className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-3 py-2.5 text-sm placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#0B1D3A]/30"
             />
           </div>
 
@@ -469,14 +469,14 @@ export default function GymPlusVideos() {
               <button
                 onClick={() => { setSelectedCategory(undefined); setSelectedBodyPart(undefined); }}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  !selectedCategory ? "bg-[#1D4ED8] text-white" : "bg-gray-100 text-gray-500"
+                  !selectedCategory ? "bg-[#0B1D3A] text-white" : "bg-gray-100 text-gray-500"
                 }`}
               >전체</button>
               {categories.map((c) => (
                 <button key={c.id}
                   onClick={() => { setSelectedCategory(selectedCategory === c.id ? undefined : c.id); setSelectedBodyPart(undefined); }}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    selectedCategory === c.id ? "bg-[#1D4ED8] text-white" : "bg-gray-100 text-gray-500"
+                    selectedCategory === c.id ? "bg-[#0B1D3A] text-white" : "bg-gray-100 text-gray-500"
                   }`}
                 >{c.name}</button>
               ))}
@@ -488,7 +488,7 @@ export default function GymPlusVideos() {
               <button key={level ?? "all"}
                 onClick={() => setSelectedLevel(level)}
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  selectedLevel === level ? "bg-[#1D4ED8] text-white" : "bg-gray-100 text-gray-500"
+                  selectedLevel === level ? "bg-[#0B1D3A] text-white" : "bg-gray-100 text-gray-500"
                 }`}
               >{level ? levelLabel[level] : "전체"}</button>
             ))}
@@ -547,7 +547,7 @@ export default function GymPlusVideos() {
                 </p>
                 <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
                   <div
-                    className="bg-[#1D4ED8] h-1.5 rounded-full transition-all"
+                    className="bg-[#0B1D3A] h-1.5 rounded-full transition-all"
                     style={{ width: `${(missionCount / 3) * 100}%` }}
                   />
                 </div>
@@ -579,7 +579,7 @@ export default function GymPlusVideos() {
               </div>
 
               <button
-                className="w-full py-3.5 rounded-xl bg-[#1D4ED8] text-white text-[13px] font-bold"
+                className="w-full py-3.5 rounded-xl bg-[#0B1D3A] text-white text-[13px] font-bold"
                 onClick={() => navigate("/gym-plus/profile")}
               >
                 내 정보에서 미션 완료하기 →
@@ -587,8 +587,8 @@ export default function GymPlusVideos() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-gradient-to-r from-[#1D4ED8]/10 to-[#1D4ED8]/5 rounded-2xl p-4 border border-[#1D4ED8]/15">
-                <p className="text-[10px] text-[#1D4ED8] font-bold tracking-widest uppercase mb-1">Personalized</p>
+              <div className="bg-gradient-to-r from-[#0B1D3A]/10 to-[#0B1D3A]/5 rounded-2xl p-4 border border-[#0B1D3A]/15">
+                <p className="text-[10px] text-[#0B1D3A] font-bold tracking-widest uppercase mb-1">Personalized</p>
                 <p className="font-bold text-[15px] text-[#1a2b4b]">나에게 맞는 운동</p>
                 <p className="text-xs text-gray-400 mt-1">신체정보와 건강데이터를 기반으로 선별된 운동 영상입니다</p>
               </div>

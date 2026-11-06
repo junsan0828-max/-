@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { membershipTypeLabel } from "@/lib/membership";
 
 const membershipTypeBadge: Record<string, string> = {
-  general: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  general: "bg-[#0B1D3A]/10 text-[#0B1D3A] border-[#0B1D3A]/30",
   premium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
   vip: "bg-purple-500/10 text-purple-400 border-purple-500/30",
 };

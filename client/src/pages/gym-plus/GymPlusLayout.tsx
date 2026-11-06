@@ -99,7 +99,7 @@ function ExpiredMembershipModal({ onRenew, onLogout }: { onRenew: () => void; on
         <div className="space-y-2">
           <button
             onClick={onRenew}
-            className="w-full h-11 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold hover:bg-[#1a43c0] transition-colors"
+            className="w-full h-11 rounded-xl bg-[#0B1D3A] text-white text-sm font-bold hover:bg-[#162B52] transition-colors"
           >
             재등록하기
           </button>
@@ -228,8 +228,8 @@ function PwaInstallBanner() {
 
   return (
     <>
-      <div className="bg-[#1D4ED8]/10 border-b border-[#1D4ED8]/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
-        <div className="w-7 h-7 bg-[#1D4ED8] rounded-lg flex items-center justify-center shrink-0">
+      <div className="bg-[#0B1D3A]/10 border-b border-[#0B1D3A]/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
+        <div className="w-7 h-7 bg-[#0B1D3A] rounded-lg flex items-center justify-center shrink-0">
           <span className="text-white font-black text-xs">G+</span>
         </div>
         <p className="text-xs text-[#1a2b4b] flex-1 font-medium">
@@ -237,7 +237,7 @@ function PwaInstallBanner() {
         </p>
         <button
           onClick={handleInstall}
-          className="text-xs font-bold text-white bg-[#1D4ED8] px-3 py-1.5 rounded-lg shrink-0"
+          className="text-xs font-bold text-white bg-[#0B1D3A] px-3 py-1.5 rounded-lg shrink-0"
         >
           추가
         </button>
@@ -254,21 +254,21 @@ function PwaInstallBanner() {
             <h3 className="font-bold text-base text-[#1a2b4b] text-center">홈 화면에 추가하기</h3>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
+                <span className="w-6 h-6 rounded-full bg-[#0B1D3A] text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
                 <p className="text-sm text-gray-600">하단의 <span className="font-semibold">공유 버튼</span> (□↑) 을 누르세요</p>
               </div>
               <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
+                <span className="w-6 h-6 rounded-full bg-[#0B1D3A] text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
                 <p className="text-sm text-gray-600"><span className="font-semibold">"홈 화면에 추가"</span>를 선택하세요</p>
               </div>
               <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0">3</span>
+                <span className="w-6 h-6 rounded-full bg-[#0B1D3A] text-white text-xs font-bold flex items-center justify-center shrink-0">3</span>
                 <p className="text-sm text-gray-600">오른쪽 상단 <span className="font-semibold">"추가"</span>를 누르면 완료!</p>
               </div>
             </div>
             <button
               onClick={() => { setShowIosTip(false); dismiss(); }}
-              className="w-full h-11 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold"
+              className="w-full h-11 rounded-xl bg-[#0B1D3A] text-white text-sm font-bold"
             >
               확인했어요
             </button>
@@ -309,9 +309,9 @@ function ScheduleBanner() {
   if (diffMs < 0) {
     const overMin = Math.abs(diffMin);
     return (
-      <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center gap-2 shrink-0">
+      <div className="bg-[#0B1D3A]/5 border-b border-[#0B1D3A]/25 px-4 py-2 flex items-center gap-2 shrink-0">
         <span>🏋️</span>
-        <span className="text-xs font-semibold text-blue-700">
+        <span className="text-xs font-semibold text-[#0B1D3A]">
           지금 수업 시간이에요!{trainerLabel} · {overMin}분 진행 중
         </span>
       </div>
@@ -477,7 +477,7 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
                 <span>{item.icon}</span>
                 <span className="text-sm font-medium">{item.label}</span>
                 {isActive && (
-                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#1D4ED8]" />
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#0B1D3A]" />
                 )}
               </button>
             );

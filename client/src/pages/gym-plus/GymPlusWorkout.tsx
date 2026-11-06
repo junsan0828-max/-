@@ -514,8 +514,8 @@ function ActiveWorkoutModal({
   }
 
   const doneCount = exList.filter((e) => e.done).length;
-  const intensityColor = { LOW: "text-blue-400", MEDIUM: "text-yellow-400", HIGH: "text-red-400" };
-  const intensityBg = { LOW: "bg-blue-500/10 border-blue-500/30", MEDIUM: "bg-yellow-500/10 border-yellow-500/30", HIGH: "bg-red-500/10 border-red-500/30" };
+  const intensityColor = { LOW: "text-[#0B1D3A]", MEDIUM: "text-yellow-400", HIGH: "text-red-400" };
+  const intensityBg = { LOW: "bg-[#0B1D3A]/10 border-[#0B1D3A]/30", MEDIUM: "bg-yellow-500/10 border-yellow-500/30", HIGH: "bg-red-500/10 border-red-500/30" };
   const scoreColor = result ? (result.score >= 80 ? "text-green-400" : result.score >= 50 ? "text-yellow-400" : "text-muted-foreground") : "";
 
   if (step === "result" && result) {
@@ -1037,7 +1037,7 @@ export default function GymPlusWorkout() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {(log as any).conditionScore && (
-            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {(log as any).conditionScore}/5</span>
+            <span className="text-[10px] bg-[#0B1D3A]/15 text-[#0B1D3A] px-2 py-0.5 rounded-full">컨디션 {(log as any).conditionScore}/5</span>
           )}
           {(log as any).sleepHours && (
             <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">수면 {(log as any).sleepHours}</span>
@@ -1594,7 +1594,7 @@ export default function GymPlusWorkout() {
               <div className="flex items-center gap-1.5 flex-wrap bg-muted/30 rounded-xl px-3 py-2">
                 <span className="text-[10px] text-muted-foreground">출석체크 기록</span>
                 {form.conditionScore && (
-                  <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {form.conditionScore}/5</span>
+                  <span className="text-[10px] bg-[#0B1D3A]/15 text-[#0B1D3A] px-2 py-0.5 rounded-full">컨디션 {form.conditionScore}/5</span>
                 )}
                 {form.sleepHours && (
                   <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">수면 {form.sleepHours}</span>

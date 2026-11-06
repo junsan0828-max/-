@@ -33,7 +33,7 @@
   --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --primary: 221 83% 44%;
+  --primary: 217 68% 14%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 40% 96%;
   --secondary-foreground: 222 47% 11%;
@@ -43,7 +43,7 @@
   --accent-foreground: 222 47% 11%;
   --border: 214 32% 91%;
   --input: 214 32% 91%;
-  --ring: 221 83% 44%;
+  --ring: 217 68% 14%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   background-color: hsl(0 0% 100%);

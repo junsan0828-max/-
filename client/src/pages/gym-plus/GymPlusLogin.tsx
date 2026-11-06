@@ -213,7 +213,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: "90vh" }}>
         {/* 헤더 */}
-        <div className="bg-[#1D4ED8] px-6 py-4 relative shrink-0">
+        <div className="bg-[#0B1D3A] px-6 py-4 relative shrink-0">
           <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white">
             <X className="w-5 h-5" />
           </button>
@@ -258,14 +258,14 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                     return (
                       <button key={p} onClick={() => setPeriod(p)}
                         className="rounded-xl border-2 p-3 text-left transition-all relative"
-                        style={{ borderColor: isSelected ? "#1D4ED8" : "#e5e7eb", background: isSelected ? "#eff6ff" : "white" }}
+                        style={{ borderColor: isSelected ? "#0B1D3A" : "#e5e7eb", background: isSelected ? "#EEF1F6" : "white" }}
                       >
                         {discountRate > 0 && (
                           <span className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white">
                             {discountRate}%↓
                           </span>
                         )}
-                        <p className="text-sm font-bold" style={{ color: isSelected ? "#1D4ED8" : "#1a2b4b" }}>{p}</p>
+                        <p className="text-sm font-bold" style={{ color: isSelected ? "#0B1D3A" : "#1a2b4b" }}>{p}</p>
                         {original ? (
                           <div className="mt-0.5 space-y-0.5">
                             <p className="text-[10px] text-gray-400 line-through">{original.toLocaleString()}원</p>
@@ -280,7 +280,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             {errMsg && <p className="text-red-500 text-xs text-center">{errMsg}</p>}
-            <Button onClick={handleFormNext} className="w-full h-11 bg-[#1D4ED8] hover:bg-[#1a43c0]">다음 — 계약서 확인</Button>
+            <Button onClick={handleFormNext} className="w-full h-11 bg-[#0B1D3A] hover:bg-[#162B52]">다음 — 계약서 확인</Button>
           </div>
         )}
 
@@ -294,7 +294,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                 {CONTRACT_TEXT}
               </div>
               <label className="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 cursor-pointer">
-                <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="w-4 h-4 accent-[#1D4ED8]" />
+                <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="w-4 h-4 accent-[#0B1D3A]" />
                 <span className="text-xs font-medium text-gray-700">[필수] 이용 약관에 동의합니다</span>
               </label>
             </div>
@@ -304,19 +304,19 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                 {PRIVACY_TEXT}
               </div>
               <label className="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 cursor-pointer">
-                <input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} className="w-4 h-4 accent-[#1D4ED8]" />
+                <input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} className="w-4 h-4 accent-[#0B1D3A]" />
                 <span className="text-xs font-medium text-gray-700">[필수] 개인정보 수집 및 이용에 동의합니다</span>
               </label>
             </div>
             {/* 마케팅 선택 */}
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={agreedMarketing} onChange={(e) => setAgreedMarketing(e.target.checked)} className="w-4 h-4 accent-[#1D4ED8]" />
+              <input type="checkbox" checked={agreedMarketing} onChange={(e) => setAgreedMarketing(e.target.checked)} className="w-4 h-4 accent-[#0B1D3A]" />
               <span className="text-xs text-gray-500">[선택] 이벤트·프로모션 정보 수신에 동의합니다</span>
             </label>
             {errMsg && <p className="text-red-500 text-xs text-center">{errMsg}</p>}
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => { setStep("form"); setErrMsg(""); }} className="flex-1 h-11">이전</Button>
-              <Button onClick={handleContractNext} className="flex-1 h-11 bg-[#1D4ED8] hover:bg-[#1a43c0]">다음 — 서명</Button>
+              <Button onClick={handleContractNext} className="flex-1 h-11 bg-[#0B1D3A] hover:bg-[#162B52]">다음 — 서명</Button>
             </div>
           </div>
         )}
@@ -329,7 +329,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
               <p className="text-xs text-gray-500 mt-1">아래에 본인 서명을 해 주세요</p>
             </div>
             {/* 계약 요약 */}
-            <div className="bg-blue-50 rounded-xl p-3 text-xs space-y-1">
+            <div className="bg-[#0B1D3A]/5 rounded-xl p-3 text-xs space-y-1">
               <div className="flex justify-between"><span className="text-gray-500">이름</span><span className="font-medium">{name}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">연락처</span><span className="font-medium">{phone}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">회원권</span><span className="font-medium">{period} — {amount.toLocaleString()}원</span></div>
@@ -339,7 +339,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
             {errMsg && <p className="text-red-500 text-xs text-center">{errMsg}</p>}
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => { setStep("contract"); setErrMsg(""); }} className="flex-1 h-11">이전</Button>
-              <Button onClick={handleSignSubmit} disabled={submitMut.isPending} className="flex-1 h-11 bg-[#1D4ED8] hover:bg-[#1a43c0]">
+              <Button onClick={handleSignSubmit} disabled={submitMut.isPending} className="flex-1 h-11 bg-[#0B1D3A] hover:bg-[#162B52]">
                 {submitMut.isPending ? "제출 중..." : "서명 완료"}
               </Button>
             </div>
@@ -356,22 +356,22 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
               <h3 className="text-base font-bold text-[#1a2b4b]">계약 서명 완료!</h3>
               <p className="text-sm text-gray-500">아래 계좌로 입금 후<br/>"이체 완료" 버튼을 눌러주세요.</p>
             </div>
-            <div className="bg-blue-50 rounded-2xl p-4 space-y-3">
+            <div className="bg-[#0B1D3A]/5 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">입금 계좌</span>
-                <button onClick={copyAccount} className="flex items-center gap-1 text-xs text-[#1D4ED8] font-medium">
+                <button onClick={copyAccount} className="flex items-center gap-1 text-xs text-[#0B1D3A] font-medium">
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   {copied ? "복사됨" : "복사"}
                 </button>
               </div>
               <p className="text-sm font-bold text-[#1a2b4b]">{bankAccount}</p>
-              <div className="border-t border-blue-100 pt-3 flex justify-between items-center">
+              <div className="border-t border-[#0B1D3A]/15 pt-3 flex justify-between items-center">
                 <span className="text-xs text-gray-500">입금 금액</span>
-                <span className="text-base font-bold text-[#1D4ED8]">{amount.toLocaleString()}원</span>
+                <span className="text-base font-bold text-[#0B1D3A]">{amount.toLocaleString()}원</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-500">입금자명</span>
-                <span className="text-sm font-semibold text-[#1D4ED8]">{name}</span>
+                <span className="text-sm font-semibold text-[#0B1D3A]">{name}</span>
               </div>
             </div>
             {/* 입금자명 강조 안내 */}
@@ -380,7 +380,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
               <p>입금자명을 반드시 <span className="font-bold underline">{name}</span>(으)로 해주세요.</p>
               <p className="text-amber-600">다른 이름으로 입금 시 확인이 지연될 수 있습니다.</p>
             </div>
-            <Button onClick={() => setTransferDone(true)} className="w-full h-11 bg-[#1D4ED8] hover:bg-[#1a43c0]">
+            <Button onClick={() => setTransferDone(true)} className="w-full h-11 bg-[#0B1D3A] hover:bg-[#162B52]">
               이체 완료
             </Button>
           </div>
@@ -390,25 +390,25 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
         {step === "confirm" && transferDone && (
           <div className="p-6 space-y-5">
             <div className="text-center space-y-2">
-              <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto">
-                <Check className="w-8 h-8 text-[#1D4ED8]" />
+              <div className="w-16 h-16 rounded-full bg-[#0B1D3A]/5 flex items-center justify-center mx-auto">
+                <Check className="w-8 h-8 text-[#0B1D3A]" />
               </div>
               <h3 className="text-base font-bold text-[#1a2b4b]">이체 완료!</h3>
               <p className="text-sm text-gray-500">감사합니다, {name}님</p>
             </div>
-            <div className="bg-blue-50 rounded-2xl p-5 space-y-4">
-              <p className="text-xs font-bold text-[#1D4ED8] uppercase tracking-wide">다음 단계 안내</p>
+            <div className="bg-[#0B1D3A]/5 rounded-2xl p-5 space-y-4">
+              <p className="text-xs font-bold text-[#0B1D3A] uppercase tracking-wide">다음 단계 안내</p>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</div>
+                  <div className="w-6 h-6 rounded-full bg-[#0B1D3A] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</div>
                   <p className="text-sm text-[#1a2b4b] font-medium leading-relaxed">센터에 방문 후 데스크에서 <span className="font-bold">핸드폰 번호</span>로 출석체크를 해주세요.</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</div>
+                  <div className="w-6 h-6 rounded-full bg-[#0B1D3A] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</div>
                   <p className="text-sm text-[#1a2b4b] font-medium leading-relaxed"><span className="font-bold">첫 출석일을 기준</span>으로 회원권이 시작됩니다.</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#1D4ED8] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</div>
+                  <div className="w-6 h-6 rounded-full bg-[#0B1D3A] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</div>
                   <p className="text-sm text-[#1a2b4b] font-medium leading-relaxed">첫 방문 이후 <span className="font-bold">ZIANTGYM+ 회원전용 앱</span>을 이용하실 수 있습니다.</p>
                 </div>
               </div>
@@ -416,7 +416,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
             <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 text-center">
               입금 확인 후 계정 등록을 도와드립니다<br/>문의: 헬스장 데스크
             </div>
-            <Button onClick={onClose} className="w-full h-11 bg-[#1D4ED8] hover:bg-[#1a43c0]">확인</Button>
+            <Button onClick={onClose} className="w-full h-11 bg-[#0B1D3A] hover:bg-[#162B52]">확인</Button>
           </div>
         )}
 
@@ -640,7 +640,7 @@ export default function GymPlusLogin() {
         {/* 비회원 등록 버튼 */}
         <button
           onClick={() => setShowRegModal(true)}
-          className="mt-4 w-full h-11 rounded-xl border-2 border-[#1D4ED8] text-[#1D4ED8] text-sm font-bold hover:bg-blue-50 transition-colors"
+          className="mt-4 w-full h-11 rounded-xl border-2 border-[#0B1D3A] text-[#0B1D3A] text-sm font-bold hover:bg-[#0B1D3A]/5 transition-colors"
         >
           회원 등록 신청
         </button>

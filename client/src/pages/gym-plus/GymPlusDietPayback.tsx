@@ -58,7 +58,7 @@ function StatusTab() {
       {/* KPI 3칸 */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white rounded-2xl p-3 text-center shadow-sm">
-          <p className="text-2xl font-black text-blue-600">{report.totalSessions}</p>
+          <p className="text-2xl font-black text-[#0B1D3A]">{report.totalSessions}</p>
           <p className="text-[10px] text-gray-400 mt-0.5">수업 참여</p>
         </div>
         <div className="bg-white rounded-2xl p-3 text-center shadow-sm">
@@ -101,7 +101,7 @@ function StatusTab() {
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
                       (s as any).workoutType === "cardio"
                         ? "bg-green-50 text-green-600"
-                        : "bg-blue-50 text-blue-600"
+                        : "bg-[#0B1D3A]/5 text-[#0B1D3A]"
                     }`}>
                       {(s as any).workoutType === "cardio" ? "유산소" : "영상"}
                     </span>
@@ -320,10 +320,10 @@ function MissionTab() {
 
       {/* 현재 미션 배너 */}
       {currentWindow && (
-        <div className="rounded-2xl overflow-hidden shadow-sm border border-[#1D4ED8]/20"
+        <div className="rounded-2xl overflow-hidden shadow-sm border border-[#0B1D3A]/20"
           style={{ background: "linear-gradient(135deg, hsl(221 83% 96%), hsl(221 83% 90%))" }}>
-          <div className="px-4 py-2.5 border-b border-[#1D4ED8]/10 flex items-center justify-between">
-            <span className="text-xs font-bold text-[#1D4ED8]">이번 달 진행 중</span>
+          <div className="px-4 py-2.5 border-b border-[#0B1D3A]/10 flex items-center justify-between">
+            <span className="text-xs font-bold text-[#0B1D3A]">이번 달 진행 중</span>
             <span className="text-[10px] text-gray-500">{MISSION_DATE_LABEL[currentWindow.type]}</span>
           </div>
           <div className="px-4 py-3 flex items-center gap-3">
@@ -340,7 +340,7 @@ function MissionTab() {
                    currentWindow.submission.status === "pending" ? "기록완료" : "미달성"}
                 </span>
               ) : (
-                <span className="text-[10px] text-blue-500 font-medium">인증 대기 중</span>
+                <span className="text-[10px] text-[#0B1D3A] font-medium">인증 대기 중</span>
               )}
             </div>
             {!currentWindow.submission && (
@@ -355,7 +355,7 @@ function MissionTab() {
           </div>
 
           {activePeriodKey === currentWindow.periodKey && !currentWindow.submission && (
-            <div className="px-4 pb-4 space-y-2 border-t border-[#1D4ED8]/10">
+            <div className="px-4 pb-4 space-y-2 border-t border-[#0B1D3A]/10">
               {currentWindow.type === "attendance" && (
                 <div className="pt-3 space-y-1.5">
                   <p className="text-xs font-semibold text-gray-700">📋 출석 미션 인증 방법</p>
@@ -392,7 +392,7 @@ function MissionTab() {
                       value={weightInput}
                       onChange={(e) => setWeightInput(e.target.value)}
                       placeholder="이번 달 체중 (kg)"
-                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B1D3A]/20"
                     />
                     <span className="text-sm text-gray-500 font-medium">kg</span>
                   </div>
@@ -436,7 +436,7 @@ function MissionTab() {
         <div className={`rounded-2xl p-4 text-sm font-medium space-y-1 ${
           resultMsg.status === "approved" ? "bg-green-50 text-green-700 border border-green-200" :
           resultMsg.status === "rejected" ? "bg-red-50 text-red-700 border border-red-200" :
-          "bg-blue-50 text-blue-700 border border-blue-200"
+          "bg-[#0B1D3A]/5 text-[#0B1D3A] border border-[#0B1D3A]/25"
         }`}>
           {resultMsg.status === "approved" && <p>✅ 미션 달성! 수고하셨습니다.</p>}
           {resultMsg.status === "rejected" && (
@@ -531,7 +531,7 @@ export default function GymPlusDietPayback() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              tab === t.key ? "text-[#1D4ED8] border-b-2 border-[#1D4ED8]" : "text-gray-400"
+              tab === t.key ? "text-[#0B1D3A] border-b-2 border-[#0B1D3A]" : "text-gray-400"
             }`}
           >
             {t.label}

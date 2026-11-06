@@ -67,12 +67,12 @@ function MissionWeekBanner() {
   }
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-sm border border-[#1D4ED8]/20"
+    <div className="rounded-2xl overflow-hidden shadow-sm border border-[#0B1D3A]/20"
       style={{ background: "linear-gradient(135deg, hsl(221 83% 96%), hsl(221 83% 92%))" }}>
-      <div className="px-4 py-3 border-b border-[#1D4ED8]/10 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-[#0B1D3A]/10 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold text-[#1D4ED8]">이번 달 미션</span>
-          <span className="text-[10px] bg-[#1D4ED8] text-white px-1.5 py-0.5 rounded-full font-semibold">{DATE_LABEL[missionType]}</span>
+          <span className="text-xs font-bold text-[#0B1D3A]">이번 달 미션</span>
+          <span className="text-[10px] bg-[#0B1D3A] text-white px-1.5 py-0.5 rounded-full font-semibold">{DATE_LABEL[missionType]}</span>
         </div>
         {statusBadge}
       </div>
@@ -113,7 +113,7 @@ function daysUntil(dateStr: string | null | undefined) {
 function getRenewalBonus(days: number | null) {
   if (days === null) return null;
   if (days >= 30) return { label: "재등록 시 2주 무료", desc: "만료 1개월 전 등록", color: "text-green-600" };
-  if (days >= 5) return { label: "재등록 시 7일 무료", desc: "만료 1개월 이내 등록", color: "text-[#1D4ED8]" };
+  if (days >= 5) return { label: "재등록 시 7일 무료", desc: "만료 1개월 이내 등록", color: "text-[#0B1D3A]" };
   if (days >= 0) return { label: "재등록 시 3일 무료", desc: "만료 5일 전 등록", color: "text-orange-500" };
   return null;
 }
@@ -141,13 +141,13 @@ export default function GymPlusDashboard() {
     daysLeft === null ? "border-gray-100 bg-white" :
     daysLeft <= 0 ? "border-red-200 bg-red-50" :
     daysLeft <= 7 ? "border-orange-200 bg-orange-50" :
-    "border-blue-100 bg-[#EEF4FF]";
+    "border-[#0B1D3A]/15 bg-[#EEF1F6]";
 
   const dayTextColor =
     daysLeft === null ? "text-gray-400" :
     daysLeft <= 0 ? "text-red-500" :
     daysLeft <= 7 ? "text-orange-500" :
-    "text-[#1D4ED8]";
+    "text-[#0B1D3A]";
 
   const memberType = member?.membershipType ?? "general";
 
@@ -161,7 +161,7 @@ export default function GymPlusDashboard() {
           <p className="text-[26px] font-extrabold text-[#1a2b4b] leading-tight mt-0.5">{member?.name ?? "회원"}님</p>
         </div>
         {member?.membershipType && (
-          <span className="mt-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#1D4ED8]/10 text-[#1D4ED8] tracking-wide">
+          <span className="mt-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#0B1D3A]/10 text-[#0B1D3A] tracking-wide">
             {membershipTypeLabel[memberType] ?? memberType}
           </span>
         )}
@@ -202,7 +202,7 @@ export default function GymPlusDashboard() {
               <div className="text-right pb-0.5">
                 <p className={`text-[11px] font-bold leading-snug ${bonus.color}`}>{bonus.label}</p>
                 <p className="text-[10px] text-gray-400 mt-1">{bonus.desc}</p>
-                <p className="text-[11px] text-[#1D4ED8] font-semibold mt-2">재등록 →</p>
+                <p className="text-[11px] text-[#0B1D3A] font-semibold mt-2">재등록 →</p>
               </div>
             ) : (
               <p className="text-[11px] text-gray-400 pb-0.5">내 정보 보기 →</p>
@@ -216,7 +216,7 @@ export default function GymPlusDashboard() {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <p className="text-[13px] font-bold text-[#1a2b4b] tracking-tight">공지 & 이벤트</p>
-            <button className="text-[12px] text-[#1D4ED8] font-medium" onClick={() => navigate("/gym-plus/events")}>
+            <button className="text-[12px] text-[#0B1D3A] font-medium" onClick={() => navigate("/gym-plus/events")}>
               전체보기 →
             </button>
           </div>
@@ -227,13 +227,13 @@ export default function GymPlusDashboard() {
                 onClick={() => setSelectedEventId(e.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:shadow-sm ${
                   e._isNotice
-                    ? "bg-[#EEF4FF] border-blue-100"
+                    ? "bg-[#EEF1F6] border-[#0B1D3A]/15"
                     : "bg-white border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.05)]"
                 }`}
               >
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tracking-wide ${
                   e._isNotice
-                    ? "bg-[#1D4ED8] text-white"
+                    ? "bg-[#0B1D3A] text-white"
                     : e.eventType === "promotion"
                     ? "bg-orange-400 text-white"
                     : e.eventType === "points"
@@ -259,10 +259,10 @@ export default function GymPlusDashboard() {
 
           {/* 운동영상 */}
           <button
-            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-blue-200 hover:shadow-md transition-all text-left"
+            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-[#0B1D3A]/25 hover:shadow-md transition-all text-left"
             onClick={() => navigate("/gym-plus/videos")}
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#1D4ED8] to-[#2563EB] flex items-center justify-center shadow-sm">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0B1D3A] to-[#162B52] flex items-center justify-center shadow-sm">
               <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="white" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.328l5.603 3.113Z" />
@@ -276,17 +276,17 @@ export default function GymPlusDashboard() {
                   <p className="text-[11px] text-green-600 font-medium">출석 완료</p>
                 </div>
               ) : (
-                <p className="text-[11px] text-[#1D4ED8] font-medium mt-1">출석하기 →</p>
+                <p className="text-[11px] text-[#0B1D3A] font-medium mt-1">출석하기 →</p>
               )}
             </div>
           </button>
 
           {/* 운동기록 */}
           <button
-            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-blue-200 hover:shadow-md transition-all text-left"
+            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-[#0B1D3A]/25 hover:shadow-md transition-all text-left"
             onClick={() => navigate("/gym-plus/workout")}
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center shadow-sm">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0B1D3A] to-[#162B52] flex items-center justify-center shadow-sm">
               <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="white" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
               </svg>
@@ -299,10 +299,10 @@ export default function GymPlusDashboard() {
 
           {/* 식단관리 */}
           <button
-            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-blue-200 hover:shadow-md transition-all text-left"
+            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-[#0B1D3A]/25 hover:shadow-md transition-all text-left"
             onClick={() => navigate("/gym-plus/diet")}
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0B1D3A] to-[#162B52] flex items-center justify-center shadow-sm">
               <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="white" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
               </svg>
@@ -315,10 +315,10 @@ export default function GymPlusDashboard() {
 
           {/* 내정보 */}
           <button
-            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-blue-200 hover:shadow-md transition-all text-left"
+            className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3 hover:border-[#0B1D3A]/25 hover:shadow-md transition-all text-left"
             onClick={() => navigate("/gym-plus/profile")}
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-sm">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0B1D3A] to-[#162B52] flex items-center justify-center shadow-sm">
               <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="white" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>

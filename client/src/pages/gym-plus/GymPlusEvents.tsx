@@ -11,7 +11,7 @@ const eventTypeLabel: Record<string, string> = {
 };
 
 const eventTypeStyle: Record<string, string> = {
-  notice: "bg-blue-500/20 text-blue-600",
+  notice: "bg-[#0B1D3A]/15 text-[#0B1D3A]",
   event: "bg-green-500/20 text-green-600",
   promotion: "bg-orange-500/20 text-orange-600",
   points: "bg-purple-500/20 text-purple-600",
@@ -105,7 +105,7 @@ export default function GymPlusEvents() {
                     href={e.linkUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-[#1D4ED8] text-white active:bg-[#1a44c2] transition-colors"
+                    className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-[#0B1D3A] text-white active:bg-[#162B52] transition-colors"
                     onClick={ev => ev.stopPropagation()}
                   >
                     <span className="text-sm font-semibold">포인트 적립하기</span>

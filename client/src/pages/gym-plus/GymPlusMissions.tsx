@@ -164,7 +164,7 @@ export default function GymPlusMissions() {
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: statusColor }}>
                   {m.index}개월차
-                  {m.status === "active" && <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">진행 중</span>}
+                  {m.status === "active" && <span className="ml-2 text-xs bg-[#0B1D3A]/10 text-[#0B1D3A] px-1.5 py-0.5 rounded-full">진행 중</span>}
                 </p>
                 <p className="text-xs text-gray-400">
                   {formatLocalDate(m.monthStart)} ~ {formatLocalDate(m.monthEnd)}
@@ -176,7 +176,7 @@ export default function GymPlusMissions() {
                 ) : m.status === "past" ? (
                   <span className="text-xs text-gray-400">미달성</span>
                 ) : m.status === "active" ? (
-                  <span className="text-xs text-blue-500">체중 기록 필요</span>
+                  <span className="text-xs text-[#0B1D3A]">체중 기록 필요</span>
                 ) : (
                   <span className="text-xs text-gray-300">-</span>
                 )}
@@ -206,7 +206,7 @@ export default function GymPlusMissions() {
               value={weightInput}
               onChange={(e) => setWeightInput(e.target.value)}
               placeholder="체중 입력 (kg)"
-              className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+              className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B1D3A]/20"
               required
             />
             <span className="text-sm text-gray-500 font-medium">kg</span>
@@ -217,7 +217,7 @@ export default function GymPlusMissions() {
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder="메모 (선택)"
             maxLength={100}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B1D3A]/20"
           />
           <button
             type="submit"

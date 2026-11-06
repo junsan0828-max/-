@@ -42,7 +42,7 @@ function Chip({ label, selected, onClick }: { label: string; selected: boolean; 
       type="button"
       onClick={onClick}
       className={`px-3.5 py-2 rounded-full text-[12px] font-medium border transition-all ${
-        selected ? "bg-[#1D4ED8] text-white border-[#1D4ED8]" : "bg-white text-gray-600 border-gray-200"
+        selected ? "bg-[#0B1D3A] text-white border-[#0B1D3A]" : "bg-white text-gray-600 border-gray-200"
       }`}
     >
       {label}
@@ -168,11 +168,11 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
             </div>
             <h2 className="text-[20px] font-extrabold text-[#1a2b4b]">건강 체크가 완료되었습니다</h2>
             <p className="text-[13px] text-gray-500 leading-relaxed">감사합니다.<br />입력해주신 내용을 바탕으로</p>
-            <div className="bg-[#EEF4FF] rounded-2xl p-4 text-left space-y-2">
+            <div className="bg-[#EEF1F6] rounded-2xl p-4 text-left space-y-2">
               {["체형 분석", "움직임 평가", "운동 상담"].map(item => (
                 <div key={item} className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#1D4ED8]" />
-                  <span className="text-[13px] font-medium text-[#1D4ED8]">{item}</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#0B1D3A]" />
+                  <span className="text-[13px] font-medium text-[#0B1D3A]">{item}</span>
                 </div>
               ))}
             </div>
@@ -180,7 +180,7 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
           </div>
           <button
             onClick={onComplete}
-            className="w-full h-12 bg-[#1D4ED8] text-white font-bold rounded-xl text-[14px]"
+            className="w-full h-12 bg-[#0B1D3A] text-white font-bold rounded-xl text-[14px]"
           >
             확인
           </button>
@@ -198,12 +198,12 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
         <div className="px-5 pt-5 pb-3 flex-shrink-0 border-b border-gray-100">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] text-gray-400 font-medium">STEP {step} / {TOTAL}</span>
-            <span className="text-[11px] text-[#1D4ED8] font-bold">{progress}%</span>
+            <span className="text-[11px] text-[#0B1D3A] font-bold">{progress}%</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-1.5 mb-3">
-            <div className="bg-[#1D4ED8] h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+            <div className="bg-[#0B1D3A] h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
-          <p className="text-[10px] text-[#1D4ED8] font-bold tracking-widest uppercase mb-0.5">{STEP_LABELS[step]}</p>
+          <p className="text-[10px] text-[#0B1D3A] font-bold tracking-widest uppercase mb-0.5">{STEP_LABELS[step]}</p>
           <h2 className="text-[16px] font-extrabold text-[#1a2b4b]">{STEP_TITLES[step]}</h2>
         </div>
 
@@ -213,8 +213,8 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
           {/* STEP 1: 시작 */}
           {step === 1 && (
             <div className="space-y-4">
-              <div className="bg-[#EEF4FF] rounded-2xl p-4">
-                <p className="text-[14px] text-[#1D4ED8] font-semibold leading-relaxed">
+              <div className="bg-[#EEF1F6] rounded-2xl p-4">
+                <p className="text-[14px] text-[#0B1D3A] font-semibold leading-relaxed">
                   회원님의 현재 몸 상태를 확인하여<br />더 안전하고 효과적인 운동을 추천해드립니다.
                 </p>
               </div>
@@ -241,7 +241,7 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
                 <div className="flex gap-3">
                   {[{ v: "남성", icon: "👨" }, { v: "여성", icon: "👩" }].map(({ v, icon }) => (
                     <button key={v} type="button" onClick={() => set("gender", v)}
-                      className={`flex-1 py-3 rounded-xl border-2 font-bold text-[14px] transition-all ${data.gender === v ? "border-[#1D4ED8] bg-[#EEF4FF] text-[#1D4ED8]" : "border-gray-200 text-gray-500"}`}
+                      className={`flex-1 py-3 rounded-xl border-2 font-bold text-[14px] transition-all ${data.gender === v ? "border-[#0B1D3A] bg-[#EEF1F6] text-[#0B1D3A]" : "border-gray-200 text-gray-500"}`}
                     >
                       {icon} {v}
                     </button>
@@ -308,7 +308,7 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[12px] text-gray-400">최대 3개까지 선택할 수 있어요</p>
-                <span className={`text-[12px] font-bold ${data.goals.length === 3 ? "text-[#1D4ED8]" : "text-gray-400"}`}>
+                <span className={`text-[12px] font-bold ${data.goals.length === 3 ? "text-[#0B1D3A]" : "text-gray-400"}`}>
                   {data.goals.length} / 3
                 </span>
               </div>
@@ -428,11 +428,11 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <SectionLabel>현재 통증 정도는?</SectionLabel>
-                    <span className="text-[13px] font-bold text-[#1D4ED8]">{data.painLevel} / 10</span>
+                    <span className="text-[13px] font-bold text-[#0B1D3A]">{data.painLevel} / 10</span>
                   </div>
                   <input type="range" min={0} max={10} value={data.painLevel}
                     onChange={e => set("painLevel", parseInt(e.target.value))}
-                    className="w-full accent-[#1D4ED8]"
+                    className="w-full accent-[#0B1D3A]"
                   />
                   <div className="flex justify-between text-[10px] text-gray-400">
                     <span>0 통증 없음</span><span>10 매우 심함</span>
@@ -484,7 +484,7 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
                         onClick={() => setData(p => ({ ...p, safetyAnswers: { ...p.safetyAnswers, [i]: ans } }))}
                         className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition-all ${
                           data.safetyAnswers[i] === ans
-                            ? ans === "yes" ? "bg-red-500 text-white border-red-500" : "bg-[#1D4ED8] text-white border-[#1D4ED8]"
+                            ? ans === "yes" ? "bg-red-500 text-white border-red-500" : "bg-[#0B1D3A] text-white border-[#0B1D3A]"
                             : "bg-white text-gray-400 border-gray-200"
                         }`}
                       >
@@ -532,7 +532,7 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
           <button
             onClick={handleNext}
             disabled={!canNext() || upsert.isPending}
-            className="flex-1 h-12 bg-[#1D4ED8] text-white rounded-xl text-[14px] font-bold disabled:opacity-40 transition-opacity"
+            className="flex-1 h-12 bg-[#0B1D3A] text-white rounded-xl text-[14px] font-bold disabled:opacity-40 transition-opacity"
           >
             {upsert.isPending ? "저장 중..." : step === TOTAL ? "제출하기" : "다음 →"}
           </button>

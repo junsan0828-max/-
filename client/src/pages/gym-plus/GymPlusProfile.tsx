@@ -23,7 +23,7 @@ const PERIOD_PRICES: Record<string, number> = {
 };
 
 const membershipTypeBadge: Record<string, string> = {
-  general: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  general: "bg-[#0B1D3A]/10 text-[#0B1D3A] border-[#0B1D3A]/30",
   premium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
   vip: "bg-purple-500/10 text-purple-400 border-purple-500/30",
 };
@@ -335,7 +335,7 @@ function PushNotificationToggle() {
         {pushState === "unsubscribed" && (
           <button
             onClick={handleSubscribe}
-            className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
+            className="text-xs px-3 py-1.5 rounded-lg bg-[#0B1D3A]/5 text-[#0B1D3A] hover:bg-[#0B1D3A]/10 transition-colors font-medium"
           >
             알림 켜기
           </button>
@@ -384,7 +384,7 @@ function DietStatusCard() {
   const rewardCount = (data.rewards ?? []).length;
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-sm border border-blue-100">
+    <div className="rounded-2xl overflow-hidden shadow-sm border border-[#0B1D3A]/15">
       {/* 헤더 */}
       <div className="px-4 py-3 flex items-center justify-between"
         style={{ background: "linear-gradient(135deg, hsl(221 83% 44%), hsl(221 83% 30%))" }}>
@@ -425,7 +425,7 @@ function DietStatusCard() {
             value={weightInput}
             onChange={(e) => setWeightInput(e.target.value)}
             placeholder="체중 (kg)"
-            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B1D3A]/20"
           />
           <input
             type="text"
@@ -433,7 +433,7 @@ function DietStatusCard() {
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder="메모"
             maxLength={50}
-            className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B1D3A]/20"
           />
           <button
             onClick={() => {
@@ -643,7 +643,7 @@ export default function GymPlusProfile() {
   function getRenewalBonus(days: number | null): { days: number; label: string; desc: string; color: string } {
     if (days === null) return { days: 0, label: "", desc: "", color: "" };
     if (days >= 30) return { days: 14, label: "2주 서비스 혜택", desc: "만료 1개월 전 등록 시", color: "text-green-400" };
-    if (days >= 5) return { days: 7, label: "7일 서비스 혜택", desc: "만료 1개월 이내 등록 시", color: "text-blue-400" };
+    if (days >= 5) return { days: 7, label: "7일 서비스 혜택", desc: "만료 1개월 이내 등록 시", color: "text-[#0B1D3A]" };
     if (days >= 0) return { days: 3, label: "3일 서비스 혜택", desc: "만료 5일 전 등록 시", color: "text-yellow-400" };
     return { days: 0, label: "", desc: "만료된 회원권", color: "text-red-400" };
   }
@@ -794,7 +794,7 @@ export default function GymPlusProfile() {
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-2.5 text-[13px] font-semibold transition-colors border-b-2 ${
                 activeTab === tab
-                  ? "border-[#1D4ED8] text-[#1D4ED8]"
+                  ? "border-[#0B1D3A] text-[#0B1D3A]"
                   : "border-transparent text-gray-400"
               }`}
             >
@@ -813,7 +813,7 @@ export default function GymPlusProfile() {
       {member?.programName && <DietStatusCard />}
 
       {/* 포인트 카드 */}
-      <div className="bg-gradient-to-br from-[#1D4ED8] to-[#2563EB] rounded-2xl p-5 text-white">
+      <div className="bg-gradient-to-br from-[#0B1D3A] to-[#0B1D3A] rounded-2xl p-5 text-white">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-[11px] text-white/60 tracking-widest uppercase font-medium">MY POINTS</p>
@@ -870,7 +870,7 @@ export default function GymPlusProfile() {
                 <div key={tx.id} className="px-4 py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                      tx.type === "earn" ? "bg-blue-50 text-blue-500" : "bg-red-50 text-red-500"
+                      tx.type === "earn" ? "bg-[#0B1D3A]/5 text-[#0B1D3A]" : "bg-red-50 text-red-500"
                     }`}>
                       {tx.type === "earn" ? "+" : "-"}
                     </span>
@@ -879,7 +879,7 @@ export default function GymPlusProfile() {
                       <p className="text-[10px] text-gray-400">{tx.createdAt?.slice(0, 10).replace(/-/g, ".")}</p>
                     </div>
                   </div>
-                  <span className={`text-sm font-bold flex-shrink-0 ${tx.type === "earn" ? "text-blue-500" : "text-red-500"}`}>
+                  <span className={`text-sm font-bold flex-shrink-0 ${tx.type === "earn" ? "text-[#0B1D3A]" : "text-red-500"}`}>
                     {tx.type === "earn" ? "+" : "-"}{tx.amount.toLocaleString("ko-KR")}P
                   </span>
                 </div>
@@ -897,7 +897,7 @@ export default function GymPlusProfile() {
             onClick={() => setProductCategory(cat.value)}
             className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
               productCategory === cat.value
-                ? "bg-[#1D4ED8] text-white"
+                ? "bg-[#0B1D3A] text-white"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
@@ -961,7 +961,7 @@ export default function GymPlusProfile() {
                     <span className="text-xs text-primary font-semibold">구매 →</span>
                   </div>
                   {(p.pointPrice != null || p.price >= MIN_POINTS_TO_USE) && (
-                    <p className="text-[10px] text-[#1D4ED8] font-medium mt-1">◈ {(p.pointPrice ?? p.price).toLocaleString("ko-KR")}P로 구매 가능</p>
+                    <p className="text-[10px] text-[#0B1D3A] font-medium mt-1">◈ {(p.pointPrice ?? p.price).toLocaleString("ko-KR")}P로 구매 가능</p>
                   )}
                 </div>
               </button>
@@ -1155,7 +1155,7 @@ export default function GymPlusProfile() {
                     });
                   }}
                   disabled={requestPurchase.isPending}
-                  className="flex-1 py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold disabled:opacity-50"
+                  className="flex-1 py-3 rounded-xl bg-[#0B1D3A] text-white text-sm font-bold disabled:opacity-50"
                 >
                   {requestPurchase.isPending ? "처리 중..." : "구매 신청"}
                 </button>
@@ -1184,7 +1184,7 @@ export default function GymPlusProfile() {
             </div>
             <button
               onClick={() => setShowPurchaseDone(null)}
-              className="w-full py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold"
+              className="w-full py-3 rounded-xl bg-[#0B1D3A] text-white text-sm font-bold"
             >
               확인
             </button>
@@ -1213,7 +1213,7 @@ export default function GymPlusProfile() {
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     포인트가 차감되었습니다.<br />데스크 확인 후 회원권 만료일이 연장됩니다.
                   </p>
-                  <button onClick={closeExtendModal} className="w-full py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold">확인</button>
+                  <button onClick={closeExtendModal} className="w-full py-3 rounded-xl bg-[#0B1D3A] text-white text-sm font-bold">확인</button>
                 </>
               ) : (
                 <>
@@ -1291,8 +1291,8 @@ export default function GymPlusProfile() {
           {/* 출입 횟수 카드 */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-[#1D4ED8]/10 flex items-center justify-center">
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="#1D4ED8" className="w-5 h-5">
+              <div className="w-9 h-9 rounded-xl bg-[#0B1D3A]/10 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="#0B1D3A" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
                 </svg>
               </div>
@@ -1427,7 +1427,7 @@ export default function GymPlusProfile() {
         <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => setShowPauseModal(true)}
-            className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-center hover:bg-blue-500/20 transition-colors"
+            className="bg-[#0B1D3A]/10 border border-[#0B1D3A]/20 rounded-xl p-3 text-center hover:bg-[#0B1D3A]/15 transition-colors"
           >
             <p className="text-lg">⏸</p>
             <p className="text-xs font-medium mt-1">정지 신청</p>
@@ -1638,7 +1638,7 @@ export default function GymPlusProfile() {
                     />
                   </div>
                   {pauseStartDate && pauseEndDate && pauseStartDate <= pauseEndDate && (
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 text-xs text-center">
+                    <div className="bg-[#0B1D3A]/10 border border-[#0B1D3A]/20 rounded-lg px-3 py-2 text-xs text-center">
                       총 {Math.ceil((new Date(pauseEndDate).getTime() - new Date(pauseStartDate).getTime()) / 86400000) + 1}일 정지
                     </div>
                   )}
@@ -2025,7 +2025,7 @@ export default function GymPlusProfile() {
                     </div>
 
                     {bonus.days > 0 && (
-                      <div className={`rounded-xl p-3 border ${bonus.color === "text-green-400" ? "bg-green-500/10 border-green-500/30" : bonus.color === "text-blue-400" ? "bg-blue-500/10 border-blue-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+                      <div className={`rounded-xl p-3 border ${bonus.color === "text-green-400" ? "bg-green-500/10 border-green-500/30" : bonus.color === "text-[#0B1D3A]" ? "bg-[#0B1D3A]/10 border-[#0B1D3A]/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
                         <p className={`text-xs font-semibold ${bonus.color}`}>{bonus.label} 적용!</p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc} — 재등록 기간에 {bonus.days}일이 추가됩니다</p>
                       </div>
