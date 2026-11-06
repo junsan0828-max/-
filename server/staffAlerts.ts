@@ -319,6 +319,13 @@ const adminProcedure = staffProcedure.use(({ ctx, next }) => {
   return next();
 });
 
+const TEST_DELAY_MS = 5000;
+async function countDevices(userIds: number[]): Promise<number> {
+  if (!userIds.length) return 0;
+  const r = await pool.query(`SELECT COUNT(*)::int AS n FROM ops_push_subscriptions WHERE "userId" = ANY($1)`, [userIds]);
+  return r.rows[0]?.n ?? 0;
+}
+
 async function myBranchIds(user: AuthUser): Promise<number[] | null> {
   if (user.role !== "trainer" || !user.trainerId) return null; // null = 전 지점
   const r = await pool.query(
@@ -357,8 +364,12 @@ export const staffAlertsRouter = t.router({
   }),
 
   test: staffProcedure.mutation(async ({ ctx }) => {
-    const sent = await sendStaffPush(null, { title: "✅ 알림 테스트", body: "이 기기에서 키오스크 호출·상담 알림을 받습니다.", url: "/", tag: "test" }, [ctx.user.id], "test");
-    return { sent };
+    // 5초 뒤 발송: 홈 화면으로 나가 있어야 알림창 소리를 제대로 확인할 수 있다(보고 있는 화면의 알림은 무음일 수 있음)
+    const devices = await countDevices([ctx.user.id]);
+    setTimeout(() => {
+      sendStaffPush(null, { title: "✅ 알림 테스트", body: "이 기기에서 키오스크 호출·상담 알림을 받습니다.", url: "/", tag: `test-${Date.now()}` }, [ctx.user.id], "test").catch(() => {});
+    }, TEST_DELAY_MS);
+    return { sent: devices, delaySec: TEST_DELAY_MS / 1000 };
   }),
 
   // ─── 관리자 설정 > 키오스크 알림 ───
@@ -397,8 +408,11 @@ export const staffAlertsRouter = t.router({
     .input(z.object({ userId: z.number().optional() }))
     .mutation(async ({ input }) => {
       const ids = input.userId ? [input.userId] : (await loadPrefs()).filter(p => p.enabled).map(p => p.userId);
-      const sent = await sendStaffPush(null, { title: "✅ 알림 테스트 (관리자)", body: "키오스크 호출·상담 알림이 이 기기로 옵니다.", url: "/", tag: "test" }, ids, "test");
-      return { sent };
+      const devices = await countDevices(ids);
+      setTimeout(() => {
+        sendStaffPush(null, { title: "✅ 알림 테스트 (관리자)", body: "키오스크 호출·상담 알림이 이 기기로 옵니다.", url: "/", tag: `test-${Date.now()}` }, ids, "test").catch(() => {});
+      }, TEST_DELAY_MS);
+      return { sent: devices, delaySec: TEST_DELAY_MS / 1000 };
     }),
 
   /** 최근 호출 기록 + 응답 시간 */

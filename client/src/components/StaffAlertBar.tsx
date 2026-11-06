@@ -253,7 +253,7 @@ export default function StaffAlertBar() {
                 )}
                 {pushState === "on" && (
                   <button disabled={testMut.isPending} onClick={() => testMut.mutate()} className="text-sm font-medium bg-primary/15 text-primary px-3 py-1.5 rounded-md disabled:opacity-50">
-                    {testMut.isPending ? "보내는 중…" : testMut.data ? `테스트 알림 보냄 (${testMut.data.sent}대)` : "테스트 알림 보내기"}
+                    {testMut.isPending ? "보내는 중…" : testMut.data ? `5초 뒤 도착 (${testMut.data.sent}대) — 홈 화면으로 나가 보세요` : "테스트 알림 보내기 (5초 뒤)"}
                   </button>
                 )}
               </div>

@@ -40,7 +40,7 @@ function Editor({ row, onSaved }: { row: Row; onSaved: () => void }) {
     onError: e => toast.error(e.message),
   });
   const test = trpc.staffAlerts.adminTest.useMutation({
-    onSuccess: d => d.sent ? toast.success(`테스트 알림 보냄 (${d.sent}대)`) : toast.error("알림을 켠 기기가 없습니다. 본인이 🔔 → 알림 켜기를 해야 합니다."),
+    onSuccess: d => d.sent ? toast.success(`5초 뒤 테스트 알림이 갑니다 (${d.sent}대) — 지금 홈 화면으로 나가서 소리를 확인하세요`, { duration: 6000 }) : toast.error("알림을 켠 기기가 없습니다. 본인이 🔔 → 알림 켜기를 해야 합니다."),
   });
 
   const setDay = (i: number, patch: Partial<Day>) => setSchedule(s => s.map((d, j) => (j === i ? { ...d, ...patch } : d)));
@@ -141,7 +141,7 @@ export default function StaffAlertSettings() {
   const [open, setOpen] = useState<number | null>(null);
   const [showLog, setShowLog] = useState(false);
   const testAll = trpc.staffAlerts.adminTest.useMutation({
-    onSuccess: d => toast.success(`전체 테스트 알림 보냄 (${d.sent}대)`),
+    onSuccess: d => toast.success(`5초 뒤 전체 테스트 알림이 갑니다 (${d.sent}대)`, { duration: 6000 }),
     onError: e => toast.error(e.message),
   });
 
