@@ -43,6 +43,30 @@ function useCountdown(durationMs: number, active: boolean, onDone: () => void) {
   return { remaining, progress: 1 - remaining / durationMs, cancel };
 }
 
+// 메인 화면 상단 디지털 시계 (1초마다 이 컴포넌트만 다시 그림)
+function KioskClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const day = ["일", "월", "화", "수", "목", "금", "토"][now.getDay()];
+  return (
+    <div className="inline-flex flex-col items-center rounded-3xl bg-slate-900 px-8 py-4 mb-6 shadow-lg">
+      <p className="text-slate-300 text-base font-semibold tracking-wide">
+        {now.getFullYear()}. {now.getMonth() + 1}. {now.getDate()}. ({day})
+      </p>
+      <p className="text-white font-black text-6xl leading-none tabular-nums tracking-tight mt-1.5">
+        {hh}<span className={now.getSeconds() % 2 ? "opacity-30" : ""}>:</span>{mm}
+        <span className="text-[#60A5FA] text-3xl ml-2 align-top">{ss}</span>
+      </p>
+    </div>
+  );
+}
+
 function AutoCloseBar({ durationMs, active, onClose }: { durationMs: number; active: boolean; onClose: () => void }) {
   const { remaining, progress } = useCountdown(durationMs, active, onClose);
   const secs = Math.ceil(remaining / 1000);
@@ -368,13 +392,14 @@ export default function ConsultKiosk() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] text-slate-900 flex flex-col items-center justify-center px-6 py-10 select-none">
+    <div className="min-h-screen bg-[#F8F9FB] text-slate-900 flex flex-col items-center justify-center px-6 py-8 select-none">
       {/* 헤더 (메인 화면에서만 — 입력 화면이 한 화면에 들어오도록) */}
-      {stage === "main_select" && <div className="mb-10 text-center">
-        <p className="text-xl font-black tracking-tight text-slate-900">
+      {stage === "main_select" && <div className="mb-8 text-center">
+        <KioskClock />
+        <p className="text-[min(1.875rem,7vw)] whitespace-nowrap font-black tracking-tight text-slate-900">
           맞춤운동센터 <span className="text-[#1D4ED8]">자이언트짐</span>
         </p>
-        <p className="text-slate-500 text-lg font-medium mt-1.5">무엇을 도와드릴까요?</p>
+        <p className="text-slate-600 text-2xl font-bold mt-2">무엇을 도와드릴까요?</p>
         {branchNo
           ? <p className="text-slate-400 text-xs mt-2">{BRANCH_LABEL[branchNo]}</p>
           : <p className="text-amber-600 text-xs mt-2">지점 미설정 · 주소 끝에 ?branch=1 또는 ?branch=2</p>}
@@ -386,7 +411,7 @@ export default function ConsultKiosk() {
           {/* 상담 신청 */}
           <button
             onClick={() => setShowConsultModal(true)}
-            className="w-full flex items-center gap-5 p-6 rounded-2xl border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 active:bg-[#1D4ED8]/20 transition-colors text-left"
+            className="w-full flex items-center gap-5 p-5 rounded-2xl border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 active:bg-[#1D4ED8]/20 transition-colors text-left"
           >
             <div className="w-12 h-12 rounded-xl bg-[#1D4ED8]/20 flex items-center justify-center flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-[#2563EB]" stroke="currentColor" strokeWidth={1.5}>
@@ -405,7 +430,7 @@ export default function ConsultKiosk() {
           {/* 등록 결제 */}
           <button
             onClick={() => setStage("payment_wait")}
-            className="w-full flex items-center gap-5 p-6 rounded-2xl border border-[#059669]/40 bg-[#059669]/10 active:bg-[#059669]/20 transition-colors text-left"
+            className="w-full flex items-center gap-5 p-5 rounded-2xl border border-[#059669]/40 bg-[#059669]/10 active:bg-[#059669]/20 transition-colors text-left"
           >
             <div className="w-12 h-12 rounded-xl bg-[#059669]/20 flex items-center justify-center flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-[#059669]" stroke="currentColor" strokeWidth={1.5}>
@@ -424,7 +449,7 @@ export default function ConsultKiosk() {
           {/* 안내 설명 */}
           <button
             onClick={() => setStage("info_display")}
-            className="w-full flex items-center gap-5 p-6 rounded-2xl border border-slate-200 bg-white shadow-sm active:bg-slate-100 transition-colors text-left"
+            className="w-full flex items-center gap-5 p-5 rounded-2xl border border-slate-200 bg-white shadow-sm active:bg-slate-100 transition-colors text-left"
           >
             <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-slate-500" stroke="currentColor" strokeWidth={1.5}>
@@ -443,7 +468,7 @@ export default function ConsultKiosk() {
           {/* 이벤트 안내 */}
           <button
             onClick={() => setStage("event_display")}
-            className="w-full flex items-center gap-5 p-6 rounded-2xl border border-purple-500/30 bg-purple-500/8 active:bg-purple-500/15 transition-colors text-left"
+            className="w-full flex items-center gap-5 p-5 rounded-2xl border border-purple-500/30 bg-purple-500/8 active:bg-purple-500/15 transition-colors text-left"
           >
             <div className="w-12 h-12 rounded-xl bg-purple-500/15 flex items-center justify-center flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-purple-600" stroke="currentColor" strokeWidth={1.5}>
