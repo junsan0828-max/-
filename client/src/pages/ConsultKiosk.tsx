@@ -55,7 +55,7 @@ function KioskClock() {
   const ss = String(now.getSeconds()).padStart(2, "0");
   const day = ["일", "월", "화", "수", "목", "금", "토"][now.getDay()];
   return (
-    <div className="inline-flex flex-col items-center rounded-3xl bg-slate-900 px-8 py-4 mb-6 shadow-lg">
+    <div className="w-full flex flex-col items-center rounded-2xl bg-slate-900 px-6 py-4 mb-6 shadow-lg">
       <p className="text-slate-300 text-base font-semibold tracking-wide">
         {now.getFullYear()}. {now.getMonth() + 1}. {now.getDate()}. ({day})
       </p>
@@ -394,7 +394,7 @@ export default function ConsultKiosk() {
   return (
     <div className="min-h-screen bg-[#F8F9FB] text-slate-900 flex flex-col items-center justify-center px-6 py-8 select-none">
       {/* 헤더 (메인 화면에서만 — 입력 화면이 한 화면에 들어오도록) */}
-      {stage === "main_select" && <div className="mb-8 text-center">
+      {stage === "main_select" && <div className="w-full max-w-sm mb-8 text-center">
         <KioskClock />
         <p className="text-[min(1.875rem,7vw)] whitespace-nowrap font-black tracking-tight text-slate-900">
           맞춤운동센터 <span className="text-[#1D4ED8]">자이언트짐</span>
