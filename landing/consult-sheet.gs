@@ -32,7 +32,7 @@ function doPost(e) {
     }
     var row = COLUMNS.map(function (c) {
       if (c[0] === "접수 시각") return new Date();
-      if (c[0] === "진행 상태") return "신규";
+      if (c[0] === "진행 상태") return d.status === "대기" ? "대기" : "신규";
       if (!c[1]) return "";
       return clean(d[c[1]]);
     });
@@ -40,7 +40,7 @@ function doPost(e) {
     if (NOTIFY_BY_EMAIL) {
       try {
         MailApp.sendEmail(Session.getEffectiveUser().getEmail(),
-          "[컨설팅 신청] " + clean(d.name) + " · " + clean(d.worry),
+          (d.status === "대기" ? "[컨설팅 대기 신청] " : "[컨설팅 신청] ") + clean(d.name) + " · " + clean(d.worry),
           COLUMNS.filter(function (c) { return c[1]; })
             .map(function (c) { return c[0] + ": " + clean(d[c[1]]); }).join("\n") +
           "\n\n시트: " + ss.getUrl());

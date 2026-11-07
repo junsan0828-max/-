@@ -611,6 +611,8 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-recruit { margin-top: 28px; padding: 16px 18px; border-left: 3px solid var(--accent); background: var(--accent-lt); border-radius: 0 10px 10px 0; display: flex; flex-direction: column; gap: 4px; }
 .cs-recruit strong { font-size: 15px; color: var(--fg); }
 .cs-recruit span { font-size: 13px; color: var(--fg-2); }
+.cs-stats { margin-top: 8px; font-size: 14px; font-weight: 700; color: var(--accent-dk); font-variant-numeric: tabular-nums; }
+.cs-closed-badge { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: #9a3412; background: #ffedd5; border-radius: 20px; padding: 2px 8px; vertical-align: 2px; }
 .cs-trust { margin-top: 18px; }
 .cs-trust-name { font-size: 18px; font-weight: 700; }
 .cs-trust-name span { display: block; font-size: 13px; font-weight: 400; color: var(--fg-muted); }
@@ -813,8 +815,10 @@ body.modal-open { overflow: hidden; }
     <p class="cs-small">진단 시간과 진행 방식은 신청 후 일정 안내 때 함께 알려드립니다.</p>
 
     <div class="cs-recruit">
-      <strong>트레이너 100명 진단을 목표로, 10명 단위로 순차 진행합니다.</strong>
-      <span>신청 순서대로 일정을 안내드리며, 한 차수가 채워지면 다음 차수로 안내합니다.</span>
+      <strong id="csRecruitTitle">1차 무료 퍼스널 컨설팅 20명</strong>
+      <span>신청 후 사전 설문을 확인해 순차적으로 일정을 안내합니다.</span>
+      <span>모집 인원이 마감되면 대기 신청을 받습니다.</span>
+      <p class="cs-stats" id="csStats" hidden></p>
     </div>
   </div>
 </section>
@@ -919,7 +923,7 @@ body.modal-open { overflow: hidden; }
 
     <div class="cs-done cs-ok" id="csOk" hidden tabindex="-1">
       <p class="cs-ok-tag">접수 완료</p>
-      <h3 class="cs-done-title">컨설팅 신청이 접수되었습니다</h3>
+      <h3 class="cs-done-title" id="csOkTitle">컨설팅 신청이 접수되었습니다</h3>
       <p class="cs-done-desc">작성하신 연락처로 일정 안내를 드립니다. 신청 순서대로 10명 단위로 진행하니, 연락까지 며칠 걸릴 수 있습니다.</p>
       <p class="cs-small">문의: <b>010-7559-3111</b> (문자·카카오톡)</p>
     </div>
@@ -2051,6 +2055,7 @@ body.modal-open { overflow: hidden; }
       rev1: rev[0], rev2: rev[1], rev3: rev[2],
       ended: val("ended"), renewed: val("renewed"),
       agree: "동의", marketing: form.elements.marketing.checked ? "동의" : "미동의",
+      status: form.dataset.waitlist === "1" ? "대기" : "신규",
       website: val("website"), page: location.pathname
     };
   }
@@ -2076,7 +2081,7 @@ body.modal-open { overflow: hidden; }
     var rev = [];
     for (var i = 3; i >= 1; i--) rev.push(form.elements["rev" + i].dataset.month + " " + val("rev" + i));
     return [
-      "[1:1 PT 매출·재등록 컨설팅 신청]",
+      form.dataset.waitlist === "1" ? "[1:1 퍼스널 컨설팅 대기 신청]" : "[1:1 퍼스널 컨설팅 신청]",
       "이름: " + val("name"),
       "연락처: " + val("phone"),
       "경력: " + val("career"),
@@ -2123,7 +2128,7 @@ body.modal-open { overflow: hidden; }
       })
       .then(function () {
         clearTimeout(timer);
-        btn.disabled = false; btn.textContent = "신청서 작성 완료";
+        btn.disabled = false; btn.textContent = form.dataset.waitlist === "1" ? "대기 신청서 작성 완료" : "신청서 작성 완료";
       });
   });
 
@@ -2150,6 +2155,32 @@ body.modal-open { overflow: hidden; }
 (function () {
   var SB = "__SB_URL__", KEY = "__SB_KEY__";
   if (!SB || SB.indexOf("__") === 0 || !KEY) return;
+
+  // 공개 설정: 어드민에서 입력·공개한 실제 수치만 표시
+  try {
+    var keys = ["cs_pub_show", "cs_pub_applied", "cs_pub_done", "cs_pub_closed"];
+    fetch(SB + "/rest/v1/dp_counters?select=key,value&key=in.(" + keys.join(",") + ")", {
+      headers: { apikey: KEY, Authorization: "Bearer " + KEY }
+    }).then(function (r) { return r.ok ? r.json() : []; }).then(function (rows) {
+      var v = {};
+      (rows || []).forEach(function (r) { v[r.key] = Number(r.value) || 0; });
+      if (v.cs_pub_show === 1) {
+        var st = document.getElementById("csStats");
+        if (st) { st.textContent = "신청 " + (v.cs_pub_applied || 0) + "명 · 컨설팅 완료 " + (v.cs_pub_done || 0) + "명"; st.hidden = false; }
+      }
+      if (v.cs_pub_closed === 1) {
+        var f = document.getElementById("csForm");
+        if (f) f.dataset.waitlist = "1";
+        var t = document.getElementById("csRecruitTitle");
+        if (t) t.innerHTML = '1차 무료 퍼스널 컨설팅 20명 <span class="cs-closed-badge">모집 마감 · 대기 신청 중</span>';
+        document.querySelectorAll(".cs-cta-btn").forEach(function (b) { b.textContent = "1:1 퍼스널 컨설팅 대기 신청하기"; });
+        document.querySelectorAll(".header-cta.js-cs-start").forEach(function (b) { b.textContent = "대기 신청"; });
+        var sb = document.querySelector(".cs-submit"); if (sb) sb.textContent = "대기 신청서 작성 완료";
+        var ok = document.getElementById("csOkTitle"); if (ok) ok.textContent = "대기 신청이 접수되었습니다";
+        var k = document.querySelector("#consult .kicker"); if (k) k.textContent = "1:1 퍼스널 컨설팅 대기 신청";
+      }
+    }).catch(function () {});
+  } catch (e) {}
   function day() { return new Date().toISOString().slice(0, 10).replace(/-/g, ""); }
   function inc(k) {
     try {

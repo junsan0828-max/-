@@ -87,7 +87,7 @@ const K = (p: string) => ({
 const MAX_FAILS = 5;
 const LOCK_MS = 5 * 60 * 1000;
 
-type Tab = "overview" | "data" | "points";
+type Tab = "overview" | "data" | "consult" | "points";
 
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState(
@@ -319,6 +319,7 @@ export default function AdminPage() {
   const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
     { id: "overview", label: "대시보드", Icon: LayoutDashboard },
     { id: "data", label: "데이터", Icon: BarChart3 },
+    { id: "consult", label: "컨설팅 공개", Icon: Users },
     { id: "points", label: "포인트 관리", Icon: Coins },
   ];
 
@@ -401,6 +402,8 @@ export default function AdminPage() {
 
         {tab === "data" && <DataPanel isMobile={isMobile} />}
 
+        {tab === "consult" && <ConsultPublicPanel isMobile={isMobile} />}
+
         {tab === "points" && (
           <>
             <PointPanel sbGet={sbGet} sbSet={sbSet} />
@@ -413,6 +416,88 @@ export default function AdminPage() {
         </p>
       </main>
     </div>
+  );
+}
+
+// ── 컨설팅 공개 설정 ─────────────────────────────────────────────────────────
+function ConsultPublicPanel({ isMobile }: { isMobile: boolean }) {
+  const [applied, setApplied] = useState("");
+  const [done, setDone] = useState("");
+  const [show, setShow] = useState(false);
+  const [closed, setClosed] = useState(false);
+  const [saved, setSaved] = useState<{ applied: number; done: number; show: boolean; closed: boolean } | null>(null);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const [a, d, s, c] = await Promise.all(["cs_pub_applied", "cs_pub_done", "cs_pub_show", "cs_pub_closed"].map(sbGet));
+    setApplied(String(a)); setDone(String(d)); setShow(s === 1); setClosed(c === 1);
+    setSaved({ applied: a, done: d, show: s === 1, closed: c === 1 });
+  }
+  useEffect(() => { load(); }, []);
+
+  async function save() {
+    const a = Number(applied), d = Number(done);
+    if (!Number.isInteger(a) || !Number.isInteger(d) || a < 0 || d < 0) { setMsg("0 이상의 정수를 입력해 주세요."); return; }
+    if (d > a) { setMsg("컨설팅 완료 수가 신청 수보다 많을 수 없습니다."); return; }
+    setBusy(true); setMsg("");
+    await Promise.all([
+      sbSet("cs_pub_applied", a), sbSet("cs_pub_done", d),
+      sbSet("cs_pub_show", show ? 1 : 0), sbSet("cs_pub_closed", closed ? 1 : 0),
+    ]);
+    await load();
+    setBusy(false);
+    setMsg("저장했습니다. 랜딩페이지를 새로고침하면 반영됩니다.");
+  }
+
+  const card: React.CSSProperties = {
+    background: "#ffffff", borderRadius: 16, padding: isMobile ? 16 : 24, border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)", marginBottom: 20,
+  };
+  const inp: React.CSSProperties = { width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", fontSize: 16, color: "#0f172a" };
+  const row: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "#0f172a", cursor: "pointer", marginTop: 14 };
+  const preview = `신청 ${Number(applied) || 0}명 · 컨설팅 완료 ${Number(done) || 0}명`;
+
+  return (
+    <>
+      <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: "0 0 16px" }}>1:1 퍼스널 컨설팅 · 랜딩페이지 공개 설정</h2>
+      <div style={card}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <label style={{ fontSize: 13, color: "#475569" }}>신청 인원 (실제)
+            <input style={{ ...inp, marginTop: 6 }} inputMode="numeric" value={applied} onChange={(e) => setApplied(e.target.value.replace(/\D/g, ""))} />
+          </label>
+          <label style={{ fontSize: 13, color: "#475569" }}>컨설팅 완료 (실제)
+            <input style={{ ...inp, marginTop: 6 }} inputMode="numeric" value={done} onChange={(e) => setDone(e.target.value.replace(/\D/g, ""))} />
+          </label>
+        </div>
+        <p style={{ fontSize: 12, color: "#64748b", margin: "8px 0 0" }}>구글 시트의 실제 신청 행 수와 완료 건수를 그대로 입력하세요.</p>
+
+        <label style={row}>
+          <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2 }} />
+          <span><b>랜딩페이지에 인원 공개</b><br /><span style={{ color: "#64748b", fontSize: 12 }}>끄면 숫자가 보이지 않습니다. 실제 참여자가 쌓인 뒤 켜는 것을 권장합니다.</span></span>
+        </label>
+        <label style={row}>
+          <input type="checkbox" checked={closed} onChange={(e) => setClosed(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2 }} />
+          <span><b>1차 모집 마감 (대기 신청 받기)</b><br /><span style={{ color: "#64748b", fontSize: 12 }}>켜면 신청 버튼이 '대기 신청'으로 바뀌고, 시트의 진행 상태가 '대기'로 저장됩니다.</span></span>
+        </label>
+
+        <div style={{ marginTop: 18, padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px dashed #cbd5e1", fontSize: 13, color: "#475569" }}>
+          미리보기: {show ? <b style={{ color: "#143d7a" }}>{preview}</b> : <span>(숫자 비공개)</span>}{closed ? " · 모집 마감 · 대기 신청 중" : " · 모집 중"}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+          <button onClick={save} disabled={busy} style={{ background: "#1c4f9c", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            {busy ? "저장 중…" : "저장"}
+          </button>
+          {msg && <span style={{ fontSize: 13, color: msg.startsWith("저장") ? "#15803d" : "#c2410c" }}>{msg}</span>}
+        </div>
+        {saved && (
+          <p style={{ fontSize: 12, color: "#94a3b8", margin: "12px 0 0" }}>
+            현재 저장된 값: 신청 {saved.applied} · 완료 {saved.done} · 공개 {saved.show ? "켜짐" : "꺼짐"} · 마감 {saved.closed ? "켜짐" : "꺼짐"}
+          </p>
+        )}
+      </div>
+    </>
   );
 }
 
