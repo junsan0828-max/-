@@ -645,7 +645,11 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-submit { width: 100%; font-size: 17px; }
 .cs-done { margin-top: 24px; padding: 22px 18px; border: 2px solid var(--accent); border-radius: 14px; display: flex; flex-direction: column; gap: 12px; }
 .cs-done:focus { outline: none; }
-#consult, #csDone, #csForm, .cs-form .is-invalid, #academy { scroll-margin-top: 72px; }
+.cs-ok { border-color: #15803d; }
+.cs-ok-tag { align-self: flex-start; font-size: 12px; font-weight: 700; color: #166534; background: #dcfce7; border-radius: 20px; padding: 3px 10px; }
+.cs-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.cs-submit[disabled] { opacity: .7; cursor: wait; }
+#consult, #csDone, #csOk, #csForm, .cs-form .is-invalid, #academy { scroll-margin-top: 72px; }
 .cs-done-tag { align-self: flex-start; font-size: 12px; font-weight: 700; color: #9a3412; background: #ffedd5; border-radius: 20px; padding: 3px 10px; }
 .cs-done-title { font-family: var(--serif); font-size: 20px; line-height: 1.45; }
 .cs-done-desc { font-size: 14px; color: var(--fg-2); line-height: 1.75; }
@@ -908,14 +912,22 @@ body.modal-open { overflow: hidden; }
         <label class="cs-check"><input type="checkbox" name="marketing"> <span><b>[선택]</b> 교육·세미나 소식을 문자로 받아보겠습니다.</span></label>
       </fieldset>
 
+      <label class="cs-hp" aria-hidden="true">웹사이트<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
       <p class="cs-error" id="csError" role="alert" hidden></p>
       <button type="submit" class="btn btn--primary cs-submit">신청서 작성 완료</button>
     </form>
 
+    <div class="cs-done cs-ok" id="csOk" hidden tabindex="-1">
+      <p class="cs-ok-tag">접수 완료</p>
+      <h3 class="cs-done-title">컨설팅 신청이 접수되었습니다</h3>
+      <p class="cs-done-desc">작성하신 연락처로 일정 안내를 드립니다. 신청 순서대로 10명 단위로 진행하니, 연락까지 며칠 걸릴 수 있습니다.</p>
+      <p class="cs-small">문의: <b>010-7559-3111</b> (문자·카카오톡)</p>
+    </div>
+
     <div class="cs-done" id="csDone" hidden tabindex="-1">
       <p class="cs-done-tag">아직 접수 전입니다</p>
-      <h3 class="cs-done-title">마지막 단계: 신청 내용을 문자로 보내주세요</h3>
-      <p class="cs-done-desc">아래 버튼을 누르면 작성하신 내용이 담긴 문자 창이 열립니다. <b>문자를 보내야 신청이 접수됩니다.</b> 접수 후 일정 안내 연락을 드립니다.</p>
+      <h3 class="cs-done-title" id="csDoneTitle">마지막 단계: 신청 내용을 문자로 보내주세요</h3>
+      <p class="cs-done-desc"><span id="csDoneReason"></span>휴대폰에서는 아래 버튼을 누르면 작성하신 내용이 담긴 문자 창이 열립니다. 컴퓨터에서는 내용을 복사해 카카오톡으로 보내주세요. <b>문자나 카카오톡을 보내야 신청이 접수됩니다.</b></p>
       <a class="btn btn--primary cs-sms" id="csSms" href="#">문자로 신청 보내기</a>
       <button type="button" class="btn btn--outline cs-copy" id="csCopy">신청 내용 복사 (카카오톡용)</button>
       <p class="cs-small">문자 창이 열리지 않으면 내용을 복사해 <b>010-7559-3111</b>로 문자나 카카오톡을 보내주세요.</p>
@@ -1968,6 +1980,8 @@ body.modal-open { overflow: hidden; }
 <script>
 (function () {
   var PHONE = "01075593111";
+  var SHEET_URL = "__SHEET_URL__";
+  if (SHEET_URL.indexOf("https://script.google.com/") !== 0) SHEET_URL = "";
   var form = document.getElementById("csForm");
   if (!form) return;
   var err = document.getElementById("csError");
@@ -2027,13 +2041,42 @@ body.modal-open { overflow: hidden; }
     return bad.filter(function (x, i, a) { return a.indexOf(x) === i; });
   }
 
+  function payload() {
+    var w = form.querySelector('input[name=worry]:checked').value;
+    var rev = [];
+    for (var i = 3; i >= 1; i--) rev.push(form.elements["rev" + i].dataset.month + " " + val("rev" + i));
+    return {
+      name: val("name"), phone: val("phone"), career: val("career"), members: val("members"),
+      worry: w === "기타" ? "기타 - " + val("worryEtc") : w,
+      rev1: rev[0], rev2: rev[1], rev3: rev[2],
+      ended: val("ended"), renewed: val("renewed"),
+      agree: "동의", marketing: form.elements.marketing.checked ? "동의" : "미동의",
+      website: val("website"), page: location.pathname
+    };
+  }
+
+  function show(panel) {
+    form.hidden = true;
+    panel.hidden = false;
+    panel.focus();
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function showFallback(reason) {
+    var text = buildText();
+    document.getElementById("csPreview").textContent = text;
+    document.getElementById("csSms").href = "sms:" + PHONE + "?&body=" + encodeURIComponent(text);
+    document.getElementById("csDoneReason").textContent = reason || "";
+    show(done);
+  }
+
   function buildText() {
     var w = form.querySelector('input[name=worry]:checked').value;
     if (w === "기타") w = "기타 - " + val("worryEtc");
     var rev = [];
     for (var i = 3; i >= 1; i--) rev.push(form.elements["rev" + i].dataset.month + " " + val("rev" + i));
     return [
-      "[1:1 PT 매출·재등록 진단 신청]",
+      "[1:1 PT 매출·재등록 컨설팅 신청]",
       "이름: " + val("name"),
       "연락처: " + val("phone"),
       "경력: " + val("career"),
@@ -2058,13 +2101,30 @@ body.modal-open { overflow: hidden; }
       return;
     }
     err.hidden = true;
-    var text = buildText();
-    document.getElementById("csPreview").textContent = text;
-    document.getElementById("csSms").href = "sms:" + PHONE + "?&body=" + encodeURIComponent(text);
-    form.hidden = true;
-    done.hidden = false;
-    done.focus();
-    done.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!SHEET_URL) { showFallback(""); return; }
+    var btn = form.querySelector(".cs-submit");
+    btn.disabled = true; btn.textContent = "접수 중…";
+    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 15000);
+    fetch(SHEET_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload()),
+      signal: ctrl ? ctrl.signal : undefined
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.ok !== true) throw new Error("not ok");
+        document.dispatchEvent(new CustomEvent("cs:saved"));
+        show(document.getElementById("csOk"));
+      })
+      .catch(function () {
+        showFallback("자동 접수에 실패했습니다. ");
+      })
+      .then(function () {
+        clearTimeout(timer);
+        btn.disabled = false; btn.textContent = "신청서 작성 완료";
+      });
   });
 
   document.getElementById("csEdit").addEventListener("click", function () {
@@ -2105,6 +2165,7 @@ body.modal-open { overflow: hidden; }
     if (!sessionStorage.getItem("lp-visited")) { sessionStorage.setItem("lp-visited", "1"); track("vc", "vt"); }
   } catch (e) { track("vc", "vt"); }
   function trackCs(total, daily) { inc("cs_" + total); inc("cs_" + daily + "_" + day()); }
+  document.addEventListener("cs:saved", function () { trackCs("uc", "ud"); });
   document.addEventListener("click", function (e) {
     if (e.target.closest(".js-open-pay")) track("uc", "ud");
     else if (e.target.closest(".copy-btn")) track("sc", "st");

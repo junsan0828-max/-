@@ -74,7 +74,7 @@ const SERVICES: ServiceDef[] = [
   { id: "posture-line", prefix: "pa", name: "체형 분석 라인 드로잉", desc: "사진 위 수평·수직·각도선 분석 · PNG 저장", usage: "PNG 저장", link: "/posture" },
   { id: "contract", prefix: "ct", name: "전자 회원 계약서", desc: "계약서 작성 · 서명 · 출력", usage: "계약서 생성", link: "/contract" },
   { id: "sequence", prefix: "sq", name: "시퀀스 랩", desc: "수업 시퀀스 작성 · 공유", usage: "시퀀스 저장", link: "/sequence" },
-  { id: "consult", prefix: "cs", name: "1:1 진단 신청", desc: "랜딩페이지 상단 무료 진단 신청", visit: "진단 신청 버튼 클릭", usage: "문자로 신청 보내기", share: "신청 내용 복사", labels: { v: "버튼 클릭", u: "문자 신청", s: "내용 복사" }, link: "/academy#consult" },
+  { id: "consult", prefix: "cs", name: "1:1 퍼스널 컨설팅", desc: "랜딩페이지 상단 무료 컨설팅 신청", visit: "컨설팅 신청 버튼 클릭", usage: "시트 자동 접수 또는 문자 신청", share: "신청 내용 복사", labels: { v: "버튼 클릭", u: "신청 접수", s: "내용 복사" }, link: "/academy#consult" },
   { id: "academy", prefix: "lp", name: "1블록 랜딩페이지", desc: "아카데미 1블록 교육 모집 페이지", usage: "신청 버튼 클릭", share: "번호·계좌 복사", link: "/academy" },
 ];
 

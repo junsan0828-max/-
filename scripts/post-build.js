@@ -56,7 +56,8 @@ for (const { dir, title, description, url } of routes) {
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
   const landing = fs.readFileSync(path.resolve("landing/academy.html"), "utf8")
     .replace('"__SB_URL__"', JSON.stringify(process.env.VITE_SUPABASE_URL || ""))
-    .replace('"__SB_KEY__"', JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ""));
+    .replace('"__SB_KEY__"', JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ""))
+    .replace('"__SHEET_URL__"', JSON.stringify(process.env.CONSULT_SHEET_URL || ""));
   fs.writeFileSync(path.join(outDir, "page.htm"), landing);
   console.log("✓ dist/academy/page.htm");
 }
