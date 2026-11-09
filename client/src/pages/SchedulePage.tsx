@@ -63,7 +63,7 @@ const EVENT_COLORS: Record<EventType, { filled: string; empty: string }> = {
 // 어드민 전체보기: 트레이너별 색상 팔레트 (id 오름차순으로 순서 고정)
 const TRAINER_PALETTE = [
   // 밝은 테마용 진한 바탕 + 흰 글씨. 빨강(캔슬·노쇼)·파랑(상담·밸체 등 PT 외 일정)은 의미색이라 트레이너 색에서 뺐다 (2026-11-06)
-  { cell: "bg-gray-900 border-gray-900 hover:bg-gray-800 text-white",          dot: "bg-gray-900", soft: "bg-gray-200 border-gray-400 text-gray-600" },
+  { cell: "bg-gray-900 border-gray-900 hover:bg-gray-800 text-white",          dot: "bg-black", soft: "bg-gray-200 border-gray-400 text-gray-600" },
   { cell: "bg-emerald-600 border-emerald-700 hover:bg-emerald-700 text-white", dot: "bg-emerald-600", soft: "bg-emerald-100 border-emerald-300 text-emerald-800/70" },
   { cell: "bg-amber-600 border-amber-700 hover:bg-amber-700 text-white",       dot: "bg-amber-600", soft: "bg-amber-100 border-amber-300 text-amber-800/70" },
   { cell: "bg-stone-600 border-stone-700 hover:bg-stone-700 text-white",       dot: "bg-stone-600", soft: "bg-stone-200 border-stone-300 text-stone-700/70" },
@@ -124,6 +124,11 @@ export default function SchedulePage() {
   const { data: access } = trpc.schedules.myAccess.useQuery();
   const isAdmin = access?.isAdmin ?? false;
   const { data: trainerOptions } = trpc.schedules.trainerOptions.useQuery(undefined, { enabled: isAdmin });
+  // 보고 있는 주의 목요일이 속한 달 (주가 두 달에 걸칠 때 기준)
+  const viewMonth = (() => { const d = new Date(weekStart); d.setDate(d.getDate() + 3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
+  const monthNum = Number(viewMonth.slice(5));
+  const { data: monthRows } = trpc.schedules.monthlyTrainerCounts.useQuery({ month: viewMonth }, { enabled: isAdmin, staleTime: 60_000 });
+  const monthCounts = new Map((monthRows ?? []).map(r => [r.trainerId, r.n]));
   const { data: meUser } = trpc.auth.me.useQuery();
   const isOwner = meUser?.role === "admin"; // 색상 변경은 대표(관리자)만
   const [colorPickFor, setColorPickFor] = useState<number | null>(null);
@@ -363,7 +368,6 @@ export default function SchedulePage() {
           </button>
           {[...(trainerOptions ?? [])].sort(byTrainerOrder).map(t => {
             const p = TRAINER_PALETTE[trainerColorMap.get(t.id) ?? 0];
-            const ts = weekStats.byTrainer[t.id];
             return (
               <button
                 key={t.id}
@@ -376,11 +380,8 @@ export default function SchedulePage() {
               >
                 <span className={`w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
                 {t.trainerName}
-                {ts && (
-                  <span className="text-[10px] opacity-70">
-                    {ts.done > 0 ? `${ts.done}완` : ""}{ts.pending > 0 ? `·${ts.pending}예` : ""}
-                  </span>
-                )}
+                {/* 주간 횟수는 아래 '트레이너별 수업 현황'과 중복이라, 여기는 이번 달 진행 횟수(수업일지 기준) */}
+                <span className="text-[10px] opacity-70">{monthNum}월 {monthCounts.get(t.id) ?? 0}회</span>
               </button>
             );
           })}

@@ -2814,6 +2814,17 @@ const schedulesRouter = t.router({
   }),
 
   // 관리자가 트레이너를 골라 볼 수 있도록 — 일정이 있든 없든 전체 트레이너 목록
+  // 트레이너별 월 진행 횟수 (수업일지 기준 = 정산과 같은 소스). 스케줄 상단 트레이너 칩용
+  monthlyTrainerCounts: protectedProcedure
+    .input(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }))
+    .query(async ({ ctx, input }) => {
+      if (!isScheduleAdmin(ctx.user?.role)) return [];
+      const r = await pool.query(
+        `SELECT "trainerId", COUNT(*)::int AS n FROM pt_session_logs
+          WHERE "sessionDate" LIKE $1 AND COALESCE("isDraft", 0) = 0 GROUP BY "trainerId"`, [`${input.month}-%`]);
+      return r.rows as { trainerId: number; n: number }[];
+    }),
+
   trainerOptions: protectedProcedure.query(async ({ ctx }) => {
     if (!isScheduleAdmin(ctx.user?.role)) return [];
     const db = await getDb();
