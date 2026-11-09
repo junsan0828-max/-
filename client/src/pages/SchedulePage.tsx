@@ -246,6 +246,14 @@ export default function SchedulePage() {
     return !d || toYmd(d) <= s.repeatUntil;
   }), [slots, weekDates]);
 
+  // 트레이너 표시 순서: 계정 번호(trainer1, trainer2 …) 오름차순, 그 외 계정은 뒤로
+  const trainerOrder = useMemo(() => {
+    const num = (u?: string | null) => { const m = /^trainer(\d+)$/i.exec(u ?? ""); return m ? Number(m[1]) : 900; };
+    const list = [...(trainerOptions ?? [])].sort((a: any, b: any) => num(a.username) - num(b.username) || a.id - b.id);
+    return new Map(list.map((t, i) => [t.id, i]));
+  }, [trainerOptions]);
+  const byTrainerOrder = (a: { id: number }, b: { id: number }) => (trainerOrder.get(a.id) ?? 999) - (trainerOrder.get(b.id) ?? 999);
+
   const grid = useMemo(() => {
     const g: Record<string, Slot[]> = {};
     for (const s of activeSlots) {
@@ -256,10 +264,15 @@ export default function SchedulePage() {
       const key = `${weekday}-${h}`;
       (g[key] ??= []).push(s);
     }
-    // 같은 칸에 고정 슬롯과 실제 배정이 겹치면 실제 배정을 앞세운다.
-    for (const k of Object.keys(g)) g[k].sort((a, b) => a.isRecurring - b.isRecurring);
+    // 같은 칸 안 순서: 트레이너 계정 번호(trainer1→6) → 시간 → 실제 배정을 고정 슬롯보다 앞에 (2026-11-09)
+    const ord = (tid: number) => trainerOrder.get(tid) ?? 999;
+    for (const k of Object.keys(g)) g[k].sort((a, b) =>
+      ord(a.trainerId) - ord(b.trainerId)
+      || (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? "")
+      || a.isRecurring - b.isRecurring
+      || a.id - b.id);
     return g;
-  }, [activeSlots]);
+  }, [activeSlots, trainerOrder]);
 
   // 트레이너 id → 팔레트 인덱스 (id 오름차순, 안정적)
   const trainerColorMap = useMemo(() => {
@@ -348,7 +361,7 @@ export default function SchedulePage() {
           >
             전체
           </button>
-          {[...(trainerOptions ?? [])].sort((a, b) => a.id - b.id).map(t => {
+          {[...(trainerOptions ?? [])].sort(byTrainerOrder).map(t => {
             const p = TRAINER_PALETTE[trainerColorMap.get(t.id) ?? 0];
             const ts = weekStats.byTrainer[t.id];
             return (
@@ -393,7 +406,7 @@ export default function SchedulePage() {
         <div className="rounded-lg border border-border/50 bg-card/50 px-3 py-2 space-y-1">
           <p className="text-[10px] text-muted-foreground font-medium mb-1.5">트레이너별 수업 현황</p>
           <div className="grid grid-cols-1 gap-1">
-            {[...(trainerOptions ?? [])].sort((a, b) => a.id - b.id).map(t => {
+            {[...(trainerOptions ?? [])].sort(byTrainerOrder).map(t => {
               const ts = weekStats.byTrainer[t.id];
               if (!ts) return null;
               const p = TRAINER_PALETTE[trainerColorMap.get(t.id) ?? 0];
@@ -758,7 +771,7 @@ export default function SchedulePage() {
           hour={editing.hour}
           viewingAll={targeted ? false : viewingAll}
           trainerId={targeted ? (editing.trainerId ?? null) : trainerFilter}
-          trainerOptions={isAdmin ? [...(trainerOptions ?? [])].sort((a, b) => a.id - b.id) : []}
+          trainerOptions={isAdmin ? [...(trainerOptions ?? [])].sort(byTrainerOrder) : []}
           branchList={branchList ?? []}
           prefillMember={prefillMember}
           onClose={() => setEditing(null)}

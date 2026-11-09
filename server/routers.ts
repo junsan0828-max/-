@@ -2818,8 +2818,8 @@ const schedulesRouter = t.router({
     if (!isScheduleAdmin(ctx.user?.role)) return [];
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: trainers.id, trainerName: trainers.trainerName, scheduleColor: trainers.scheduleColor })
-      .from(trainers).orderBy(trainers.trainerName);
+    return db.select({ id: trainers.id, trainerName: trainers.trainerName, scheduleColor: trainers.scheduleColor, username: users.username })
+      .from(trainers).leftJoin(users, eq(users.id, trainers.userId)).orderBy(trainers.trainerName);
   }),
 
   // 관리자: 스케줄에서 트레이너 색상 지정 (전 직원 화면에 공통 적용)
