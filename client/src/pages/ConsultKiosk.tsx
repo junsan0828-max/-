@@ -17,6 +17,8 @@ type Stage =
   | "register_done"
   | "staff_calling"
   | "staff_called"
+  | "callback_input"
+  | "callback_done"
   | "not_found"
   | "error";
 
@@ -307,6 +309,12 @@ export default function ConsultKiosk() {
       lock?.release().catch(() => {});
     };
   }, []);
+
+  // 직원 호출 후 직원이 오지 않을 때 연락처 남기기
+  const callbackMut = trpc.kiosk.submitConsult.useMutation({
+    onSuccess: () => setStage("callback_done"),
+    onError: () => setStage("error"),
+  });
 
   const registerMut = trpc.kiosk.submitRegistration.useMutation({
     onSuccess: () => setStage("register_done"),
@@ -952,7 +960,71 @@ export default function ConsultKiosk() {
               잠시만 기다려 주시면<br />직원이 곧 찾아옵니다.
             </p>
           </div>
-          <AutoCloseBar durationMs={7000} active={stage === "staff_called"} onClose={doReset} />
+          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 space-y-3">
+            <p className="text-slate-700 text-sm leading-relaxed">
+              직원이 오지 않으면 연락처를 남겨 주세요.<br /><span className="font-bold text-slate-900">바로 연락드리겠습니다.</span>
+            </p>
+            <button
+              onClick={() => { setName(""); setPhone(""); setStage("callback_input"); }}
+              className="w-full py-3.5 rounded-xl font-bold text-white bg-[#0B1D3A] active:bg-[#162B52] transition-colors"
+            >
+              연락처 남기기
+            </button>
+          </div>
+          <AutoCloseBar durationMs={15000} active={stage === "staff_called"} onClose={doReset} />
+        </div>
+      )}
+
+      {/* ── 연락처 남기기 (직원 호출 후) ── */}
+      {stage === "callback_input" && (
+        <div className="w-full max-w-sm">
+          <button onClick={doReset} className="flex items-center gap-1 text-slate-400 text-sm mb-6 hover:text-slate-700 transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+            처음으로
+          </button>
+          <p className="text-slate-900 font-bold text-xl mb-1">연락처 남기기</p>
+          <p className="text-slate-500 text-sm mb-5">남겨 주시면 직원이 바로 연락드리겠습니다.</p>
+
+          <div className="mb-5">
+            <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">이름 (선택)</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="성함을 입력해 주세요"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-base placeholder-slate-400 focus:outline-none focus:border-blue-300"
+            />
+          </div>
+
+          <PhoneKeypad phone={phone} onKey={handlePhoneKey} />
+
+          <button
+            onClick={() => callbackMut.mutate({ consultType: "callback", name: name.trim() || undefined, phone: phone.replace(/\D/g, ""), purpose: "직원 호출 후 미응대", branchNo })}
+            disabled={phone.replace(/\D/g, "").length < 9 || callbackMut.isPending}
+            className="w-full py-4 rounded-xl font-bold text-white bg-[#0B1D3A] disabled:opacity-30 transition-colors"
+          >
+            {callbackMut.isPending ? "접수 중..." : "연락처 남기기"}
+          </button>
+        </div>
+      )}
+
+      {/* ── 연락처 접수 완료 ── */}
+      {stage === "callback_done" && (
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-[#0B1D3A]/10 flex items-center justify-center mx-auto">
+            <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10 text-[#0B1D3A]" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 20 L17 27 L30 13" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-slate-900 font-bold text-2xl mb-2">연락처가 접수되었습니다</p>
+            <p className="text-slate-500 text-sm leading-relaxed">
+              직원이 확인하는 대로<br />바로 연락드리겠습니다.
+            </p>
+          </div>
+          <AutoCloseBar durationMs={8000} active={stage === "callback_done"} onClose={doReset} />
         </div>
       )}
 

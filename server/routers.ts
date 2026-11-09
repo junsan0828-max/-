@@ -6297,7 +6297,7 @@ const KIOSK_NOTIFY_USERNAMES: Record<number, string[]> = {
   2: ["admin"],
 };
 
-const CONSULT_TYPE_LABEL: Record<string, string> = { new: "신규 상담", renew: "재등록 상담", pt: "PT 상담" };
+const CONSULT_TYPE_LABEL: Record<string, string> = { new: "신규 상담", renew: "재등록 상담", pt: "PT 상담", callback: "연락 요청" };
 
 // 키오스크 주소 ?branch=1 / ?branch=2
 const kioskBranchNo = z.number().int().min(1).max(2).optional();
@@ -6956,7 +6956,7 @@ const kioskRouter = t.router({
   // ─── 상담 키오스크: 접수 ──────────────────────────────────────────────────────
   submitConsult: publicProcedure
     .input(z.object({
-      consultType: z.enum(["new", "renew", "pt"]),
+      consultType: z.enum(["new", "renew", "pt", "callback"]),
       name: z.string().optional(),
       phone: z.string().min(9),
       purpose: z.string().optional(),
