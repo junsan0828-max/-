@@ -759,9 +759,12 @@ export default function SchedulePage() {
         const all = grid[`${editing.weekday}-${editing.hour}`] ?? [];
         const picked = editing.slotId != null ? all.find(s => s.id === editing.slotId) : undefined;
         // 카드를 골랐으면 그 일정(+그것이 덮은 고정 템플릿)만, 새 일정이면 빈 칸으로 연다
+        // 카드를 골랐으면 그 일정 + 그와 짝인 것(같은 회원의 고정 템플릿 ↔ 그 회차)만. 다른 회원 일정·미리 취소(skipped) 회차는 넣지 않는다.
+        // (권세훈 사례: 고정 카드를 눌렀는데 숨은 '이번 주 삭제' 회차가 편집 대상이 되고, 고정 체크로 저장되면서 고정 수업이 계속 복제됐다)
         const cell = picked
-          ? all.filter(s => s.id === picked.id || (s.trainerId === picked.trainerId && s.scheduledTime === picked.scheduledTime))
-          : editing.trainerId === null ? [] : all;
+          ? all.filter(s => s.id === picked.id
+              || (s.status !== "skipped" && (coversTemplate(s, picked) || coversTemplate(picked, s))))
+          : editing.trainerId === null ? [] : all.filter(s => s.status !== "skipped");
         const targeted = editing.trainerId !== undefined;
         return (
         <SlotEditor
@@ -797,7 +800,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
 }) {
   // 이 칸의 구성: 고정 슬롯(템플릿)과 이 날짜에 실제로 배정된 수업은 별개다.
   const fixed = cell.find(s => s.isRecurring === 1) ?? null;
-  const oneOff = cell.find(s => s.isRecurring === 0 && s.scheduledDate === date) ?? null;
+  const oneOff = cell.find(s => s.isRecurring === 0 && s.scheduledDate === date && s.status !== "skipped") ?? null;
 
   // 고정 수업은 항상 템플릿을 직접 수정한다 (이 주만 배정 모드 제거)
   const target = oneOff ?? fixed ?? null;

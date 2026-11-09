@@ -2920,7 +2920,8 @@ const schedulesRouter = t.router({
         isRecurring: input.isRecurring ? 1 : 0,
         branchId: input.branchId ?? null,
         eventType: input.eventType,
-        ...(input.status ? { status: input.status } : {}),
+        // 고정 템플릿은 항상 '예정' — 회차별 상태는 개별 일정으로만 기록한다
+        ...(input.status && !input.isRecurring ? { status: input.status } : {}),
       }).returning({ id: schedules.id });
       return { id: row.id };
     }),
@@ -2946,6 +2947,26 @@ const schedulesRouter = t.router({
         const [cur] = await db.select({ isRecurring: schedules.isRecurring }).from(schedules).where(eq(schedules.id, scheduleId)).limit(1);
         if (cur?.isRecurring === 1 && rest.status !== "pending")
           throw new TRPCError({ code: "BAD_REQUEST", message: "고정 수업은 해당 날짜 칸에서 체크해 주세요." });
+      }
+      // 개별 일정 → 고정 수업 전환: 예정 상태일 때만, 같은 회원·요일·시간 고정이 이미 있으면 막는다
+      // (권세훈 사례: '이번 주 삭제(skipped)' 회차가 고정으로 바뀌어 고정 수업이 계속 늘어났다)
+      if (isRecurring === true) {
+        const [cur] = await db.select().from(schedules).where(eq(schedules.id, scheduleId)).limit(1);
+        if (cur && cur.isRecurring !== 1) {
+          if (cur.status !== "pending")
+            throw new TRPCError({ code: "BAD_REQUEST", message: "처리된(완료·취소·삭제) 일정은 고정 수업으로 바꿀 수 없습니다. 빈 칸에서 새로 고정 수업을 만들어 주세요." });
+          const mid = memberId !== undefined ? memberId : cur.memberId;
+          const time = rest.scheduledTime ?? cur.scheduledTime;
+          if (mid && time) {
+            const dup = await pool.query(
+              `SELECT id, "scheduledDate" FROM schedules WHERE "isRecurring" = 1 AND id <> $1 AND "trainerId" = $2 AND "memberId" = $3
+                 AND "scheduledTime" = $4 AND EXTRACT(ISODOW FROM "scheduledDate"::date) = EXTRACT(ISODOW FROM $5::date)
+                 AND ("repeatUntil" IS NULL OR "repeatUntil" >= $5) LIMIT 1`,
+              [scheduleId, cur.trainerId, mid, time, cur.scheduledDate]);
+            if (dup.rows[0])
+              throw new TRPCError({ code: "BAD_REQUEST", message: `이미 같은 요일·시간의 고정 수업이 있습니다 (${dup.rows[0].scheduledDate}부터).` });
+          }
+        }
       }
       const patch: Record<string, unknown> = { ...rest };
       if (isRecurring !== undefined) patch.isRecurring = isRecurring ? 1 : 0;
