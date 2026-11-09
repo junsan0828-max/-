@@ -23,7 +23,7 @@ export const VAPID_PRIVATE = process.env.OPS_VAPID_PRIVATE_KEY || "YBgwoKIvKQPhj
 const VAPID = { subject: "mailto:admin@ziantgym.com", publicKey: VAPID_PUBLIC, privateKey: VAPID_PRIVATE };
 
 const BRANCH_LABEL: Record<number, string> = { 1: "1호점", 2: "2호점" };
-const CONSULT_LABEL: Record<string, string> = { new: "신규 상담", renew: "재등록 상담", pt: "PT 상담" };
+const CONSULT_LABEL: Record<string, string> = { new: "신규 상담", renew: "재등록 상담", pt: "PT 상담", callback: "연락 요청" };
 const STAFF_ROLES = ["admin", "sub_admin", "consultant", "trainer"];
 
 // staff_call_log 관례(자이언트짐++와 동일): KST 시각을 ISO 문자열로 저장
@@ -183,7 +183,8 @@ async function handleConsult(b: ConsultInput): Promise<{ error: string } | { lea
     }
   }
   const branchNo = parseBranch(b.branchNo);
-  const consultType = ["new", "renew", "pt"].includes(b.consultType) ? b.consultType as string : "new";
+  // callback = 직원 호출 후 아무도 안 와서 연락처를 남긴 경우 (2026-11-09)
+  const consultType = ["new", "renew", "pt", "callback"].includes(b.consultType) ? b.consultType as string : "new";
   const digits = String(b.phone ?? "").replace(/\D/g, "");
   if (digits.length < 9) return { error: "연락처를 확인해 주세요." };
   const name = String(b.name ?? "").trim().slice(0, 50) || null;
@@ -219,12 +220,19 @@ async function handleConsult(b: ConsultInput): Promise<{ error: string } | { lea
   }
 
   const who = member ? `${member.name} 회원${member.trainerName ? ` (담당 ${member.trainerName})` : ""}` : (name ?? "방문객");
-  const sent = await sendStaffPush(branchNo, {
+  const isCallback = consultType === "callback";
+  const sent = await sendStaffPush(branchNo, isCallback ? {
+    // 직원 호출에 아무도 못 간 상황 → 호출 받는 직원에게, 확인할 때까지 남는 알림으로
+    title: `📞 ${branchPrefix(branchNo)}연락 요청 — 직원 호출 후 미응대`,
+    body: [who, fmtPhone(digits), purpose].filter(Boolean).join(" · ") + " · 바로 전화 주세요",
+    url: member ? `/members/${member.id}` : "/leads",
+    tag: `callback-${digits}`, requireInteraction: true,
+  } : {
     title: `📝 ${branchPrefix(branchNo)}${label} 접수`,
     body: [who, fmtPhone(digits), purpose].filter(Boolean).join(" · "),
     url: member ? `/members/${member.id}` : "/leads",
     tag: `consult-${digits}`,
-  }, undefined, "consult");
+  }, undefined, isCallback ? "staffCall" : "consult");
   return { leadId, leadCreated, memberId: member?.id ?? null, sent };
 }
 
