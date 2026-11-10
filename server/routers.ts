@@ -2918,8 +2918,16 @@ const schedulesRouter = t.router({
            LIMIT 1`,
           [trainerId, input.scheduledTime, input.scheduledDate, memberId ?? input.memberName],
         );
-        if (dup.rows[0])
+        if (dup.rows[0]) {
+          // 고정 수업은 있는데 이 날짜만 '이번 주 삭제'로 가려져 있던 경우: 다시 등록 = 숨김 해제로 처리한다
+          // (권세훈 사례: 수요일 고정이 있었지만 11/11·11/18이 삭제 표시로 가려져 '등록했는데 안 보임')
+          const unhide = await pool.query(
+            `DELETE FROM schedules WHERE "isRecurring" = 0 AND status = 'skipped' AND "trainerId" = $1 AND "scheduledTime" = $2
+               AND "scheduledDate" = $3 AND ${memberId ? `"memberId" = $4` : `"memberName" = $4`} RETURNING id`,
+            [trainerId, input.scheduledTime, input.scheduledDate, memberId ?? input.memberName]);
+          if (unhide.rowCount) return { id: dup.rows[0].id, restored: true };
           throw new TRPCError({ code: "BAD_REQUEST", message: `이미 같은 요일·시간의 고정 수업이 있습니다 (${dup.rows[0].scheduledDate}부터). 지난 수업을 체크할 때는 '고정 수업' 체크를 끄고 등록해 주세요.` });
+        }
       }
       const [row] = await db.insert(schedules).values({
         memberId,
@@ -2934,7 +2942,7 @@ const schedulesRouter = t.router({
         // 고정 템플릿은 항상 '예정' — 회차별 상태는 개별 일정으로만 기록한다
         ...(input.status && !input.isRecurring ? { status: input.status } : {}),
       }).returning({ id: schedules.id });
-      return { id: row.id };
+      return { id: row.id, restored: false };
     }),
 
   update: protectedProcedure

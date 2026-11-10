@@ -867,6 +867,7 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
       const lbl = EVENT_LABELS[variables.eventType ?? "pt"];
       if (variables.status === "skipped") toast.success("이번 주 수업을 삭제했습니다");
       else if (variables.status === "cancelled") toast.success("캔슬(당일 취소)로 처리했습니다");
+      else if ((_data as any)?.restored) toast.success("이 주에 가려져 있던 고정 수업을 다시 표시했습니다");
       else toast.success(`${lbl}이 추가되었습니다`);
       onSaved();
     },
