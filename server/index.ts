@@ -7,7 +7,7 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import webpush from "web-push";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { appRouter } from "./routers";
+import { appRouter, syncMembersToGymPlus } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig } from "../drizzle/schema";
@@ -904,6 +904,17 @@ async function start() {
     console.error("DB 초기화 오류 (서버는 계속 실행):", e);
   }
 
+  // 통합관리 회원 → 짐플러스 계정 자동 생성 (시작 시 + 시트 동기화 직후 5분마다)
+  async function autoSyncGymPlus() {
+    try {
+      const r = await syncMembersToGymPlus();
+      if (r.created > 0) console.log(`📱 짐플러스 자동 동기화: ${r.created}명 계정 생성`);
+    } catch (e) {
+      console.error("짐플러스 자동 동기화 오류:", e);
+    }
+  }
+  autoSyncGymPlus();
+
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
     try {
@@ -912,6 +923,7 @@ async function start() {
     } catch (e) {
       console.error("시트 동기화 오류:", e);
     }
+    await autoSyncGymPlus();
   }, 5 * 60 * 1000);
 
   // 수업 알림 푸시 (30분마다)

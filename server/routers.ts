@@ -4171,35 +4171,7 @@ ${dataContext}
   // 선택한 회원 IDs만 동기화
   admin_syncSelectedMembers: adminOnlyGymPlus
     .input(z.object({ memberIds: z.array(z.number()) }))
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const selected = await db.select({
-        id: members.id, name: members.name, phone: members.phone,
-        email: members.email, membershipEnd: members.membershipEnd,
-      }).from(members);
-      const targets = selected.filter(m => input.memberIds.includes(m.id));
-
-      let created = 0, skipped = 0;
-      for (const m of targets) {
-        if (!m.phone) { skipped++; continue; }
-        const digits = m.phone.replace(/\D/g, "");
-        if (digits.length < 4) { skipped++; continue; }
-        const username = digits;
-        const existing = await db.select({ id: gymPlusMembers.id })
-          .from(gymPlusMembers).where(eq(gymPlusMembers.username, username)).limit(1);
-        if (existing[0]) { skipped++; continue; }
-        const last4 = digits.slice(-4);
-        const hashed = await bcrypt.hash(last4, 10);
-        await db.insert(gymPlusMembers).values({
-          username, password: hashed, name: m.name, phone: m.phone,
-          email: m.email ?? undefined, memberId: m.id,
-          membershipEnd: m.membershipEnd ?? undefined, membershipType: "general", isActive: 1,
-        });
-        created++;
-      }
-      return { created, skipped };
-    }),
+    .mutation(({ input }) => syncMembersToGymPlus(input.memberIds)),
 
   admin_listVideos: adminOnlyGymPlus.query(async () => {
     const db = await getDb();
@@ -6352,6 +6324,33 @@ function notifyConsultRecipients(c: { branchNo?: number; consultType: string; na
     body: [c.name, phone, c.purpose].filter(Boolean).join(" · "),
     url: "/",
   });
+}
+
+// 통합관리 회원 → 짐플러스 계정 생성 (아이디: 전화번호 숫자, 초기 비밀번호: 끝 4자리)
+// memberIds 없으면 전화번호가 있는 모든 회원 대상 — 서버 정기 작업에서 자동 실행
+export async function syncMembersToGymPlus(memberIds?: number[]) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+  const all = await db.select({
+    id: members.id, name: members.name, phone: members.phone,
+    email: members.email, membershipEnd: members.membershipEnd,
+  }).from(members);
+  const targets = memberIds ? all.filter((m) => memberIds.includes(m.id)) : all;
+  const existing = new Set((await db.select({ username: gymPlusMembers.username }).from(gymPlusMembers)).map((g) => g.username));
+
+  let created = 0, skipped = 0;
+  for (const m of targets) {
+    const digits = (m.phone ?? "").replace(/\D/g, "");
+    if (digits.length < 9 || existing.has(digits)) { skipped++; continue; }
+    const inserted = await db.insert(gymPlusMembers).values({
+      username: digits, password: await bcrypt.hash(digits.slice(-4), 10), name: m.name, phone: m.phone,
+      email: m.email ?? undefined, memberId: m.id,
+      membershipEnd: m.membershipEnd ?? undefined, membershipType: "general", isActive: 1,
+    }).onConflictDoNothing().returning({ id: gymPlusMembers.id });
+    existing.add(digits);
+    if (inserted.length) created++; else skipped++;
+  }
+  return { created, skipped };
 }
 
 const kioskRouter = t.router({
