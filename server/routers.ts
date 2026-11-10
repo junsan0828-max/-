@@ -4276,7 +4276,8 @@ const adminRouter = t.router({
       .from(trainers)
       .leftJoin(users, eq(trainers.userId, users.id))
       .leftJoin(branches, eq(trainers.branchId, branches.id))
-      .orderBy(trainers.trainerName);
+      // 트레이너 계정 번호순(trainer1 → trainer6), 그 외 계정은 뒤로 (2026-11-10)
+      .orderBy(sql`CASE WHEN ${users.username} ~ '^trainer[0-9]+$' THEN substring(${users.username} from 8)::int ELSE 900 END`, trainers.id);
 
     const kstToday = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
     const kstDateStr = `${kstToday.getFullYear()}-${String(kstToday.getMonth() + 1).padStart(2, "0")}-${String(kstToday.getDate()).padStart(2, "0")}`;
