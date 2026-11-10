@@ -12,7 +12,6 @@ import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { syncSheetNow } from "./sheetSync";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -904,27 +903,35 @@ async function start() {
     console.error("DB 초기화 오류 (서버는 계속 실행):", e);
   }
 
-  // 통합관리 회원 → 짐플러스 계정 자동 생성 (시작 시 + 시트 동기화 직후 5분마다)
+  // 통합관리 회원 → 짐플러스 계정 자동 생성 (서버 시작 시 1회 + 매일 영업 종료 23:00 KST)
   async function autoSyncGymPlus() {
     try {
       const r = await syncMembersToGymPlus();
       if (r.created > 0) console.log(`📱 짐플러스 자동 동기화: ${r.created}명 계정 생성`);
+      else console.log(`📱 짐플러스 자동 동기화: 신규 계정 없음`);
     } catch (e) {
       console.error("짐플러스 자동 동기화 오류:", e);
     }
   }
+  // 서버 시작 시 1회
   autoSyncGymPlus();
 
-  // 구글시트 자동 동기화 (5분마다)
-  setInterval(async () => {
-    try {
-      const result = await syncSheetNow();
-      if (result.newMembers > 0) console.log(`📋 시트 동기화: ${result.message}`);
-    } catch (e) {
-      console.error("시트 동기화 오류:", e);
-    }
-    await autoSyncGymPlus();
-  }, 5 * 60 * 1000);
+  // 매일 23:00 KST (영업 종료 시) 일일 등록자 동기화
+  function scheduleDailySync() {
+    const now = Date.now();
+    const kstNow = new Date(now + 9 * 60 * 60 * 1000);
+    const kstToday23 = new Date(
+      Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate(), 14, 0, 0) // UTC 14:00 = KST 23:00
+    );
+    let msUntil = kstToday23.getTime() - now;
+    if (msUntil <= 0) msUntil += 24 * 60 * 60 * 1000; // 이미 지났으면 내일
+    console.log(`📅 짐플러스 일일 동기화 예약: ${Math.round(msUntil / 60000)}분 후 (매일 23:00 KST)`);
+    setTimeout(() => {
+      autoSyncGymPlus();
+      setInterval(autoSyncGymPlus, 24 * 60 * 60 * 1000);
+    }, msUntil);
+  }
+  scheduleDailySync();
 
   // 수업 알림 푸시 (30분마다)
   const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || "BK0ZTd_UQHIaELB4FB0JphGm4UWlwIAwsfOdF3DNnAn_DGQNfwVm3I2HMi2VQxuHHUZhCwup7h1frg8Ue2XKMl8";
