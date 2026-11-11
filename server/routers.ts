@@ -7078,10 +7078,13 @@ const kioskRouter = t.router({
 
   // ─── 직원 호출 ─────────────────────────────────────────────────────────────
   callStaff: publicProcedure
-    .input(z.object({ message: z.string().optional(), branchNo: kioskBranchNo }))
+    .input(z.object({ message: z.string().optional(), name: z.string().optional(), phone: z.string().optional(), branchNo: kioskBranchNo }))
     .mutation(async ({ input }) => {
       const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
-      const msg = branchPrefix(input.branchNo) + (input.message ?? "키오스크에서 직원을 호출했습니다.");
+      const contactPart = input.name || input.phone
+        ? ` (${[input.name, input.phone].filter(Boolean).join(" / ")})`
+        : "";
+      const msg = branchPrefix(input.branchNo) + (input.message ?? "키오스크에서 직원을 호출했습니다.") + contactPart;
 
       // 호출 기록 저장
       const res = await pool.query(

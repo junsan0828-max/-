@@ -15,6 +15,7 @@ type Stage =
   | "event_display"
   | "register_input"
   | "register_done"
+  | "staff_input"
   | "staff_calling"
   | "staff_called"
   | "callback_input"
@@ -395,8 +396,8 @@ export default function ConsultKiosk() {
   };
 
   const handleCallStaff = () => {
-    setStage("staff_calling");
-    callStaffMut.mutate({ message: "키오스크에서 직원을 호출했습니다.", branchNo });
+    setName(""); setPhone("");
+    setStage("staff_input");
   };
 
   return (
@@ -934,6 +935,53 @@ export default function ConsultKiosk() {
         </div>
       )}
 
+      {/* ── 직원 부르기: 이름/연락처 입력 ── */}
+      {stage === "staff_input" && (
+        <div className="w-full max-w-sm">
+          <button onClick={doReset} className="flex items-center gap-1 text-slate-400 text-sm mb-6 hover:text-slate-700 transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+            처음으로
+          </button>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-11 h-11 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-amber-600" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-slate-900 font-bold text-xl">직원 부르기</p>
+              <p className="text-slate-500 text-sm mt-0.5">이름과 연락처를 남겨 주세요</p>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">이름 (선택)</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="성함을 입력해 주세요"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-base placeholder-slate-400 focus:outline-none focus:border-blue-300"
+            />
+          </div>
+
+          <PhoneKeypad phone={phone} onKey={handlePhoneKey} />
+
+          <button
+            onClick={() => {
+              setStage("staff_calling");
+              callStaffMut.mutate({ message: "키오스크에서 직원을 호출했습니다.", name: name.trim() || undefined, phone: phone.replace(/\D/g, "") || undefined, branchNo });
+            }}
+            disabled={phone.replace(/\D/g, "").length < 9 || callStaffMut.isPending}
+            className="w-full py-4 rounded-xl font-bold text-white bg-amber-500 disabled:opacity-30 active:bg-amber-600 transition-colors"
+          >
+            직원 부르기
+          </button>
+        </div>
+      )}
+
       {/* ── 직원 호출 중 ── */}
       {stage === "staff_calling" && (
         <div className="w-full max-w-sm text-center space-y-6">
@@ -960,16 +1008,11 @@ export default function ConsultKiosk() {
               잠시만 기다려 주시면<br />직원이 곧 찾아옵니다.
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 space-y-3">
-            <p className="text-slate-700 text-sm leading-relaxed">
-              직원이 오지 않으면 연락처를 남겨 주세요.<br /><span className="font-bold text-slate-900">바로 연락드리겠습니다.</span>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <p className="text-amber-800 text-sm leading-relaxed">
+              직원이 오지 못할 경우<br />
+              <span className="font-bold">문자 또는 전화로 바로 연락드리겠습니다.</span>
             </p>
-            <button
-              onClick={() => { setName(""); setPhone(""); setStage("callback_input"); }}
-              className="w-full py-3.5 rounded-xl font-bold text-white bg-[#0B1D3A] active:bg-[#162B52] transition-colors"
-            >
-              연락처 남기기
-            </button>
           </div>
           <AutoCloseBar durationMs={15000} active={stage === "staff_called"} onClose={doReset} />
         </div>
