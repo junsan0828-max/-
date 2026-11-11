@@ -130,13 +130,13 @@ const KIOSK_EVENTS: KioskEvent[] = [
 ];
 const PT777_PRICE = "777,000원";
 
-function PhoneKeypad({ phone, onKey }: { phone: string; onKey: (key: string) => void }) {
+function PhoneKeypad({ phone, onKey, placeholder }: { phone: string; onKey: (key: string) => void; placeholder?: string }) {
   return (
     <>
       <div className="mb-5">
         <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">전화번호</label>
         <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-xl font-mono tracking-widest min-h-[3.5rem]">
-          {phone || <span className="text-slate-400 text-base font-normal">숫자를 입력해 주세요</span>}
+          {phone || <span className="text-slate-400 text-base font-normal">{placeholder ?? "숫자를 입력해 주세요"}</span>}
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 mb-6">
@@ -218,6 +218,7 @@ export default function ConsultKiosk() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [staffPurpose, setStaffPurpose] = useState<"PT 상담" | "헬스권 상담" | "시설 이용 문의" | "">("");
   const [memberName, setMemberName] = useState("");
   const [showConsultModal, setShowConsultModal] = useState(false);
   const [waitType, setWaitType] = useState<"wait" | "callback">("wait");
@@ -333,7 +334,7 @@ export default function ConsultKiosk() {
     setWaitType("wait");
     setSelectedEvent(null); setRegPeriod("");
     setInfoTab("info"); setOpenFaq(null); setFaqPage(0);
-    setName(""); setPhone(""); setPurpose(""); setMemberName("");
+    setName(""); setPhone(""); setPurpose(""); setMemberName(""); setStaffPurpose("");
   }, []);
 
   // 홈이 아닌 화면에서 1분간 터치·입력이 없으면 입력값을 지우고 홈으로 (다음 손님에게 개인정보 노출 방지)
@@ -396,7 +397,7 @@ export default function ConsultKiosk() {
   };
 
   const handleCallStaff = () => {
-    setName(""); setPhone("");
+    setName(""); setPhone(""); setStaffPurpose("");
     setStage("staff_input");
   };
 
@@ -935,10 +936,10 @@ export default function ConsultKiosk() {
         </div>
       )}
 
-      {/* ── 직원 부르기: 이름/연락처 입력 ── */}
+      {/* ── 직원 부르기: 이름/연락처/목적 입력 ── */}
       {stage === "staff_input" && (
         <div className="w-full max-w-sm">
-          <button onClick={doReset} className="flex items-center gap-1 text-slate-400 text-sm mb-6 hover:text-slate-700 transition-colors">
+          <button onClick={doReset} className="flex items-center gap-1 text-slate-400 text-sm mb-5 hover:text-slate-700 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
             </svg>
@@ -952,33 +953,73 @@ export default function ConsultKiosk() {
             </div>
             <div>
               <p className="text-slate-900 font-bold text-xl">직원 부르기</p>
-              <p className="text-slate-500 text-sm mt-0.5">이름과 연락처를 남겨 주세요</p>
+              <p className="text-slate-500 text-sm mt-0.5">정보를 입력하시면 직원이 연락드립니다</p>
             </div>
           </div>
 
+          {/* 방문 목적 선택 */}
           <div className="mb-4">
-            <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">이름 (선택)</label>
+            <label className="text-slate-500 text-xs font-semibold tracking-widest uppercase mb-2 block">방문 목적</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["PT 상담", "헬스권 상담", "시설 이용 문의"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setStaffPurpose(p)}
+                  className={`py-3 rounded-xl text-sm font-bold border transition-colors ${
+                    staffPurpose === p
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-white text-slate-700 border-slate-200 active:bg-amber-50"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 이름 (선택) */}
+          <div className="mb-4">
+            <label className="text-slate-500 text-xs font-semibold tracking-widest uppercase mb-2 block">이름 <span className="normal-case font-normal">(선택)</span></label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="성함을 입력해 주세요"
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-base placeholder-slate-400 focus:outline-none focus:border-blue-300"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-base placeholder-slate-400 focus:outline-none focus:border-amber-300"
             />
           </div>
 
-          <PhoneKeypad phone={phone} onKey={handlePhoneKey} />
+          {/* 전화번호 */}
+          <PhoneKeypad phone={phone} onKey={handlePhoneKey} placeholder="010-0000-0000" />
 
           <button
             onClick={() => {
-              setStage("staff_calling");
-              callStaffMut.mutate({ message: "키오스크에서 직원을 호출했습니다.", name: name.trim() || undefined, phone: phone.replace(/\D/g, "") || undefined, branchNo });
+              const rawPhone = phone.replace(/\D/g, "");
+              const nameStr = name.trim();
+              const smsBody = encodeURIComponent(
+                `[자이언트짐 키오스크 방문]\n방문 목적: ${staffPurpose || "미선택"}\n이름: ${nameStr || "미입력"}\n연락처: ${phone}`
+              );
+              // SMS 전송 (기기의 문자 앱 열기)
+              window.location.href = `sms:01075593111?body=${smsBody}`;
+              // 푸시 알림도 함께 전송
+              callStaffMut.mutate({
+                message: `키오스크 방문 (${staffPurpose || "목적 미선택"})`,
+                name: nameStr || undefined,
+                phone: rawPhone || undefined,
+                branchNo,
+              });
+              setStage("staff_called");
             }}
-            disabled={phone.replace(/\D/g, "").length < 9 || callStaffMut.isPending}
+            disabled={phone.replace(/\D/g, "").length < 9 || !staffPurpose}
             className="w-full py-4 rounded-xl font-bold text-white bg-amber-500 disabled:opacity-30 active:bg-amber-600 transition-colors"
           >
             직원 부르기
           </button>
+          {(!staffPurpose || phone.replace(/\D/g, "").length < 9) && (
+            <p className="text-slate-400 text-xs text-center mt-2">
+              {!staffPurpose ? "방문 목적을 선택해 주세요" : "전화번호를 입력해 주세요"}
+            </p>
+          )}
         </div>
       )}
 
