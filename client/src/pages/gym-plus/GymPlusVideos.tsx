@@ -593,26 +593,15 @@ export default function GymPlusVideos() {
                 <p className="text-xs text-gray-400 mt-1">신체정보와 건강데이터를 기반으로 선별된 운동 영상입니다</p>
               </div>
 
-              {todayRec && todayRec.recommendedVideos.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-bold text-gray-400 tracking-wide">오늘의 추천 ({todayRec.recommendedVideos.length}개)</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {todayRec.recommendedVideos.map((v: any) => (
-                      <VideoCard key={v.id} v={v} onClick={() => navigate(`/gym-plus/videos/${v.id}`)} />
-                    ))}
-                  </div>
+              <div className="border border-dashed border-gray-200 rounded-xl p-6 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mx-auto">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-gray-300">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5 20.47 3m-9.72 0L15.75 10.5M3 3l1.5 1.5m0 0 .682 9.1a1.5 1.5 0 0 0 1.496 1.4h7.646a1.5 1.5 0 0 0 1.496-1.4L17.25 4.5M4.5 4.5h15M9 10.5v9m6-9v9" />
+                  </svg>
                 </div>
-              ) : (
-                <div className="border border-dashed border-gray-200 rounded-xl p-6 text-center space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mx-auto">
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-gray-300">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-medium text-[#1a2b4b]">출석체크 후 추천 운동이 표시됩니다</p>
-                  <p className="text-xs text-gray-400">위의 출석하기 버튼을 눌러 오늘의 맞춤 운동을 확인하세요</p>
-                </div>
-              )}
+                <p className="text-sm font-medium text-[#1a2b4b]">전체 영상에서 운동을 선택해 보세요</p>
+                <p className="text-xs text-gray-400">아래 영상 목록에서 원하는 운동 영상을 찾아보세요</p>
+              </div>
             </div>
           )}
         </div>

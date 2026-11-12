@@ -178,10 +178,11 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-white rounded-t-3xl overflow-hidden" style={{ maxHeight: "92vh" }}>
+      {/* flex-col 으로 헤더·콘텐츠·하단버튼 분리 → 버튼이 항상 화면에 보임 */}
+      <div className="w-full max-w-md bg-white rounded-t-3xl flex flex-col" style={{ maxHeight: "92vh" }}>
 
-        {/* 헤더 */}
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+        {/* 헤더 (flex-shrink-0 으로 고정) */}
+        <div className="flex-shrink-0 px-5 pt-5 pb-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <div className="flex gap-1.5">
               {Array.from({ length: totalSteps }).map((_, i) => (
@@ -207,15 +208,15 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
           </p>
         </div>
 
-        {/* 콘텐츠 */}
-        <div className="overflow-y-auto" style={{ maxHeight: "calc(92vh - 160px)" }}>
+        {/* 스크롤 가능한 콘텐츠 (버튼 제외) */}
+        <div className="flex-1 overflow-y-auto">
 
           {/* STEP 1: 이용규정 */}
           {step === "rules" && (
             <div className="p-4 space-y-3">
               <div
                 className="space-y-3 rounded-2xl border border-gray-100 p-4 bg-gray-50 overflow-y-auto"
-                style={{ maxHeight: "45vh" }}
+                style={{ maxHeight: "42vh" }}
                 onScroll={(e) => {
                   const el = e.currentTarget;
                   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
@@ -249,14 +250,6 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
                 </div>
                 <p className="text-[13px] font-medium text-[#1a2b4b]">위 이용규정을 모두 읽고 동의합니다</p>
               </button>
-
-              <Button
-                className="w-full h-12 text-[14px] font-bold rounded-xl"
-                disabled={!rulesAgreed || upsert.isPending}
-                onClick={handleRulesNext}
-              >
-                {upsert.isPending ? "처리 중..." : "동의하고 계속하기"}
-              </Button>
             </div>
           )}
 
@@ -276,22 +269,6 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
                   </div>
                 ))}
               </div>
-
-              <div className="bg-[#EEF1F6] border border-[#0B1D3A]/15 rounded-xl p-3.5">
-                <p className="text-[12px] font-bold text-[#0B1D3A] mb-1">출석하기 안내</p>
-                <p className="text-[11px] text-[#0B1D3A]/80 leading-relaxed">
-                  운동영상 탭 상단의 <strong>출석하기</strong> 버튼을 눌러 매일 출석을 체크하세요.
-                  컨디션과 운동 부위를 입력하면 맞춤 영상을 추천받을 수 있습니다.
-                </p>
-              </div>
-
-              <Button
-                className="w-full h-12 text-[14px] font-bold rounded-xl"
-                disabled={upsert.isPending}
-                onClick={handleGuideNext}
-              >
-                {upsert.isPending ? "처리 중..." : "확인했습니다"}
-              </Button>
             </div>
           )}
 
@@ -348,6 +325,33 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
                 ))}
               </div>
 
+            </div>
+          )}
+
+        </div>
+
+        {/* 하단 버튼 (항상 화면에 고정 — 스크롤과 무관하게 눌림) */}
+        <div className="flex-shrink-0 px-4 pb-6 pt-3 border-t border-gray-100 bg-white">
+          {step === "rules" && (
+            <Button
+              className="w-full h-12 text-[14px] font-bold rounded-xl"
+              disabled={!rulesAgreed || upsert.isPending}
+              onClick={handleRulesNext}
+            >
+              {upsert.isPending ? "처리 중..." : "동의하고 계속하기"}
+            </Button>
+          )}
+          {step === "guide" && (
+            <Button
+              className="w-full h-12 text-[14px] font-bold rounded-xl"
+              disabled={upsert.isPending}
+              onClick={handleGuideNext}
+            >
+              {upsert.isPending ? "처리 중..." : "확인했습니다"}
+            </Button>
+          )}
+          {step === "parq" && (
+            <>
               <Button
                 className="w-full h-12 text-[14px] font-bold rounded-xl"
                 disabled={upsert.isPending}
@@ -355,13 +359,13 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
               >
                 {upsert.isPending ? "저장 중..." : "제출하고 시작하기"}
               </Button>
-              <p className="text-center text-[10px] text-gray-400 pb-2">
+              <p className="text-center text-[10px] text-gray-400 mt-2">
                 나중에 내정보 탭에서도 언제든지 수정할 수 있습니다
               </p>
-            </div>
+            </>
           )}
-
         </div>
+
       </div>
     </div>
   );
