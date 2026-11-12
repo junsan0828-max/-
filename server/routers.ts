@@ -4125,6 +4125,20 @@ ${dataContext}
       return { success: true };
     }),
 
+  admin_clearDietProgram: adminOnlyGymPlus
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `UPDATE gym_plus_members SET "programName" = NULL, "programStartDate" = NULL WHERE id = $1`,
+        [input.id]
+      );
+      await pool.query(
+        `DELETE FROM gym_plus_diet_sessions WHERE "gymPlusMemberId" = $1`,
+        [input.id]
+      );
+      return { success: true };
+    }),
+
   admin_deleteMember: adminOnlyGymPlus
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {

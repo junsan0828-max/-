@@ -1190,6 +1190,13 @@ export function GymPlusMissionsAdmin() {
     },
     onError: (err) => toast.error(`배정 실패: ${err.message}`),
   });
+  const clearDietProgram = trpc.gymPlus.admin_clearDietProgram.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.admin_listMissionProgress.invalidate();
+      toast.success("프로그램 및 세션 데이터가 초기화되었습니다.");
+    },
+    onError: (err) => toast.error(`초기화 실패: ${err.message}`),
+  });
 
   const [assignMemberId, setAssignMemberId] = useState<string>("");
   const [assignProgram, setAssignProgram] = useState<string>(PROGRAMS[0]);
@@ -1269,12 +1276,23 @@ export function GymPlusMissionsAdmin() {
                 <p className="text-xs text-muted-foreground">{m.phone}</p>
                 <p className="text-xs text-blue-600 mt-0.5">{m.programName}</p>
               </div>
-              <button
-                onClick={() => handleRemove(m.id)}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors"
-              >
-                해제
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (!confirm("프로그램명과 세션 데이터까지 완전히 초기화하시겠습니까?")) return;
+                    clearDietProgram.mutate({ id: m.id });
+                  }}
+                  className="text-xs text-orange-400 hover:text-orange-600 transition-colors"
+                >
+                  데이터 초기화
+                </button>
+                <button
+                  onClick={() => handleRemove(m.id)}
+                  className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                >
+                  해제
+                </button>
+              </div>
             </div>
             <div className="flex gap-3 text-xs text-muted-foreground pt-1">
               <span>시작: {m.programStartDate?.slice(0, 10) ?? "-"}</span>
