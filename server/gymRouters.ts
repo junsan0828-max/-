@@ -2576,6 +2576,7 @@ const kpiRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const rows = await db.select({
         id: revenueEntries.id,
+        memberId: revenueEntries.memberId,
         customerName: revenueEntries.customerName,
         memberName: members.name,
         type: revenueEntries.type,
@@ -2591,6 +2592,67 @@ const kpiRouter = t.router({
         .where(sql`COALESCE(${revenueEntries.unpaidAmount},0) > 0`)
         .orderBy(desc(revenueEntries.unpaidAmount));
       return input?.branchId ? rows.filter(r => r.branchId === input.branchId) : rows;
+    }),
+
+  collectUnpaid: protectedProcedure
+    .input(z.object({
+      revenueEntryId: z.number(),
+      collectedAmount: z.number().min(1),
+      paymentDate: z.string(),
+      paymentMethod: z.enum(["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐", "분할결제"]).optional(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [rev] = await db.select().from(revenueEntries).where(eq(revenueEntries.id, input.revenueEntryId)).limit(1);
+      if (!rev) throw new TRPCError({ code: "NOT_FOUND", message: "매출 항목을 찾을 수 없습니다." });
+
+      const currentUnpaid = rev.unpaidAmount ?? 0;
+      if (input.collectedAmount > currentUnpaid) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `현재 미수금(${currentUnpaid.toLocaleString()}원)보다 많이 받을 수 없습니다.` });
+      }
+
+      const newUnpaid = currentUnpaid - input.collectedAmount;
+      await db.update(revenueEntries)
+        .set({ unpaidAmount: newUnpaid, updatedAt: new Date().toISOString() })
+        .where(eq(revenueEntries.id, input.revenueEntryId));
+
+      // 연결된 패키지도 같이 업데이트
+      const linkedPkg = await db.select().from(ptPackages)
+        .where(eq(ptPackages.revenueEntryId, input.revenueEntryId)).limit(1);
+      if (linkedPkg[0]) {
+        const pkgNewUnpaid = Math.max(0, (linkedPkg[0].unpaidAmount ?? 0) - input.collectedAmount);
+        await db.update(ptPackages).set({ unpaidAmount: pkgNewUnpaid }).where(eq(ptPackages.id, linkedPkg[0].id));
+      }
+
+      const [member] = rev.memberId
+        ? await db.select({ name: members.name, phone: members.phone }).from(members).where(eq(members.id, rev.memberId)).limit(1)
+        : [undefined];
+
+      await db.insert(revenueEntries).values({
+        memberId: rev.memberId,
+        trainerId: rev.trainerId,
+        createdBy: ctx.user.id,
+        customerName: member?.name ?? rev.customerName ?? "",
+        phone: member?.phone ?? null,
+        programDetail: `${rev.programDetail ?? "PT"} 미수금 수납`,
+        type: rev.type ?? "PT",
+        subType: "미수금",
+        amount: input.collectedAmount,
+        discountAmount: 0,
+        paidAmount: input.collectedAmount,
+        unpaidAmount: 0,
+        paymentMethod: input.paymentMethod ?? undefined,
+        paymentDate: input.paymentDate,
+        relatedEntryId: rev.id,
+        branchId: rev.branchId,
+        memo: input.memo ?? null,
+      });
+
+      return { success: true, newUnpaid };
     }),
 
   recentActivity: protectedProcedure.query(async ({ ctx }) => {

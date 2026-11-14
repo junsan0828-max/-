@@ -62,10 +62,23 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const [assigningEntryId, setAssigningEntryId] = useState<number | null>(null);
+  const [payModal, setPayModal] = useState<{ revenueEntryId: number; memberName: string; unpaidAmount: number } | null>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [payDate, setPayDate] = useState(today);
+  const [payMethod, setPayMethod] = useState<"카드" | "현금" | "현금영수증" | "계좌이체" | "이체" | "지역화폐" | "분할결제">("카드");
   const { data: branches } = trpc.schedules.branches.useQuery();
   const utils = trpc.useUtils();
   const assignBranchToRevenue = trpc.gym.assignBranchToRevenue.useMutation({
     onSuccess: () => { utils.gym.revenue.list.invalidate(); setAssigningEntryId(null); },
+  });
+  const collectUnpaidMutation = trpc.gym.kpi.collectUnpaid.useMutation({
+    onSuccess: () => {
+      utils.gym.kpi.unpaidList.invalidate();
+      setPayModal(null);
+      setPayAmount("");
+      setPayDate(today);
+      setPayMethod("카드");
+    },
   });
   const assignBranchMember = trpc.members.assignBranch.useMutation({
     onSuccess: () => { utils.gym.revenue.list.invalidate(); setAssigningEntryId(null); },
@@ -223,6 +236,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: p.memberName ?? p.customerName ?? "-",
         value: `${(p.unpaidAmount ?? 0).toLocaleString()}원`,
         sub: [p.type, p.programDetail, p.trainerName, p.paymentDate].filter(Boolean).join(" · "),
+        revenueEntryId: p.id,
+        unpaidRaw: p.unpaidAmount ?? 0,
       })),
       detail: unpaidList.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">미수금이 없습니다</p> : null,
     },
@@ -258,7 +273,23 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
                       <p className="text-sm font-medium truncate">{row.label}</p>
                       {row.sub && <p className={`text-xs mt-0.5 ${(row as any).warn ? "text-orange-400" : "text-muted-foreground"}`}>{row.sub}</p>}
                     </div>
-                    <p className="text-sm font-semibold text-foreground shrink-0">{row.value}</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <p className="text-sm font-semibold text-foreground">{row.value}</p>
+                      {type === "unpaid" && (row as any).revenueEntryId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPayModal({ revenueEntryId: (row as any).revenueEntryId, memberName: row.label, unpaidAmount: (row as any).unpaidRaw });
+                            setPayAmount(String((row as any).unpaidRaw));
+                            setPayDate(today);
+                            setPayMethod("카드");
+                          }}
+                          className="px-2 py-0.5 text-xs rounded-md bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 border border-emerald-500/30 font-medium"
+                        >
+                          납부
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {(row as any).warn && assigningEntryId === (row as any).entryId && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -296,6 +327,79 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
           </div>
         )}
       </div>
+      {payModal && (
+        <div className="fixed inset-0 bg-black/60 z-60 flex items-center justify-center p-4" onClick={() => setPayModal(null)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h3 className="font-bold text-sm">미수금 납부 — {payModal.memberName}</h3>
+              <button onClick={() => setPayModal(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground">납부일</label>
+                <input
+                  type="date"
+                  value={payDate}
+                  onChange={e => setPayDate(e.target.value)}
+                  className="mt-1 w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">납부금액 <span className="text-muted-foreground/70">(미수금: {payModal.unpaidAmount.toLocaleString()}원)</span></label>
+                <input
+                  type="number"
+                  value={payAmount}
+                  onChange={e => setPayAmount(e.target.value)}
+                  min={1}
+                  max={payModal.unpaidAmount}
+                  className="mt-1 w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">결제방법</label>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {(["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐", "분할결제"] as const).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setPayMethod(m)}
+                      className={`px-3 py-1 text-xs rounded-full border font-medium transition-colors ${payMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:border-primary/50"}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="px-5 pb-4 flex gap-2">
+              <button
+                onClick={() => setPayModal(null)}
+                className="flex-1 py-2 text-sm rounded-lg border border-border text-muted-foreground hover:bg-muted/30"
+              >
+                취소
+              </button>
+              <button
+                disabled={collectUnpaidMutation.isPending || !payAmount || Number(payAmount) <= 0}
+                onClick={() => {
+                  const amount = Number(payAmount);
+                  if (!amount || amount <= 0) return;
+                  collectUnpaidMutation.mutate({
+                    revenueEntryId: payModal.revenueEntryId,
+                    collectedAmount: amount,
+                    paymentDate: payDate,
+                    paymentMethod: payMethod,
+                  });
+                }}
+                className="flex-1 py-2 text-sm rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold disabled:opacity-50"
+              >
+                {collectUnpaidMutation.isPending ? "처리중..." : "납부 확인"}
+              </button>
+            </div>
+            {collectUnpaidMutation.error && (
+              <p className="px-5 pb-4 text-xs text-red-400">{collectUnpaidMutation.error.message}</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
