@@ -73,7 +73,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   });
   const collectUnpaidMutation = trpc.gym.kpi.collectUnpaid.useMutation({
     onSuccess: () => {
-      utils.gym.kpi.unpaidList.invalidate();
+      utils.gym.kpi.invalidate();
+      utils.gym.revenue.list.invalidate();
       setPayModal(null);
       setPayAmount("");
       setPayDate(today);

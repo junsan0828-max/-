@@ -2616,26 +2616,21 @@ const kpiRouter = t.router({
       }
 
       const newUnpaid = currentUnpaid - input.collectedAmount;
-      const newPaid = (rev.paidAmount ?? 0) + input.collectedAmount;
-      await db.update(revenueEntries)
-        .set({ unpaidAmount: newUnpaid, paidAmount: newPaid, updatedAt: new Date().toISOString() })
-        .where(eq(revenueEntries.id, input.revenueEntryId));
-
-      // 연결된 패키지도 같이 업데이트 (revenueEntryId는 ALTER TABLE 컬럼이라 raw SQL 사용)
-      const pkgRes = await pool.query<{ id: number; unpaidAmount: number | null }>(
-        `SELECT id, "unpaidAmount" FROM pt_packages WHERE "revenueEntryId" = $1 LIMIT 1`,
-        [input.revenueEntryId]
-      );
-      if (pkgRes.rows[0]) {
-        const pkgNewUnpaid = Math.max(0, (pkgRes.rows[0].unpaidAmount ?? 0) - input.collectedAmount);
-        await pool.query(`UPDATE pt_packages SET "unpaidAmount" = $1 WHERE id = $2`, [pkgNewUnpaid, pkgRes.rows[0].id]);
-      }
-
       const [member] = rev.memberId
         ? await db.select({ name: members.name, phone: members.phone }).from(members).where(eq(members.id, rev.memberId)).limit(1)
         : [undefined];
 
-      await db.insert(revenueEntries).values({
+      // 원본 paidAmount는 최초 입금액 그대로 둔다 — 수납액은 아래 '미수금' 행으로 집계된다(이중 집계 방지).
+      // 중간 실패 시 미수금만 사라지는 반쪽 상태를 막기 위해 트랜잭션으로 묶는다.
+      await db.transaction(async (tx) => {
+      await tx.update(revenueEntries)
+        .set({ unpaidAmount: newUnpaid, updatedAt: new Date().toISOString() })
+        .where(eq(revenueEntries.id, input.revenueEntryId));
+
+      // revenueEntryId는 Drizzle 스키마에 없는 ALTER TABLE 컬럼이라 raw SQL
+      await tx.execute(sql`UPDATE pt_packages SET "unpaidAmount" = GREATEST(0, COALESCE("unpaidAmount",0) - ${input.collectedAmount}) WHERE "revenueEntryId" = ${input.revenueEntryId}`);
+
+      await tx.insert(revenueEntries).values({
         memberId: rev.memberId,
         trainerId: rev.trainerId,
         createdBy: ctx.user.id,
@@ -2653,6 +2648,7 @@ const kpiRouter = t.router({
         relatedEntryId: rev.id,
         branchId: rev.branchId,
         memo: input.memo ?? null,
+      });
       });
 
       return { success: true, newUnpaid };
