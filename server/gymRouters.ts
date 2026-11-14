@@ -2620,12 +2620,14 @@ const kpiRouter = t.router({
         .set({ unpaidAmount: newUnpaid, updatedAt: new Date().toISOString() })
         .where(eq(revenueEntries.id, input.revenueEntryId));
 
-      // 연결된 패키지도 같이 업데이트
-      const linkedPkg = await db.select().from(ptPackages)
-        .where(eq(ptPackages.revenueEntryId, input.revenueEntryId)).limit(1);
-      if (linkedPkg[0]) {
-        const pkgNewUnpaid = Math.max(0, (linkedPkg[0].unpaidAmount ?? 0) - input.collectedAmount);
-        await db.update(ptPackages).set({ unpaidAmount: pkgNewUnpaid }).where(eq(ptPackages.id, linkedPkg[0].id));
+      // 연결된 패키지도 같이 업데이트 (revenueEntryId는 ALTER TABLE 컬럼이라 raw SQL 사용)
+      const pkgRes = await pool.query<{ id: number; unpaidAmount: number | null }>(
+        `SELECT id, "unpaidAmount" FROM pt_packages WHERE "revenueEntryId" = $1 LIMIT 1`,
+        [input.revenueEntryId]
+      );
+      if (pkgRes.rows[0]) {
+        const pkgNewUnpaid = Math.max(0, (pkgRes.rows[0].unpaidAmount ?? 0) - input.collectedAmount);
+        await pool.query(`UPDATE pt_packages SET "unpaidAmount" = $1 WHERE id = $2`, [pkgNewUnpaid, pkgRes.rows[0].id]);
       }
 
       const [member] = rev.memberId
