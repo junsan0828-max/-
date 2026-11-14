@@ -2616,8 +2616,9 @@ const kpiRouter = t.router({
       }
 
       const newUnpaid = currentUnpaid - input.collectedAmount;
+      const newPaid = (rev.paidAmount ?? 0) + input.collectedAmount;
       await db.update(revenueEntries)
-        .set({ unpaidAmount: newUnpaid, updatedAt: new Date().toISOString() })
+        .set({ unpaidAmount: newUnpaid, paidAmount: newPaid, updatedAt: new Date().toISOString() })
         .where(eq(revenueEntries.id, input.revenueEntryId));
 
       // 연결된 패키지도 같이 업데이트 (revenueEntryId는 ALTER TABLE 컬럼이라 raw SQL 사용)
