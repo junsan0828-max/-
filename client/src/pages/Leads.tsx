@@ -351,6 +351,7 @@ export default function LeadsPage() {
 
   function handleSave(status: string) {
     if (!form.name.trim()) return toast.error("이름을 입력해주세요");
+    if (!form.channelId) return toast.error("유입 채널을 선택해주세요");
     const payload = {
       name: form.name,
       phone: form.phone || undefined,
@@ -936,7 +937,7 @@ export default function LeadsPage() {
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">유입 채널</label>
+                  <label className="text-xs text-muted-foreground">유입 채널 <span className="text-red-500">*</span></label>
                   <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
