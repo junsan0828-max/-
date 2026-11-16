@@ -2700,6 +2700,7 @@ async function gymPlusMemberContact(gymPlusMemberId: number) {
 // 비회원 온라인 등록 가격표 — 금액은 서버가 단독으로 결정한다.
 // client/src/pages/gym-plus/GymPlusLogin.tsx의 PERIOD_PRICES와 동일하게 유지할 것.
 const REGISTRATION_PRICES: Record<string, number> = {
+  "1일 입장": 10000,
   "1개월": 80000,
   "3개월": 159000,
   "6개월": 216000,
@@ -2837,7 +2838,7 @@ const gymPlusRouter = t.router({
     .input(z.object({
       name: z.string().min(1),
       phone: z.string().min(1),
-      membershipPeriod: z.enum(["1개월", "3개월", "6개월", "12개월"]),
+      membershipPeriod: z.enum(["1일 입장", "1개월", "3개월", "6개월", "12개월"]),
       signatureData: z.string().optional(),
       agreedMarketing: z.boolean().optional(),
       contractDate: z.string().optional(),
@@ -7026,7 +7027,7 @@ const kioskRouter = t.router({
       eventId: z.string().min(1).max(50),
       eventTitle: z.string().min(1).max(100),
       product: z.enum(["membership", "pt777"]),
-      period: z.enum(["1개월", "3개월", "6개월", "12개월"]).optional(),
+      period: z.enum(["1일 입장", "1개월", "3개월", "6개월", "12개월"]).optional(),
       name: z.string().trim().min(1).max(50),
       phone: z.string().min(9),
     }))

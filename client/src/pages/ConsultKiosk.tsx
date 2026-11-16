@@ -97,8 +97,8 @@ const PURPOSE_OPTIONS: Record<ConsultType, string[]> = {
 
 // 지점별 헬스 이용권 가격 (랜딩페이지 가격과 동일하게 유지)
 const MEMBERSHIP_PRICES: Record<number, [string, string][]> = {
-  1: [["1개월", "80,000원"], ["3개월", "159,000원"], ["6개월", "226,000원"], ["12개월", "322,000원"]],
-  2: [["1개월", "60,000원"], ["3개월", "120,000원"], ["6개월", "180,000원"], ["12개월", "300,000원"]],
+  1: [["1일 입장", "10,000원"], ["1개월", "80,000원"], ["3개월", "159,000원"], ["6개월", "226,000원"], ["12개월", "322,000원"]],
+  2: [["1일 입장", "10,000원"], ["1개월", "60,000원"], ["3개월", "120,000원"], ["6개월", "180,000원"], ["12개월", "300,000원"]],
 };
 
 const IDLE_RESET_MS = 60_000;
@@ -390,7 +390,7 @@ export default function ConsultKiosk() {
       eventId: selectedEvent.id,
       eventTitle: `${selectedEvent.title} ${selectedEvent.benefit}`,
       product: selectedEvent.product,
-      period: selectedEvent.product === "membership" ? (regPeriod as "1개월" | "3개월" | "6개월" | "12개월") : undefined,
+      period: selectedEvent.product === "membership" ? (regPeriod as "1일 입장" | "1개월" | "3개월" | "6개월" | "12개월") : undefined,
       name: name.trim(),
       phone: phone.replace(/\D/g, ""),
     });
@@ -871,17 +871,30 @@ export default function ConsultKiosk() {
             {needPeriod ? (
               <div className="mb-4">
                 <label className="text-slate-500 text-xs tracking-widest uppercase mb-2 block">기간</label>
-                <div className={`grid gap-2 ${periods.length > 1 ? "grid-cols-4" : "grid-cols-1"}`}>
-                  {periods.map(([p, price]) => (
+                <div className="space-y-2">
+                  {/* 1일 입장은 단독 1행, 나머지는 2열 그리드 */}
+                  {periods.filter(([p]) => p === "1일 입장").map(([p, price]) => (
                     <button
                       key={p}
                       onClick={() => setRegPeriod(p)}
-                      className={`rounded-xl border px-1 py-2.5 text-center transition-colors ${regPeriod === p ? "bg-[#1D4ED8] border-[#1D4ED8] text-white" : "bg-white border-slate-200 text-slate-900"}`}
+                      className={`w-full rounded-xl border px-3 py-2.5 flex justify-between items-center transition-colors ${regPeriod === p ? "bg-[#1D4ED8] border-[#1D4ED8] text-white" : "bg-white border-slate-200 text-slate-900"}`}
                     >
                       <p className="text-sm font-bold">{p}</p>
-                      <p className={`text-xs ${regPeriod === p ? "text-white/80" : "text-slate-500"}`}>{price}</p>
+                      <p className={`text-sm font-semibold ${regPeriod === p ? "text-white/90" : "text-slate-500"}`}>{price}</p>
                     </button>
                   ))}
+                  <div className={`grid gap-2 ${periods.filter(([p]) => p !== "1일 입장").length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {periods.filter(([p]) => p !== "1일 입장").map(([p, price]) => (
+                      <button
+                        key={p}
+                        onClick={() => setRegPeriod(p)}
+                        className={`rounded-xl border px-1 py-2.5 text-center transition-colors ${regPeriod === p ? "bg-[#1D4ED8] border-[#1D4ED8] text-white" : "bg-white border-slate-200 text-slate-900"}`}
+                      >
+                        <p className="text-sm font-bold">{p}</p>
+                        <p className={`text-xs ${regPeriod === p ? "text-white/80" : "text-slate-500"}`}>{price}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <p className="text-slate-500 text-xs mt-2">{VAT_NOTE}</p>
               </div>
