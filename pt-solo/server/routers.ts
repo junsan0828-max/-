@@ -1950,6 +1950,110 @@ const dashboardRouter = t.router({
     };
   }),
 
+  // 연간 리포트 — 월별 수업·신규·재등록·종료·노쇼 테이블 (운영 방식 반영)
+  getAnnualReport: protectedProcedure
+    .input(z.object({ year: z.number(), period: z.enum(["H1", "H2", "annual"]), trainerId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const tid = resolveGrowthTrainerId(ctx.user, input.trainerId);
+      if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      const { year, period } = input;
+
+      let months: number[];
+      if (period === "H1") months = [1,2,3,4,5,6];
+      else if (period === "H2") months = [7,8,9,10,11,12];
+      else months = [1,2,3,4,5,6,7,8,9,10,11,12];
+
+      const ymd = (y: number, m: number) => `${y}-${String(m).padStart(2,"0")}-01`;
+      const nxt = (y: number, m: number) => (m === 12 ? ymd(y + 1, 1) : ymd(y, m + 1));
+
+      const REREG = `EXISTS (SELECT 1 FROM pt_packages p2 WHERE p2."memberId"=p."memberId" AND p2.id<>p.id AND (p2."createdAt"<p."createdAt" OR (p2."createdAt"=p."createdAt" AND p2.id<p.id)))`;
+
+      const [opRow, summaryRow, monthlyRows] = await Promise.all([
+        pool.query<{ operationMode: string | null }>(`SELECT "operationMode" FROM trainers WHERE id=$1`, [tid]),
+
+        // 스냅샷 요약 카드
+        pool.query<{ active_cnt: string; paused_cnt: string; ended_cnt: string }>(`
+          WITH active_m AS (
+            SELECT DISTINCT "memberId" FROM pt_packages WHERE "trainerId"=$1 AND status='active'
+          ),
+          paused_m AS (
+            SELECT DISTINCT p."memberId" FROM pt_pauses pp
+            JOIN pt_packages p ON p.id=pp."packageId"
+            WHERE p."trainerId"=$1
+              AND pp."pauseStart" <= now()::text::date::text
+              AND (pp."pauseEnd" IS NULL OR pp."pauseEnd" >= now()::text::date::text)
+          ),
+          all_m AS (SELECT DISTINCT "memberId" FROM pt_packages WHERE "trainerId"=$1)
+          SELECT
+            (SELECT COUNT(*) FROM active_m) AS active_cnt,
+            (SELECT COUNT(*) FROM paused_m WHERE "memberId" NOT IN (SELECT "memberId" FROM active_m)) AS paused_cnt,
+            (SELECT COUNT(*) FROM all_m WHERE "memberId" NOT IN (SELECT "memberId" FROM active_m)) AS ended_cnt
+        `, [tid]),
+
+        // 월별 집계
+        Promise.all(months.map(async (m) => {
+          const start = ymd(year, m);
+          const end = nxt(year, m);
+          const [sessR, pkgR, endedR, noshowR] = await Promise.all([
+            pool.query<{ cnt: string }>(`SELECT COUNT(*) AS cnt FROM attendance_checks WHERE "trainerId"=$1 AND "checkDate">=$2 AND "checkDate"<$3 AND status='attended'`, [tid, start, end]),
+            pool.query<{ new_total: string; new_sessions: string; new_membership: string; rereg: string }>(`
+              SELECT
+                COUNT(*) FILTER (WHERE NOT ${REREG}) AS new_total,
+                COUNT(*) FILTER (WHERE NOT ${REREG} AND COALESCE("totalSessions",0)>0) AS new_sessions,
+                COUNT(*) FILTER (WHERE NOT ${REREG} AND COALESCE("totalSessions",0)=0) AS new_membership,
+                COUNT(*) FILTER (WHERE ${REREG}) AS rereg
+              FROM pt_packages p WHERE p."trainerId"=$1 AND p."createdAt">=$2 AND p."createdAt"<$3
+            `, [tid, start, end]),
+            pool.query<{ cnt: string }>(`SELECT COUNT(*) AS cnt FROM pt_packages WHERE "trainerId"=$1 AND status IN ('inactive','completed') AND "updatedAt">=$2 AND "updatedAt"<$3`, [tid, start, end]),
+            pool.query<{ cnt: string }>(`SELECT COUNT(*) AS cnt FROM attendance_checks WHERE "trainerId"=$1 AND "checkDate">=$2 AND "checkDate"<$3 AND status='noshow'`, [tid, start, end]),
+          ]);
+          return {
+            month: m,
+            sessions: Number(sessR.rows[0]?.cnt ?? 0),
+            newSessions: Number(pkgR.rows[0]?.new_sessions ?? 0),
+            newMembership: Number(pkgR.rows[0]?.new_membership ?? 0),
+            newTotal: Number(pkgR.rows[0]?.new_total ?? 0),
+            rereg: Number(pkgR.rows[0]?.rereg ?? 0),
+            ended: Number(endedR.rows[0]?.cnt ?? 0),
+            noshow: Number(noshowR.rows[0]?.cnt ?? 0),
+          };
+        })),
+      ]);
+
+      const totals = monthlyRows.reduce((a, r) => ({
+        sessions: a.sessions + r.sessions,
+        newTotal: a.newTotal + r.newTotal,
+        newSessions: a.newSessions + r.newSessions,
+        newMembership: a.newMembership + r.newMembership,
+        rereg: a.rereg + r.rereg,
+        ended: a.ended + r.ended,
+        noshow: a.noshow + r.noshow,
+      }), { sessions: 0, newTotal: 0, newSessions: 0, newMembership: 0, rereg: 0, ended: 0, noshow: 0 });
+
+      const reregRate = (totals.rereg + totals.ended) > 0
+        ? Math.round(totals.rereg / (totals.rereg + totals.ended) * 100)
+        : 0;
+
+      const s = summaryRow.rows[0];
+      const operationMode = opRow.rows[0]?.operationMode ?? "both";
+
+      return {
+        operationMode,
+        summary: {
+          activeMembers: Number(s?.active_cnt ?? 0),
+          pausedMembers: Number(s?.paused_cnt ?? 0),
+          endedMembers: Number(s?.ended_cnt ?? 0),
+          reregRate,
+          totalSessions: totals.sessions,
+          totalNew: totals.newTotal,
+          totalRereg: totals.rereg,
+          totalNoshow: totals.noshow,
+        },
+        monthly: monthlyRows,
+        totals,
+      };
+    }),
+
   // 나의 성과 리포트 — 기간(상반기/하반기/연간) × 연도
   // 성장 통계 — 프로그램별·유입경로·성별 심층 데이터
   getGrowthStats: protectedProcedure
