@@ -187,6 +187,7 @@ export default function LeadsPage() {
 
   // 바로등록 상태
   const [showQuickModal, setShowQuickModal] = useState(false);
+  const [showAddChooser, setShowAddChooser] = useState(false);
   const [quickStep, setQuickStep] = useState<"select" | "new" | "rereg">("select");
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
@@ -517,21 +518,47 @@ export default function LeadsPage() {
           <h1 className="text-xl font-bold">상담실</h1>
           <p className="text-xs text-muted-foreground">월별 상담 및 전환 관리</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={openQuickModal}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Zap className="h-4 w-4" /> 바로등록
-          </button>
-          <button
-            onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) }); }}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" /> 상담 추가
-          </button>
-        </div>
+        <button
+          onClick={() => setShowAddChooser(true)}
+          className="flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-4 w-4" /> 추가
+        </button>
       </div>
+
+      {/* ── 추가 유형 선택 ── */}
+      {showAddChooser && (
+        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4" onClick={() => setShowAddChooser(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <h2 className="font-bold">무엇을 추가할까요?</h2>
+              <button onClick={() => setShowAddChooser(false)} className="text-muted-foreground hover:text-foreground" aria-label="닫기">✕</button>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setShowAddChooser(false);
+                  setShowForm(true); setEditId(null);
+                  setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) });
+                }}
+                className="flex flex-col items-center gap-2 p-5 rounded-xl border border-border bg-accent/20 hover:border-primary/50 hover:bg-primary/10 transition-colors"
+              >
+                <ClipboardList className="h-8 w-8 text-primary" />
+                <span className="text-sm font-semibold">상담 기록</span>
+                <span className="text-xs text-muted-foreground text-center">상담 내용·일정을 남기고 나중에 등록</span>
+              </button>
+              <button
+                onClick={() => { setShowAddChooser(false); openQuickModal(); }}
+                className="flex flex-col items-center gap-2 p-5 rounded-xl border border-border bg-accent/20 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-colors"
+              >
+                <Zap className="h-8 w-8 text-emerald-500" />
+                <span className="text-sm font-semibold">바로 등록</span>
+                <span className="text-xs text-muted-foreground text-center">상담 없이 결제까지 바로 등록</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
         <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="h-5 w-5" /></button>
