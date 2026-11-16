@@ -613,7 +613,19 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-recruit span { font-size: 13px; color: var(--fg-2); }
 .cs-stats { margin-top: 8px; font-size: 14px; font-weight: 700; color: var(--accent-dk); font-variant-numeric: tabular-nums; }
 .cs-closed-badge { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: #9a3412; background: #ffedd5; border-radius: 20px; padding: 2px 8px; vertical-align: 2px; }
-.cs-trust { margin-top: 18px; }
+.cs-trust { margin-top: 18px; min-width: 0; }
+.cs-profile { margin-top: 24px; display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: center; }
+.cs-profile .cs-trust { margin-top: 0; }
+.cs-photo { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 14px; border: 1px solid var(--border); }
+@media (max-width: 560px) { .cs-profile { grid-template-columns: 1fr; } .cs-photo { max-width: 240px; } }
+.cs-data { margin-top: 28px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 20px 18px; }
+.cs-data-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--accent); margin-bottom: 12px; }
+.cs-data-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.cs-data-grid div { background: var(--bg-alt); border-radius: 10px; padding: 14px 14px 12px; display: flex; flex-direction: column; min-width: 0; }
+.cs-data-grid b { font-family: var(--serif); font-size: 26px; font-weight: 900; color: var(--accent-dk); line-height: 1.15; font-variant-numeric: tabular-nums; }
+.cs-data-grid span { font-size: 13px; font-weight: 700; color: var(--fg); margin-top: 4px; }
+.cs-data-grid small { font-size: 12px; color: var(--fg-muted); }
+.cs-data-src { font-size: 11px; color: var(--fg-muted); margin-top: 12px; line-height: 1.7; }
 .cs-trust-name { font-size: 18px; font-weight: 700; }
 .cs-trust-name span { display: block; font-size: 13px; font-weight: 400; color: var(--fg-muted); }
 .cs-trust ul { margin: 12px 0 0 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--fg-2); }
@@ -823,23 +835,32 @@ body.modal-open { overflow: hidden; }
   </div>
 </section>
 
-<!-- C03 · 누가 진단하나 -->
+<!-- C03 · 컨설턴트 -->
 <section class="sec sec--alt">
   <div class="wrap">
-    <p class="kicker">진단하는 사람</p>
+    <p class="kicker">컨설팅하는 사람</p>
     <h2 class="h2">직접 상담하고 수업하며<br>회원을 관리해 온 트레이너가 봅니다.</h2>
-    <figure class="shot">
-      <img src="/academy/img-0bd00be9da.jpg" alt="체형분석 세미나에서 트레이너들에게 실습을 지도하는 이준산 대표" width="1080" height="840" loading="lazy">
-      <figcaption>체형분석 세미나 · 현장 실습을 지도하는 이준산 대표 (오른쪽)</figcaption>
-    </figure>
-    <div class="cs-trust">
-      <div class="cs-trust-name">이준산 <span>통합기능운동학협회 · 자이언트짐 대표</span></div>
-      <ul>
-        <li>자이언트짐에서 회원 상담, 수업, 재등록 관리를 직접 진행</li>
-        <li>체성분·정적 체형 분석 → 상담 → 50분 수업 → 회원관리로 이어지는 방식을 현장에서 운영</li>
-        <li>회원관리 도구 FIT STEP을 직접 만들어 매출·재등록 데이터를 기록</li>
-      </ul>
-      <p class="cs-small">본인 회원 기준 재등록률 80% 이상, 월 PT 매출 1,000만원 이상 · 강사 본인 집계 기준</p>
+    <div class="cs-profile">
+      <img class="cs-photo" src="/academy/consultant.jpg" alt="이준산 대표 프로필 사진" width="720" height="960" loading="lazy">
+      <div class="cs-trust">
+        <div class="cs-trust-name">이준산 <span>통합기능운동학협회 · 자이언트짐 대표</span></div>
+        <ul>
+          <li>자이언트짐에서 회원 상담, 수업, 재등록 관리를 직접 진행</li>
+          <li>체성분·정적 체형 분석 → 상담 → 50분 수업 → 회원관리로 이어지는 방식을 현장에서 운영</li>
+          <li>회원관리 도구 FIT STEP을 직접 만들어 수업·재등록 데이터를 기록</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cs-data">
+      <p class="cs-data-label">실제 성과 데이터</p>
+      <div class="cs-data-grid">
+        <div><b>90%</b><span>재등록률</span><small>센터 평균 57%</small></div>
+        <div><b>152.5회</b><span>월평균 수업</span><small>센터 평균의 232%</small></div>
+        <div><b>17명</b><span>2회 이상 재등록 회원</span><small>꾸준히 함께하는 회원</small></div>
+        <div><b>0회</b><span>노쇼</span><small>예약한 수업은 모두 진행</small></div>
+      </div>
+      <p class="cs-data-src">2026년 1월 1일~11월 17일 · 본인 관리 회원 41명 기준 · 센터 평균은 같은 센터 트레이너 6명 기준 · 출처: ZIANT GYM 트레이너 성과 보고서</p>
     </div>
   </div>
 </section>
