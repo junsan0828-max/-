@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import GrowthAnalysis from "@/components/GrowthAnalysis";
-import { ChevronLeft, ChevronRight, TrendingUp, Users, RefreshCw, BarChart3, MapPin, UserRound } from "lucide-react";
+import { useHasMembership, useHasSessions } from "@/hooks/useOperationMode";
+import { ChevronLeft, ChevronRight, TrendingUp, Users, RefreshCw, BarChart3, MapPin, UserRound, FileBarChart2, PauseCircle, LogOut, XCircle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -10,8 +11,184 @@ import {
 const PERIOD_LABELS: Record<string, string> = { H1: "상반기", H2: "하반기", annual: "연간", month: "월간" };
 const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 const GENDER_LABELS: Record<string, string> = { male: "남성", female: "여성", other: "기타", 미입력: "미입력" };
-
 const COLORS = ["#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899","#6366f1"];
+
+function AnnualReport({ trainerId }: { trainerId?: number }) {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const [year, setYear] = useState(currentYear);
+  const [period, setPeriod] = useState<"H1" | "H2" | "annual">(currentMonth <= 6 ? "H1" : "H2");
+  const hasMembership = useHasMembership();
+  const hasSessions = useHasSessions();
+
+  const { data, isLoading } = trpc.dashboard.getAnnualReport.useQuery(
+    { year, period, trainerId },
+    { refetchOnWindowFocus: false }
+  );
+
+  const summary = data?.summary;
+  const monthly = data?.monthly ?? [];
+  const totals = data?.totals;
+  // operationMode from server takes precedence when viewing as admin
+  const serverMode = data?.operationMode;
+  const showSessions = serverMode ? (serverMode === "sessions" || serverMode === "both") : hasSessions;
+  const showMembership = serverMode ? (serverMode === "membership" || serverMode === "both") : hasMembership;
+  const showBoth = showSessions && showMembership;
+
+  return (
+    <div className="space-y-5">
+      {/* 연도 + 기간 */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <button onClick={() => setYear(y => y - 1)} className="p-1 hover:bg-accent/40 rounded-lg">
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground rotate-180" />
+          </button>
+          <span className="text-xs font-semibold w-10 text-center">{year}년</span>
+          <button onClick={() => setYear(y => y + 1)} disabled={year >= currentYear} className="p-1 hover:bg-accent/40 rounded-lg disabled:opacity-30">
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </div>
+        <div className="flex gap-1 flex-1 bg-muted/50 rounded-xl p-1">
+          {(["H1","H2","annual"] as const).map(p => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition-colors ${period===p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="py-16 text-center text-sm text-muted-foreground">불러오는 중...</div>
+      ) : (
+        <>
+          {/* 요약 카드 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-card border border-border p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Users className="h-3.5 w-3.5 text-primary" />
+                <span className="text-[11px] text-muted-foreground font-medium">관리 회원</span>
+              </div>
+              <p className="text-2xl font-bold text-primary">{summary?.activeMembers ?? 0}<span className="text-sm font-normal ml-1">명</span></p>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <PauseCircle className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-[11px] text-muted-foreground font-medium">정지</span>
+              </div>
+              <p className="text-2xl font-bold text-amber-500">{summary?.pausedMembers ?? 0}<span className="text-sm font-normal ml-1">명</span></p>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <LogOut className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground font-medium">종료</span>
+              </div>
+              <p className="text-2xl font-bold text-muted-foreground">{summary?.endedMembers ?? 0}<span className="text-sm font-normal ml-1">명</span></p>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <RefreshCw className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="text-[11px] text-muted-foreground font-medium">재등록률</span>
+              </div>
+              <p className={`text-2xl font-bold ${(summary?.reregRate??0)>=50?"text-emerald-500":(summary?.reregRate??0)>=30?"text-amber-500":"text-rose-500"}`}>
+                {summary?.reregRate ?? 0}<span className="text-sm font-normal ml-1">%</span>
+              </p>
+            </div>
+            {showSessions && (
+              <div className="rounded-2xl bg-card border border-border p-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <BarChart3 className="h-3.5 w-3.5 text-violet-500" />
+                  <span className="text-[11px] text-muted-foreground font-medium">총 수업</span>
+                </div>
+                <p className="text-2xl font-bold text-violet-500">{summary?.totalSessions ?? 0}<span className="text-sm font-normal ml-1">회</span></p>
+              </div>
+            )}
+            <div className="rounded-2xl bg-card border border-border p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                <span className="text-[11px] text-muted-foreground font-medium">노쇼</span>
+              </div>
+              <p className="text-2xl font-bold text-rose-500">{summary?.totalNoshow ?? 0}<span className="text-sm font-normal ml-1">회</span></p>
+            </div>
+          </div>
+
+          {/* 월별 표 */}
+          <div className="rounded-2xl bg-card border border-border p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileBarChart2 className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">월별 현황</p>
+            </div>
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-xs border-collapse min-w-[480px]">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left pb-2 pr-2 font-medium text-muted-foreground w-8">월</th>
+                    {showSessions && <th className="text-right pb-2 px-2 font-medium text-muted-foreground">수업</th>}
+                    {showBoth ? (
+                      <>
+                        <th className="text-right pb-2 px-2 font-medium text-muted-foreground">신규<br/><span className="text-[10px] text-muted-foreground/70">수업권</span></th>
+                        <th className="text-right pb-2 px-2 font-medium text-muted-foreground">신규<br/><span className="text-[10px] text-muted-foreground/70">회원권</span></th>
+                      </>
+                    ) : (
+                      <th className="text-right pb-2 px-2 font-medium text-muted-foreground">신규</th>
+                    )}
+                    <th className="text-right pb-2 px-2 font-medium text-muted-foreground">재등록</th>
+                    <th className="text-right pb-2 px-2 font-medium text-muted-foreground">종료</th>
+                    <th className="text-right pb-2 pl-2 font-medium text-muted-foreground">노쇼</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthly.map((r) => (
+                    <tr key={r.month} className="border-b border-border/50 last:border-0">
+                      <td className="py-2 pr-2 font-medium tabular-nums">{r.month}월</td>
+                      {showSessions && <td className="py-2 px-2 text-right tabular-nums text-violet-500 font-medium">{r.sessions || <span className="text-muted-foreground/40">-</span>}</td>}
+                      {showBoth ? (
+                        <>
+                          <td className="py-2 px-2 text-right tabular-nums">{r.newSessions || <span className="text-muted-foreground/40">-</span>}</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{r.newMembership || <span className="text-muted-foreground/40">-</span>}</td>
+                        </>
+                      ) : (
+                        <td className="py-2 px-2 text-right tabular-nums">{r.newTotal || <span className="text-muted-foreground/40">-</span>}</td>
+                      )}
+                      <td className="py-2 px-2 text-right tabular-nums text-emerald-500 font-medium">{r.rereg || <span className="text-muted-foreground/40">-</span>}</td>
+                      <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.ended || <span className="text-muted-foreground/40">-</span>}</td>
+                      <td className="py-2 pl-2 text-right tabular-nums text-rose-400">{r.noshow || <span className="text-muted-foreground/40">-</span>}</td>
+                    </tr>
+                  ))}
+                  {/* 합계 */}
+                  {totals && (
+                    <tr className="border-t-2 border-border font-semibold bg-muted/20">
+                      <td className="py-2 pr-2 text-muted-foreground text-xs">합계</td>
+                      {showSessions && <td className="py-2 px-2 text-right tabular-nums text-violet-500">{totals.sessions}</td>}
+                      {showBoth ? (
+                        <>
+                          <td className="py-2 px-2 text-right tabular-nums">{totals.newSessions}</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{totals.newMembership}</td>
+                        </>
+                      ) : (
+                        <td className="py-2 px-2 text-right tabular-nums">{totals.newTotal}</td>
+                      )}
+                      <td className="py-2 px-2 text-right tabular-nums text-emerald-500">{totals.rereg}</td>
+                      <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{totals.ended}</td>
+                      <td className="py-2 pl-2 text-right tabular-nums text-rose-400">{totals.noshow}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed space-y-0.5">
+              <span className="block">· 수업: 수업 체크 완료 기준</span>
+              <span className="block">· 신규: 해당 트레이너와 첫 계약</span>
+              <span className="block">· 재등록: 이전 계약이 있는 회원의 신규 계약</span>
+              <span className="block">· 종료: 계약 종료(만료·완료) 기준</span>
+              <span className="block">· 재등록률 = 재등록 ÷ (재등록 + 종료) × 100 (스냅샷 기준)</span>
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}백만`;
@@ -28,7 +205,7 @@ export default function GrowthStats({ trainerId }: { trainerId?: number } = {}) 
   const [year, setYear] = useState(currentYear);
   const [period, setPeriod] = useState<"H1" | "H2" | "annual" | "month">(defaultPeriod);
   const [month, setMonth] = useState(currentMonth);
-  const [tab, setTab] = useState<"stats" | "analysis">("stats");
+  const [tab, setTab] = useState<"stats" | "annual" | "analysis">("stats");
 
   const { data, isLoading } = trpc.dashboard.getGrowthStats.useQuery(
     { year, period, month, trainerId },
@@ -57,7 +234,7 @@ export default function GrowthStats({ trainerId }: { trainerId?: number } = {}) 
         <TrendingUp className="h-4 w-4 text-primary" />
         <span className="font-semibold text-sm flex-1">성장 분석</span>
 
-        {/* 연도 */}
+        {/* 연도 (통계 탭만 헤더에 표시) */}
         {tab === "stats" && <div className="flex items-center gap-1">
           <button onClick={() => setYear(y => y - 1)} className="p-1 hover:bg-accent/40 rounded-lg">
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground rotate-180" />
@@ -74,12 +251,12 @@ export default function GrowthStats({ trainerId }: { trainerId?: number } = {}) 
       </div>
 
       <div className="px-4 pt-4 space-y-5">
-        <div className="grid grid-cols-2 gap-1 bg-muted/50 rounded-xl p-1">
-          {([["stats", "통계"], ["analysis", "분석"]] as const).map(([k, label]) => (
+        <div className="grid grid-cols-3 gap-1 bg-muted/50 rounded-xl p-1">
+          {([["stats", "통계"], ["annual", "연간 리포트"], ["analysis", "분석"]] as const).map(([k, label]) => (
             <button
               key={k}
               onClick={() => setTab(k)}
-              className={`text-sm font-semibold py-2 rounded-lg transition-colors ${
+              className={`text-xs font-semibold py-2 rounded-lg transition-colors ${
                 tab === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -88,7 +265,9 @@ export default function GrowthStats({ trainerId }: { trainerId?: number } = {}) 
           ))}
         </div>
 
-        {tab === "analysis" ? <GrowthAnalysis trainerId={trainerId} /> : (<>
+        {tab === "analysis" ? <GrowthAnalysis trainerId={trainerId} /> :
+        tab === "annual" ? <AnnualReport trainerId={trainerId} /> :
+        (<>
         {/* 기간 탭 */}
         <div className="flex gap-1 bg-muted/50 rounded-xl p-1">
           {(["H1", "H2", "annual", "month"] as const).map(p => (
