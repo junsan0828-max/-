@@ -4,9 +4,6 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ChevronRight, Star, RefreshCw, X } from "lucide-react";
 
-const CONDITION_EMOJI = ["😴", "😑", "😐", "☺️", "💪"];
-const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
-const ENERGY_OPTIONS = ["낮음", "보통", "높음"];
 const MAIN_BODY_PARTS = ["전신", "상체", "하체", "코어", "기타"];
 const UPPER_BODY_SUBS = ["등", "어깨", "가슴", "팔"];
 const LOWER_BODY_SUBS = ["엉덩이", "대퇴 후면", "대퇴 전면", "하퇴"];
@@ -98,12 +95,9 @@ function WorkoutTypeModal({ onClose, onSelect, logCount }: {
 
 function CheckInModal({ onClose, onSubmit, isPending }: {
   onClose: () => void;
-  onSubmit: (data: { conditionScore?: number; sleepHours?: string; energyLevel?: string; bodyParts?: string[]; workoutTheme?: string[] }) => void;
+  onSubmit: (data: { bodyParts?: string[]; workoutTheme?: string[] }) => void;
   isPending: boolean;
 }) {
-  const [conditionScore, setConditionScore] = useState<number | undefined>();
-  const [sleepHours, setSleepHours] = useState<string | undefined>();
-  const [energyLevel, setEnergyLevel] = useState<string | undefined>();
   const [bodyParts, setBodyParts] = useState<string[]>([]);
   const [workoutTheme, setWorkoutTheme] = useState<string[]>([]);
 
@@ -137,7 +131,7 @@ function CheckInModal({ onClose, onSubmit, isPending }: {
         <div className="px-5 pt-5 pb-4 border-b border-border flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-bold text-lg">출석 체크인</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">오늘의 컨디션을 알려주세요</p>
+            <p className="text-xs text-muted-foreground mt-0.5">오늘 할 운동을 골라 주세요</p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
             <X className="w-5 h-5" />
@@ -146,46 +140,6 @@ function CheckInModal({ onClose, onSubmit, isPending }: {
 
         {/* 스크롤 콘텐츠 */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-
-          {/* 오늘 컨디션 */}
-          <div>
-            <p className="text-sm font-semibold mb-2">오늘 컨디션</p>
-            <div className="grid grid-cols-5 gap-2">
-              {CONDITION_EMOJI.map((emoji, i) => (
-                <button key={i} onClick={() => setConditionScore(conditionScore === i + 1 ? undefined : i + 1)}
-                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border text-xl transition-colors ${conditionScore === i + 1 ? "border-primary bg-primary/10" : "border-border bg-muted/30"}`}>
-                  {emoji}
-                  <span className="text-[10px] text-muted-foreground">{i + 1}점</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 수면 시간 */}
-          <div>
-            <p className="text-sm font-semibold mb-2">수면 시간</p>
-            <div className="grid grid-cols-6 gap-1.5">
-              {SLEEP_OPTIONS.map((h) => (
-                <button key={h} onClick={() => setSleepHours(sleepHours === h ? undefined : h)}
-                  className={`py-2.5 rounded-xl border text-xs font-medium transition-colors ${sleepHours === h ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                  {h}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 에너지 상태 */}
-          <div>
-            <p className="text-sm font-semibold mb-2">에너지 상태</p>
-            <div className="grid grid-cols-3 gap-2">
-              {ENERGY_OPTIONS.map((e) => (
-                <button key={e} onClick={() => setEnergyLevel(energyLevel === e ? undefined : e)}
-                  className={`py-2.5 rounded-2xl border text-sm font-medium transition-colors ${energyLevel === e ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* 오늘의 운동 부위 */}
           <div>
@@ -248,7 +202,7 @@ function CheckInModal({ onClose, onSubmit, isPending }: {
             취소
           </button>
           <button
-            onClick={() => onSubmit({ conditionScore, sleepHours, energyLevel, bodyParts: bodyParts.length ? bodyParts : undefined, workoutTheme: workoutTheme.length ? workoutTheme : undefined })}
+            onClick={() => onSubmit({ bodyParts: bodyParts.length ? bodyParts : undefined, workoutTheme: workoutTheme.length ? workoutTheme : undefined })}
             disabled={isPending}
             className="flex-1 bg-primary text-primary-foreground font-semibold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
             {isPending ? "체크인 중..." : "출석 완료"}
@@ -436,7 +390,7 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
           <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-2xl shrink-0">👋</div>
           <div className="flex-1 text-left">
             <p className="font-bold text-primary-foreground">출석하기</p>
-            <p className="text-xs text-primary-foreground/70 mt-0.5">오늘의 컨디션을 체크하고 맞춤 운동을 받아보세요</p>
+            <p className="text-xs text-primary-foreground/70 mt-0.5">출석 체크하고 맞춤 운동을 받아보세요</p>
           </div>
           <ChevronRight className="w-5 h-5 text-primary-foreground/70 shrink-0" />
         </button>

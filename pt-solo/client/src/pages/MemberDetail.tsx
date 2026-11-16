@@ -753,14 +753,6 @@ export default function MemberDetail({ memberId }: Props) {
 
         {/* ── 기본 정보 탭 ── */}
         <TabsContent value="info" className="mt-4 space-y-3">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 w-full border-primary/40 text-primary hover:bg-primary/10"
-            onClick={() => setLocation(`/members/${memberId}/parq`)}
-          >
-            PAR-Q 사전건강검사
-          </Button>
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -1851,7 +1843,7 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">메모 (선택)</label>
-              <Textarea value={sessionForm.notes} onChange={e => setSessionForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항, 컨디션 등..." rows={2} className="text-sm resize-none" />
+              <Textarea value={sessionForm.notes} onChange={e => setSessionForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항, 수업 피드백 등..." rows={2} className="text-sm resize-none" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setSessionDialogOpen(false)}>취소</Button>

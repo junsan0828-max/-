@@ -73,7 +73,7 @@ const CONTRACT_TERMS = `제1조 (목적)
 
 const PRIVACY_TERMS = `수집하는 개인정보 항목
 - 필수항목: 성명, 연락처, 성별, 생년월일
-- 선택항목: 이메일 주소, 건강 정보(운동 목적, 부상 이력 등)
+- 선택항목: 이메일 주소, 운동 목적
 
 개인정보의 수집 및 이용 목적
 ① 피트니스 서비스 제공 및 회원 관리
@@ -634,24 +634,6 @@ export default function LeadsPage() {
                       계약서 PDF 출력
                     </button>
                   </div>
-                  {/* PAR-Q */}
-                  <button
-                    onClick={() => {
-                      if (row.lead.registeredMemberId) {
-                        setLocation(`/members/${row.lead.registeredMemberId}/parq`);
-                      } else {
-                        toast.error("회원 등록 후 PAR-Q 검사를 진행할 수 있습니다.");
-                      }
-                    }}
-                    className={`flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border transition-colors ${
-                      row.lead.registeredMemberId
-                        ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
-                        : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
-                    }`}
-                  >
-                    <ClipboardCheck className="h-3.5 w-3.5" />
-                    PAR-Q 사전건강검사
-                  </button>
                 </div>
               </div>
             );

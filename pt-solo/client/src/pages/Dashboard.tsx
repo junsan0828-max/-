@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, TrendingUp, Calendar, CalendarDays,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
   Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed, ScanLine, UserPlus,
-  Lock, Cpu, ArrowRight, Search, Pencil,
+  Lock, Cpu, ArrowRight, Search, Pencil, ClipboardCheck,
   ClipboardList, MessageCircle, FileSignature, ReceiptText, ArrowLeftRight,
   Wrench, PlaySquare, Target, Utensils, Activity, BookMarked, Video,
   Brain, Database, ArrowUpRight, PieChart, Share2, Sparkles, Wallet, Trash2, SquarePen, Plus, Check, X,
@@ -768,12 +768,6 @@ function QuickAskCard({ trainerName, onNavigate }: { trainerName: string; onNavi
       return `잔여 세션 6회 이하 회원은 ${low.length}명이에요. (${names}${low.length > 3 ? ` 외 ${low.length - 3}명` : ""}) 재등록 안내가 필요해 보여요.`;
     }
 
-    if (has("PAR-Q", "PARQ", "파크", "건강검사")) {
-      const missing = await utils.parQ.listMissing.fetch();
-      if (missing.length === 0) return "모든 활성 회원이 PAR-Q를 작성했어요.";
-      const names = missing.slice(0, 3).map(m => m.name).join(", ");
-      return `PAR-Q 미기록 회원은 ${missing.length}명이에요. (${names}${missing.length > 3 ? ` 외 ${missing.length - 3}명` : ""})`;
-    }
 
     if (has("오늘 수업", "오늘 출석", "오늘")) {
       const list = await utils.attendanceChecks.listByDate.fetch({ date: todayStr });
@@ -1264,8 +1258,6 @@ function TrainerDashboard() {
     if (reopen === "journal") setJournalOpen(true);
     else if (reopen === "info_edit") setMemberSearchOpen(true);
   }, []);
-  const [parqModalOpen, setParqModalOpen] = useState(false);
-  const { data: parqMissing } = trpc.parQ.listMissing.useQuery();
   const { data: leadsData } = trpc.leads.list.useQuery();
   const [onboardingSkipped, setOnboardingSkipped] = useState(() => localStorage.getItem("fitstep_onboarding_skipped") === "1");
   // 온보딩 진행 상태는 서버에 저장한다 — 1~3단계처럼 기기가 바뀌어도 유지되도록.
@@ -1484,7 +1476,7 @@ function TrainerDashboard() {
                 { label: "오늘 수업 수", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
                 { label: "이번달 수업", icon: BarChart3, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setPtStatsModalOpen(true) },
                 { label: "수업 일지", icon: BookOpen, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setJournalOpen(true) },
-                { label: "PAR-Q 미기록", icon: ShieldCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setParqModalOpen(true), badge: parqMissing?.length ?? null },
+                { label: "수업 체크", icon: ClipboardCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setLocation("/attendance") },
                 { label: "운동 템플릿", icon: Dumbbell, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("templates") },
                 { label: "운동 영상 200", icon: PlaySquare, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_videos") },
                 { label: "식단 관리", icon: Utensils, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => openFeature("fitstep_diet") },
@@ -1778,41 +1770,6 @@ function TrainerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* PAR-Q 미기록 회원 모달 */}
-      <Dialog open={parqModalOpen} onOpenChange={setParqModalOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-rose-500" />
-              PAR-Q 미기록 회원
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">
-              사전건강검사를 아직 작성하지 않은 활성 회원 · 총 {parqMissing?.length ?? 0}명
-            </p>
-          </DialogHeader>
-          <div className="space-y-1 max-h-80 overflow-y-auto">
-            {!parqMissing || parqMissing.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">모든 회원이 PAR-Q를 작성했습니다.</p>
-            ) : (
-              parqMissing.map(m => (
-                <button key={m.id} onClick={() => { setParqModalOpen(false); setLocation(`/members/${m.id}/parq`); }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                      <span className="text-sm font-semibold text-white">{m.name.charAt(0)}</span>
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold">{m.name}</p>
-                      {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-500">미기록</span>
-                </button>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* 회원 등록 위저드 */}
       <MemberRegisterWizard

@@ -15,7 +15,6 @@ import {
   ptSessionLogs,
   payments,
   workoutMemos,
-  parQ,
   attendanceChecks,
   reportTokens,
   schedules,
@@ -2393,68 +2392,6 @@ const attendanceChecksRouter = t.router({
         client.release();
       }
     }),
-});
-
-// ─── PAR-Q ────────────────────────────────────────────────────────────────────
-
-const parQSchema = z.object({
-  memberId: z.number(),
-  height: z.string().optional(), weight: z.string().optional(), muscleMass: z.string().optional(),
-  bodyFatPercent: z.string().optional(), bodyFatKg: z.string().optional(), waistCircumference: z.string().optional(),
-  systolicBp: z.string().optional(), diastolicBp: z.string().optional(), totalCholesterol: z.string().optional(),
-  hdlCholesterol: z.string().optional(), ldlCholesterol: z.string().optional(), triglycerides: z.string().optional(),
-  fastingBloodSugar: z.string().optional(), postMealBloodSugar: z.string().optional(),
-  hba1c: z.string().optional(), boneDensity: z.string().optional(),
-  occupation: z.string().optional(), workEnvironment: z.string().optional(),
-  exerciseExperience: z.string().optional(), visitRoute: z.string().optional(),
-  goal1: z.string().optional(), goal2: z.string().optional(), goal3: z.string().optional(),
-  dietIssues: z.string().optional(), alcoholIssues: z.string().optional(),
-  sleepIssues: z.string().optional(), activityIssues: z.string().optional(),
-  chronicDiseases: z.string().optional(), musculoskeletalIssues: z.string().optional(),
-  posturalIssues: z.string().optional(),
-});
-
-const parQRouter = t.router({
-  get: protectedProcedure
-    .input(z.object({ memberId: z.number() }))
-    .query(async ({ ctx, input }) => {
-      const db = getDb();
-      await assertOwnsMember(ctx.user.trainerId, input.memberId);
-      const rows = await db.select().from(parQ).where(eq(parQ.memberId, input.memberId)).limit(1);
-      return rows[0] ?? null;
-    }),
-
-  upsert: protectedProcedure
-    .input(parQSchema)
-    .mutation(async ({ ctx, input }) => {
-      const db = getDb();
-      const { memberId, ...fields } = input;
-      await assertOwnsMember(ctx.user.trainerId, memberId);
-      const existing = await db.select({ id: parQ.id }).from(parQ).where(eq(parQ.memberId, memberId)).limit(1);
-      const isNew = !existing[0];
-      if (existing[0]) {
-        await db.update(parQ).set({ ...fields, updatedAt: sql`now()::text` }).where(eq(parQ.memberId, memberId));
-      } else {
-        await db.insert(parQ).values({ memberId, ...fields });
-      }
-      const trainerId = ctx.user.trainerId;
-      if (isNew && trainerId) giveAutoPoints(trainerId, "parq_submit", "PAR-Q 최초 작성");
-      return { success: true };
-    }),
-
-  // PAR-Q 미기록 회원 목록 (활성 회원 중 par_q 행이 없는 회원)
-  listMissing: protectedProcedure.query(async ({ ctx }) => {
-    const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    const result = await pool.query<{ id: number; name: string; phone: string | null }>(
-      `SELECT m.id, m.name, m.phone FROM members m
-       LEFT JOIN par_q p ON p."memberId" = m.id
-       WHERE m."trainerId" = $1 AND m.status = 'active' AND p.id IS NULL
-       ORDER BY m.name`,
-      [trainerId]
-    );
-    return result.rows;
-  }),
 });
 
 // ─── Reports ─────────────────────────────────────────────────────────────────
@@ -4893,7 +4830,7 @@ const fitStepPlusRouter = t.router({
     .input(z.object({
       logDate: z.string(), title: z.string().optional(), exercisesJson: z.string().optional(),
       durationMinutes: z.number().optional(), caloriesBurned: z.number().optional(),
-      bodyWeight: z.string().optional(), notes: z.string().optional(), mood: z.string().optional(),
+      bodyWeight: z.string().optional(), notes: z.string().optional(),
       intensity: z.string().optional(), totalVolume: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -4909,7 +4846,7 @@ const fitStepPlusRouter = t.router({
       id: z.number(), logDate: z.string().optional(), title: z.string().optional(),
       exercisesJson: z.string().optional(), durationMinutes: z.number().optional(),
       caloriesBurned: z.number().optional(), bodyWeight: z.string().optional(),
-      notes: z.string().optional(), mood: z.string().optional(),
+      notes: z.string().optional(),
       intensity: z.string().optional(), totalVolume: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -5072,7 +5009,6 @@ const fitStepPlusRouter = t.router({
           exercisesJson: fitStepPlusWorkoutLogs.exercisesJson,
           durationMinutes: fitStepPlusWorkoutLogs.durationMinutes,
           notes: fitStepPlusWorkoutLogs.notes,
-          mood: fitStepPlusWorkoutLogs.mood,
           createdAt: fitStepPlusWorkoutLogs.createdAt,
         })
         .from(fitStepPlusWorkoutLogs)
@@ -5231,9 +5167,6 @@ const fitStepPlusRouter = t.router({
   // ── 회원 출석 체크인 ──
   member_checkIn: fitStepPlusProtected
     .input(z.object({
-      conditionScore: z.number().min(1).max(5).optional(),
-      sleepHours: z.string().optional(),
-      energyLevel: z.string().optional(),
       bodyParts: z.array(z.string()).optional(),
       workoutTheme: z.array(z.string()).optional(),
       intensity: z.number().min(1).max(5).optional(),
@@ -5244,12 +5177,11 @@ const fitStepPlusRouter = t.router({
       try {
         const result = await pool.query(
           `INSERT INTO fit_step_plus_attendance
-            ("fitStepPlusMemberId","trainerId","attendDate","conditionScore","sleepHours","energyLevel","bodyParts","workoutTheme","intensity","createdAt")
-           SELECT $1,"trainerId",$2,$3,$4,$5,$6,$7,$8,now()::text FROM members WHERE id=$1
+            ("fitStepPlusMemberId","trainerId","attendDate","bodyParts","workoutTheme","intensity","createdAt")
+           SELECT $1,"trainerId",$2,$3,$4,$5,now()::text FROM members WHERE id=$1
            RETURNING id`,
           [
             memberId, today,
-            input.conditionScore ?? null, input.sleepHours ?? null, input.energyLevel ?? null,
             input.bodyParts?.length ? JSON.stringify(input.bodyParts) : null,
             input.workoutTheme?.length ? JSON.stringify(input.workoutTheme) : null,
             input.intensity ?? null,
@@ -7062,7 +6994,6 @@ export const appRouter = t.router({
   trainers: trainersRouter,
   dashboard: dashboardRouter,
   workoutMemos: workoutMemosRouter,
-  parQ: parQRouter,
   attendanceChecks: attendanceChecksRouter,
   reports: reportsRouter,
   schedules: schedulesRouter,

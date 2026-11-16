@@ -138,46 +138,38 @@ function DashboardMockup() {
 }
 
 function AttendanceMockup() {
+  const rows = [
+    { name: "김민준", left: 9, done: true },
+    { name: "이서연", left: 4, done: false },
+    { name: "박지훈", left: 12, done: false },
+  ];
   return (
     <PhoneFrame>
       <div className="p-4 space-y-3 bg-[#0a0f18]">
         <div className="flex items-center justify-between mb-1">
           <div>
-            <div className="text-xs font-semibold text-white/80">수업 전 컨디션 체크</div>
-            <div className="text-[10px] text-white/30">김민준 · 2026.05.26</div>
+            <div className="text-xs font-semibold text-white/80">수업 체크</div>
+            <div className="text-[10px] text-white/30">2026.05.26 · 버튼 한 번으로 출석·차감</div>
           </div>
-          <div className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30 font-semibold">출석</div>
+          <div className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30 font-semibold">완료 1명</div>
         </div>
-        <div className="bg-white/[0.03] rounded-xl p-3 border border-white/5">
-          <div className="text-[10px] text-white/35 mb-2 font-semibold">컨디션 평가</div>
-          <div className="flex gap-1.5">
-            {[1,2,3,4,5].map(v => (
-              <div key={v} className={`flex-1 py-2 text-center text-[10px] rounded-lg border font-semibold ${v === 4 ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "border-white/8 text-white/20"}`}>{v}</div>
-            ))}
+        {rows.map(r => (
+          <div key={r.name} className={`rounded-xl p-2.5 border flex items-center gap-2 ${r.done ? "bg-blue-500/10 border-blue-500/25" : "bg-white/[0.03] border-white/5"}`}>
+            <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-semibold text-blue-300">{r.name[0]}</div>
+            <div className="flex-1">
+              <div className="text-[10px] text-white/70">{r.name}</div>
+              <div className="text-[8px] text-white/30">잔여 {r.left}회</div>
+            </div>
+            {r.done
+              ? <div className="text-[10px] font-semibold text-emerald-400">✓ 수업 완료</div>
+              : <div className="text-[10px] font-semibold text-white bg-blue-500 rounded-lg px-2.5 py-1">수업 체크</div>}
           </div>
-        </div>
-        <div className="bg-white/[0.03] rounded-xl p-3 border border-white/5">
-          <div className="text-[10px] text-white/35 mb-2 font-semibold">수면시간</div>
-          <div className="grid grid-cols-6 gap-1">
-            {["4h↓","5h","6h","7h","8h","9h+"].map(v => (
-              <div key={v} className={`py-1.5 text-center text-[8px] rounded-lg border ${v === "7h" ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "border-white/8 text-white/20"}`}>{v}</div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-white/[0.03] rounded-xl p-3 border border-white/5">
-          <div className="text-[10px] text-white/35 mb-2 font-semibold">통증 부위</div>
-          <div className="flex flex-wrap gap-1">
-            {["좌 어깨", "허리"].map(p => (
-              <span key={p} className="text-[8px] px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-400">{p}</span>
-            ))}
-          </div>
-        </div>
+        ))}
         <div className="bg-white/[0.03] rounded-xl p-2.5 border border-blue-500/15 flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center"><Dumbbell className="h-3 w-3 text-blue-400/70" /></div>
           <div className="flex-1">
-            <div className="text-[10px] text-white/60">PT 세션 1회 차감</div>
+            <div className="text-[10px] text-white/60">수업 1회 자동 차감 · 잔여 9회</div>
           </div>
-          <div className="text-[10px] font-semibold text-blue-400">ON</div>
         </div>
       </div>
     </PhoneFrame>
@@ -421,13 +413,9 @@ export default function Landing() {
                 </div>
                 {/* 플로팅: 출석체크 카드 */}
                 <div className="absolute -left-8 top-1/3 z-20 w-44 bg-[#111827] border border-blue-500/20 rounded-2xl p-3 shadow-xl shadow-black/40">
-                  <div className="text-[10px] font-semibold text-blue-400 mb-2">✓ 출석 체크</div>
+                  <div className="text-[10px] font-semibold text-blue-400 mb-2">✓ 수업 체크</div>
                   <div className="text-[12px] font-semibold text-white/80">김민준</div>
-                  <div className="text-[10px] text-white/35 mb-2">컨디션 4/5 · 수면 7h</div>
-                  <div className="flex gap-1">
-                    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">좌 어깨</span>
-                    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">허리</span>
-                  </div>
+                  <div className="text-[10px] text-white/35">1회 차감 · 잔여 9회</div>
                 </div>
                 {/* 플로팅: 재등록 알림 */}
                 <div className="absolute -right-6 bottom-16 z-20 w-40 bg-[#111827] border border-orange-500/25 rounded-2xl p-3 shadow-xl shadow-black/40">

@@ -359,12 +359,6 @@ export default function QuickAskFloat({ trainerName }: { trainerName: string }) 
       const names = low.slice(0, 3).map(m => m.name).join(", ");
       return `잔여 세션 6회 이하 회원은 ${low.length}명이에요. (${names}${low.length > 3 ? ` 외 ${low.length - 3}명` : ""}) 재등록 안내가 필요해 보여요.`;
     }
-    if (has("PAR-Q", "PARQ", "파크", "건강검사")) {
-      const missing = await utils.parQ.listMissing.fetch();
-      if (missing.length === 0) return "모든 활성 회원이 PAR-Q를 작성했어요.";
-      const names = missing.slice(0, 3).map(m => m.name).join(", ");
-      return `PAR-Q 미기록 회원은 ${missing.length}명이에요. (${names}${missing.length > 3 ? ` 외 ${missing.length - 3}명` : ""})`;
-    }
     if (has("오늘 수업", "오늘 출석", "오늘")) {
       const list = await utils.attendanceChecks.listByDate.fetch({ date: todayStr });
       const done = list.filter(m => m.check?.status === "attended").length;

@@ -9,40 +9,12 @@ import { GripVertical, Trash2, Plus, X, Video } from "lucide-react";
 
 // ─── Constants ───────────────────────────────────────────
 
-const CONDITION_EMOJI = ["😴", "😑", "😐", "☺️", "💪"];
-const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
-const ENERGY_OPTIONS = ["낮음", "보통", "높음"];
 const MAIN_BODY_PARTS = ["전신", "상체", "하체", "코어", "기타"];
 const UPPER_BODY_SUBS = ["등", "어깨", "가슴", "팔"];
 const LOWER_BODY_SUBS = ["엉덩이", "대퇴 후면", "대퇴 전면", "하퇴"];
 const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
 
-const moodLabel: Record<string, string> = {
-  great: "최고 💪", good: "좋음 😊", normal: "보통 😐", tired: "피곤 😴",
-};
-const moodColor: Record<string, string> = {
-  great: "bg-green-500/20 text-green-400 border-green-500/30",
-  good: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  normal: "bg-amber-500/20 text-amber-600 border-amber-500/30",
-  tired: "bg-red-500/20 text-red-400 border-red-500/30",
-};
-
 // ─── Helpers ─────────────────────────────────────────────
-
-function scoreToMood(score: number | undefined): string {
-  if (!score) return "normal";
-  if (score >= 5) return "great";
-  if (score >= 4) return "good";
-  if (score >= 3) return "normal";
-  return "tired";
-}
-
-function energyToIntensity(e: string | undefined): string | undefined {
-  if (e === "높음") return "HIGH";
-  if (e === "보통") return "MEDIUM";
-  if (e === "낮음") return "LOW";
-  return undefined;
-}
 
 function parseLogExercises(json: string | null | undefined): { name: string; detail: string; videoUrl?: string }[] {
   if (!json) return [];
@@ -75,18 +47,12 @@ function WorkoutRecordModal({ onClose, onSubmit, isPending }: {
   onClose: () => void;
   onSubmit: (data: {
     exerciseNames: string[];
-    conditionScore?: number;
-    sleepHours?: string;
-    energyLevel?: string;
     bodyParts: string[];
     workoutTheme: string[];
   }) => void;
   isPending: boolean;
 }) {
   const [exerciseNames, setExerciseNames] = useState<string[]>([""]);
-  const [conditionScore, setConditionScore] = useState<number | undefined>();
-  const [sleepHours, setSleepHours] = useState<string | undefined>();
-  const [energyLevel, setEnergyLevel] = useState<string | undefined>();
   const [bodyParts, setBodyParts] = useState<string[]>([]);
   const [workoutTheme, setWorkoutTheme] = useState<string[]>([]);
 
@@ -163,46 +129,6 @@ function WorkoutRecordModal({ onClose, onSubmit, isPending }: {
             </button>
           </div>
 
-          {/* 오늘 컨디션 */}
-          <div>
-            <p className="text-sm font-semibold mb-2">오늘 컨디션</p>
-            <div className="grid grid-cols-5 gap-2">
-              {CONDITION_EMOJI.map((emoji, i) => (
-                <button key={i} onClick={() => setConditionScore(conditionScore === i + 1 ? undefined : i + 1)}
-                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border text-xl transition-colors ${conditionScore === i + 1 ? "border-primary bg-primary/10" : "border-border bg-muted/30"}`}>
-                  {emoji}
-                  <span className="text-[10px] text-muted-foreground">{i + 1}점</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 수면 시간 */}
-          <div>
-            <p className="text-sm font-semibold mb-2">수면 시간</p>
-            <div className="grid grid-cols-6 gap-1.5">
-              {SLEEP_OPTIONS.map((h) => (
-                <button key={h} onClick={() => setSleepHours(sleepHours === h ? undefined : h)}
-                  className={`py-2.5 rounded-xl border text-xs font-medium transition-colors ${sleepHours === h ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                  {h}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 에너지 상태 */}
-          <div>
-            <p className="text-sm font-semibold mb-2">에너지 상태</p>
-            <div className="grid grid-cols-3 gap-2">
-              {ENERGY_OPTIONS.map((e) => (
-                <button key={e} onClick={() => setEnergyLevel(energyLevel === e ? undefined : e)}
-                  className={`py-2.5 rounded-2xl border text-sm font-medium transition-colors ${energyLevel === e ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* 오늘의 운동 부위 */}
           <div>
             <p className="text-sm font-semibold mb-2">오늘의 운동 부위 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
@@ -264,7 +190,7 @@ function WorkoutRecordModal({ onClose, onSubmit, isPending }: {
             취소
           </button>
           <button
-            onClick={() => onSubmit({ exerciseNames, conditionScore, sleepHours, energyLevel, bodyParts, workoutTheme })}
+            onClick={() => onSubmit({ exerciseNames, bodyParts, workoutTheme })}
             disabled={isPending}
             className="flex-1 bg-primary text-primary-foreground font-semibold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
             {isPending ? "저장 중..." : "운동 완료"}
@@ -346,7 +272,6 @@ interface LogFormData {
   caloriesBurned: string;
   bodyWeight: string;
   notes: string;
-  mood: string;
 }
 
 // ─── Main Component ───────────────────────────────────────
@@ -357,7 +282,7 @@ export default function FitStepPlusWorkout() {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<LogFormData>({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "", mood: "good" });
+  const [form, setForm] = useState<LogFormData>({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "" });
   const [manualExercises, setManualExercises] = useState<SimpleExercise[]>([]);
 
   const utils = trpc.useUtils();
@@ -391,7 +316,7 @@ export default function FitStepPlusWorkout() {
   });
 
   function resetManualForm() {
-    setForm({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "", mood: "good" });
+    setForm({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "" });
     setManualExercises([]);
   }
 
@@ -400,7 +325,7 @@ export default function FitStepPlusWorkout() {
       logDate: log.logDate, title: log.title ?? "",
       durationMinutes: log.durationMinutes?.toString() ?? "",
       caloriesBurned: log.caloriesBurned?.toString() ?? "",
-      bodyWeight: log.bodyWeight ?? "", notes: log.notes ?? "", mood: log.mood ?? "good",
+      bodyWeight: log.bodyWeight ?? "", notes: log.notes ?? "",
     });
     try {
       const parsed = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
@@ -430,18 +355,12 @@ export default function FitStepPlusWorkout() {
 
   function handleRecordSubmit(data: {
     exerciseNames: string[];
-    conditionScore?: number;
-    sleepHours?: string;
-    energyLevel?: string;
     bodyParts: string[];
     workoutTheme: string[];
   }) {
     const validNames = data.exerciseNames.filter((n) => n.trim());
-    const mood = scoreToMood(data.conditionScore);
-    const intensity = energyToIntensity(data.energyLevel);
 
     const meta: Record<string, any> = {};
-    if (data.sleepHours) meta.sleepHours = data.sleepHours;
     if (data.bodyParts.length) meta.bodyParts = data.bodyParts;
     if (data.workoutTheme.length) meta.workoutTheme = data.workoutTheme;
 
@@ -449,8 +368,6 @@ export default function FitStepPlusWorkout() {
       logDate: today,
       title: data.bodyParts.filter((p) => MAIN_BODY_PARTS.includes(p)).join(" + ") || "오늘의 운동",
       exercisesJson: validNames.length > 0 ? JSON.stringify(validNames.map((name) => ({ name }))) : undefined,
-      mood,
-      intensity,
       notes: Object.keys(meta).length > 0 ? JSON.stringify(meta) : undefined,
     });
   }
@@ -475,7 +392,7 @@ export default function FitStepPlusWorkout() {
         <div className="bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-2xl p-4 flex items-center justify-between">
           <div>
             <p className="font-semibold text-base">지금 운동할까요?</p>
-            <p className="text-xs text-muted-foreground mt-0.5">종목과 오늘의 컨디션을 기록해요</p>
+            <p className="text-xs text-muted-foreground mt-0.5">오늘 한 운동을 기록해요</p>
           </div>
           <button
             onClick={() => setShowRecordModal(true)}
@@ -527,7 +444,6 @@ export default function FitStepPlusWorkout() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {log.mood && <span className={`text-[10px] px-2 py-0.5 rounded-full border ${moodColor[log.mood] ?? "bg-muted text-muted-foreground"}`}>{moodLabel[log.mood] ?? log.mood}</span>}
                     {(log as any).intensity && <IntensityBadge v={(log as any).intensity} />}
                     {log.durationMinutes && <span className="text-[10px] text-muted-foreground">⏱ {log.durationMinutes}분</span>}
                     {log.caloriesBurned && <span className="text-[10px] text-muted-foreground">🔥 {log.caloriesBurned}kcal</span>}
@@ -582,17 +498,6 @@ export default function FitStepPlusWorkout() {
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">제목 (선택)</Label>
               <Input placeholder="예: 가슴 운동, 하체 데이..." value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} className="bg-input border-border text-sm h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">오늘 컨디션</Label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {Object.entries(moodLabel).map(([k, v]) => (
-                  <button key={k} onClick={() => setForm((p) => ({ ...p, mood: k }))}
-                    className={`py-1.5 rounded-lg text-xs font-medium transition-colors border ${form.mood === k ? moodColor[k] : "border-border text-muted-foreground"}`}>
-                    {v}
-                  </button>
-                ))}
-              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">운동 목록</Label>

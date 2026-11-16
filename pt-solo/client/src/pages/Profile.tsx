@@ -182,7 +182,7 @@ function OperatorAccessCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground leading-relaxed">
-          FIT STEP 운영자는 기본적으로 매출·수업 수 같은 <b className="text-foreground">숫자만</b> 보고, 회원 이름·연락처·메모·건강 정보는 가려서 봐요.
+          FIT STEP 운영자는 기본적으로 매출·수업 수 같은 <b className="text-foreground">숫자만</b> 보고, 회원 이름·연락처·메모는 가려서 봐요.
           운영 컨설팅이나 문의 처리를 위해 회원 정보까지 보여주려면 허용해 주세요. 언제든 철회할 수 있어요.
         </p>
         <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">

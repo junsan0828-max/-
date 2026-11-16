@@ -489,7 +489,6 @@ export function WorkoutLogSection() {
                       <p className="text-sm font-semibold">{log.title || "운동 기록"}</p>
                       <p className="text-xs text-muted-foreground">{log.logDate} {log.durationMinutes ? `· ${log.durationMinutes}분` : ""}</p>
                     </div>
-                    {log.mood && <span className="text-sm">{log.mood === "great" ? "😊" : log.mood === "good" ? "🙂" : log.mood === "normal" ? "😐" : log.mood === "tired" ? "😮‍💨" : "😵"}</span>}
                   </div>
                 </button>
                 {expandedLogId === log.id && (
@@ -2127,7 +2126,7 @@ export const WS_CATALOG: WsCatDef[] = [
         tags: ["카테고리별 영상", "부위별 영상", "홈트레이닝"],
         useCases: ["홈트레이닝 영상 제공", "운동 복습 콘텐츠 제공", "회원 자가 운동 지원"] },
       { id: "fitstep_rec", icon: Target, name: "맞춤 운동 추천", shortDesc: "회원 목표 및 상태 기반 운동 추천", status: "addon_fsp",
-        description: "회원의 목표, 체력 수준, 컨디션을 바탕으로 맞춤 운동 루틴을 자동 추천합니다. 최적화된 프로그램을 손쉽게 제공할 수 있습니다.",
+        description: "회원의 목표와 체력 수준을 바탕으로 맞춤 운동 루틴을 자동 추천합니다. 최적화된 프로그램을 손쉽게 제공할 수 있습니다.",
         tags: ["운동 루틴 추천", "목적별 구성", "상태 기반"],
         useCases: ["목표별 맞춤 프로그램 제공", "회원 상태에 따른 강도 조절", "루틴 자동화"] },
       { id: "fitstep_diet", icon: Utensils, name: "맞춤 식단 관리", shortDesc: "회원 식단 및 생활습관 관리", status: "addon_fsp",
@@ -3098,10 +3097,11 @@ export function TrainerDietManager() {
   }, []);
 
   const selectedMember = (memberList as any[]).find((m: any) => m.id === selectedMemberId);
-  const { data: parQData } = trpc.parQ.get.useQuery({ memberId: selectedMemberId! }, { enabled: !!selectedMemberId });
-
-  const heightCm = parseFloat(parQData?.height ?? "0");
-  const weightKg = parseFloat(parQData?.weight ?? "0");
+  // 키·몸무게는 식단 계산에만 쓰고 저장하지 않는다
+  const [heightInput, setHeightInput] = useState("");
+  const [weightInput, setWeightInput] = useState("");
+  const heightCm = parseFloat(heightInput) || 0;
+  const weightKg = parseFloat(weightInput) || 0;
   const gender = selectedMember?.gender ?? "male";
   const birthDate = selectedMember?.birthDate ?? "";
   const ageYears = birthDate ? new Date().getFullYear() - parseInt(birthDate.slice(0, 4)) : 30;
@@ -3165,7 +3165,7 @@ export function TrainerDietManager() {
         <p className="text-xs font-semibold text-muted-foreground mb-1.5">회원 선택</p>
         <select
           value={selectedMemberId ?? ""}
-          onChange={e => { setSelectedMemberId(Number(e.target.value) || null); setPlan(null); }}
+          onChange={e => { setSelectedMemberId(Number(e.target.value) || null); setPlan(null); setHeightInput(""); setWeightInput(""); }}
           className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background"
         >
           <option value="">-- 회원을 선택하세요 --</option>
@@ -3175,24 +3175,28 @@ export function TrainerDietManager() {
         </select>
       </div>
 
-      {/* 신체 정보 */}
+      {/* 신체 정보 (저장하지 않음) */}
       {selectedMemberId && (
-        <div className={`rounded-xl border px-4 py-3 text-sm ${hasBodyData ? "border-border bg-card" : "border-amber-500/30 bg-amber-50/30"}`}>
-          {hasBodyData ? (
-            <>
-              <p className="font-semibold text-xs text-muted-foreground mb-2">신체 정보 (PAR-Q)</p>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {[["키", `${heightCm}cm`], ["몸무게", `${weightKg}kg`], ["나이", `${ageYears}세`]].map(([label, val]) => (
-                  <div key={label} className="bg-primary/5 rounded-lg py-2">
-                    <p className="text-[10px] text-muted-foreground">{label}</p>
-                    <p className="font-semibold text-sm">{val}</p>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="text-xs text-amber-700">PAR-Q에 키/몸무게가 없습니다. PAR-Q를 먼저 작성해주세요.</p>
-          )}
+        <div className="rounded-xl border border-border bg-card px-4 py-3 space-y-2">
+          <p className="font-semibold text-xs text-muted-foreground">키·몸무게 <span className="font-normal">(식단 계산에만 쓰고 저장하지 않아요)</span></p>
+          <div className="grid grid-cols-3 gap-2">
+            <label className="space-y-1">
+              <span className="text-[10px] text-muted-foreground">키(cm)</span>
+              <input type="number" inputMode="decimal" value={heightInput}
+                onChange={e => { setHeightInput(e.target.value); setPlan(null); }}
+                className="w-full border border-border rounded-lg px-2 py-2 text-sm bg-background" placeholder="170" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] text-muted-foreground">몸무게(kg)</span>
+              <input type="number" inputMode="decimal" value={weightInput}
+                onChange={e => { setWeightInput(e.target.value); setPlan(null); }}
+                className="w-full border border-border rounded-lg px-2 py-2 text-sm bg-background" placeholder="65" />
+            </label>
+            <div className="space-y-1">
+              <span className="text-[10px] text-muted-foreground">나이</span>
+              <p className="py-2 text-sm font-semibold text-center bg-primary/5 rounded-lg">{ageYears}세</p>
+            </div>
+          </div>
         </div>
       )}
 

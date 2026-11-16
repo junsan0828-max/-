@@ -9,7 +9,6 @@ import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
 import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
-import ParQ from "./pages/ParQ";
 import AttendancePage from "./pages/AttendancePage";
 import MemberReport from "./pages/MemberReport";
 import PT from "./pages/PT";
@@ -187,7 +186,7 @@ function App() {
             {(params) => <MemberForm memberId={parseInt(params.id!)} />}
           </Route>
           <Route path="/members/:id/parq">
-            {(params) => <ParQ memberId={parseInt(params.id!)} />}
+            {(params) => <Redirect to={`/members/${params.id}`} replace />}
           </Route>
           <Route path="/members/:id">
             {(params) => <MemberDetail memberId={parseInt(params.id!)} />}
