@@ -60,7 +60,7 @@ function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
     attended: { label: "출석", cls: "bg-green-500/20 text-green-400", icon: <CheckCircle className="h-3 w-3" /> },
     noshow: { label: "노쇼", cls: "bg-red-500/20 text-red-400", icon: <XCircle className="h-3 w-3" /> },
-    cancelled: { label: "캔슬", cls: "bg-yellow-500/20 text-yellow-400", icon: <Clock className="h-3 w-3" /> },
+    cancelled: { label: "캔슬", cls: "bg-amber-500/20 text-amber-600", icon: <Clock className="h-3 w-3" /> },
   };
   const s = map[status] ?? { label: status, cls: "bg-gray-500/20 text-gray-400", icon: null };
   return (
@@ -94,44 +94,19 @@ export default function MemberReport({ token }: Props) {
   }
 
   const { member, conditionChecks, workoutMemos, ptPackages, generatedAt } = data;
+  const trainerInfo = (data as any).trainerInfo as { trainerName?: string; profileImage?: string; brandColor?: string; brandMessage?: string } | null;
 
   // 출석 통계
   const totalAttended = conditionChecks.filter((c) => c.status === "attended").length;
   const totalNoshow = conditionChecks.filter((c) => c.status === "noshow").length;
   const totalCancelled = conditionChecks.filter((c) => c.status === "cancelled").length;
 
-  // 컨디션 평균
-  const scoresWithValues = conditionChecks.filter((c) => c.conditionScore != null);
-  const avgCondition =
-    scoresWithValues.length
-      ? (
-          scoresWithValues.reduce((s, c) => s + (c.conditionScore ?? 0), 0) /
-          scoresWithValues.length
-        ).toFixed(1)
-      : null;
-
-  // PT 잔여
+  // 잔여 수업
   const activePkgs = ptPackages.filter((p) => p.status === "active");
   const remainingPt = activePkgs.reduce(
     (s, p) => s + (p.totalSessions - p.usedSessions),
     0
   );
-
-  // 통증 이력
-  const painChecks = conditionChecks.filter(
-    (c) => c.painLevel != null && c.painLevel > 0
-  );
-
-  // 차트 데이터 (conditionScore 있는 것만, 최근 20개, 날짜 오름차순)
-  const chartData = conditionChecks
-    .filter((c) => c.conditionScore != null)
-    .slice(0, 20)
-    .reverse()
-    .map((c) => ({
-      date: format(new Date(c.checkDate + "T00:00:00"), "M/d"),
-      컨디션: c.conditionScore,
-      수면: c.sleepHours ? parseFloat(c.sleepHours) : undefined,
-    }));
 
   const { sessionLogs } = data;
 
@@ -146,20 +121,35 @@ export default function MemberReport({ token }: Props) {
     .slice(-6)
     .map(([ym, count]) => ({ month: `${parseInt(ym.split("-")[1])}월`, count }));
 
-  // 식단 기록 (diet 값이 있는 체크)
-  const dietChecks = conditionChecks.filter(c => c.diet && c.diet.trim());
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
 
         {/* 헤더 */}
         <div className="border-b border-border pb-6">
-          <p className="text-xs text-muted-foreground font-bold tracking-widest mb-3" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-            ZIANTGYM
-          </p>
+          {/* 트레이너 브랜딩 */}
+          <div className="flex items-center gap-2 mb-4">
+            {trainerInfo?.profileImage ? (
+              <img src={trainerInfo.profileImage} alt={trainerInfo.trainerName} className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                style={{ backgroundColor: trainerInfo?.brandColor || "#1a00ff" }}>
+                {trainerInfo?.trainerName?.[0] ?? "T"}
+              </div>
+            )}
+            <p className="text-xs font-semibold tracking-widest" style={{ color: trainerInfo?.brandColor || "#1a00ff" }}>
+              {trainerInfo?.trainerName ?? "FIT STEP"}
+            </p>
+          </div>
+          {trainerInfo?.brandMessage && (
+            <div className="mb-4 rounded-xl px-4 py-3 text-sm font-medium"
+              style={{ backgroundColor: `${trainerInfo.brandColor || "#1a00ff"}18`, color: trainerInfo.brandColor || "#1a00ff" }}>
+              💬 {trainerInfo.brandMessage}
+            </div>
+          )}
           <div className="flex items-start gap-4">
-            <div className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xl shrink-0">
+            <div className="h-14 w-14 rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0"
+              style={{ backgroundColor: trainerInfo?.brandColor || "#1a00ff" }}>
               {member.name.charAt(0)}
             </div>
             <div>
@@ -179,15 +169,15 @@ export default function MemberReport({ token }: Props) {
         {/* 요약 통계 */}
         <Section title="요약">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="총 출석" value={`${totalAttended}회`} icon={<CheckCircle className="h-3.5 w-3.5 text-green-400" />} />
-            <StatCard label="총 수업" value={`${sessionLogs.length}회`} icon={<Dumbbell className="h-3.5 w-3.5 text-primary" />} />
-            <StatCard label="평균 컨디션" value={avgCondition ? `${avgCondition}/5` : "-"} icon={<Activity className="h-3.5 w-3.5 text-blue-400" />} />
-            <StatCard label="트레이닝 일지" value={`${sessionLogs.length}건`} icon={<BookOpen className="h-3.5 w-3.5 text-orange-400" />} />
+            <StatCard label="수업 출석" value={`${totalAttended}회`} icon={<CheckCircle className="h-3.5 w-3.5 text-muted-foreground" />} />
+            <StatCard label="총 수업" value={`${sessionLogs.length}회`} icon={<Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />} />
+            <StatCard label="잔여 수업" value={`${remainingPt}회`} icon={<Activity className="h-3.5 w-3.5 text-muted-foreground" />} />
+            <StatCard label="트레이닝 일지" value={`${sessionLogs.filter(l => l.exercisesJson || l.goal || l.bodyPart).length}건`} icon={<BookOpen className="h-3.5 w-3.5 text-muted-foreground" />} />
           </div>
           {(totalNoshow > 0 || totalCancelled > 0) && (
             <div className="flex gap-4 text-xs text-muted-foreground">
               {totalNoshow > 0 && <span className="text-red-400">노쇼 {totalNoshow}회</span>}
-              {totalCancelled > 0 && <span className="text-yellow-400">캔슬 {totalCancelled}회</span>}
+              {totalCancelled > 0 && <span className="text-amber-600">캔슬 {totalCancelled}회</span>}
             </div>
           )}
         </Section>
@@ -207,123 +197,6 @@ export default function MemberReport({ token }: Props) {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-          </Section>
-        )}
-
-        {/* 컨디션 추이 차트 */}
-        {chartData.length > 1 && (
-          <Section title="컨디션 점수 추이">
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                    <YAxis
-                      domain={[0, 5]}
-                      ticks={[1, 2, 3, 4, 5]}
-                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="컨디션"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "hsl(var(--primary))" }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </Section>
-        )}
-
-        {/* 수업 전 체크 이력 */}
-        {conditionChecks.length > 0 && (
-          <Section title="수업 전 컨디션 체크 이력">
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              {conditionChecks.slice(0, 15).map((check, idx) => (
-                <div
-                  key={check.id}
-                  className={`flex items-start gap-3 px-4 py-3 ${
-                    idx < conditionChecks.slice(0, 15).length - 1 ? "border-b border-border" : ""
-                  }`}
-                >
-                  <div className="shrink-0 w-20 space-y-1">
-                    <p className="text-xs font-medium">
-                      {format(new Date(check.checkDate + "T00:00:00"), "MM.dd (EEE)", { locale: ko })}
-                    </p>
-                    <StatusBadge status={check.status} />
-                  </div>
-                  <div className="flex-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-                    {check.conditionScore != null && (
-                      <span>
-                        컨디션{" "}
-                        <strong className="text-foreground">{check.conditionScore}/5</strong>
-                      </span>
-                    )}
-                    {check.sleepHours && (
-                      <span>
-                        수면 <strong className="text-foreground">{check.sleepHours}h</strong>
-                      </span>
-                    )}
-                    {check.energyLevel && (
-                      <span>
-                        에너지 <strong className="text-foreground">{check.energyLevel}</strong>
-                      </span>
-                    )}
-                    {check.painLevel != null && check.painLevel > 0 && (
-                      <span className="text-orange-400">
-                        통증 <strong>{check.painLevel}/10</strong>
-                        {check.painArea ? ` (${check.painArea}${check.painSide ? " · " + check.painSide : ""})` : ""}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {conditionChecks.length > 15 && (
-                <div className="px-4 py-2 text-xs text-muted-foreground text-center border-t border-border">
-                  외 {conditionChecks.length - 15}건 더 있음
-                </div>
-              )}
-            </div>
-          </Section>
-        )}
-
-        {/* 통증 이력 하이라이트 */}
-        {painChecks.length > 0 && (
-          <Section title="통증 이력">
-            <div className="space-y-2">
-              {painChecks.map((check) => (
-                <div
-                  key={check.id}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20"
-                >
-                  <AlertTriangle className="h-4 w-4 text-orange-400 shrink-0" />
-                  <div className="text-xs">
-                    <span className="font-medium text-orange-300">
-                      {format(new Date(check.checkDate + "T00:00:00"), "yyyy년 MM월 dd일", { locale: ko })}
-                    </span>
-                    <span className="text-muted-foreground ml-2">통증 {check.painLevel}/10</span>
-                    {check.painArea && (
-                      <span className="text-muted-foreground"> · {check.painArea}</span>
-                    )}
-                    {check.painSide && (
-                      <span className="text-muted-foreground"> ({check.painSide})</span>
-                    )}
-                  </div>
-                </div>
-              ))}
             </div>
           </Section>
         )}
@@ -363,28 +236,9 @@ export default function MemberReport({ token }: Props) {
           </Section>
         )}
 
-        {/* 식단 기록 */}
-        {dietChecks.length > 0 && (
-          <Section title="식단 기록">
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              {dietChecks.slice(0, 10).map((c, idx) => (
-                <div key={c.id} className={`px-4 py-3 ${idx < Math.min(dietChecks.length, 10) - 1 ? "border-b border-border" : ""}`}>
-                  <p className="text-xs font-medium text-primary mb-0.5">
-                    {format(new Date(c.checkDate + "T00:00:00"), "MM.dd (EEE)", { locale: ko })}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{c.diet}</p>
-                </div>
-              ))}
-              {dietChecks.length > 10 && (
-                <div className="px-4 py-2 text-xs text-muted-foreground text-center border-t border-border">외 {dietChecks.length - 10}건</div>
-              )}
-            </div>
-          </Section>
-        )}
-
-        {/* PT 패키지 현황 */}
+        {/* 수업권 현황 */}
         {ptPackages.length > 0 && (
-          <Section title="PT 패키지 현황">
+          <Section title="수업권 현황">
             <div className="space-y-3">
               {ptPackages.map((pkg) => {
                 const remaining = pkg.totalSessions - pkg.usedSessions;
@@ -395,7 +249,7 @@ export default function MemberReport({ token }: Props) {
                     className="p-4 rounded-xl bg-card border border-border"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-sm font-medium">{pkg.packageName || "PT 프로그램"}</p>
+                      <p className="text-sm font-medium">{pkg.packageName || "수업 프로그램"}</p>
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full ${
                           pkg.status === "active"
@@ -435,13 +289,11 @@ export default function MemberReport({ token }: Props) {
         )}
 
         {/* 푸터 */}
-        <div className="border-t border-border pt-6 text-center">
-          <p
-            className="text-xs text-muted-foreground"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-          >
-            ZIANTGYM · 트레이너 회원 관리 시스템
+        <div className="border-t border-border pt-6 text-center space-y-1">
+          <p className="text-xs font-semibold" style={{ color: trainerInfo?.brandColor || "#1a00ff" }}>
+            {trainerInfo?.trainerName ?? "FIT STEP"} STEPER
           </p>
+          <p className="text-xs text-muted-foreground">Powered by FIT STEP · STEPER 회원 관리 시스템</p>
         </div>
       </div>
     </div>
