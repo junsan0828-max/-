@@ -597,6 +597,9 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-dash { background: #0f2240; color: #e6edf7; border-radius: 18px; padding: 20px 18px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; box-shadow: 0 18px 40px rgba(15,34,64,.22); min-width: 0; }
 .cs-dash-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px; }
 .cs-dash-head em { font-style: normal; font-weight: 500; color: #8fa6c8; margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cs-avatar { position: relative; width: 36px; height: 36px; flex-shrink: 0; }
+.cs-avatar img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; object-position: center 20%; border: 2px solid #3b82f6; display: block; }
+.cs-avatar i { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #34d399; border: 2px solid #0f2240; }
 .cs-live { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 0 4px rgba(52,211,153,.18); flex-shrink: 0; }
 .cs-m { background: #16305a; border-radius: 12px; padding: 14px 14px 12px; min-width: 0; }
 .cs-m--wide { grid-column: 1 / -1; }
@@ -854,7 +857,7 @@ body.modal-open { overflow: hidden; }
     </div>
     </div>
     <div class="cs-dash" aria-label="이준산 트레이너 실제 성과 데이터">
-      <div class="cs-dash-head"><span class="cs-live"></span>이준산 트레이너 실제 데이터 <em>2026.1.1~11.17</em></div>
+      <div class="cs-dash-head"><span class="cs-avatar"><img src="/academy/consultant-v2.jpg" alt="" width="36" height="36"><i></i></span>이준산 트레이너 실제 데이터 <em>2026.1.1~11.17</em></div>
 
       <div class="cs-m cs-m--wide">
         <div class="cs-m-top"><span>재등록률</span><b>90%</b></div>
@@ -889,6 +892,29 @@ body.modal-open { overflow: hidden; }
       </div>
 
       <p class="cs-dash-src">재등록률·매출 구조·월평균 수업·노쇼: ZIANT GYM 트레이너 성과 보고서(2026.1.1~11.17, 본인 관리 회원 41명, 센터 평균은 트레이너 6명 기준) · 월 수업 범위·장기 회원 수: 본인 집계</p>
+    </div>
+  </div>
+</section>
+
+<!-- C03 · 컨설턴트 -->
+<section class="sec sec--alt">
+  <div class="wrap">
+    <p class="kicker">컨설팅하는 사람</p>
+    <h2 class="h2">직접 상담하고 수업하며<br>회원을 관리해 온 트레이너가 봅니다.</h2>
+    <div class="cs-profile">
+      <img class="cs-photo" src="/academy/consultant-v2.jpg" alt="이준산 대표 프로필 사진" width="720" height="960" loading="lazy">
+      <div class="cs-trust">
+        <div class="cs-trust-name">이준산
+          <span>핏스텝 컨설팅 대표 · 자이언트짐 대표</span>
+          <span>통합기능운동학협회 대표 · 피트니스경영신문 대표</span>
+          <span class="cs-edu">차의과학대학교 자세체형교정 석사 · 의학 박사과정</span>
+        </div>
+        <ul>
+          <li>자이언트짐에서 회원 상담, 수업, 재등록 관리를 직접 진행</li>
+          <li>체성분·정적 체형 분석 → 상담 → 50분 수업 → 회원관리로 이어지는 방식을 현장에서 운영</li>
+          <li>회원관리 도구 FIT STEP을 직접 만들어 수업·재등록 데이터를 기록</li>
+        </ul>
+      </div>
     </div>
   </div>
 </section>
@@ -930,29 +956,6 @@ body.modal-open { overflow: hidden; }
       <span>신청 후 사전 설문을 확인해 순차적으로 일정을 안내합니다.</span>
       <span>모집 인원이 마감되면 대기 신청을 받습니다.</span>
       <p class="cs-stats" id="csStats" hidden></p>
-    </div>
-  </div>
-</section>
-
-<!-- C03 · 컨설턴트 -->
-<section class="sec sec--alt">
-  <div class="wrap">
-    <p class="kicker">컨설팅하는 사람</p>
-    <h2 class="h2">직접 상담하고 수업하며<br>회원을 관리해 온 트레이너가 봅니다.</h2>
-    <div class="cs-profile">
-      <img class="cs-photo" src="/academy/consultant-v2.jpg" alt="이준산 대표 프로필 사진" width="720" height="960" loading="lazy">
-      <div class="cs-trust">
-        <div class="cs-trust-name">이준산
-          <span>핏스텝 컨설팅 대표 · 자이언트짐 대표</span>
-          <span>통합기능운동학협회 대표 · 피트니스경영신문 대표</span>
-          <span class="cs-edu">차의과학대학교 자세체형교정 석사 · 의학 박사과정</span>
-        </div>
-        <ul>
-          <li>자이언트짐에서 회원 상담, 수업, 재등록 관리를 직접 진행</li>
-          <li>체성분·정적 체형 분석 → 상담 → 50분 수업 → 회원관리로 이어지는 방식을 현장에서 운영</li>
-          <li>회원관리 도구 FIT STEP을 직접 만들어 수업·재등록 데이터를 기록</li>
-        </ul>
-      </div>
     </div>
   </div>
 </section>
