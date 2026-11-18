@@ -11,7 +11,7 @@ var COLUMNS = [
   ["매출(3개월 전)", "rev1"], ["매출(2개월 전)", "rev2"], ["매출(지난달)", "rev3"],
   ["3개월 PT 종료 대상", "ended"], ["그중 재등록", "renewed"],
   ["개인정보 동의", "agree"], ["소식 수신 동의", "marketing"],
-  ["진행 상태", null], ["메모", null]
+  ["진행 상태", null], ["컨설팅 일자", null], ["3개월 후 재등록률", null], ["메모", null]
 ];
 
 function doPost(e) {
