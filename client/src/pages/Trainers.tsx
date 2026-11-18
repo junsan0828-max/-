@@ -888,6 +888,7 @@ function PeriodReportTab() {
               <StatCard label="재등록" value={`${fmt(data.total.reregCount)}건`} sub={`${data.total.reregMembers}명`} />
               <StatCard label="재등록률" value={data.total.reregRate == null ? "-" : `${data.total.reregRate}%`} />
               <StatCard label="노쇼" value={`${fmt(data.total.noShows)}회`} />
+              <StatCard label="운동영상 공유" value={`${fmt(data.total.videos ?? 0)}개`} sub={`공유율 ${data.total.videoRate ?? 0}%`} />
             </CardContent>
           </Card>
 
@@ -898,7 +899,7 @@ function PeriodReportTab() {
               <button onClick={() => openReport("all")} className="text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground font-medium">센터 성과 보고서</button>
             </div>
             <div className="overflow-x-auto rounded-xl border border-border">
-              <table className="w-full min-w-[760px]">
+              <table className="w-full min-w-[840px]">
                 <thead>
                   <tr>
                     <th className={`${th} text-left pl-3`}>트레이너</th>
@@ -911,6 +912,7 @@ function PeriodReportTab() {
                     <th className={th}>재등록</th>
                     <th className={th}>재등록률</th>
                     <th className={th}>노쇼</th>
+                    <th className={th}>영상 공유</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -930,6 +932,9 @@ function PeriodReportTab() {
                         {t.reregRate == null ? <span className="text-muted-foreground">-</span> : `${t.reregRate}%`}
                       </td>
                       <td className={tdNum(t.noShows, t.noShows > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.noShows}회</td>
+                      <td className={tdNum(t.videos, t.videos > 0 ? "text-violet-400" : "text-muted-foreground")}>
+                        {t.videos}개 <span className="text-[10px] text-muted-foreground">({t.videoRate}%)</span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -945,6 +950,7 @@ function PeriodReportTab() {
                     <td className={`${td} font-bold text-primary`}>{fmt(data.total.reregCount)}건</td>
                     <td className={`${td} font-bold`}>{data.total.reregRate == null ? "-" : `${data.total.reregRate}%`}</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.noShows)}회</td>
+                    <td className={`${td} font-bold text-violet-400`}>{fmt(data.total.videos ?? 0)}개 <span className="text-[10px] font-normal text-muted-foreground">({data.total.videoRate ?? 0}%)</span></td>
                   </tr>
                 </tfoot>
               </table>
@@ -1017,7 +1023,8 @@ function PeriodReportTab() {
           <p className="text-[10px] text-muted-foreground text-center pb-2 leading-relaxed">
             * 재등록률 = 재등록 건 ÷ (재등록 건 + 종료) · 종료 = 패키지를 다 쓰고 진행 중인 패키지가 없는 회원 · 재등록은 PT만<br />
             * 관리 회원·정지는 기간과 무관한 현재 기준 (잔여 PT가 있는 회원) · 트레이너 이름을 누르면 성과 보고서<br />
-            * 신규 등록은 매출 건수 기준 · 담당 트레이너 → 상담자 → (PT) 회원 담당 순으로 귀속, 없으면 미배정
+            * 신규 등록은 매출 건수 기준 · 담당 트레이너 → 상담자 → (PT) 회원 담당 순으로 귀속, 없으면 미배정<br />
+            * 영상 공유 = 수업일지 운동 항목에 붙인 영상 링크 수 · 괄호는 공유율(영상을 보낸 수업 ÷ 총 수업)
           </p>
         </>
       )}

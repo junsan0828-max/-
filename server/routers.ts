@@ -3990,8 +3990,16 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
           WHERE "trainerId" = ${tid} AND status = 'attended' ${atdRange}
         )`;
 
+  // 운동영상 공유: 수업일지 운동 항목 중 videoUrl이 있는 것 (활동 통계 탭과 같은 기준)
+  const videoSet = sql`
+    SELECT s.id AS "logId", s."memberId", s."sessionDate" AS d
+    FROM pt_session_logs s,
+    LATERAL jsonb_array_elements(CASE WHEN s."exercisesJson" LIKE '[%' THEN s."exercisesJson"::jsonb ELSE '[]'::jsonb END) AS ex
+    WHERE s."trainerId" = ${tid} AND COALESCE(ex->>'videoUrl', '') <> ''
+      AND s."sessionDate" >= ${periodStart} AND s."sessionDate" < ${periodEnd}`;
+
   const rows = (r: any) => ((r as any).rows ?? r) as any[];
-  const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes] = await Promise.all([
+  const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes, videoTotalRes, monthlyVideoRes] = await Promise.all([
     db.execute(sql`SELECT COUNT(*)::int AS c FROM (${sessionSet}) combined`),
     db.execute(sql`SELECT COUNT(*)::int AS c FROM attendance_checks
       WHERE "trainerId" = ${tid} AND status = 'noshow' ${atdRange}`),
@@ -4026,6 +4034,10 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
       WHERE r."subType" = '재등록' AND r.type = 'PT' AND ${revOwnerFilter}
         AND r."paymentDate" >= ${periodStart} AND r."paymentDate" < ${periodEnd}
       GROUP BY m ORDER BY m`),
+    db.execute(sql`SELECT COUNT(*)::int AS videos, COUNT(DISTINCT "logId")::int AS logs, COUNT(DISTINCT "memberId")::int AS members
+      FROM (${videoSet}) v`),
+    db.execute(sql`SELECT EXTRACT(MONTH FROM d::date)::int AS m, COUNT(*)::int AS c
+      FROM (${videoSet}) v GROUP BY m ORDER BY m`),
   ]);
 
   const assignedMemberIdSet = new Set(assignedMemberIds);
@@ -4088,10 +4100,15 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
   const reregRate = (reregCount + completed) > 0
     ? Math.round((reregCount / (reregCount + completed)) * 100) : null;
 
-  const monthlyMap: Record<number, { sessions: number; rereg: number }> = {};
-  for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0 };
+  const monthlyMap: Record<number, { sessions: number; rereg: number; videos: number }> = {};
+  for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0, videos: 0 };
   for (const r of rows(monthlySessionsRes)) if (monthlyMap[r.m]) monthlyMap[r.m].sessions = Number(r.c);
   for (const r of rows(monthlyReregRes)) if (monthlyMap[r.m]) monthlyMap[r.m].rereg = Number(r.c);
+  for (const r of rows(monthlyVideoRes)) if (monthlyMap[r.m]) monthlyMap[r.m].videos = Number(r.c);
+  const videoRow = rows(videoTotalRes)[0] ?? {};
+  const videos = Number(videoRow.videos ?? 0);
+  const videoSessions = Number(videoRow.logs ?? 0);
+  const videoMembers = Number(videoRow.members ?? 0);
 
   // 현재 시점 관리·정지 회원 (기간과 무관한 스냅샷). 잔여가 있는 패키지 기준.
   // 정지 = 회원 상태가 정지이거나, 남은 패키지가 모두 정지인 회원
@@ -4126,8 +4143,11 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
     reregCount,
     reregMembers: reregMemberIds.size,
     reregAfterExpired, reregRate,
+    videos, videoSessions, videoMembers,
+    // 영상 공유율 = 영상을 1개 이상 보낸 수업 ÷ 총 수업
+    videoRate: sessions > 0 ? Math.round((videoSessions / sessions) * 100) : 0,
     monthly: Object.entries(monthlyMap).map(([m, v]) => ({
-      month: Number(m), label: `${m}월`, sessions: v.sessions, rereg: v.rereg,
+      month: Number(m), label: `${m}월`, sessions: v.sessions, rereg: v.rereg, videos: v.videos,
     })),
     ...(withDetail ? { detail: { managedIds, pausedIds, endedMemberIds, newEntryIds, reregEntryIds } } : {}),
   };
@@ -6094,7 +6114,10 @@ const adminRouter = t.router({
         reregCount: trainerRows.reduce((s, t) => s + t.reregCount, 0),
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
+        videos: trainerRows.reduce((s, t) => s + t.videos, 0),
+        videoSessions: trainerRows.reduce((s, t) => s + t.videoSessions, 0),
       };
+      const totalVideoRate = total.sessions > 0 ? Math.round((total.videoSessions / total.sessions) * 100) : 0;
       // 합계 재등록률도 동일: 재등록 건 ÷ (재등록 건 + 종료)
       const totalDenom = total.reregCount + total.completed;
       const totalReregRate = totalDenom > 0
@@ -6132,7 +6155,7 @@ const adminRouter = t.router({
         unassigned: regByTrainer.get(null) ?? blank(),
       };
 
-      return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate }, newRegs };
+      return { year, period, trainers: trainerRows, total: { ...total, reregRate: totalReregRate, videoRate: totalVideoRate }, newRegs };
     }),
 
   resyncAllSharedLogs: protectedProcedure.mutation(async ({ ctx }) => {

@@ -111,6 +111,8 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
     ["종료", "completed", v => `${Math.round(v * 10) / 10}명`],
     ["PT 신규 매출", "newAmount", v => man(v)],
     ["PT 재등록 매출", "reregAmount", v => man(v)],
+    ["운동영상 공유", "videos", v => `${Math.round(v * 10) / 10}개`],
+    ["영상 공유율", "videoRate", v => `${Math.round(v)}%`],
   ];
 
   // 회원 현황 분석
@@ -151,10 +153,21 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
   if (lowRemain.length) todo.push(`잔여 3회 이하 ${lowRemain.length}명 재등록 상담 (${lowRemain.slice(0, 3).map(m => m.name).join(", ")})`);
   if (full.ended.length) todo.push(`종료 회원 ${full.ended.length}명 재방문 제안 (${full.ended.slice(0, 3).map((m: any) => m.name).join(", ")})`);
   if (s.pausedMembers > 0) todo.push(`정지 회원 ${s.pausedMembers}명 복귀일 확인`);
+  const lastVideoMonth = [...s.monthly].reverse().find((m: any) => m.videos > 0)?.month;
+  if (s.sessions > 0 && s.videos === 0) {
+    bad.push(`운동영상 공유 0개 — 수업 ${s.sessions}회 중 영상을 보낸 수업 없음`);
+    todo.push("수업일지에 운동 + 영상 링크를 남겨 회원 앱으로 공유 (재등록 근거 자료)");
+  } else if (s.videos > 0) {
+    if (others.length && s.videoRate >= cAvg("videoRate") + 10) good.push(`영상 공유율 ${s.videoRate}% — 센터 평균(${Math.round(cAvg("videoRate"))}%)보다 높음`);
+    const tail = s.monthly.filter((m: any) => m.sessions > 0).slice(-2);
+    if (tail.length === 2 && tail.every((m: any) => m.videos === 0) && lastVideoMonth)
+      bad.push(`영상 공유가 ${lastVideoMonth}월 이후 끊김`);
+  }
 
   const months: number[] = s.monthly.map((m: any) => m.month);
   const regIdx = (arr: number[] | undefined, i: number) => arr?.[i] ?? 0;
   const maxSess = Math.max(1, ...s.monthly.map((m: any) => m.sessions));
+  const maxVid = Math.max(1, ...s.monthly.map((m: any) => m.videos ?? 0));
 
   return (
     <>
@@ -209,15 +222,30 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
 
       <Section title="월별 추이" sub="수업·재등록·신규 등록 건수">
         <Table
-          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규"]}
-          align={["c", "r", "l", "r", "r", "r"]}
+          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규", "영상 공유"]}
+          align={["c", "r", "l", "r", "r", "r", "r"]}
           rows={s.monthly.map((m: any, i: number) => [
             `${m.month}월`, m.sessions, <Bar v={m.sessions} max={maxSess} />, m.rereg,
-            regIdx(myReg?.pt, i), regIdx(myReg?.health, i),
+            regIdx(myReg?.pt, i), regIdx(myReg?.health, i), m.videos ?? 0,
           ])}
-          foot={["합계", s.sessions, "", s.reregCount, sum(myReg?.pt ?? []), sum(myReg?.health ?? [])]}
+          foot={["합계", s.sessions, "", s.reregCount, sum(myReg?.pt ?? []), sum(myReg?.health ?? []), s.videos]}
         />
         <div className="text-[10px] text-slate-500">* 신규 등록은 매출 건수 기준 (신규 칸의 '명'과 다를 수 있음) · {months.length}개월</div>
+      </Section>
+
+      <Section title="운동영상 공유" sub="수업일지에 영상 링크를 붙여 회원에게 보낸 운동">
+        <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-2 mb-3 report-grid">
+          <Kpi label="공유한 영상" value={`${s.videos}개`} sub={others.length ? `센터 평균 ${Math.round(cAvg("videos"))}개` : undefined} />
+          <Kpi label="영상 보낸 수업" value={`${s.videoSessions}회`} sub={s.videoSessions ? `수업당 ${Math.round((s.videos / s.videoSessions) * 10) / 10}개` : undefined} />
+          <Kpi label="영상 받은 회원" value={`${s.videoMembers}명`} sub={`관리 회원 ${s.managedMembers}명`} />
+          <Kpi label="영상 공유율" value={`${s.videoRate}%`} sub={`영상 보낸 수업 ÷ 총 수업${others.length ? ` · 평균 ${Math.round(cAvg("videoRate"))}%` : ""}`} />
+        </div>
+        <Table head={["월", "영상", "", "수업 대비"]} align={["c", "r", "l", "r"]}
+          rows={s.monthly.map((m: any) => [`${m.month}월`, `${m.videos ?? 0}개`, <Bar v={m.videos ?? 0} max={maxVid} />,
+            m.sessions ? `${pct(m.videos ?? 0, m.sessions)}%` : "-"])} />
+        {s.sessions > 0 && s.videos === 0 && (
+          <div className="text-[11px] text-slate-600 mt-1">이 기간 영상 공유 기록이 없습니다. 수업일지의 운동 항목에 영상 링크를 넣으면 회원 앱으로 함께 전달됩니다.</div>
+        )}
       </Section>
 
       <Section title="재등록 분석" sub={`재등록률 = 재등록 ${s.reregCount}건 ÷ (재등록 ${s.reregCount} + 종료 ${s.completed})`}>
@@ -286,7 +314,8 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
 
       <footer className="text-[10px] text-slate-400 border-t border-slate-300 pt-2 mt-4">
         산식 — 수업: 출석체크 + 수업일지(같은 날 중복 제외) · 월평균: 수업 기록이 있는 달 기준 · 재등록률: 재등록 건 ÷ (재등록 건 + 종료) ·
-        종료: 해당 연도에 시작한 유료 패키지를 다 쓰고 진행 중인 패키지가 없는 회원 · 매출: PT 신규·재등록 결제액에서 환불 차감
+        종료: 해당 연도에 시작한 유료 패키지를 다 쓰고 진행 중인 패키지가 없는 회원 · 매출: PT 신규·재등록 결제액에서 환불 차감 ·
+        운동영상: 수업일지 운동 항목 중 영상 링크가 있는 것(활동 통계와 같은 기준) · 영상 공유율: 영상을 보낸 수업 ÷ 총 수업
       </footer>
     </>
   );
@@ -299,6 +328,7 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
   const months: number[] = center.newRegs?.months ?? tr[0]?.monthly.map((m: any) => m.month) ?? [];
   const monthlySessions = months.map((_, i) => sum(tr.map(t => t.monthly[i]?.sessions ?? 0)));
   const monthlyRereg = months.map((_, i) => sum(tr.map(t => t.monthly[i]?.rereg ?? 0)));
+  const monthlyVideos = months.map((_, i) => sum(tr.map(t => t.monthly[i]?.videos ?? 0)));
   const regRows: any[] = center.newRegs?.rows ?? [];
   const un = center.newRegs?.unassigned ?? { pt: [], health: [] };
   const monthlyPt = months.map((_, i) => sum(regRows.map(r => r.pt[i] ?? 0)) + (un.pt[i] ?? 0));
@@ -320,6 +350,14 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
     const manyEnd = tr.filter(t => t.completed >= 5);
     if (manyEnd.length) bad.push(`종료 5명 이상: ${manyEnd.map(t => `${t.trainerName} ${t.completed}명`).join(", ")}`);
     if (sum(un.health) > 0) bad.push(`담당자 없는 헬스 신규 ${sum(un.health)}건 — 판매 성과 추적 불가`);
+    const bv = best("videos");
+    if (bv && bv.videos > 0) good.push(`운동영상 공유 최다: ${bv.trainerName} (${bv.videos}개 · 공유율 ${bv.videoRate}%)`);
+    const noVideo = tr.filter(t => t.sessions > 0 && t.videos === 0);
+    if (noVideo.length) bad.push(`운동영상 공유 0개: ${noVideo.map(t => t.trainerName).join(", ")}`);
+    const activeVidMonths = months.map((m, i) => ({ m, v: monthlyVideos[i], s: monthlySessions[i] })).filter(x => x.s > 0);
+    const lastVid = [...activeVidMonths].reverse().find(x => x.v > 0);
+    if (lastVid && activeVidMonths.slice(-2).every(x => x.v === 0)) bad.push(`센터 전체 영상 공유가 ${lastVid.m}월 이후 끊김`);
+    if (noVideo.length) todo.push("수업일지 영상 공유 기준 정하기 (예: 회원당 주 1회 이상) 및 트레이너 공지");
     if (T.pausedMembers > 0) todo.push(`정지 회원 ${T.pausedMembers}명 복귀일 일괄 확인`);
     if (low.length) todo.push(`${low.map(t => t.trainerName).join(", ")} 종료 회원 명단 점검 및 재등록 상담 코칭`);
     if (sum(un.health) > 0) todo.push("헬스권 등록 시 담당자 필수 입력");
@@ -346,12 +384,12 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
 
       <Section title="트레이너별 성과 비교">
         <Table
-          head={["트레이너", "수업", "월평균", "관리", "정지", "신규", "재등록", "재등록률", "종료", "노쇼", "PT 매출", "매출 비중"]}
-          align={["l", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r"]}
+          head={["트레이너", "수업", "월평균", "관리", "정지", "신규", "재등록", "재등록률", "종료", "노쇼", "영상", "공유율", "PT 매출", "매출 비중"]}
+          align={["l", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r"]}
           rows={tr.map(t => [t.trainerName, t.sessions.toLocaleString(), t.avgMonthly, t.managedMembers, t.pausedMembers, t.newMembers,
-            t.reregCount, t.reregRate == null ? "-" : `${t.reregRate}%`, t.completed, t.noShows, man(revenue(t)), `${pct(revenue(t), totalRevenue)}%`])}
+            t.reregCount, t.reregRate == null ? "-" : `${t.reregRate}%`, t.completed, t.noShows, t.videos, `${t.videoRate}%`, man(revenue(t)), `${pct(revenue(t), totalRevenue)}%`])}
           foot={["합계", T.sessions.toLocaleString(), "-", T.managedMembers, T.pausedMembers, T.newMembers, T.reregCount,
-            T.reregRate == null ? "-" : `${T.reregRate}%`, T.completed, T.noShows, man(totalRevenue), "100%"]}
+            T.reregRate == null ? "-" : `${T.reregRate}%`, T.completed, T.noShows, T.videos ?? 0, `${T.videoRate ?? 0}%`, man(totalRevenue), "100%"]}
         />
       </Section>
 
@@ -373,11 +411,17 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
 
       <Section title="월별 추이" sub="센터 합계">
         <Table
-          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규", "신규 합계"]}
-          align={["c", "r", "l", "r", "r", "r", "r"]}
-          rows={months.map((m, i) => [`${m}월`, monthlySessions[i].toLocaleString(), <Bar v={monthlySessions[i]} max={maxSess} />, monthlyRereg[i], monthlyPt[i], monthlyHealth[i], monthlyPt[i] + monthlyHealth[i]])}
-          foot={["합계", sum(monthlySessions).toLocaleString(), "", sum(monthlyRereg), sum(monthlyPt), sum(monthlyHealth), sum(monthlyPt) + sum(monthlyHealth)]}
+          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규", "신규 합계", "영상 공유"]}
+          align={["c", "r", "l", "r", "r", "r", "r", "r"]}
+          rows={months.map((m, i) => [`${m}월`, monthlySessions[i].toLocaleString(), <Bar v={monthlySessions[i]} max={maxSess} />, monthlyRereg[i], monthlyPt[i], monthlyHealth[i], monthlyPt[i] + monthlyHealth[i], monthlyVideos[i]])}
+          foot={["합계", sum(monthlySessions).toLocaleString(), "", sum(monthlyRereg), sum(monthlyPt), sum(monthlyHealth), sum(monthlyPt) + sum(monthlyHealth), sum(monthlyVideos)]}
         />
+      </Section>
+
+      <Section title="트레이너별 월별 운동영상 공유" sub="수업일지에 영상 링크를 붙인 운동 개수">
+        <Table head={["트레이너", ...months.map(m => `${m}월`), "합계", "받은 회원", "공유율"]} align={["l", ...months.map(() => "r" as const), "r", "r", "r"]}
+          rows={[...tr].sort((a, b) => b.videos - a.videos).map(t => [t.trainerName, ...t.monthly.map((m: any) => m.videos ?? 0), t.videos, `${t.videoMembers}명`, `${t.videoRate}%`])}
+          foot={["합계", ...monthlyVideos, sum(monthlyVideos), "-", `${T.videoRate ?? 0}%`]} />
       </Section>
 
       <Section title="트레이너별 월별 수업">
@@ -409,6 +453,7 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
               ["신규 (PT)", prev.total.newMembers, T.newMembers, "명"],
               ["재등록", prev.total.reregCount, T.reregCount, "건"],
               ["종료", prev.total.completed, T.completed, "명"],
+              ["운동영상 공유", prev.total.videos ?? 0, T.videos ?? 0, "개"],
               ["PT 매출(만)", Math.round(((prev.total.newAmount ?? 0) + (prev.total.reregAmount ?? 0)) / 10000), Math.round(totalRevenue / 10000), "만"],
             ] as [string, number, number, string][]).map(([l, a, b, u]) => [l, `${a.toLocaleString()}${u}`, `${b.toLocaleString()}${u}`, `${b - a >= 0 ? "+" : ""}${(b - a).toLocaleString()}${u}`])}
             />
@@ -421,7 +466,8 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
 
       <footer className="text-[10px] text-slate-400 border-t border-slate-300 pt-2 mt-4">
         산식 — 수업: 출석체크 + 수업일지(같은 날 중복 제외) · 재등록률: 재등록 건 ÷ (재등록 건 + 종료) · 종료: 해당 연도에 시작한 유료 패키지를 다 쓰고 진행 중인 패키지가 없는 회원 ·
-        관리·정지 회원은 작성일 기준 · 매출: PT 신규·재등록 결제액에서 환불 차감 · 신규 등록 건수는 담당 트레이너 → 상담자 → 회원 담당 순 귀속
+        관리·정지 회원은 작성일 기준 · 매출: PT 신규·재등록 결제액에서 환불 차감 · 신규 등록 건수는 담당 트레이너 → 상담자 → 회원 담당 순 귀속 ·
+        운동영상: 수업일지 운동 항목 중 영상 링크가 있는 것 · 공유율: 영상을 보낸 수업 ÷ 총 수업
       </footer>
     </>
   );
