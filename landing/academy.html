@@ -620,6 +620,36 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-zero strong { color: #6ee7b7; }
 .cs-dash-src { grid-column: 1 / -1; font-size: 10.5px; color: #8fa6c8; line-height: 1.6; margin-top: 4px; }
 
+
+/* ── 즉시 진단 ── */
+.cs-num-row { display: flex; align-items: center; gap: 10px; }
+.cs-num-row input[type=text] { width: 110px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.cs-num-row input:disabled { background: var(--bg-alt); color: var(--fg-light); }
+.cs-num-row b { font-weight: 500; color: var(--fg-2); }
+.cs-unknown { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 14px; color: var(--fg-2); min-height: 44px; }
+.cs-unknown input { width: 18px; height: 18px; accent-color: var(--accent); }
+.cs-num.is-invalid input[type=text] { border-color: #c2410c; background: #fff7ed; }
+.cs-diag { margin: 4px 0 18px; background: #0f2240; color: #e6edf7; border-radius: 12px; padding: 16px; }
+.cs-diag-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #8fb5ff; margin-bottom: 10px; }
+.cs-diag-empty, .cs-diag-unknown { font-size: 13px; color: #b9c8de; line-height: 1.7; }
+.cs-diag-row { display: grid; grid-template-columns: 72px 1fr 44px; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cs-diag-row span { font-size: 12px; color: #b9c8de; }
+.cs-diag-row b { font-size: 14px; color: #fff; text-align: right; font-variant-numeric: tabular-nums; }
+.cs-diag-bar { height: 14px; background: rgba(255,255,255,.08); border-radius: 7px; overflow: hidden; }
+.cs-diag-bar i { display: block; height: 100%; background: #4b5f80; border-radius: 7px; transition: width .35s ease; }
+.cs-diag-me .cs-diag-bar i { background: #f59e0b; }
+.cs-diag-me span, .cs-diag-me b { color: #fcd34d; font-weight: 700; }
+.cs-diag-top .cs-diag-bar i { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.cs-diag-msg { font-size: 13px; line-height: 1.7; margin-top: 10px; color: #e6edf7; }
+.cs-diag-msg strong { color: #fcd34d; }
+.cs-diag-src { font-size: 10.5px; color: #8fa6c8; margin-top: 8px; }
+
+/* ── 매출 구조 ── */
+.cs-split { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin-top: 10px; font-size: 11px; font-weight: 700; }
+.cs-split i { display: flex; align-items: center; padding: 0 10px; font-style: normal; white-space: nowrap; }
+.cs-split .re { background: linear-gradient(90deg, #3b82f6, #60a5fa); color: #fff; }
+.cs-split .nw { background: #4b5f80; color: #dbe4ef; justify-content: flex-end; }
+
 /* ── 1:1 진단 ── */
 .cs-lead { max-width: 520px; }
 .cs-cta { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
@@ -834,6 +864,12 @@ body.modal-open { overflow: hidden; }
       </div>
 
       <div class="cs-m cs-m--wide">
+        <div class="cs-m-top"><span>PT 매출 구조</span><b>재등록 77%</b></div>
+        <div class="cs-split" role="img" aria-label="PT 매출 중 재등록 77퍼센트, 신규 23퍼센트"><i class="re" style="width:77%">재등록 77%</i><i class="nw" style="width:23%">신규 23%</i></div>
+        <p class="cs-m-note">매출을 만드는 건 신규가 아니라 <strong>재등록</strong> · 재등록 34명(60건) · 신규 20명</p>
+      </div>
+
+      <div class="cs-m cs-m--wide">
         <div class="cs-m-top"><span>월 수업</span><b>152~200회</b></div>
         <div class="cs-range"><i style="left:76%;width:24%"></i><em style="left:76%">152</em><em style="left:100%">200</em></div>
         <div class="cs-bar cs-bar--avg"><i style="width:33%"></i><em>센터 평균 약 66회</em></div>
@@ -852,7 +888,7 @@ body.modal-open { overflow: hidden; }
         <p class="cs-m-note">2026년 전체 기간</p>
       </div>
 
-      <p class="cs-dash-src">재등록률·월평균 수업·노쇼: ZIANT GYM 트레이너 성과 보고서(2026.1.1~11.17, 본인 관리 회원 41명, 센터 평균은 트레이너 6명 기준) · 월 수업 범위·장기 회원 수: 본인 집계</p>
+      <p class="cs-dash-src">재등록률·매출 구조·월평균 수업·노쇼: ZIANT GYM 트레이너 성과 보고서(2026.1.1~11.17, 본인 관리 회원 41명, 센터 평균은 트레이너 6명 기준) · 월 수업 범위·장기 회원 수: 본인 집계</p>
     </div>
   </div>
 </section>
@@ -965,18 +1001,31 @@ body.modal-open { overflow: hidden; }
         <div class="cs-field"><span>최근 3개월 월별 PT 매출 <em>필수</em></span>
           <div class="cs-months" id="csMonths"></div>
         </div>
-        <label class="cs-field"><span>최근 3개월 PT 종료 대상 인원 <em>필수</em></span>
-          <select name="ended" required>
-            <option value="">선택해 주세요</option>
-            <option>0명</option><option>1~3명</option><option>4~6명</option><option>7~10명</option><option>11~15명</option><option>16명 이상</option><option>모름</option>
-          </select>
-        </label>
-        <label class="cs-field"><span>그중 재등록한 인원 <em>필수</em></span>
-          <select name="renewed" required>
-            <option value="">선택해 주세요</option>
-            <option>0명</option><option>1~3명</option><option>4~6명</option><option>7~10명</option><option>11~15명</option><option>16명 이상</option><option>모름</option>
-          </select>
-        </label>
+        <div class="cs-field cs-num"><span>최근 3개월 PT 종료 대상 인원 <em>필수</em></span>
+          <div class="cs-num-row">
+            <input name="ended" type="text" inputmode="numeric" maxlength="3" placeholder="0"><b>명</b>
+            <label class="cs-unknown"><input type="checkbox" name="endedUnknown"> 모름</label>
+          </div>
+        </div>
+        <div class="cs-field cs-num"><span>그중 재등록한 인원 <em>필수</em></span>
+          <div class="cs-num-row">
+            <input name="renewed" type="text" inputmode="numeric" maxlength="3" placeholder="0"><b>명</b>
+            <label class="cs-unknown"><input type="checkbox" name="renewedUnknown"> 모름</label>
+          </div>
+        </div>
+
+        <div class="cs-diag" id="csDiag" aria-live="polite">
+          <p class="cs-diag-label">내 재등록률 즉시 진단</p>
+          <p class="cs-diag-empty" id="csDiagEmpty">위 두 칸에 숫자를 넣으면 바로 계산해 드립니다. 입력한 값은 이 화면에서만 계산합니다.</p>
+          <div id="csDiagBody" hidden>
+            <div class="cs-diag-row cs-diag-me"><span>내 재등록률</span><div class="cs-diag-bar"><i id="csDiagBar"></i></div><b id="csDiagRate">0%</b></div>
+            <div class="cs-diag-row"><span>센터 평균</span><div class="cs-diag-bar"><i style="width:57%"></i></div><b>57%</b></div>
+            <div class="cs-diag-row cs-diag-top"><span>이준산</span><div class="cs-diag-bar"><i style="width:90%"></i></div><b>90%</b></div>
+            <p class="cs-diag-msg" id="csDiagMsg"></p>
+            <p class="cs-diag-src">센터 평균·이준산: ZIANT GYM 트레이너 성과 보고서 (2026.1.1~11.17)</p>
+          </div>
+          <p class="cs-diag-unknown" id="csDiagUnknown" hidden>재등록 인원을 모르는 것 자체가 첫 번째 진단 포인트입니다. 기록하지 않는 숫자는 개선할 수 없습니다.</p>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -2080,6 +2129,46 @@ body.modal-open { overflow: hidden; }
     months.insertAdjacentHTML("beforeend", html + "</select></label>");
   }
 
+  // 숫자 입력: 모름이면 null, 비었으면 undefined
+  function cnt(n) {
+    if (form.elements[n + "Unknown"].checked) return null;
+    var v = val(n);
+    return /^\d{1,3}$/.test(v) ? parseInt(v, 10) : undefined;
+  }
+  function cntText(n) { var c = cnt(n); return c === null ? "모름" : c + "명"; }
+
+  var diag = {
+    empty: document.getElementById("csDiagEmpty"), body: document.getElementById("csDiagBody"),
+    unknown: document.getElementById("csDiagUnknown"), bar: document.getElementById("csDiagBar"),
+    rate: document.getElementById("csDiagRate"), msg: document.getElementById("csDiagMsg")
+  };
+  function updateDiag() {
+    var e = cnt("ended"), rn = cnt("renewed");
+    var unknown = e === null || rn === null;
+    var ok = typeof e === "number" && typeof rn === "number" && e > 0 && rn <= e;
+    diag.unknown.hidden = !unknown;
+    diag.body.hidden = !ok;
+    diag.empty.hidden = ok || unknown;
+    if (!ok) {
+      if (typeof e === "number" && e === 0 && !unknown) diag.empty.textContent = "최근 3개월 종료 대상이 없으면 재등록률을 계산할 수 없습니다. 상담에서 함께 살펴보겠습니다.";
+      else if (typeof e === "number" && typeof rn === "number" && rn > e) diag.empty.textContent = "재등록 인원이 종료 인원보다 많습니다. 숫자를 확인해 주세요.";
+      else diag.empty.textContent = "위 두 칸에 숫자를 넣으면 바로 계산해 드립니다. 입력한 값은 이 화면에서만 계산합니다.";
+      return;
+    }
+    var pct = Math.round(rn / e * 100);
+    diag.bar.style.width = Math.max(pct, 2) + "%";
+    diag.rate.textContent = pct + "%";
+    var at57 = Math.round(e * 0.57), at90 = Math.round(e * 0.9);
+    if (pct >= 90) diag.msg.innerHTML = "이미 상위 수준입니다. 이제는 <strong>재등록 횟수와 장기 회원 비율</strong>을 높일 차례입니다.";
+    else if (pct >= 57) diag.msg.innerHTML = at90 - rn > 0 ? "센터 평균보다 높습니다. 90%였다면 종료 " + e + "명 중 <strong>" + (at90 - rn) + "명</strong>이 더 남았을 숫자입니다." : "센터 평균보다 높습니다. 다음 단계는 <strong>장기 회원 비율</strong>입니다.";
+    else diag.msg.innerHTML = "종료 " + e + "명 중 " + rn + "명 재등록. " + (at57 - rn > 0 ? "센터 평균만 됐어도 <strong>" + (at57 - rn) + "명</strong>, " : "") + "90%라면 <strong>" + (at90 - rn) + "명</strong>이 더 남았을 숫자입니다.";
+  }
+  ["ended", "renewed"].forEach(function (n) {
+    var inp = form.elements[n], box = form.elements[n + "Unknown"];
+    inp.addEventListener("input", function () { inp.value = inp.value.replace(/\D/g, "").slice(0, 3); if (inp.value) box.checked = false; updateDiag(); });
+    box.addEventListener("change", function () { if (box.checked) inp.value = ""; inp.disabled = box.checked; updateDiag(); });
+  });
+
   form.addEventListener("change", function (e) {
     if (e.target.name === "worry") {
       etc.hidden = e.target.value !== "기타";
@@ -2116,8 +2205,9 @@ body.modal-open { overflow: hidden; }
     need("worry", !!w, "고민");
     if (w && w.value === "기타") need("worryEtc", val("worryEtc").length >= 2, "기타 고민 내용");
     for (var i = 1; i <= 3; i++) need("rev" + i, !!val("rev" + i), "월별 매출");
-    need("ended", !!val("ended"), "종료 대상 인원");
-    need("renewed", !!val("renewed"), "재등록 인원");
+    var e = cnt("ended"), rn = cnt("renewed");
+    need("ended", e !== undefined, "종료 대상 인원");
+    need("renewed", rn !== undefined && !(typeof e === "number" && typeof rn === "number" && rn > e), rn !== undefined && typeof e === "number" && rn > e ? "재등록 인원(종료 인원보다 많음)" : "재등록 인원");
     need("agree", form.elements.agree.checked, "개인정보 수집·이용 동의");
     return bad.filter(function (x, i, a) { return a.indexOf(x) === i; });
   }
@@ -2130,7 +2220,7 @@ body.modal-open { overflow: hidden; }
       name: val("name"), phone: val("phone"), career: val("career"), members: val("members"),
       worry: w === "기타" ? "기타 - " + val("worryEtc") : w,
       rev1: rev[0], rev2: rev[1], rev3: rev[2],
-      ended: val("ended"), renewed: val("renewed"),
+      ended: cntText("ended"), renewed: cntText("renewed"),
       agree: "동의", marketing: form.elements.marketing.checked ? "동의" : "미동의",
       status: form.dataset.waitlist === "1" ? "대기" : "신규",
       website: val("website"), page: location.pathname
@@ -2165,8 +2255,8 @@ body.modal-open { overflow: hidden; }
       "관리회원 수: " + val("members"),
       "고민: " + w,
       "최근 3개월 PT 매출: " + rev.join(" / "),
-      "3개월 PT 종료 대상: " + val("ended"),
-      "그중 재등록: " + val("renewed"),
+      "3개월 PT 종료 대상: " + cntText("ended"),
+      "그중 재등록: " + cntText("renewed"),
       "개인정보 수집·이용 동의: 동의",
       "교육·세미나 소식 수신: " + (form.elements.marketing.checked ? "동의" : "미동의")
     ].join("\n");
