@@ -112,6 +112,7 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
     ["PT 신규 매출", "newAmount", v => man(v)],
     ["PT 재등록 매출", "reregAmount", v => man(v)],
     ["운동영상", "videos", v => `${Math.round(v * 10) / 10}개`],
+    ["영상 피드백", "feedbacks", v => `${Math.round(v * 10) / 10}개`],
   ];
 
   // 회원 현황 분석
@@ -167,13 +168,14 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
       </header>
 
       <Section title="핵심 지표">
-        <div className="grid grid-cols-2 sm:grid-cols-6 print:grid-cols-6 gap-2 report-grid">
+        <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-2 report-grid">
           <Kpi label="총 수업" value={`${s.sessions.toLocaleString()}회`} sub={`월평균 ${s.avgMonthly}회`} />
           <Kpi label="관리 회원" value={`${s.managedMembers}명`} sub={`정지 ${s.pausedMembers}명 · 잔여 ${remainingTotal}회`} />
           <Kpi label="신규 (PT)" value={`${s.newMembers}명`} sub={`매출 ${man(s.newAmount)}`} />
           <Kpi label="재등록" value={`${s.reregCount}건`} sub={`${s.reregMembers}명 · 매출 ${man(s.reregAmount)}`} />
           <Kpi label="재등록률" value={s.reregRate == null ? "-" : `${s.reregRate}%`} sub={`종료 ${s.completed}명 · 노쇼 ${s.noShows}회`} />
           <Kpi label="운동영상" value={`${s.videos}개`} />
+          <Kpi label="영상 피드백" value={`${s.feedbacks ?? 0}개`} />
         </div>
         <div className="text-[11px] text-slate-500 mt-2">PT 매출 합계(신규+재등록, 환불 차감): <b className="text-slate-800">{won(ptRevenue)}</b></div>
       </Section>
@@ -210,13 +212,13 @@ function TrainerReportBody({ full, center, prev, today }: { full: any; center: a
 
       <Section title="월별 추이" sub="수업·재등록·신규 등록 건수">
         <Table
-          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규", "운동영상"]}
-          align={["c", "r", "l", "r", "r", "r", "r"]}
+          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규", "운동영상", "영상 피드백"]}
+          align={["c", "r", "l", "r", "r", "r", "r", "r"]}
           rows={s.monthly.map((m: any, i: number) => [
             `${m.month}월`, m.sessions, <Bar v={m.sessions} max={maxSess} />, m.rereg,
-            regIdx(myReg?.pt, i), regIdx(myReg?.health, i), m.videos ?? 0,
+            regIdx(myReg?.pt, i), regIdx(myReg?.health, i), m.videos ?? 0, m.feedbacks ?? 0,
           ])}
-          foot={["합계", s.sessions, "", s.reregCount, sum(myReg?.pt ?? []), sum(myReg?.health ?? []), s.videos]}
+          foot={["합계", s.sessions, "", s.reregCount, sum(myReg?.pt ?? []), sum(myReg?.health ?? []), s.videos, s.feedbacks ?? 0]}
         />
         <div className="text-[10px] text-slate-500">* 신규 등록은 매출 건수 기준 (신규 칸의 '명'과 다를 수 있음) · {months.length}개월</div>
       </Section>
@@ -301,6 +303,7 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
   const monthlySessions = months.map((_, i) => sum(tr.map(t => t.monthly[i]?.sessions ?? 0)));
   const monthlyRereg = months.map((_, i) => sum(tr.map(t => t.monthly[i]?.rereg ?? 0)));
   const monthlyVideos = months.map((_, i) => sum(tr.map(t => t.monthly[i]?.videos ?? 0)));
+  const monthlyFeedbacks = months.map((_, i) => sum(tr.map(t => t.monthly[i]?.feedbacks ?? 0)));
   const regRows: any[] = center.newRegs?.rows ?? [];
   const un = center.newRegs?.unassigned ?? { pt: [], health: [] };
   const monthlyPt = months.map((_, i) => sum(regRows.map(r => r.pt[i] ?? 0)) + (un.pt[i] ?? 0));
@@ -348,12 +351,12 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
 
       <Section title="트레이너별 성과 비교">
         <Table
-          head={["트레이너", "수업", "월평균", "관리", "정지", "신규", "재등록", "재등록률", "종료", "노쇼", "운동영상", "PT 매출", "매출 비중"]}
-          align={["l", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r"]}
+          head={["트레이너", "수업", "월평균", "관리", "정지", "신규", "재등록", "재등록률", "종료", "노쇼", "운동영상", "영상 피드백", "PT 매출", "매출 비중"]}
+          align={["l", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r", "r"]}
           rows={tr.map(t => [t.trainerName, t.sessions.toLocaleString(), t.avgMonthly, t.managedMembers, t.pausedMembers, t.newMembers,
-            t.reregCount, t.reregRate == null ? "-" : `${t.reregRate}%`, t.completed, t.noShows, t.videos, man(revenue(t)), `${pct(revenue(t), totalRevenue)}%`])}
+            t.reregCount, t.reregRate == null ? "-" : `${t.reregRate}%`, t.completed, t.noShows, t.videos, t.feedbacks ?? 0, man(revenue(t)), `${pct(revenue(t), totalRevenue)}%`])}
           foot={["합계", T.sessions.toLocaleString(), "-", T.managedMembers, T.pausedMembers, T.newMembers, T.reregCount,
-            T.reregRate == null ? "-" : `${T.reregRate}%`, T.completed, T.noShows, T.videos ?? 0, man(totalRevenue), "100%"]}
+            T.reregRate == null ? "-" : `${T.reregRate}%`, T.completed, T.noShows, T.videos ?? 0, T.feedbacks ?? 0, man(totalRevenue), "100%"]}
         />
       </Section>
 
@@ -375,10 +378,10 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
 
       <Section title="월별 추이" sub="센터 합계">
         <Table
-          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규", "신규 합계", "운동영상"]}
-          align={["c", "r", "l", "r", "r", "r", "r", "r"]}
-          rows={months.map((m, i) => [`${m}월`, monthlySessions[i].toLocaleString(), <Bar v={monthlySessions[i]} max={maxSess} />, monthlyRereg[i], monthlyPt[i], monthlyHealth[i], monthlyPt[i] + monthlyHealth[i], monthlyVideos[i]])}
-          foot={["합계", sum(monthlySessions).toLocaleString(), "", sum(monthlyRereg), sum(monthlyPt), sum(monthlyHealth), sum(monthlyPt) + sum(monthlyHealth), sum(monthlyVideos)]}
+          head={["월", "수업", "", "재등록", "PT 신규", "헬스 신규", "신규 합계", "운동영상", "영상 피드백"]}
+          align={["c", "r", "l", "r", "r", "r", "r", "r", "r"]}
+          rows={months.map((m, i) => [`${m}월`, monthlySessions[i].toLocaleString(), <Bar v={monthlySessions[i]} max={maxSess} />, monthlyRereg[i], monthlyPt[i], monthlyHealth[i], monthlyPt[i] + monthlyHealth[i], monthlyVideos[i], monthlyFeedbacks[i]])}
+          foot={["합계", sum(monthlySessions).toLocaleString(), "", sum(monthlyRereg), sum(monthlyPt), sum(monthlyHealth), sum(monthlyPt) + sum(monthlyHealth), sum(monthlyVideos), sum(monthlyFeedbacks)]}
         />
       </Section>
 
@@ -386,6 +389,12 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
         <Table head={["트레이너", ...months.map(m => `${m}월`), "합계"]} align={["l", ...months.map(() => "r" as const), "r"]}
           rows={[...tr].sort((a, b) => b.videos - a.videos).map(t => [t.trainerName, ...t.monthly.map((m: any) => m.videos ?? 0), t.videos])}
           foot={["합계", ...monthlyVideos, sum(monthlyVideos)]} />
+      </Section>
+
+      <Section title="트레이너별 월별 영상 피드백">
+        <Table head={["트레이너", ...months.map(m => `${m}월`), "합계"]} align={["l", ...months.map(() => "r" as const), "r"]}
+          rows={[...tr].sort((a, b) => (b.feedbacks ?? 0) - (a.feedbacks ?? 0)).map(t => [t.trainerName, ...t.monthly.map((m: any) => m.feedbacks ?? 0), t.feedbacks ?? 0])}
+          foot={["합계", ...monthlyFeedbacks, sum(monthlyFeedbacks)]} />
       </Section>
 
       <Section title="트레이너별 월별 수업">
@@ -418,6 +427,7 @@ function CenterReportBody({ center, prev, today }: { center: any; prev: any; tod
               ["재등록", prev.total.reregCount, T.reregCount, "건"],
               ["종료", prev.total.completed, T.completed, "명"],
               ["운동영상", prev.total.videos ?? 0, T.videos ?? 0, "개"],
+              ["영상 피드백", prev.total.feedbacks ?? 0, T.feedbacks ?? 0, "개"],
               ["PT 매출(만)", Math.round(((prev.total.newAmount ?? 0) + (prev.total.reregAmount ?? 0)) / 10000), Math.round(totalRevenue / 10000), "만"],
             ] as [string, number, number, string][]).map(([l, a, b, u]) => [l, `${a.toLocaleString()}${u}`, `${b.toLocaleString()}${u}`, `${b - a >= 0 ? "+" : ""}${(b - a).toLocaleString()}${u}`])}
             />

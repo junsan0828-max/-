@@ -3998,8 +3998,28 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
     WHERE s."trainerId" = ${tid} AND COALESCE(ex->>'videoUrl', '') <> ''
       AND s."sessionDate" >= ${periodStart} AND s."sessionDate" < ${periodEnd}`;
 
+  // 영상 피드백: 유튜브 자동 업로드(ai-team)가 회원 앱 운동일지에 넣은 영상. 수업일지 공유본(__src:)은 운동영상과 겹치므로 제외.
+  // 운동일지엔 트레이너가 없어 그날 수업한 트레이너(출석체크 → 수업일지) → 회원 담당 트레이너 순으로 귀속한다.
+  const feedbackByMonthSql = sql`
+    SELECT EXTRACT(MONTH FROM w."logDate"::date)::int AS m, COUNT(*)::int AS c
+    FROM gym_plus_workout_logs w
+    JOIN gym_plus_members gm ON gm.id = w."gymPlusMemberId"
+    LEFT JOIN members mb ON mb.id = gm."memberId"
+    CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN w."exercisesJson" LIKE '[%' THEN w."exercisesJson"::jsonb ELSE '[]'::jsonb END) AS ex
+    WHERE COALESCE(ex->>'videoUrl', '') <> ''
+      AND COALESCE(w.notes, '') NOT LIKE '%__src:%'
+      AND w."logDate" >= ${periodStart} AND w."logDate" < ${periodEnd}
+      AND COALESCE(
+        (SELECT ac."trainerId" FROM attendance_checks ac
+          WHERE ac."memberId" = gm."memberId" AND ac."checkDate" = w."logDate" AND ac.status = 'attended' LIMIT 1),
+        (SELECT s."trainerId" FROM pt_session_logs s
+          WHERE s."memberId" = gm."memberId" AND s."sessionDate" = w."logDate" LIMIT 1),
+        mb."trainerId"
+      ) = ${tid}
+    GROUP BY m`;
+
   const rows = (r: any) => ((r as any).rows ?? r) as any[];
-  const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes, videoTotalRes, monthlyVideoRes] = await Promise.all([
+  const [sessionsRes, noShowRes, completedPkgRes, revRows, monthlySessionsRes, monthlyReregRes, videoTotalRes, monthlyVideoRes, monthlyFeedbackRes] = await Promise.all([
     db.execute(sql`SELECT COUNT(*)::int AS c FROM (${sessionSet}) combined`),
     db.execute(sql`SELECT COUNT(*)::int AS c FROM attendance_checks
       WHERE "trainerId" = ${tid} AND status = 'noshow' ${atdRange}`),
@@ -4037,6 +4057,7 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
     db.execute(sql`SELECT COUNT(*)::int AS videos FROM (${videoSet}) v`),
     db.execute(sql`SELECT EXTRACT(MONTH FROM d::date)::int AS m, COUNT(*)::int AS c
       FROM (${videoSet}) v GROUP BY m ORDER BY m`),
+    db.execute(feedbackByMonthSql),
   ]);
 
   const assignedMemberIdSet = new Set(assignedMemberIds);
@@ -4099,12 +4120,17 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
   const reregRate = (reregCount + completed) > 0
     ? Math.round((reregCount / (reregCount + completed)) * 100) : null;
 
-  const monthlyMap: Record<number, { sessions: number; rereg: number; videos: number }> = {};
-  for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0, videos: 0 };
+  const monthlyMap: Record<number, { sessions: number; rereg: number; videos: number; feedbacks: number }> = {};
+  for (let i = 0; i < monthCount; i++) monthlyMap[startMonth + i] = { sessions: 0, rereg: 0, videos: 0, feedbacks: 0 };
   for (const r of rows(monthlySessionsRes)) if (monthlyMap[r.m]) monthlyMap[r.m].sessions = Number(r.c);
   for (const r of rows(monthlyReregRes)) if (monthlyMap[r.m]) monthlyMap[r.m].rereg = Number(r.c);
   for (const r of rows(monthlyVideoRes)) if (monthlyMap[r.m]) monthlyMap[r.m].videos = Number(r.c);
   const videos = Number(rows(videoTotalRes)[0]?.videos ?? 0);
+  let feedbacks = 0;
+  for (const r of rows(monthlyFeedbackRes)) {
+    feedbacks += Number(r.c);
+    if (monthlyMap[r.m]) monthlyMap[r.m].feedbacks = Number(r.c);
+  }
 
   // 현재 시점 관리·정지 회원 (기간과 무관한 스냅샷). 잔여가 있는 패키지 기준.
   // 정지 = 회원 상태가 정지이거나, 남은 패키지가 모두 정지인 회원
@@ -4139,9 +4165,9 @@ async function computeTrainerPeriodStats(db: any, tid: number, year: number, per
     reregCount,
     reregMembers: reregMemberIds.size,
     reregAfterExpired, reregRate,
-    videos,
+    videos, feedbacks,
     monthly: Object.entries(monthlyMap).map(([m, v]) => ({
-      month: Number(m), label: `${m}월`, sessions: v.sessions, rereg: v.rereg, videos: v.videos,
+      month: Number(m), label: `${m}월`, sessions: v.sessions, rereg: v.rereg, videos: v.videos, feedbacks: v.feedbacks,
     })),
     ...(withDetail ? { detail: { managedIds, pausedIds, endedMemberIds, newEntryIds, reregEntryIds } } : {}),
   };
@@ -6109,6 +6135,7 @@ const adminRouter = t.router({
         reregMembers: trainerRows.reduce((s, t) => s + t.reregMembers, 0),
         reregAfterExpired: trainerRows.reduce((s, t) => s + t.reregAfterExpired, 0),
         videos: trainerRows.reduce((s, t) => s + t.videos, 0),
+        feedbacks: trainerRows.reduce((s, t) => s + t.feedbacks, 0),
       };
       // 합계 재등록률도 동일: 재등록 건 ÷ (재등록 건 + 종료)
       const totalDenom = total.reregCount + total.completed;

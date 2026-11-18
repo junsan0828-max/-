@@ -889,6 +889,7 @@ function PeriodReportTab() {
               <StatCard label="재등록률" value={data.total.reregRate == null ? "-" : `${data.total.reregRate}%`} />
               <StatCard label="노쇼" value={`${fmt(data.total.noShows)}회`} />
               <StatCard label="운동영상" value={`${fmt(data.total.videos ?? 0)}개`} />
+              <StatCard label="영상 피드백" value={`${fmt(data.total.feedbacks ?? 0)}개`} />
             </CardContent>
           </Card>
 
@@ -899,7 +900,7 @@ function PeriodReportTab() {
               <button onClick={() => openReport("all")} className="text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground font-medium">센터 성과 보고서</button>
             </div>
             <div className="overflow-x-auto rounded-xl border border-border">
-              <table className="w-full min-w-[840px]">
+              <table className="w-full min-w-[920px]">
                 <thead>
                   <tr>
                     <th className={`${th} text-left pl-3`}>트레이너</th>
@@ -913,6 +914,7 @@ function PeriodReportTab() {
                     <th className={th}>재등록률</th>
                     <th className={th}>노쇼</th>
                     <th className={th}>운동영상</th>
+                    <th className={th}>영상 피드백</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -934,6 +936,7 @@ function PeriodReportTab() {
                       <td className={tdNum(t.noShows, t.noShows > 0 ? "text-orange-400" : "text-muted-foreground")}>{t.noShows}회</td>
                       <td className={tdNum(t.videos, t.videos > 0 ? "text-violet-400" : "text-muted-foreground")}>
 {t.videos}개</td>
+                      <td className={tdNum(t.feedbacks ?? 0, (t.feedbacks ?? 0) > 0 ? "text-red-400" : "text-muted-foreground")}>{t.feedbacks ?? 0}개</td>
                     </tr>
                   ))}
                 </tbody>
@@ -950,6 +953,7 @@ function PeriodReportTab() {
                     <td className={`${td} font-bold`}>{data.total.reregRate == null ? "-" : `${data.total.reregRate}%`}</td>
                     <td className={`${td} font-bold`}>{fmt(data.total.noShows)}회</td>
                     <td className={`${td} font-bold text-violet-400`}>{fmt(data.total.videos ?? 0)}개</td>
+                    <td className={`${td} font-bold text-red-400`}>{fmt(data.total.feedbacks ?? 0)}개</td>
                   </tr>
                 </tfoot>
               </table>
