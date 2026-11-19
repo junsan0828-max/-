@@ -694,6 +694,16 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .tp-tool li b { color: var(--fg); }
 .tp-tool .btn { align-self: flex-start; }
 .tp-tool .shot { margin: 0; max-width: 300px; }
+.tp-gate { margin-top: 20px; padding: 14px 16px; border-radius: 12px; background: #fff7ed; border: 1px solid #fdba74; display: flex; flex-direction: column; gap: 4px; }
+.tp-gate strong { font-size: 15px; color: #9a3412; }
+.tp-gate span { font-size: 13px; color: var(--fg-2); }
+.tp-tool-lock { margin-left: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0; color: #9a3412; background: #ffedd5; border-radius: 20px; padding: 2px 8px; }
+.tp-tool .tp-shot-wide { max-width: none; }
+.tp-tools-cta { margin-top: 28px; padding: 22px 18px; border-radius: 14px; background: var(--accent-lt); text-align: center; }
+.tp-tools-cta p { font-size: 15px; font-weight: 700; color: var(--fg); margin-bottom: 14px; }
+.tp-tools-cta-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.tp-tools-cta-btns .btn { flex: 1 1 200px; }
+
 
 /* ── 1:1 진단 ── */
 .cs-lead { max-width: 520px; }
@@ -2244,14 +2254,22 @@ body.modal-open { overflow: hidden; }
 <section class="sec">
   <div class="wrap">
     <p class="kicker">기능 서비스</p>
-    <h2 class="h1">현장에서 쓰던 도구를<br>그대로 쓸 수 있게<br>만들었습니다.</h2>
+    <h2 class="h1">컨설팅 후에는<br>현장에서 쓰던 도구를<br>그대로 씁니다.</h2>
     <p class="lead">상담·수업·회원관리에 직접 쓰는 FIT STEP 프로그램입니다.</p>
+    <div class="tp-gate">
+      <strong>컨설팅에 참여한 트레이너에게 제공됩니다</strong>
+      <span>미리 이용할 수 없으며, 컨설팅 진행 후 사용 방법과 함께 안내드립니다.</span>
+    </div>
 
     <div class="tp-tools">
       <article class="tp-tool">
-        <p class="tp-tool-tag">회원관리</p>
+        <p class="tp-tool-tag">회원관리 <span class="tp-tool-lock">컨설팅 참여자 제공</span></p>
         <h3>핏스텝 회원관리 프로그램</h3>
         <p class="tp-tool-desc">회원, 수업, 매출을 한 곳에 기록하고 재등록 흐름을 숫자로 확인하는 트레이너용 회원관리 프로그램입니다.</p>
+        <figure class="shot tp-shot-wide">
+          <img src="/academy/fitstep-example.jpg" alt="핏스텝 성장분석실 화면 예시 — 매출·지출·순수익, 회원 수·수업 수·재등록률, 월별 신규·재등록 그래프" width="1300" height="970" loading="lazy">
+          <figcaption>성장분석실 · 매출과 재등록 흐름을 한 화면에서 확인 (예시 데이터)</figcaption>
+        </figure>
         <ul>
           <li><b>회원 관리</b> · 회원 정보와 잔여 PT 관리</li>
           <li><b>스케줄 · 예약</b> · 수업 일정과 예약 관리</li>
@@ -2259,11 +2277,10 @@ body.modal-open { overflow: hidden; }
           <li><b>성장분석실</b> · 매출·지출·순수익, 회원 수·수업 수·재등록률 통계</li>
           <li><b>시퀀스 랩</b> · 50분 수업 시퀀스 설계와 공유</li>
         </ul>
-        <a class="btn btn--primary" href="https://fitstep.co.kr/" target="_blank" rel="noopener">핏스텝 바로가기</a>
       </article>
 
       <article class="tp-tool">
-        <p class="tp-tool-tag">체형 분석</p>
+        <p class="tp-tool-tag">체형 분석 <span class="tp-tool-lock">컨설팅 참여자 제공</span></p>
         <h3>체형분석 드로잉 프로그램</h3>
         <p class="tp-tool-desc">회원 사진 위에 선을 그어 정렬 상태를 보여주는 도구입니다. 상담에서 체형을 말이 아니라 그림으로 설명할 수 있습니다.</p>
         <figure class="shot"><img src="/academy/img-527617aaa2.jpg" alt="체형 분석 드로잉 화면 — 정면 사진 위에 수평선과 수직선을 그은 예시" width="720" height="1191" loading="lazy"></figure>
@@ -2273,11 +2290,10 @@ body.modal-open { overflow: hidden; }
           <li><b>모자이크</b>로 얼굴 가리기</li>
           <li>분석 결과를 <b>PNG 이미지로 저장</b>해 회원에게 전달</li>
         </ul>
-        <a class="btn btn--primary" href="/posture" target="_blank" rel="noopener">체형분석 드로잉 열기</a>
       </article>
 
       <article class="tp-tool">
-        <p class="tp-tool-tag">식단</p>
+        <p class="tp-tool-tag">식단 <span class="tp-tool-lock">컨설팅 참여자 제공</span></p>
         <h3>맞춤식단 프로그램</h3>
         <p class="tp-tool-desc">회원 정보와 목적에 맞춰 하루 식단을 자동으로 만들어 주는 도구입니다.</p>
         <ul>
@@ -2286,8 +2302,14 @@ body.modal-open { overflow: hidden; }
           <li><b>알레르기·비선호 식재료 제외</b></li>
           <li>아침 · 점심 · 저녁 · 간식 식단 자동 생성과 <b>공유</b></li>
         </ul>
-        <a class="btn btn--primary" href="/" target="_blank" rel="noopener">맞춤식단 열기</a>
       </article>
+    </div>
+    <div class="tp-tools-cta">
+      <p>도구까지 함께 쓰려면, 먼저 컨설팅을 신청해 주세요.</p>
+      <div class="tp-tools-cta-btns">
+        <a class="btn btn--primary" href="#free" data-goto="consult">1:1 무료 진단 신청</a>
+        <a class="btn btn--outline" href="#team">팀 컨설팅 신청</a>
+      </div>
     </div>
   </div>
 </section>
