@@ -723,6 +723,49 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-step ul li::before { content: ""; position: absolute; left: 0; top: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .cs-step--gap p { font-size: 14px; color: var(--fg-muted); margin-top: 2px; }
 
+
+/* ── 화상 컨설팅 예시 ── */
+.vc { margin: 16px 0 0; background: #0f2240; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 32px rgba(15,34,64,.2); }
+.vc-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #0b1a33; color: #dbe4ef; font-size: 12px; }
+.vc-dot { width: 9px; height: 9px; border-radius: 50%; background: #334a6e; }
+.vc-bar b { margin-left: 8px; font-weight: 700; }
+.vc-bar em { margin-left: auto; font-style: normal; font-size: 11px; font-weight: 700; color: #fca5a5; }
+.vc-body { display: grid; grid-template-columns: 1fr 112px; gap: 10px; padding: 12px; }
+@media (max-width: 480px) { .vc-body { grid-template-columns: 1fr; } .vc-cams { flex-direction: row !important; } }
+.vc-share { background: #fff; border-radius: 10px; padding: 14px; min-width: 0; color: var(--fg); }
+.vc-share-title { font-size: 14px; font-weight: 800; margin-bottom: 10px; }
+.vc-share-title small { font-size: 11px; font-weight: 500; color: var(--fg-muted); margin-left: 4px; }
+.vc-funnel { display: flex; flex-direction: column; gap: 6px; }
+.vc-funnel div { display: grid; grid-template-columns: 56px 1fr 36px; align-items: center; gap: 8px; font-size: 12px; }
+.vc-funnel span { color: var(--fg-2); }
+.vc-funnel i { display: block; height: 14px; border-radius: 4px; background: #93c5fd; }
+.vc-funnel b { text-align: right; font-variant-numeric: tabular-nums; }
+.vc-funnel .vc-drop i { background: #f97316; }
+.vc-funnel .vc-drop span, .vc-funnel .vc-drop b { color: #c2410c; font-weight: 700; }
+.vc-flag { margin-top: 10px; font-size: 12px; color: #9a3412; background: #fff7ed; border-radius: 6px; padding: 6px 8px; }
+.vc-tasks { margin-top: 10px; display: flex; gap: 8px; font-size: 12px; }
+.vc-tasks > span { flex: none; font-weight: 800; color: #fff; background: var(--accent); border-radius: 4px; padding: 1px 6px; height: fit-content; }
+.vc-tasks ol { padding-left: 16px; color: var(--fg-2); line-height: 1.6; }
+.vc-cams { display: flex; flex-direction: column; gap: 8px; }
+.vc-cam { flex: 1; min-height: 88px; background: #16305a; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; }
+.vc-cam img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; object-position: center 20%; border: 2px solid #60a5fa; }
+.vc-cam i { width: 52px; height: 52px; border-radius: 50%; background: #334a6e; color: #dbe4ef; font-style: normal; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.vc-cam span { font-size: 11px; color: #b9c8de; }
+.vc figcaption { font-size: 11px; color: #8fa6c8; padding: 0 14px 10px; }
+.vc-data { margin-top: 12px; border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+.vc-data-title { font-size: 14px; font-weight: 800; color: var(--fg); }
+.vc-data-title small { font-size: 11px; font-weight: 700; color: var(--fg-muted); background: var(--bg-alt); border-radius: 20px; padding: 1px 8px; margin-left: 4px; }
+.vc-data-row { display: grid; grid-template-columns: 1fr 76px 1fr; align-items: center; gap: 8px; margin-top: 12px; }
+.vc-col { background: var(--bg-alt); border-radius: 10px; padding: 12px 8px; text-align: center; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vc-col em { font-style: normal; font-size: 12px; font-weight: 800; color: var(--accent); }
+.vc-col b { font-family: var(--serif); font-size: 28px; font-weight: 900; color: var(--fg); line-height: 1.1; }
+.vc-col span { font-size: 11.5px; color: var(--fg-muted); line-height: 1.5; }
+.vc-col--after { background: var(--accent-lt); }
+.vc-col--after b { color: var(--accent-dk); }
+.vc-arrow { position: relative; text-align: center; font-size: 11px; color: var(--fg-2); font-weight: 700; line-height: 1.4; padding-bottom: 14px; }
+.vc-arrow::after { content: "→"; position: absolute; left: 0; right: 0; bottom: -4px; font-size: 18px; color: var(--accent); }
+.vc-data-note { font-size: 13px; color: var(--fg-2); margin-top: 12px; line-height: 1.7; }
+
 /* ── 1:1 진단 ── */
 .cs-lead { max-width: 520px; }
 .cs-cta { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
@@ -1019,6 +1062,42 @@ body.modal-open { overflow: hidden; }
       <li><b>03</b><div><strong>우선 실행할 과제 3가지</strong><span>다음 달부터 바로 바꿀 수 있는 과제로 정리해 드립니다.</span></div></li>
       <li><b>04</b><div><strong>과제 결과를 데이터로 확인</strong><span>2차 컨설팅에서 과제 전후 숫자를 비교하고 다음 개선으로 이어갑니다.</span></div></li>
     </ol>
+
+    <div class="spacer-sm"></div>
+    <h3 class="h3">네이버 웨일 화상회의로 진행합니다</h3>
+    <p class="cs-flow-lead">내 숫자를 화면에 띄워 놓고 함께 봅니다. 접속 링크는 일정 안내 때 보내드립니다.</p>
+
+    <figure class="vc" aria-label="온라인 화상 컨설팅 화면 예시">
+      <div class="vc-bar"><span class="vc-dot"></span><span class="vc-dot"></span><span class="vc-dot"></span><b>1차 컨설팅 · 화면 공유 중</b><em>REC 00:24</em></div>
+      <div class="vc-body">
+        <div class="vc-share">
+          <p class="vc-share-title">내 회원 흐름 진단 <small>사전 설문 기준</small></p>
+          <div class="vc-funnel">
+            <div><span>상담</span><i style="width:100%"></i><b>10명</b></div>
+            <div><span>PT 등록</span><i style="width:60%"></i><b>6명</b></div>
+            <div><span>PT 종료</span><i style="width:60%"></i><b>6명</b></div>
+            <div class="vc-drop"><span>재등록</span><i style="width:20%"></i><b>2명</b></div>
+          </div>
+          <p class="vc-flag">끊기는 구간 · <b>종료 → 재등록</b> (33%)</p>
+          <div class="vc-tasks"><span>과제</span><ol><li>종료 3회 전 경과 리포트 보여주기</li><li>재등록 상담 기록 남기기</li><li>주 1회 수업 데이터 기록</li></ol></div>
+        </div>
+        <div class="vc-cams">
+          <div class="vc-cam vc-cam--me"><img src="/academy/consultant-v2.jpg" alt="" width="72" height="72"><span>이준산</span></div>
+          <div class="vc-cam"><i aria-hidden="true">나</i><span>신청 트레이너</span></div>
+        </div>
+      </div>
+      <figcaption>화면 예시 · 숫자와 과제는 설명을 위한 예시입니다</figcaption>
+    </figure>
+
+    <div class="vc-data" aria-label="1차와 2차에서 확인하는 데이터 예시">
+      <p class="vc-data-title">같은 숫자를 두 번 잽니다 <small>예시</small></p>
+      <div class="vc-data-row">
+        <div class="vc-col"><em>1차</em><b>33%</b><span>재등록률 기준점 기록</span></div>
+        <div class="vc-arrow"><span>과제 실행<br>매주 기록</span></div>
+        <div class="vc-col vc-col--after"><em>2차</em><b>?%</b><span>같은 기준으로 다시 측정 · 비교</span></div>
+      </div>
+      <p class="vc-data-note">2차에서는 과제 전후 숫자를 나란히 놓고, 바뀐 곳과 안 바뀐 곳을 데이터로 확인합니다.</p>
+    </div>
 
     <div class="spacer-sm"></div>
     <h3 class="h3">2회로 나눠 진행합니다 <small class="cs-total">총 2시간</small></h3>
@@ -2173,7 +2252,7 @@ body.modal-open { overflow: hidden; }
       <table class="tp-table">
         <thead><tr><th></th><th>1:1 무료 진단</th><th>대면 컨설팅</th></tr></thead>
         <tbody>
-          <tr><th>진행 방식</th><td>2회 (1차 30분 + 2차 1시간 30분)</td><td><b>대면 2시간</b></td></tr>
+          <tr><th>진행 방식</th><td>온라인(네이버 웨일) 2회<br>1차 30분 + 2차 1시간 30분</td><td><b>대면 2시간</b></td></tr>
           <tr><th>비용</th><td>무료</td><td><b>100,000원</b></td></tr>
           <tr><th>모집</th><td>1차 20명</td><td>5자리 · 마감(대기 신청)</td></tr>
         </tbody>
