@@ -625,11 +625,11 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 
 
 /* ── 즉시 진단 ── */
-.cs-num-row { display: flex; align-items: center; gap: 10px; }
-.cs-num-row input[type=text] { width: 110px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.cs-num-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cs-form .cs-num-row input[type=text] { width: 96px; flex: 0 0 auto; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .cs-num-row input:disabled { background: var(--bg-alt); color: var(--fg-light); }
-.cs-num-row b { font-weight: 500; color: var(--fg-2); }
-.cs-unknown { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 14px; color: var(--fg-2); min-height: 44px; }
+.cs-num-row b { font-weight: 500; color: var(--fg-2); flex: none; }
+.cs-unknown { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; font-size: 14px; color: var(--fg-2); min-height: 44px; white-space: nowrap; }
 .cs-unknown input { width: 18px; height: 18px; accent-color: var(--accent); }
 .cs-num.is-invalid input[type=text] { border-color: #c2410c; background: #fff7ed; }
 .cs-diag { margin: 4px 0 18px; background: #0f2240; color: #e6edf7; border-radius: 12px; padding: 16px; }
