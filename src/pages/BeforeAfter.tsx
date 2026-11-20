@@ -158,9 +158,10 @@ function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Pho
   if (guides) {
     const ps = panels(layout);
     ctx.save();
-    ctx.strokeStyle = "rgba(74,222,128,.85)"; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
     ([ps.before, ps.after]).forEach((r) => {
-      [0.5].forEach((f) => { ctx.beginPath(); ctx.moveTo(r.x + r.w * f, r.y); ctx.lineTo(r.x + r.w * f, r.y + r.h); ctx.stroke(); });
+      ctx.setLineDash([]); ctx.strokeStyle = "#ffe100"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(r.x + r.w / 2, r.y); ctx.lineTo(r.x + r.w / 2, r.y + r.h); ctx.stroke();
+      ctx.setLineDash([12, 9]); ctx.strokeStyle = "rgba(255,225,0,.65)"; ctx.lineWidth = 2;
       [0.25, 0.5, 0.75].forEach((f) => { ctx.beginPath(); ctx.moveTo(r.x, r.y + r.h * f); ctx.lineTo(r.x + r.w, r.y + r.h * f); ctx.stroke(); });
     });
     ctx.restore();
@@ -260,6 +261,7 @@ export default function BeforeAfter() {
     try { const v = localStorage.getItem(PRESET_KEY + "_sizes"); return v ? { ...DEFAULT_SIZES, ...JSON.parse(v) } : DEFAULT_SIZES; } catch { return DEFAULT_SIZES; }
   });
   const [consent, setConsent] = useState(false);
+  const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [fontsReady, setFontsReady] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
@@ -359,23 +361,24 @@ export default function BeforeAfter() {
   }
 
   function toBlob(): Promise<Blob | null> {
-    const cv = canvasRef.current!;
-    render(cv, layout, before, after, logo, texts, sizes, false);
-    return new Promise((res) => cv.toBlob((b) => {
-      render(cv, layout, before, after, logo, texts, sizes, guides);
-      res(b);
-    }, "image/png"));
+    return new Promise((res) => canvasRef.current!.toBlob((b) => res(b), "image/png"));
   }
   async function save() {
     if (!canExport) return;
     const blob = await toBlob(); if (!blob) return;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `before-after-${new Date().toISOString().slice(0, 10)}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    const url = URL.createObjectURL(blob);
+    try {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `before-after-${new Date().toISOString().slice(0, 10)}.png`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch { /* 인앱 브라우저 등에서 실패해도 아래 패널로 저장 가능 */ }
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    setResultUrl(url);
     track("ba", "u");
-    flash("이미지를 저장했습니다");
   }
   async function share() {
     if (!canExport) return;
@@ -492,7 +495,7 @@ export default function BeforeAfter() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "8px 2px 0", flexWrap: "wrap" }}>
                 <p style={{ fontSize: 11, color: "#93c5fd", margin: 0 }}>사진을 끌어 옮기고, 두 손가락으로 확대하세요.</p>
                 <button onClick={() => setGuides(!guides)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: guides ? "#16a34a" : "rgba(255,255,255,.1)", border: "none", borderRadius: 20, padding: "4px 10px", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                  <Grid2x2 size={12} /> 정렬선 {guides ? "끄기" : "켜기"}
+                  <Grid2x2 size={12} /> 노란 정렬선 {guides ? "끄기" : "켜기"}
                 </button>
               </div>
             )}
@@ -503,12 +506,26 @@ export default function BeforeAfter() {
               <span>사진 속 회원에게 <b>사진 사용 동의</b>를 받았습니다. (실제 회원 사례 문구를 쓰려면 필요합니다)</span>
             </label>
           )}
+          {resultUrl && (
+            <div style={{ ...card, border: "2px solid #2563eb", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <b style={{ fontSize: 14, color: "#0f172a" }}>완성된 이미지</b>
+                <button onClick={() => { URL.revokeObjectURL(resultUrl); setResultUrl(null); }} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 13, cursor: "pointer", padding: 4 }}>닫기</button>
+              </div>
+              <p style={{ fontSize: 13, color: "#334155", lineHeight: 1.7, margin: 0 }}>
+                저장이 되지 않았다면 아래 이미지를 <b>길게 눌러 "이미지 저장"</b>을 선택하세요.
+                카카오톡·인스타그램 안에서 열면 자동 저장이 막힐 수 있습니다.
+              </p>
+              <img src={resultUrl} alt="완성된 비포·애프터 이미지" style={{ width: "100%", height: "auto", borderRadius: 8, border: "1px solid #e2e8f0" }} />
+              <a href={resultUrl} download={`before-after-${new Date().toISOString().slice(0, 10)}.png`} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", borderRadius: 10, background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 700, textDecoration: "none" }}><Download size={15} /> 다시 저장하기</a>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={save} disabled={!canExport} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px", borderRadius: 12, border: "none", background: canExport ? "#2563eb" : "#cbd5e1", color: "#fff", fontSize: 15, fontWeight: 700, cursor: canExport ? "pointer" : "not-allowed" }}><Download size={16} /> 이미지 저장</button>
             <button onClick={share} disabled={!canExport} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: canExport ? "#2563eb" : "#94a3b8", fontSize: 15, fontWeight: 700, cursor: canExport ? "pointer" : "not-allowed" }}><Share2 size={16} /> 공유</button>
           </div>
           <p style={{ fontSize: 12, color: msg ? "#16a34a" : "#64748b", margin: 0, minHeight: 18 }}>
-            {msg || (!ready ? "비포·애프터 사진을 모두 올리면 저장할 수 있습니다." : needConsent && !consent ? "사진 사용 동의를 체크하면 저장할 수 있습니다." : "결과는 운동 경과를 보여주는 자료이며 의학적 진단이 아닙니다.")}
+            {msg || (!ready ? "비포·애프터 사진을 모두 올리면 저장할 수 있습니다." : needConsent && !consent ? "사진 사용 동의를 체크하면 저장할 수 있습니다." : "정렬선을 켜면 저장 이미지에도 함께 들어갑니다. 결과는 운동 경과 자료이며 의학적 진단이 아닙니다.")}
           </p>
         </section>
       </main>
