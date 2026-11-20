@@ -78,6 +78,7 @@ const serveConfig = {
     { source: "/admin",    destination: "/admin/index.html" },
     { source: "/contract", destination: "/contract/index.html" },
     { source: "/sequence", destination: "/sequence/index.html" },
+    { source: "/before-after", destination: "/before-after/index.html" },
     { source: "/**",       destination: "/index.html" },
   ],
 };
