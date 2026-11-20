@@ -710,22 +710,22 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-total { font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-lt); border-radius: 20px; padding: 2px 10px; margin-left: 6px; vertical-align: 2px; }
 .cs-flow-lead { font-size: 14px; color: var(--fg-2); margin-top: 6px; }
 .cs-flow-lead b { color: var(--accent-dk); }
-.cs-steps { list-style: none; margin-top: 16px; display: flex; flex-direction: column; gap: 0; position: relative; }
+.cs-steps { list-style: none; margin-top: 28px; display: flex; flex-direction: column; gap: 0; position: relative; }
 .cs-steps::before { content: ""; position: absolute; left: 21px; top: 24px; bottom: 24px; width: 2px; background: var(--border); }
-.cs-step { position: relative; padding: 0 0 16px 56px; }
+.cs-step { position: relative; padding: 0 0 22px 56px; }
 .cs-step-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 44px; }
 .cs-step-no { position: absolute; left: 0; top: 0; width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
 .cs-step-no--sub { background: var(--bg); color: var(--accent); border: 2px dashed var(--accent); font-size: 12px; }
 .cs-step-head strong { font-size: 16px; color: var(--fg); }
 .cs-step-head em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent-dk); background: var(--accent-lt); border-radius: 20px; padding: 2px 10px; }
-.cs-step ul { list-style: none; margin-top: 6px; padding: 12px 14px; background: var(--bg-alt); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
+.cs-step ul { list-style: none; margin-top: 6px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
 .cs-step ul li { position: relative; padding-left: 14px; font-size: 14px; color: var(--fg-2); line-height: 1.6; }
 .cs-step ul li::before { content: ""; position: absolute; left: 0; top: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .cs-step--gap p { font-size: 14px; color: var(--fg-muted); margin-top: 2px; }
 
 
 /* ── 화상 컨설팅 예시 ── */
-.vc { margin: 16px 0 0; background: #0f2240; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 32px rgba(15,34,64,.2); }
+.vc { margin: 28px 0 0; background: #0f2240; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 32px rgba(15,34,64,.2); }
 .vc-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #0b1a33; color: #dbe4ef; font-size: 12px; }
 .vc-dot { width: 9px; height: 9px; border-radius: 50%; background: #334a6e; }
 .vc-bar b { margin-left: 8px; font-weight: 700; }
@@ -752,7 +752,7 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .vc-cam i { width: 52px; height: 52px; border-radius: 50%; background: #334a6e; color: #dbe4ef; font-style: normal; font-weight: 800; display: flex; align-items: center; justify-content: center; }
 .vc-cam span { font-size: 11px; color: #b9c8de; }
 .vc figcaption { font-size: 11px; color: #8fa6c8; padding: 0 14px 10px; }
-.vc-data { margin-top: 12px; border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+.vc-data { margin-top: 20px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
 .vc-data-title { font-size: 14px; font-weight: 800; color: var(--fg); }
 .vc-data-title small { font-size: 11px; font-weight: 700; color: var(--fg-muted); background: var(--bg-alt); border-radius: 20px; padding: 1px 8px; margin-left: 4px; }
 .vc-data-row { display: grid; grid-template-columns: 1fr 76px 1fr; align-items: center; gap: 8px; margin-top: 12px; }
@@ -775,8 +775,8 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-who li { position: relative; padding: 14px 16px 14px 44px; background: var(--bg-alt); border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--fg-2); }
 .cs-who li::before { content: "✓"; position: absolute; left: 16px; top: 13px; color: var(--accent); font-weight: 900; }
 .cs-who-note { margin-top: 14px; font-size: 14px; color: var(--fg-muted); }
-.cs-get { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
-.cs-get li { display: flex; gap: 14px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 10px; }
+.cs-get { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-top: 28px; }
+.cs-get li { display: flex; gap: 14px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
 .cs-get b { font-family: var(--serif); color: var(--accent); font-size: 17px; flex-shrink: 0; }
 .cs-get strong { display: block; font-size: 15px; color: var(--fg); }
 .cs-get span { display: block; font-size: 13px; color: var(--fg-muted); margin-top: 2px; }
@@ -784,7 +784,7 @@ details[open] .sum-arrow { transform: rotate(45deg); }
 .cs-flow li { text-align: center; font-size: 13px; font-weight: 600; color: var(--fg-2); line-height: 1.45; background: var(--bg-alt); border-radius: 10px; padding: 14px 4px; min-width: 0; }
 .cs-flow span { display: block; width: 26px; height: 26px; margin: 0 auto 8px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; line-height: 26px; }
 .cs-small { font-size: 12px; color: var(--fg-muted); margin-top: 10px; line-height: 1.7; }
-.cs-recruit { margin-top: 28px; padding: 16px 18px; border-left: 3px solid var(--accent); background: var(--accent-lt); border-radius: 0 10px 10px 0; display: flex; flex-direction: column; gap: 4px; }
+.cs-recruit { margin-top: 32px; padding: 16px 18px; border-left: 3px solid var(--accent); background: var(--accent-lt); border-radius: 0 10px 10px 0; display: flex; flex-direction: column; gap: 4px; }
 .cs-recruit strong { font-size: 15px; color: var(--fg); }
 .cs-recruit span { font-size: 13px; color: var(--fg-2); }
 .cs-stats { margin-top: 8px; font-size: 14px; font-weight: 700; color: var(--accent-dk); font-variant-numeric: tabular-nums; }
@@ -1053,7 +1053,11 @@ body.modal-open { overflow: hidden; }
     </ul>
     <p class="cs-who-note">실력의 문제가 아니라, 상담과 수업과 관리가 어디서 끊기는지의 문제인 경우가 많습니다.</p>
 
-    <div class="spacer"></div>
+  </div>
+</section>
+
+<section class="sec sec--alt">
+  <div class="wrap">
     <p class="kicker">진단에서 받는 것</p>
     <h2 class="h2">조언이 아니라,<br>바로 실행할 과제를 드립니다.</h2>
     <ol class="cs-get">
@@ -1063,9 +1067,14 @@ body.modal-open { overflow: hidden; }
       <li><b>04</b><div><strong>과제 결과를 데이터로 확인</strong><span>2차 컨설팅에서 과제 전후 숫자를 비교하고 다음 개선으로 이어갑니다.</span></div></li>
     </ol>
 
-    <div class="spacer-sm"></div>
-    <h3 class="h3">네이버 웨일 화상회의로 진행합니다</h3>
-    <p class="cs-flow-lead">내 숫자를 화면에 띄워 놓고 함께 봅니다. 접속 링크는 일정 안내 때 보내드립니다.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="wrap">
+    <p class="kicker">진행 방식</p>
+    <h2 class="h2">네이버 웨일 화상회의로,<br>내 숫자를 함께 보며 진행합니다.</h2>
+    <p class="lead">화면에 내 상담·재등록 숫자를 띄워 놓고 이야기합니다. 접속 링크는 일정 안내 때 보내드립니다.</p>
 
     <figure class="vc" aria-label="온라인 화상 컨설팅 화면 예시">
       <div class="vc-bar"><span class="vc-dot"></span><span class="vc-dot"></span><span class="vc-dot"></span><b>1차 컨설팅 · 화면 공유 중</b><em>REC 00:24</em></div>
@@ -1099,9 +1108,13 @@ body.modal-open { overflow: hidden; }
       <p class="vc-data-note">2차에서는 과제 전후 숫자를 나란히 놓고, 바뀐 곳과 안 바뀐 곳을 데이터로 확인합니다.</p>
     </div>
 
-    <div class="spacer-sm"></div>
-    <h3 class="h3">2회로 나눠 진행합니다 <small class="cs-total">총 2시간</small></h3>
-    <p class="cs-flow-lead">한 번 듣고 끝나는 조언이 아니라, 과제를 실행한 뒤 <b>숫자로 확인</b>하고 다시 고칩니다.</p>
+  </div>
+</section>
+
+<section class="sec sec--alt">
+  <div class="wrap">
+    <p class="kicker">2회 진행 <small class="cs-total">총 2시간</small></p>
+    <h2 class="h2">한 번 듣고 끝나는 조언이 아니라,<br>실행한 뒤 숫자로 확인합니다.</h2>
     <ol class="cs-steps">
       <li class="cs-step">
         <div class="cs-step-head"><span class="cs-step-no">1차</span><strong>현황 진단 · 과제 전달</strong><em>30분</em></div>
