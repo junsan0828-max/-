@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Download, Share2, RotateCcw, Save, Columns2 } from "lucide-react";
+import { ImagePlus, Download, Share2, RotateCcw, Save, Columns2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Grid2x2, Minus, Plus } from "lucide-react";
 import { track } from "../lib/counter";
 
 type Layout = "wide" | "portrait";
@@ -81,7 +81,18 @@ function drawPhoto(ctx: CanvasRenderingContext2D, p: Photo, x: number, y: number
   ctx.restore();
 }
 
-function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Photo, logo: HTMLImageElement | null, t: Texts) {
+interface Rect { x: number; y: number; w: number; h: number }
+function panels(layout: Layout): { before: Rect; after: Rect } {
+  const { w: W } = SIZES[layout];
+  if (layout === "wide") {
+    const pw = 390, ph = 550, py = 150, lx = 60;
+    return { before: { x: lx, y: py, w: pw, h: ph }, after: { x: W - 60 - pw, y: py, w: pw, h: ph } };
+  }
+  const pw = 470, ph = 700, py = 140, lx = 50;
+  return { before: { x: lx, y: py, w: pw, h: ph }, after: { x: W - 50 - pw, y: py, w: pw, h: ph } };
+}
+
+function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Photo, logo: HTMLImageElement | null, t: Texts, guides = false) {
   const { w: W, h: H } = SIZES[layout];
   cv.width = W; cv.height = H;
   const ctx = cv.getContext("2d")!;
@@ -97,7 +108,8 @@ function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Pho
   };
 
   if (layout === "wide") {
-    const pw = 390, ph = 550, py = 150, lx = 60, rx = W - 60 - pw, cx = W / 2, colW = rx - (lx + pw) - 40;
+    const { before: bR, after: aR } = panels("wide");
+    const pw = bR.w, ph = bR.h, py = bR.y, lx = bR.x, rx = aR.x, cx = W / 2, colW = rx - (lx + pw) - 40;
     label(t.beforeLabel, lx + pw / 2, 97, "#ffffff", 40);
     label(t.afterLabel, rx + pw / 2, 97, BLUE, 40);
     drawPhoto(ctx, before, lx, py, pw, ph);
@@ -113,7 +125,8 @@ function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Pho
     if (t.showFootnote && t.footnote) { ctx.font = "400 18px 'Noto Sans KR', sans-serif"; ctx.fillStyle = "#e5e7eb"; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(t.footnote, rx + pw - 26, py + ph + 24); }
     drawText(ctx, t.bottom, cx, 800, W - 120, 24, 42);
   } else {
-    const pw = 470, ph = 700, py = 140, lx = 50, rx = W - 50 - pw, cx = W / 2;
+    const { before: bR2, after: aR2 } = panels("portrait");
+    const pw = bR2.w, ph = bR2.h, py = bR2.y, lx = bR2.x, rx = aR2.x, cx = W / 2;
     label(t.beforeLabel, lx + pw / 2, 86, "#ffffff", 44);
     label(t.afterLabel, rx + pw / 2, 86, BLUE, 44);
     drawPhoto(ctx, before, lx, py, pw, ph);
@@ -131,6 +144,17 @@ function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Pho
     y += n3 * 38 + 34;
     drawText(ctx, t.bottom, cx, Math.min(y + 16, H - 90), W - 120, 22, 36);
   }
+
+  if (guides) {
+    const ps = panels(layout);
+    ctx.save();
+    ctx.strokeStyle = "rgba(74,222,128,.85)"; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+    ([ps.before, ps.after]).forEach((r) => {
+      [0.5].forEach((f) => { ctx.beginPath(); ctx.moveTo(r.x + r.w * f, r.y); ctx.lineTo(r.x + r.w * f, r.y + r.h); ctx.stroke(); });
+      [0.25, 0.5, 0.75].forEach((f) => { ctx.beginPath(); ctx.moveTo(r.x, r.y + r.h * f); ctx.lineTo(r.x + r.w, r.y + r.h * f); ctx.stroke(); });
+    });
+    ctx.restore();
+  }
 }
 
 function loadFile(file: File): Promise<HTMLImageElement> {
@@ -145,6 +169,7 @@ function loadFile(file: File): Promise<HTMLImageElement> {
 
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" };
 const lbl: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 6 };
+const stepBtn: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#2563eb", cursor: "pointer", padding: 0 };
 const inp: React.CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", fontSize: 15, fontFamily: "inherit", color: "#0f172a", background: "#fff" };
 
 function PhotoInput({ name, photo, onChange }: { name: string; photo: Photo; onChange: (p: Photo) => void }) {
@@ -157,13 +182,26 @@ function PhotoInput({ name, photo, onChange }: { name: string; photo: Photo; onC
       </button>
       <input ref={ref} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) onChange({ img: await loadFile(f), zoom: 1, x: 0, y: 0 }); e.target.value = ""; }} />
       {photo.img && (
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-          {([["zoom", "확대", 1, 2.5, 0.01], ["x", "좌우", -1, 1, 0.01], ["y", "상하", -1, 1, 0.01]] as const).map(([k, l, min, max, step]) => (
-            <label key={k} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#64748b" }}>
-              <span style={{ width: 26 }}>{l}</span>
-              <input type="range" min={min} max={max} step={step} value={photo[k]} onChange={(e) => onChange({ ...photo, [k]: Number(e.target.value) })} style={{ flex: 1, accentColor: "#2563eb" }} />
-            </label>
-          ))}
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, color: "#64748b", width: 26, whiteSpace: "nowrap" }}>확대</span>
+            <button aria-label="축소" onClick={() => onChange({ ...photo, zoom: Math.max(1, +(photo.zoom - 0.05).toFixed(2)) })} style={stepBtn}><Minus size={14} /></button>
+            <input type="range" min={1} max={3} step={0.01} value={photo.zoom} onChange={(e) => onChange({ ...photo, zoom: Number(e.target.value) })} style={{ flex: 1, minWidth: 0, accentColor: "#2563eb" }} />
+            <button aria-label="확대" onClick={() => onChange({ ...photo, zoom: Math.min(3, +(photo.zoom + 0.05).toFixed(2)) })} style={stepBtn}><Plus size={14} /></button>
+            <span style={{ fontSize: 11, color: "#64748b", width: 32, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{photo.zoom.toFixed(2)}x</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "#64748b", width: 26, whiteSpace: "nowrap" }}>위치</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 34px)", gridTemplateRows: "repeat(2, 30px)", gap: 4 }}>
+              <span />
+              <button aria-label="위로" onClick={() => onChange({ ...photo, y: Math.max(-1, +(photo.y - 0.04).toFixed(3)) })} style={stepBtn}><ChevronUp size={15} /></button>
+              <span />
+              <button aria-label="왼쪽" onClick={() => onChange({ ...photo, x: Math.max(-1, +(photo.x - 0.04).toFixed(3)) })} style={stepBtn}><ChevronLeft size={15} /></button>
+              <button aria-label="아래로" onClick={() => onChange({ ...photo, y: Math.min(1, +(photo.y + 0.04).toFixed(3)) })} style={stepBtn}><ChevronDown size={15} /></button>
+              <button aria-label="오른쪽" onClick={() => onChange({ ...photo, x: Math.min(1, +(photo.x + 0.04).toFixed(3)) })} style={stepBtn}><ChevronRight size={15} /></button>
+            </div>
+            <button onClick={() => onChange({ ...photo, zoom: 1, x: 0, y: 0 })} style={{ marginLeft: "auto", background: "none", border: "none", color: "#94a3b8", fontSize: 11, cursor: "pointer", padding: 0, textDecoration: "underline", whiteSpace: "nowrap" }}>초기화</button>
+          </div>
         </div>
       )}
     </div>
@@ -183,6 +221,11 @@ export default function BeforeAfter() {
   const [msg, setMsg] = useState("");
   const [fontsReady, setFontsReady] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState<"before" | "after" | null>(null);
+  const [guides, setGuides] = useState(false);
+  const pts = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinch = useRef<{ side: "before" | "after"; dist: number; zoom: number } | null>(null);
+  const dragRef = useRef<{ side: "before" | "after"; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const [wide, setWide] = useState(() => window.innerWidth >= 900);
   useEffect(() => {
     const on = () => setWide(window.innerWidth >= 900);
@@ -198,8 +241,8 @@ export default function BeforeAfter() {
   }, []);
 
   useEffect(() => {
-    if (canvasRef.current) render(canvasRef.current, layout, before, after, logo, texts);
-  }, [layout, before, after, logo, texts, fontsReady]);
+    if (canvasRef.current) render(canvasRef.current, layout, before, after, logo, texts, guides);
+  }, [layout, before, after, logo, texts, fontsReady, guides]);
 
   const set = (k: keyof Texts) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setTexts({ ...texts, [k]: e.target.value });
   const ready = !!before.img && !!after.img;
@@ -208,8 +251,78 @@ export default function BeforeAfter() {
 
   function flash(m: string) { setMsg(m); setTimeout(() => setMsg(""), 2500); }
 
+  /* ── 미리보기에서 사진을 직접 끌어 옮기고 확대 ── */
+  function hit(e: { clientX: number; clientY: number }): { side: "before" | "after"; scale: number } | null {
+    const cv = canvasRef.current; if (!cv) return null;
+    const box = cv.getBoundingClientRect();
+    const scale = SIZES[layout].w / box.width;
+    const cx = (e.clientX - box.left) * scale, cy = (e.clientY - box.top) * scale;
+    const ps = panels(layout);
+    for (const side of ["before", "after"] as const) {
+      const r = ps[side];
+      if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) return { side, scale };
+    }
+    return null;
+  }
+  const photoOf = (side: "before" | "after") => (side === "before" ? before : after);
+  const setPhoto = (side: "before" | "after", p: Photo) => (side === "before" ? setBefore(p) : setAfter(p));
+
+  function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    const h = hit(e); if (!h || !photoOf(h.side).img) return;
+    pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.current.size === 2) {
+      const [a, b] = [...pts.current.values()];
+      pinch.current = { side: h.side, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: photoOf(h.side).zoom };
+      dragRef.current = null; setDragging(null);
+      return;
+    }
+    const p = photoOf(h.side);
+    dragRef.current = { side: h.side, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y };
+    setDragging(h.side);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (pts.current.has(e.pointerId)) pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pz = pinch.current;
+    if (pz && pts.current.size >= 2) {
+      const [a, b] = [...pts.current.values()];
+      const d2 = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const p = photoOf(pz.side);
+      setPhoto(pz.side, { ...p, zoom: Math.max(1, Math.min(3, pz.zoom * (d2 / pz.dist))) });
+      return;
+    }
+    const d = dragRef.current; if (!d) return;
+    const cv = canvasRef.current!; const box = cv.getBoundingClientRect();
+    const scale = SIZES[layout].w / box.width;
+    const r = panels(layout)[d.side];
+    const p = photoOf(d.side); if (!p.img) return;
+    const s = Math.max(r.w / p.img.width, r.h / p.img.height) * p.zoom;
+    const dw = p.img.width * s, dh = p.img.height * s;
+    const rangeX = dw - r.w, rangeY = dh - r.h;
+    const nx = rangeX > 1 ? d.ox + ((e.clientX - d.sx) * scale * 2) / rangeX : d.ox;
+    const ny = rangeY > 1 ? d.oy + ((e.clientY - d.sy) * scale * 2) / rangeY : d.oy;
+    setPhoto(d.side, { ...p, x: Math.max(-1, Math.min(1, nx)), y: Math.max(-1, Math.min(1, ny)) });
+  }
+  function endDrag(e?: React.PointerEvent<HTMLCanvasElement>) {
+    if (e) pts.current.delete(e.pointerId);
+    if (pts.current.size < 2) pinch.current = null;
+    dragRef.current = null; setDragging(null);
+  }
+  function onWheel(e: React.WheelEvent<HTMLCanvasElement>) {
+    const h = hit(e); if (!h) return;
+    const p = photoOf(h.side); if (!p.img) return;
+    e.preventDefault();
+    const z = Math.max(1, Math.min(3, p.zoom - e.deltaY * 0.0015));
+    setPhoto(h.side, { ...p, zoom: z });
+  }
+
   function toBlob(): Promise<Blob | null> {
-    return new Promise((res) => canvasRef.current!.toBlob((b) => res(b), "image/png"));
+    const cv = canvasRef.current!;
+    render(cv, layout, before, after, logo, texts, false);
+    return new Promise((res) => cv.toBlob((b) => {
+      render(cv, layout, before, after, logo, texts, guides);
+      res(b);
+    }, "image/png"));
   }
   async function save() {
     if (!canExport) return;
@@ -312,7 +425,25 @@ export default function BeforeAfter() {
 
         <section style={{ position: wide ? "sticky" : "static", top: 12, display: "flex", flexDirection: "column", gap: 12, minWidth: 0, order: wide ? 1 : 0 }}>
           <div style={{ ...card, padding: 10, background: "#0f172a", border: "none" }}>
-            <canvas ref={canvasRef} aria-label="비포·애프터 결과 미리보기" style={{ width: "100%", height: "auto", display: "block", borderRadius: 6 }} />
+            <canvas
+              ref={canvasRef}
+              aria-label="비포·애프터 결과 미리보기"
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onPointerLeave={endDrag}
+              onWheel={onWheel}
+              style={{ width: "100%", height: "auto", display: "block", borderRadius: 6, touchAction: "none", cursor: dragging ? "grabbing" : (before.img || after.img) ? "grab" : "default" }}
+            />
+            {(before.img || after.img) && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "8px 2px 0", flexWrap: "wrap" }}>
+                <p style={{ fontSize: 11, color: "#93c5fd", margin: 0 }}>사진을 끌어 옮기고, 두 손가락으로 확대하세요.</p>
+                <button onClick={() => setGuides(!guides)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: guides ? "#16a34a" : "rgba(255,255,255,.1)", border: "none", borderRadius: 20, padding: "4px 10px", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  <Grid2x2 size={12} /> 정렬선 {guides ? "끄기" : "켜기"}
+                </button>
+              </div>
+            )}
           </div>
           {needConsent && (
             <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "#334155", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 10, padding: "10px 12px" }}>
