@@ -29,6 +29,12 @@ const routes = [
     description: "수업 시퀀스(운동 루틴)를 만들고 링크·PDF로 공유하세요. 운동 순서·세트·횟수·영상을 담은 전문가용 시퀀스 도구.",
     url: "https://noble-unity-production-8100.up.railway.app/sequence",
   },
+  {
+    dir: "before-after",
+    title: "FIT STEP 비포·애프터 메이커",
+    description: "비포·애프터 사진 2장과 문구를 넣으면 센터 홍보용 체형 변화 이미지를 만들어 줍니다.",
+    url: "https://noble-unity-production-8100.up.railway.app/before-after",
+  },
 ];
 
 for (const { dir, title, description, url } of routes) {

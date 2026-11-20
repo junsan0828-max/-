@@ -7,6 +7,7 @@ import PostureAnalysis from "./pages/PostureAnalysis";
 import ContractPrint from "./pages/ContractPrint";
 import ContractForm from "./pages/ContractForm";
 import SequenceMaker from "./pages/SequenceMaker";
+import BeforeAfter from "./pages/BeforeAfter";
 
 const path   = window.location.pathname;
 
@@ -26,6 +27,7 @@ function renderApp() {
   const App = path.startsWith("/admin")    ? AdminPage
              : path.startsWith("/posture") ? PostureAnalysis
              : path.startsWith("/sequence") ? SequenceMaker
+             : path.startsWith("/before-after") ? BeforeAfter
              : path.startsWith("/contract") ? (isContractView ? ContractPrint : ContractForm)
              : DietPlanner;
 
