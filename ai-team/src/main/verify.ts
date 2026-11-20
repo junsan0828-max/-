@@ -51,6 +51,21 @@ export interface ExpiryHistoryItem {
   sent: boolean; // auto_message_log 기준 발송 성공 여부
 }
 
+/** 기준일(reference_date)이 이미 지났는데 auto_message_log에 성공 기록이 하나도 없는 만료 안내.
+ * 클라우드 실행은 알리고 IP 인증에서 막혀 실패로만 기록되고("인증되지 않는 서버 IP", "클라우드에서는
+ * 발송 안 함"), 보통은 로컬 PC가 같은 날 재시도해 성공한다. 그 재시도가 일어나지 않은 날의 대상은
+ * 아무 안내도 받지 못한 채 만료일이 지나가는데, 기존 리포트는 "오늘 대상"만 보여줘서 이게 보이지
+ * 않았다. 발송은 하지 않고 조회만 한다 — 누락을 매일 눈에 보이게 하는 것이 목적이다. */
+export interface MissedSendItem {
+  category: "expiry_d10" | "expiry_d5";
+  name: string;
+  phone: string | null;
+  branchId: number | null;
+  referenceDate: string; // 발송 기준일(= 회원의 만료일)
+  attempts: number; // 실패로 기록된 시도 횟수
+  lastError: string | null;
+}
+
 export interface ConsultFollowupItem {
   name: string | null;
   phone: string | null;
@@ -69,6 +84,7 @@ export interface VerificationResult {
   expiringWithin10: { name: string; phone: string | null; branchId: number | null; membershipEnd: string; daysLeft: number }[];
   expiryHistory: ExpiryHistoryItem[]; // 오늘 기준 D-10·D-5 대상자와 발송 이력
   consultFollowup: ConsultFollowupItem[]; // 어제 상담 완료 → 오늘 D+1 후속 대상, 발송·등록전환 여부
+  missedExpirySends: MissedSendItem[]; // 기준일이 지났는데 끝까지 발송 성공 못한 만료 안내(최근 45일)
 }
 
 type Sql = ReturnType<typeof neon<false, false>>;
@@ -156,9 +172,10 @@ export async function runVerification(ctx: GymContext): Promise<VerificationResu
     sessions: r.sessions === null || r.sessions === undefined ? null : Number(r.sessions),
   }));
 
-  const [expiryHistory, consultFollowup] = await Promise.all([
+  const [expiryHistory, consultFollowup, missedExpirySends] = await Promise.all([
     gatherExpiryHistory(sql, today),
     gatherConsultFollowup(sql, today),
+    gatherMissedExpirySends(sql),
   ]);
 
   return {
@@ -174,7 +191,39 @@ export async function runVerification(ctx: GymContext): Promise<VerificationResu
       .map((m) => ({ name: m.name, phone: m.phone, branchId: m.branchId, membershipEnd: m.membershipEnd, daysLeft: m.daysUntilExpiry })),
     expiryHistory,
     consultFollowup,
+    missedExpirySends,
   };
+}
+
+/** 기준일이 이미 지났는데 성공 기록이 없는 만료 안내(최근 45일). reference_date는 text 컬럼이라
+ * 날짜 비교 전에 형식을 걸러 캐스팅한다. 조회 전용 — 여기서 재발송은 하지 않는다. */
+async function gatherMissedExpirySends(sql: Sql): Promise<MissedSendItem[]> {
+  const rows = (await sql.query(
+    `SELECT a.category, a.reference_date AS "referenceDate", a.name, a.branch_id AS "branchId",
+            max(a.phone) AS phone, count(*)::int AS attempts, max(a.error) AS "lastError"
+     FROM auto_message_log a
+     WHERE a.category IN ('expiry_d10','expiry_d5')
+       AND a.reference_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+       AND a.reference_date::date BETWEEN (CURRENT_DATE - 45) AND CURRENT_DATE
+       AND NOT EXISTS (
+         SELECT 1 FROM auto_message_log b
+         WHERE b.category = a.category AND b.reference_date = a.reference_date
+           AND coalesce(b.member_id, -1) = coalesce(a.member_id, -1)
+           AND b.success = true)
+     GROUP BY a.category, a.reference_date, a.name, a.branch_id
+     ORDER BY a.reference_date DESC, a.category`,
+    []
+  )) as any[];
+
+  return rows.map((r) => ({
+    category: r.category,
+    name: r.name,
+    phone: r.phone ?? null,
+    branchId: r.branchId ?? null,
+    referenceDate: r.referenceDate,
+    attempts: Number(r.attempts),
+    lastError: r.lastError ?? null,
+  }));
 }
 
 /** 오늘 기준 D-10·D-5 대상자와 auto_message_log상 발송 성공 여부. 만료 관리는 이 규칙으로만

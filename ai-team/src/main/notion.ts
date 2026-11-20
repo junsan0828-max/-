@@ -785,6 +785,27 @@ function buildVerificationBlocks(result: VerificationResult): Block[] {
     }
   }
 
+  // 기준일이 지났는데 끝까지 발송되지 않은 만료 안내 — "오늘 대상"만 보던 기존 리포트에서는
+  // 보이지 않던 누락이라, 매일 눈에 보이게 따로 남긴다(조회 전용, 재발송은 하지 않음).
+  blocks.push(heading(`만료 안내 미발송 누락 (최근 45일 ${result.missedExpirySends.length}건 — 기준일 지남·성공 이력 없음)`));
+  if (result.missedExpirySends.length === 0) {
+    blocks.push(paragraph("누락 없음 — 최근 45일 D-10·D-5 대상 전원 발송 성공 기록 있음"));
+  } else {
+    blocks.push(
+      paragraph(
+        "아래 대상은 발송 기준일이 지났는데 auto_message_log에 성공 기록이 없습니다 — 만료 안내를 한 번도 받지 못한 회원입니다. 클라우드 실행이 알리고 IP 인증에서 막힌 뒤 로컬 PC 재시도가 일어나지 않은 날에 발생합니다. 재발송 여부는 대표 판단이 필요해 자동 발송하지 않았습니다."
+      )
+    );
+    for (const m of result.missedExpirySends) {
+      const label = m.category === "expiry_d10" ? "D-10" : "D-5";
+      blocks.push(
+        bullet(
+          `${label} · ${m.name} · ${branchLabel(m.branchId)} · 기준일 ${m.referenceDate} · 실패 ${m.attempts}회 · ${m.phone ?? "연락처 누락"} · 사유 ${m.lastError ?? "미기록"}`
+        )
+      );
+    }
+  }
+
   blocks.push(heading("직원 업무 완료 결과"));
   blocks.push(
     paragraph("확인 불가 / 누락된 필드: 직원이 회원 연락·상담·수납을 처리했는지 기록하는 필드가 DB에 없음 — 운영시스템에 처리완료 체크 기능이 추가되면 반영 가능.")
@@ -801,6 +822,7 @@ function verificationFingerprint(result: VerificationResult): string {
     `tx:${result.todayTransactions.length}:${result.todayTransactions.reduce((sum, t) => sum + t.paidAmount, 0)}`,
     `expiry:${result.expiryHistory.filter((h) => h.sent).length}/${result.expiryHistory.length}`,
     `consult:${result.consultFollowup.filter((c) => c.sent).length}/${result.consultFollowup.length}`,
+    `missed:${result.missedExpirySends.length}`,
     `unpaid:${result.unpaidMembersNow.length}:${result.unpaidMembersNow.reduce((sum, u) => sum + u.unpaid, 0)}`,
   ];
   return parts.join("|");
