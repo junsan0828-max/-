@@ -8,6 +8,16 @@ interface Texts {
   beforeLabel: string; afterLabel: string; center: string; title: string;
   body: string; bottom: string; footnote: string; showFootnote: boolean;
 }
+type SizeKey = "center" | "title" | "body" | "bottom";
+type Sizes = Record<SizeKey, number>;
+const DEFAULT_SIZES: Sizes = { center: 1, title: 1, body: 1, bottom: 1 };
+// 레이아웃별 기본 글자 크기와 한 줄 권장 글자 수
+const BASE: Record<Layout, Record<SizeKey, { size: number; lh: number; perLine: number }>> = {
+  wide: { center: { size: 22, lh: 30, perLine: 12 }, title: { size: 30, lh: 44, perLine: 9 }, body: { size: 22, lh: 52, perLine: 12 }, bottom: { size: 24, lh: 42, perLine: 34 } },
+  portrait: { center: { size: 24, lh: 32, perLine: 24 }, title: { size: 34, lh: 46, perLine: 17 }, body: { size: 24, lh: 38, perLine: 26 }, bottom: { size: 22, lh: 36, perLine: 32 } },
+};
+const sz = (layout: Layout, k: SizeKey, m: Sizes) => Math.round(BASE[layout][k].size * m[k]);
+const lh = (layout: Layout, k: SizeKey, m: Sizes) => Math.round(BASE[layout][k].lh * m[k]);
 
 const PRESET_KEY = "ba_preset_v1";
 const BLUE = "#1e7bff";
@@ -92,7 +102,7 @@ function panels(layout: Layout): { before: Rect; after: Rect } {
   return { before: { x: lx, y: py, w: pw, h: ph }, after: { x: W - 50 - pw, y: py, w: pw, h: ph } };
 }
 
-function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Photo, logo: HTMLImageElement | null, t: Texts, guides = false) {
+function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Photo, logo: HTMLImageElement | null, t: Texts, m: Sizes = DEFAULT_SIZES, guides = false) {
   const { w: W, h: H } = SIZES[layout];
   cv.width = W; cv.height = H;
   const ctx = cv.getContext("2d")!;
@@ -116,14 +126,14 @@ function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Pho
     drawPhoto(ctx, after, rx, py, pw, ph);
     let y = logoBlock(cx, 108, 120, 64);
     y = (logo ? y + 30 : 150);
-    const n1 = drawText(ctx, t.center, cx, y, colW, 22, 30);
-    y += n1 * 30 + 70;
-    const n2 = drawText(ctx, t.title, cx, y, colW, 30, 44);
-    y += (n2 - 1) * 44 + 56;
+    const n1 = drawText(ctx, t.center, cx, y, colW, sz("wide", "center", m), lh("wide", "center", m));
+    y += n1 * lh("wide", "center", m) + 70;
+    const n2 = drawText(ctx, t.title, cx, y, colW, sz("wide", "title", m), lh("wide", "title", m));
+    y += (n2 - 1) * lh("wide", "title", m) + 56;
     ctx.fillStyle = "#ffffff"; ctx.fillRect(cx - 52, y, 104, 6);
-    drawText(ctx, t.body, cx, y + 76, colW, 22, 52);
+    drawText(ctx, t.body, cx, y + 76, colW, sz("wide", "body", m), lh("wide", "body", m));
     if (t.showFootnote && t.footnote) { ctx.font = "400 18px 'Noto Sans KR', sans-serif"; ctx.fillStyle = "#e5e7eb"; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(t.footnote, rx + pw - 26, py + ph + 24); }
-    drawText(ctx, t.bottom, cx, 800, W - 120, 24, 42);
+    drawText(ctx, t.bottom, cx, 800, W - 120, sz("wide", "bottom", m), lh("wide", "bottom", m));
   } else {
     const { before: bR2, after: aR2 } = panels("portrait");
     const pw = bR2.w, ph = bR2.h, py = bR2.y, lx = bR2.x, rx = aR2.x, cx = W / 2;
@@ -134,15 +144,15 @@ function render(cv: HTMLCanvasElement, layout: Layout, before: Photo, after: Pho
     if (t.showFootnote && t.footnote) { ctx.font = "400 18px 'Noto Sans KR', sans-serif"; ctx.fillStyle = "#e5e7eb"; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(t.footnote, rx + pw, py + ph + 26); }
     let y = py + ph + 80;
     if (logo) { y = logoBlock(cx, y - 20, 110, 56) + 26; }
-    const n1 = drawText(ctx, t.center.replace(/\n/g, " "), cx, y, W - 160, 24, 32);
-    y += n1 * 32 + 30;
-    const n2 = drawText(ctx, t.title.replace(/\n/g, " "), cx, y, W - 160, 34, 46);
-    y += n2 * 46 + 24;
+    const n1 = drawText(ctx, t.center.replace(/\n/g, " "), cx, y, W - 160, sz("portrait", "center", m), lh("portrait", "center", m));
+    y += n1 * lh("portrait", "center", m) + 30;
+    const n2 = drawText(ctx, t.title.replace(/\n/g, " "), cx, y, W - 160, sz("portrait", "title", m), lh("portrait", "title", m));
+    y += n2 * lh("portrait", "title", m) + 24;
     ctx.fillStyle = "#ffffff"; ctx.fillRect(cx - 52, y, 104, 6);
     y += 46;
-    const n3 = drawText(ctx, t.body.replace(/\n/g, " "), cx, y, W - 200, 24, 38, 500);
-    y += n3 * 38 + 34;
-    drawText(ctx, t.bottom, cx, Math.min(y + 16, H - 90), W - 120, 22, 36);
+    const n3 = drawText(ctx, t.body.replace(/\n/g, " "), cx, y, W - 200, sz("portrait", "body", m), lh("portrait", "body", m), 500);
+    y += n3 * lh("portrait", "body", m) + 34;
+    drawText(ctx, t.bottom, cx, Math.min(y + 16, H - 90), W - 120, sz("portrait", "bottom", m), lh("portrait", "bottom", m));
   }
 
   if (guides) {
@@ -171,6 +181,35 @@ const card: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8
 const lbl: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 6 };
 const stepBtn: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#2563eb", cursor: "pointer", padding: 0 };
 const inp: React.CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", fontSize: 15, fontFamily: "inherit", color: "#0f172a", background: "#fff" };
+
+function TextField({ no, label, k, value, onChange, mul, onMul, layout, rows }: {
+  no: string; label: string; k: SizeKey; value: string; onChange: (v: string) => void;
+  mul: number; onMul: (v: number) => void; layout: Layout; rows: number;
+}) {
+  const per = BASE[layout][k].perLine;
+  const fit = Math.max(1, Math.round(per / mul));
+  const lines = value.split("\n");
+  const longest = lines.reduce((a, l) => Math.max(a, l.replace(/\*/g, "").length), 0);
+  const over = longest > fit;
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <span style={{ ...lbl, fontSize: 12, marginBottom: 0 }}>{no} {label}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
+          <span style={{ fontSize: 11, color: "#64748b" }}>글자 크기</span>
+          <button aria-label={label + " 글자 작게"} onClick={() => onMul(Math.max(0.6, +(mul - 0.1).toFixed(2)))} style={{ ...stepBtn, width: 28, height: 26 }}><Minus size={12} /></button>
+          <span style={{ fontSize: 11, color: "#0f172a", width: 34, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{Math.round(mul * 100)}%</span>
+          <button aria-label={label + " 글자 크게"} onClick={() => onMul(Math.min(1.6, +(mul + 0.1).toFixed(2)))} style={{ ...stepBtn, width: 28, height: 26 }}><Plus size={12} /></button>
+        </div>
+      </div>
+      <textarea style={{ ...inp, minHeight: rows * 24 + 20, resize: "vertical" }} value={value} onChange={(e) => onChange(e.target.value)} />
+      <p style={{ fontSize: 11, margin: "4px 2px 0", color: over ? "#c2410c" : "#64748b" }}>
+        한 줄 <b>{longest}자</b> · 이 크기에서 한 줄 권장 <b>{fit}자</b>
+        {over ? " · 길어서 자동으로 줄바꿈됩니다" : ""}
+      </p>
+    </div>
+  );
+}
 
 function PhotoInput({ name, photo, onChange }: { name: string; photo: Photo; onChange: (p: Photo) => void }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -217,6 +256,9 @@ export default function BeforeAfter() {
   const [texts, setTexts] = useState<Texts>(() => {
     try { const s = localStorage.getItem(PRESET_KEY); return s ? { ...DEFAULT_TEXTS, ...JSON.parse(s) } : DEFAULT_TEXTS; } catch { return DEFAULT_TEXTS; }
   });
+  const [sizes, setSizes] = useState<Sizes>(() => {
+    try { const v = localStorage.getItem(PRESET_KEY + "_sizes"); return v ? { ...DEFAULT_SIZES, ...JSON.parse(v) } : DEFAULT_SIZES; } catch { return DEFAULT_SIZES; }
+  });
   const [consent, setConsent] = useState(false);
   const [msg, setMsg] = useState("");
   const [fontsReady, setFontsReady] = useState(false);
@@ -241,8 +283,8 @@ export default function BeforeAfter() {
   }, []);
 
   useEffect(() => {
-    if (canvasRef.current) render(canvasRef.current, layout, before, after, logo, texts, guides);
-  }, [layout, before, after, logo, texts, fontsReady, guides]);
+    if (canvasRef.current) render(canvasRef.current, layout, before, after, logo, texts, sizes, guides);
+  }, [layout, before, after, logo, texts, sizes, fontsReady, guides]);
 
   const set = (k: keyof Texts) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setTexts({ ...texts, [k]: e.target.value });
   const ready = !!before.img && !!after.img;
@@ -318,9 +360,9 @@ export default function BeforeAfter() {
 
   function toBlob(): Promise<Blob | null> {
     const cv = canvasRef.current!;
-    render(cv, layout, before, after, logo, texts, false);
+    render(cv, layout, before, after, logo, texts, sizes, false);
     return new Promise((res) => cv.toBlob((b) => {
-      render(cv, layout, before, after, logo, texts, guides);
+      render(cv, layout, before, after, logo, texts, sizes, guides);
       res(b);
     }, "image/png"));
   }
@@ -347,6 +389,7 @@ export default function BeforeAfter() {
   function savePreset() {
     try {
       localStorage.setItem(PRESET_KEY, JSON.stringify(texts));
+      localStorage.setItem(PRESET_KEY + "_sizes", JSON.stringify(sizes));
       if (logo) {
         const c = document.createElement("canvas"); const s = Math.min(1, 400 / logo.width);
         c.width = logo.width * s; c.height = logo.height * s; c.getContext("2d")!.drawImage(logo, 0, 0, c.width, c.height);
@@ -355,7 +398,7 @@ export default function BeforeAfter() {
       flash("문구와 로고를 이 기기에 저장했습니다");
     } catch { flash("저장 공간이 부족해 저장하지 못했습니다"); }
   }
-  function resetTexts() { setTexts(DEFAULT_TEXTS); }
+  function resetTexts() { setTexts(DEFAULT_TEXTS); setSizes(DEFAULT_SIZES); }
 
   return (
     <div style={{ minHeight: "100dvh", background: "#f8fafc", fontFamily: "'Noto Sans KR', sans-serif", color: "#0f172a" }}>
@@ -396,7 +439,15 @@ export default function BeforeAfter() {
               <label style={{ flex: 1 }}><span style={{ ...lbl, fontSize: 12 }}>애프터 라벨</span><input style={inp} value={texts.afterLabel} onChange={set("afterLabel")} maxLength={12} /></label>
             </div>
             <div>
-              <span style={{ ...lbl, fontSize: 12 }}>① 로고 · 센터 이름</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                <span style={{ ...lbl, fontSize: 12, marginBottom: 0 }}>① 로고 · 센터 이름</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
+                  <span style={{ fontSize: 11, color: "#64748b" }}>글자 크기</span>
+                  <button aria-label="센터 이름 글자 작게" onClick={() => setSizes({ ...sizes, center: Math.max(0.6, +(sizes.center - 0.1).toFixed(2)) })} style={{ ...stepBtn, width: 28, height: 26 }}><Minus size={12} /></button>
+                  <span style={{ fontSize: 11, color: "#0f172a", width: 34, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{Math.round(sizes.center * 100)}%</span>
+                  <button aria-label="센터 이름 글자 크게" onClick={() => setSizes({ ...sizes, center: Math.min(1.6, +(sizes.center + 0.1).toFixed(2)) })} style={{ ...stepBtn, width: 28, height: 26 }}><Plus size={12} /></button>
+                </div>
+              </div>
               <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
                 <button onClick={() => logoRef.current?.click()} style={{ width: 84, flexShrink: 0, border: "1px dashed #bfdbfe", borderRadius: 10, background: "#000", color: "#93c5fd", fontSize: 11, cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {logo ? <img src={logo.src} alt="로고" style={{ maxWidth: "100%", maxHeight: 48 }} /> : "로고 선택"}
@@ -404,11 +455,12 @@ export default function BeforeAfter() {
                 <textarea style={{ ...inp, minHeight: 64, resize: "vertical" }} value={texts.center} onChange={set("center")} />
               </div>
               <input ref={logoRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setLogo(await loadFile(f)); e.target.value = ""; }} />
+              <p style={{ fontSize: 11, margin: "4px 2px 0", color: "#64748b" }}>한 줄 <b>{texts.center.split("\n").reduce((a, l) => Math.max(a, l.length), 0)}자</b> · 이 크기에서 한 줄 권장 <b>{Math.max(1, Math.round(BASE[layout].center.perLine / sizes.center))}자</b></p>
               {logo && <button onClick={() => { setLogo(null); try { localStorage.removeItem(PRESET_KEY + "_logo"); } catch { /* ignore */ } }} style={{ marginTop: 6, background: "none", border: "none", color: "#94a3b8", fontSize: 12, cursor: "pointer", padding: 0 }}>로고 빼기</button>}
             </div>
-            <label><span style={{ ...lbl, fontSize: 12 }}>② 제목</span><textarea style={{ ...inp, minHeight: 64, resize: "vertical" }} value={texts.title} onChange={set("title")} /></label>
-            <label><span style={{ ...lbl, fontSize: 12 }}>③ 본문</span><textarea style={{ ...inp, minHeight: 100, resize: "vertical" }} value={texts.body} onChange={set("body")} /></label>
-            <label><span style={{ ...lbl, fontSize: 12 }}>④ 하단 문구</span><textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={texts.bottom} onChange={set("bottom")} /></label>
+            <TextField no="②" label="제목" k="title" value={texts.title} onChange={(v) => setTexts({ ...texts, title: v })} mul={sizes.title} onMul={(v) => setSizes({ ...sizes, title: v })} layout={layout} rows={2} />
+            <TextField no="③" label="본문" k="body" value={texts.body} onChange={(v) => setTexts({ ...texts, body: v })} mul={sizes.body} onMul={(v) => setSizes({ ...sizes, body: v })} layout={layout} rows={4} />
+            <TextField no="④" label="하단 문구" k="bottom" value={texts.bottom} onChange={(v) => setTexts({ ...texts, bottom: v })} mul={sizes.bottom} onMul={(v) => setSizes({ ...sizes, bottom: v })} layout={layout} rows={3} />
             <div>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
                 <input type="checkbox" checked={texts.showFootnote} onChange={(e) => setTexts({ ...texts, showFootnote: e.target.checked })} style={{ width: 18, height: 18, accentColor: "#2563eb" }} />
