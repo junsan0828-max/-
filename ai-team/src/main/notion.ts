@@ -790,13 +790,18 @@ function buildVerificationBlocks(result: VerificationResult, tag: string): Block
 
   // 기준일이 지났는데 끝까지 발송되지 않은 만료 안내 — "오늘 대상"만 보던 기존 리포트에서는
   // 보이지 않던 누락이라, 매일 눈에 보이게 따로 남긴다(조회 전용, 재발송은 하지 않음).
-  blocks.push(heading(`만료 안내 미발송 누락 (최근 45일 ${result.missedExpirySends.length}건 — 기준일 지남·성공 이력 없음)`));
+  const missedMemberCount = new Set(result.missedExpirySends.map((m) => m.name)).size;
+  blocks.push(
+    heading(
+      `만료 안내 미발송 누락 (최근 45일 ${missedMemberCount}명 / ${result.missedExpirySends.length}건 — 기준일 지남·성공 이력 없음·미연장)`
+    )
+  );
   if (result.missedExpirySends.length === 0) {
-    blocks.push(paragraph("누락 없음 — 최근 45일 D-10·D-5 대상 전원 발송 성공 기록 있음"));
+    blocks.push(paragraph("누락 없음 — 최근 45일 D-10·D-5 대상 전원 발송 성공 기록 있음(또는 이미 연장·재등록 완료)"));
   } else {
     blocks.push(
       paragraph(
-        "아래 대상은 발송 기준일이 지났는데 auto_message_log에 성공 기록이 없습니다 — 만료 안내를 한 번도 받지 못한 회원입니다. 클라우드 실행이 알리고 IP 인증에서 막힌 뒤 로컬 PC 재시도가 일어나지 않은 날에 발생합니다. 재발송 여부는 대표 판단이 필요해 자동 발송하지 않았습니다."
+        "아래 대상은 발송 기준일이 지났는데 auto_message_log에 성공 기록이 없고, 그 뒤로도 연장·재등록을 하지 않은 회원입니다 — 만료 안내를 한 번도 받지 못한 채 만료된 상태입니다. 클라우드 실행이 알리고 IP 인증에서 막힌 뒤 로컬 PC 재시도가 일어나지 않은 날에 발생합니다. 실패 이후 이미 연장·재등록한 회원은 지금 보낼 이유가 없어 목록에서 제외했습니다(2026-11-22 기준 10건 제외). 한 회원이 D-10·D-5 두 건으로 중복 집계될 수 있어 명수와 건수를 함께 표기합니다. 재발송 여부는 대표 판단이 필요해 자동 발송하지 않았습니다."
       )
     );
     for (const m of result.missedExpirySends) {

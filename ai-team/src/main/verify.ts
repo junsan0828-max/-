@@ -196,7 +196,14 @@ export async function runVerification(ctx: GymContext): Promise<VerificationResu
 }
 
 /** 기준일이 이미 지났는데 성공 기록이 없는 만료 안내(최근 45일). reference_date는 text 컬럼이라
- * 날짜 비교 전에 형식을 걸러 캐스팅한다. 조회 전용 — 여기서 재발송은 하지 않는다. */
+ * 날짜 비교 전에 형식을 걸러 캐스팅한다. 조회 전용 — 여기서 재발송은 하지 않는다.
+ *
+ * 2026-11-22: 발송 실패 이후 회원이 이미 연장·재등록한 경우는 제외한다. 안내를 못 보낸 것은
+ * 사실이지만 지금 보낼 이유가 없는 대상이라, 섞어서 보여주면 "재발송 필요" 건수가 부풀려진다.
+ * (실측: 26건 중 10건이 이미 연장 완료 — 허인회·임수빈·허삼정·권세훈·김영준·안비원·신현식·김은영)
+ * 제외 기준은 현재 membershipEnd가 당시 만료일보다 뒤로 밀렸거나, status가 active가 아니거나,
+ * 환불·양도 계약이 생긴 경우로, D-10·D-5 발송 대상 조건(findExpiryCandidates)과 같은 기준이다.
+ * membershipEnd도 reference_date와 마찬가지로 text 컬럼이라 캐스팅 전에 형식을 걸러야 한다. */
 async function gatherMissedExpirySends(sql: Sql): Promise<MissedSendItem[]> {
   const rows = (await sql.query(
     `SELECT a.category, a.reference_date AS "referenceDate", a.name, a.branch_id AS "branchId",
@@ -210,6 +217,16 @@ async function gatherMissedExpirySends(sql: Sql): Promise<MissedSendItem[]> {
          WHERE b.category = a.category AND b.reference_date = a.reference_date
            AND coalesce(b.member_id, -1) = coalesce(a.member_id, -1)
            AND b.success = true)
+       AND NOT EXISTS (
+         SELECT 1 FROM members m
+         WHERE m.id = a.member_id
+           AND ((m."membershipEnd" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                 AND substring(m."membershipEnd" from 1 for 10)::date > a.reference_date::date)
+                OR m.status <> 'active'
+                OR EXISTS (SELECT 1 FROM refund_contracts r
+                           WHERE r."memberId" = m.id AND r.status IN ('completed', 'pending'))
+                OR EXISTS (SELECT 1 FROM transfer_contracts t
+                           WHERE t."transferorMemberId" = m.id OR t."transfereeMemberId" = m.id)))
      GROUP BY a.category, a.reference_date, a.name, a.branch_id
      ORDER BY a.reference_date DESC, a.category`,
     []
