@@ -12,6 +12,7 @@ import { GymContext } from "./data";
 import { ShortVideo } from "./youtube/shorts";
 import { VerificationResult } from "./verify";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 const NOTION_VERSION = "2022-06-28";
@@ -709,10 +710,12 @@ function branchLabel(branchId: number | null): string {
   return branchId === 1 ? "1호점" : branchId === 2 ? "2호점" : "지점미상";
 }
 
-function buildVerificationBlocks(result: VerificationResult): Block[] {
+function buildVerificationBlocks(result: VerificationResult, tag: string): Block[] {
   const kstTime = new Date(result.asOfTimestamp).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
   const blocks: Block[] = [
-    heading(`🔍 [제이] 온라인 지부장 실대조 검증 · ${result.asOfDate} ${kstTime} (Asia/Seoul)`),
+    // 제목 끝의 "지문"은 같은 날 다음 실행이 수치 변동 여부를 판단하는 기준이다. 로컬 파일이 아니라
+    // 노션 본문에 남기기 때문에, 매번 새 컨테이너로 뜨는 클라우드 예약실행에서도 비교가 된다.
+    heading(`🔍 [제이] 온라인 지부장 실대조 검증 · ${result.asOfDate} ${kstTime} (Asia/Seoul) · 지문 ${tag}`),
     paragraph(
       "출처: Neon Postgres 실조회(gatherContext + revenue_entries + members + auto_message_log + leads), 실행: verify.ts runVerification(). 사람이 쓴 서술이 아니라 매 실행마다 DB에서 직접 계산한 원본 데이터입니다(증감 계산 없음)."
     ),
@@ -846,6 +849,35 @@ function saveVerifySnapshot(date: string, fingerprint: string) {
   writeFileSync(verifySnapshotPath(date), JSON.stringify({ fingerprint }, null, 2), "utf-8");
 }
 
+/** 지문을 8자로 줄인 태그. 검증 블록 제목에 그대로 붙여 노션 본문 자체를 비교 기준으로 쓴다. */
+function fingerprintTag(fingerprint: string): string {
+  return createHash("sha1").update(fingerprint).digest("hex").slice(0, 8);
+}
+
+/** 그날 페이지 본문에 같은 지문의 검증 블록이 이미 있는지 확인한다.
+ * 기존에는 로컬 output/verify-snapshot 파일만 비교했는데, 클라우드 예약실행은 매 실행마다 새 컨테이너로
+ * 떠서 그 파일이 항상 비어 있다 — 그래서 수치가 똑같은 2·4·13시 실행도 전체 블록을 다시 붙여
+ * "같은 수치를 다시 그대로 붙여넣지 마라"(2026-08-20 대표 지시)가 지켜지지 않았다. 조회 전용. */
+async function pageHasFingerprint(pageId: string, tag: string): Promise<boolean> {
+  const needle = `지문 ${tag}`;
+  let cursor: string | undefined;
+  try {
+    do {
+      const qs = `page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`;
+      const res = await notionFetch(`/blocks/${pageId}/children?${qs}`, { method: "GET" });
+      for (const block of res.results ?? []) {
+        const rich = block?.[block?.type]?.rich_text;
+        if (!Array.isArray(rich)) continue;
+        if (rich.map((t: any) => t.plain_text ?? "").join("").includes(needle)) return true;
+      }
+      cursor = res.has_more ? res.next_cursor : undefined;
+    } while (cursor);
+  } catch {
+    return false; // 조회 실패 시에는 평소대로 전체 블록을 남긴다(기록 누락보다 중복이 낫다).
+  }
+  return false;
+}
+
 /** 협의실 DB에서 오늘자 "제이 교류｜YYYY-MM-DD 자정 인계" 페이지를 찾아 검증 블록을 이어붙이고,
  * 없으면 새로 만든다. 상태는 "확인 중"(대표 확인 전)으로 시작한다.
  * 2026-08-20 대표 지시: 같은 날 두 번째 이후 실행에서 수치가 이전과 똑같으면 전체 블록을 다시
@@ -867,14 +899,19 @@ export async function pushVerificationToConsultRoom(result: VerificationResult):
     });
 
     const fingerprint = verificationFingerprint(result);
+    const tag = fingerprintTag(fingerprint);
+    const existingPageId = query.results?.length > 0 ? query.results[0].id : null;
     const prevFingerprint = loadVerifySnapshot(result.asOfDate);
-    const unchanged = query.results?.length > 0 && prevFingerprint === fingerprint;
+    // 로컬 스냅샷(상주 PC 실행)과 노션 본문의 지문(클라우드 실행) 중 하나라도 일치하면 수치 변동 없음.
+    const unchanged =
+      existingPageId !== null &&
+      (prevFingerprint === fingerprint || (await pageHasFingerprint(existingPageId, tag)));
     saveVerifySnapshot(result.asOfDate, fingerprint);
 
     const kstTime = new Date(result.asOfTimestamp).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
     const verifyBlocks = unchanged
-      ? [paragraph(`🔍 [제이] ${result.asOfDate} ${kstTime} (Asia/Seoul) — 재확인, 이전 기록과 수치 변동 없음`)]
-      : buildVerificationBlocks(result);
+      ? [paragraph(`🔍 [제이] ${result.asOfDate} ${kstTime} (Asia/Seoul) — 재확인, 이전 기록과 수치 변동 없음(지문 ${tag})`)]
+      : buildVerificationBlocks(result, tag);
 
     if (query.results?.length > 0) {
       const pageId = query.results[0].id;
