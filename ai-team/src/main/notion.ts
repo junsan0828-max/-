@@ -791,9 +791,15 @@ function buildVerificationBlocks(result: VerificationResult, tag: string): Block
   // 기준일이 지났는데 끝까지 발송되지 않은 만료 안내 — "오늘 대상"만 보던 기존 리포트에서는
   // 보이지 않던 누락이라, 매일 눈에 보이게 따로 남긴다(조회 전용, 재발송은 하지 않음).
   const missedMemberCount = new Set(result.missedExpirySends.map((m) => m.name)).size;
+  // 그 만료 건에 대해 어떤 안내도 성공하지 못한 회원만 따로 센다. 2026-11-22 13시 정정 —
+  // 기존 문구는 목록 전원이 "안내를 한 번도 받지 못했다"고 단정했지만, 실측에서는 D-10만 실패하고
+  // D-5는 성공한 회원이 대부분이었다(12명 중 8명). 명수를 부풀리지 않도록 둘을 구분해 표기한다.
+  const noContactNames = new Set(
+    result.missedExpirySends.filter((m) => m.receivedInstead.length === 0).map((m) => m.name)
+  );
   blocks.push(
     heading(
-      `만료 안내 미발송 누락 (최근 45일 ${missedMemberCount}명 / ${result.missedExpirySends.length}건 — 기준일 지남·성공 이력 없음·미연장)`
+      `만료 안내 미발송 누락 (최근 45일 ${missedMemberCount}명 / ${result.missedExpirySends.length}건 — 그중 안내 전혀 못 받은 회원 ${noContactNames.size}명)`
     )
   );
   if (result.missedExpirySends.length === 0) {
@@ -801,14 +807,14 @@ function buildVerificationBlocks(result: VerificationResult, tag: string): Block
   } else {
     blocks.push(
       paragraph(
-        "아래 대상은 발송 기준일이 지났는데 auto_message_log에 성공 기록이 없고, 그 뒤로도 연장·재등록을 하지 않은 회원입니다 — 만료 안내를 한 번도 받지 못한 채 만료된 상태입니다. 클라우드 실행이 알리고 IP 인증에서 막힌 뒤 로컬 PC 재시도가 일어나지 않은 날에 발생합니다. 실패 이후 이미 연장·재등록한 회원은 지금 보낼 이유가 없어 목록에서 제외했습니다(2026-11-22 기준 10건 제외). 한 회원이 D-10·D-5 두 건으로 중복 집계될 수 있어 명수와 건수를 함께 표기합니다. 재발송 여부는 대표 판단이 필요해 자동 발송하지 않았습니다."
+        "아래는 발송 기준일이 지났는데 그 건(D-10 또는 D-5)의 성공 기록이 없고, 그 뒤로도 연장·재등록을 하지 않은 회원입니다. 클라우드 실행이 알리고 IP 인증에서 막힌 뒤 로컬 PC 재시도가 일어나지 않은 날에 발생합니다. 다만 한 건이 실패해도 같은 만료일에 다른 안내(D-10·D-5 중 나머지, 만료 후 회복안내)가 성공한 경우가 많아, 각 줄에 그 회원이 실제로 받은 안내를 함께 적었습니다 — '받은 안내 없음'인 회원만 연락이 닿지 않은 대상입니다(2026-11-22 13시 정정: 이전에는 전원을 안내 미수신으로 단정해 대상이 부풀려졌습니다). 실패 이후 이미 연장·재등록한 회원은 지금 보낼 이유가 없어 목록에서 제외했습니다. 한 회원이 D-10·D-5 두 건으로 중복 집계될 수 있어 명수와 건수를 함께 표기합니다. 조회 전용이며 재발송 여부는 대표 판단이 필요해 자동 발송하지 않았습니다."
       )
     );
     for (const m of result.missedExpirySends) {
       const label = m.category === "expiry_d10" ? "D-10" : "D-5";
       blocks.push(
         bullet(
-          `${label} · ${m.name} · ${branchLabel(m.branchId)} · 기준일 ${m.referenceDate} · 실패 ${m.attempts}회 · ${m.phone ?? "연락처 누락"} · 사유 ${m.lastError ?? "미기록"}`
+          `${label} · ${m.name} · ${branchLabel(m.branchId)} · 기준일 ${m.referenceDate} · 실패 ${m.attempts}회 · ${m.phone ?? "연락처 누락"} · 실제 받은 안내 ${m.receivedInstead.length > 0 ? m.receivedInstead.join(", ") : "없음 ⚠"} · 사유 ${m.lastError ?? "미기록"}`
         )
       );
     }

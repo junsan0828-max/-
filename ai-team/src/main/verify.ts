@@ -64,6 +64,10 @@ export interface MissedSendItem {
   referenceDate: string; // 발송 기준일(= 회원의 만료일)
   attempts: number; // 실패로 기록된 시도 횟수
   lastError: string | null;
+  /** 같은 회원이 같은 만료일에 대해 실제로 성공 수신한 안내(다른 category 포함). 비어 있으면
+   * 그 만료 건에 대해 어떤 안내도 받지 못한 것. 2026-11-22 13시 추가 — 기존 리포트는 category별로
+   * 집계해서 D-10만 실패하고 D-5는 성공한 회원까지 "안내를 한 번도 받지 못했다"고 표기했다. */
+  receivedInstead: string[];
 }
 
 export interface ConsultFollowupItem {
@@ -207,6 +211,7 @@ export async function runVerification(ctx: GymContext): Promise<VerificationResu
 async function gatherMissedExpirySends(sql: Sql): Promise<MissedSendItem[]> {
   const rows = (await sql.query(
     `SELECT a.category, a.reference_date AS "referenceDate", a.name, a.branch_id AS "branchId",
+            a.member_id AS "memberId",
             max(a.phone) AS phone, count(*)::int AS attempts, max(a.error) AS "lastError"
      FROM auto_message_log a
      WHERE a.category IN ('expiry_d10','expiry_d5')
@@ -227,10 +232,34 @@ async function gatherMissedExpirySends(sql: Sql): Promise<MissedSendItem[]> {
                            WHERE r."memberId" = m.id AND r.status IN ('completed', 'pending'))
                 OR EXISTS (SELECT 1 FROM transfer_contracts t
                            WHERE t."transferorMemberId" = m.id OR t."transfereeMemberId" = m.id)))
-     GROUP BY a.category, a.reference_date, a.name, a.branch_id
+     GROUP BY a.category, a.reference_date, a.name, a.branch_id, a.member_id
      ORDER BY a.reference_date DESC, a.category`,
     []
   )) as any[];
+
+  // 같은 회원·같은 만료일에 대해 실제로 성공한 안내를 따로 모은다. 만료일 15일 전부터 이후까지의
+  // 성공 발송을 보는 이유는 D-10·D-5·만료후 회복안내(lapsed_recover)가 모두 같은 만료 건에 대한
+  // 접촉이라, 하나라도 성공했으면 "연락이 닿지 않은 회원"이 아니기 때문이다. 조회 전용.
+  const successRows = (await sql.query(
+    `SELECT a.member_id AS "memberId", a.reference_date AS "referenceDate",
+            s.category, to_char(s.sent_at, 'YYYY-MM-DD') AS "sentOn"
+     FROM (SELECT DISTINCT member_id, reference_date FROM auto_message_log
+           WHERE category IN ('expiry_d10','expiry_d5')
+             AND reference_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+             AND reference_date::date BETWEEN (CURRENT_DATE - 45) AND CURRENT_DATE) a
+     JOIN auto_message_log s ON s.member_id = a.member_id AND s.success = true
+       AND s.sent_at >= (a.reference_date::date - 15) AND s.sent_at < (CURRENT_DATE + 1)
+     GROUP BY a.member_id, a.reference_date, s.category, to_char(s.sent_at, 'YYYY-MM-DD')`,
+    []
+  )) as any[];
+
+  const successByKey = new Map<string, string[]>();
+  for (const r of successRows) {
+    const key = `${r.memberId}:${r.referenceDate}`;
+    const list = successByKey.get(key) ?? [];
+    list.push(`${r.category}@${r.sentOn}`);
+    successByKey.set(key, list);
+  }
 
   return rows.map((r) => ({
     category: r.category,
@@ -240,6 +269,7 @@ async function gatherMissedExpirySends(sql: Sql): Promise<MissedSendItem[]> {
     referenceDate: r.referenceDate,
     attempts: Number(r.attempts),
     lastError: r.lastError ?? null,
+    receivedInstead: (successByKey.get(`${r.memberId}:${r.referenceDate}`) ?? []).sort(),
   }));
 }
 
