@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Activity, Play, Square, RotateCcw, Camera, Download, AlertTriangle, Maximize2, Minimize2, Repeat, ScanLine, Wrench } from "lucide-react";
+import { Activity, Play, Square, RotateCcw, Camera, Download, AlertTriangle, Maximize2, Minimize2, Repeat, ScanLine, Wrench, Timer, Trophy } from "lucide-react";
 import { track } from "../lib/counter";
 
 /* ── 관절 인덱스 (MediaPipe Pose 33점) ── */
@@ -198,6 +198,15 @@ export default function MotionCheck() {
   const [viewNow, setViewNow] = useState<View>("front");
   const [basis, setBasis] = useState<string | null>(null);
   const [viewUsed, setViewUsed] = useState<View | null>(null);
+  // 게임(타임 어택)
+  const [gOn, setGOn] = useState(false);
+  const [dur, setDur] = useState(30);
+  const [gPhase, setGPhase] = useState<"idle" | "ready" | "run" | "done">("idle");
+  const gPhaseRef = useRef<"idle" | "ready" | "run" | "done">("idle");
+  const [left, setLeft] = useState(0);
+  const [gRes, setGRes] = useState<{ reps: number; full: number; balance: number | null; best: number; isBest: boolean; view: View } | null>(null);
+  const gRef = useRef({ startAt: 0, endAt: 0, full: 0, balOk: 0, balAll: 0, cmin: 999, cmax: -999 });
+  const acRef = useRef<AudioContext | null>(null);
   const [reps, setReps] = useState(0);
   const [result, setResult] = useState<Stats | null>(null);
   const [personIn, setPersonIn] = useState(false);
@@ -404,9 +413,21 @@ export default function MotionCheck() {
           const s = statsRef.current[j.key];
           s.min = Math.min(s.min, deg); s.max = Math.max(s.max, deg); s.last = deg;
         });
+        const g = gRef.current, playing = gPhaseRef.current === "run";
+        if (d && playing) {
+          g.cmin = Math.min(g.cmin, d.v); g.cmax = Math.max(g.cmax, d.v);
+          if (viewRef.current === "front" && !(dSig && dSig.l === dSig.r)) {
+            g.balAll += 1; if (Math.abs(d.l - d.r) <= 5) g.balOk += 1;   // 좌우 차이 5° 이내로 유지한 시간
+          }
+        }
         if (d && dk && repTick(d, performance.now(), lastRepRef.current, MIN_OF(dk))) {
           lastRepRef.current = performance.now();
           repRef.current.count += 1; setReps(repRef.current.count);
+          if (playing) {
+            // 이번 한 번에 쓴 범위가 그동안 쓴 범위의 85% 이상이면 '끝까지' 1회
+            if (g.cmax - g.cmin >= rangeOf(d) * 0.85) { g.full += 1; beep(1320, 90); } else beep(880, 70);
+            g.cmin = d.v; g.cmax = d.v;
+          }
         }
       }
     } else setLive(null);
@@ -437,6 +458,55 @@ export default function MotionCheck() {
     }
   }
 
+  function beep(freq: number, ms: number, vol = 0.09) {
+    try {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ac = acRef.current ?? (acRef.current = new AC());
+      if (ac.state === "suspended") ac.resume();
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = "sine"; o.frequency.value = freq; g.gain.value = vol;
+      o.connect(g); g.connect(ac.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + ms / 1000);
+      o.stop(ac.currentTime + ms / 1000);
+    } catch { /* 소리를 막은 기기에서는 조용히 넘어갑니다 */ }
+  }
+  const bestKey = () => `mc_best_${cPartRef.current}_${viewRef.current}_${dur}`;
+  const readBest = () => { try { return Number(localStorage.getItem(bestKey()) || 0); } catch { return 0; } };
+
+  function startGame() {
+    if (status !== "ready") return;
+    statsRef.current = newStats();
+    repRef.current = { down: false, count: 0, depth: 999 };
+    lastRepRef.current = 0;
+    gRef.current = { startAt: performance.now() + 3000, endAt: 0, full: 0, balOk: 0, balAll: 0, cmin: 999, cmax: -999 };
+    setReps(0); setResult(null); setBasis(null); setViewUsed(null); setGRes(null);
+    setLeft(3); setGPhase("ready"); gPhaseRef.current = "ready";
+    beep(660, 120);
+  }
+  function finishGame() {
+    recRef.current = false;
+    gPhaseRef.current = "done"; setGPhase("done");
+    const g = gRef.current, n = repRef.current.count;
+    const prev = readBest(), isBest = n > prev;
+    if (isBest) { try { localStorage.setItem(bestKey(), String(n)); } catch { /* ignore */ } }
+    setGRes({
+      reps: n, full: g.full,
+      balance: viewRef.current === "front" && g.balAll > 30 ? Math.round((g.balOk / g.balAll) * 100) : null,
+      best: Math.max(prev, n), isBest, view: viewRef.current,
+    });
+    const dk = driverRef.current;
+    setResult(statsRef.current);
+    setBasis(dk ? SIGNALS.find((x) => x.key === dk)!.name : null);
+    setViewUsed(viewRef.current);
+    track("mc", "u");
+    beep(880, 160); setTimeout(() => beep(1100, 220), 180);
+  }
+  function stopGame() {
+    recRef.current = false;
+    gPhaseRef.current = "idle"; setGPhase("idle"); setLeft(0); setGRes(null);
+  }
+
   function startRec() {
     statsRef.current = newStats();
     repRef.current = { down: false, count: 0, depth: 999 };
@@ -451,6 +521,27 @@ export default function MotionCheck() {
     setViewUsed(viewRef.current);
     track("mc", "u");
   }
+  useEffect(() => {
+    if (gPhase !== "ready" && gPhase !== "run") return;
+    let shown = -1;
+    const id = setInterval(() => {
+      const now = performance.now(), g = gRef.current;
+      if (gPhaseRef.current === "ready") {
+        const sLeft = Math.ceil((g.startAt - now) / 1000);
+        if (sLeft <= 0) {
+          g.endAt = now + dur * 1000; g.cmin = 999; g.cmax = -999;
+          recRef.current = true; gPhaseRef.current = "run"; setGPhase("run"); setLeft(dur); beep(1000, 220);
+        } else if (sLeft !== shown) { shown = sLeft; setLeft(sLeft); beep(660, 110); }
+      } else {
+        const sLeft = Math.max(0, Math.ceil((g.endAt - now) / 1000));
+        if (sLeft !== shown) { shown = sLeft; setLeft(sLeft); if (sLeft > 0 && sLeft <= 3) beep(660, 110); }
+        if (sLeft <= 0) finishGame();
+      }
+    }, 100);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gPhase, dur]);
+
   function resetAll() {
     setResult(null); setReps(0); setBasis(null); setViewUsed(null);
     statsRef.current = newStats(); repRef.current = { down: false, count: 0, depth: 999 };
@@ -507,6 +598,19 @@ export default function MotionCheck() {
             );
           })}
         </div>
+
+        {mode === "count" && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {([[false, "측정", ScanLine], [true, "게임 · 타임 어택", Timer]] as const).map(([k, label, Icon]) => {
+              const on = gOn === k;
+              return (
+                <button key={String(k)} onClick={() => { stopGame(); setGOn(k); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 10px", borderRadius: 11, cursor: "pointer", fontSize: 14, fontWeight: 700, border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff", color: on ? "#2563eb" : "#64748b" }}>
+                  <Icon size={15} /> {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {mode === "count" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
@@ -619,7 +723,30 @@ export default function MotionCheck() {
                 {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />} {full ? "작게" : "전체화면"}
               </button>
 
-              {full && mode === "count" && (
+              {mode === "count" && gOn && (gPhase === "ready" || gPhase === "run") && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                  {gPhase === "ready" ? (
+                    <div style={{ fontSize: "min(28vw, 180px)", fontWeight: 800, color: "#fff", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}>{left}</div>
+                  ) : (
+                    <div style={{ position: "absolute", top: "26%", textAlign: "center", color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,.65)" }}>
+                      <div style={{ fontSize: "min(22vw, 140px)", fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{reps}</div>
+                      <div style={{ fontSize: "min(7vw, 34px)", fontWeight: 800, color: left <= 5 ? "#fca5a5" : "#fff", fontVariantNumeric: "tabular-nums" }}>{left}초</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {full && mode === "count" && gOn && (
+                <div style={{ position: "absolute", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: 16, right: 16, display: "flex", justifyContent: "center" }}>
+                  {gPhase === "idle" || gPhase === "done" ? (
+                    <button onClick={startGame} style={{ flex: 1, maxWidth: 260, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {dur}초 시작</button>
+                  ) : (
+                    <button onClick={stopGame} style={{ flex: 1, maxWidth: 260, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#dc2626", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Square size={16} /> 그만두기</button>
+                  )}
+                </div>
+              )}
+
+              {full && mode === "count" && !gOn && (
                 <div style={{ position: "absolute", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: 16, right: 16, display: "flex", gap: 8, justifyContent: "center" }}>
                   {!recording ? (
                     <button onClick={startRec} style={{ flex: 1, maxWidth: 260, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> 측정 시작</button>
@@ -642,7 +769,69 @@ export default function MotionCheck() {
           )}
         </div>
 
-        {status === "ready" && mode === "count" && (
+        {status === "ready" && mode === "count" && gOn && (
+          <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <b style={{ fontSize: 14 }}>제한 시간</b>
+              {[30, 60].map((d) => {
+                const on = dur === d;
+                return (
+                  <button key={d} onClick={() => { stopGame(); setDur(d); }} disabled={gPhase === "ready" || gPhase === "run"}
+                    style={{ padding: "7px 16px", borderRadius: 9, cursor: gPhase === "run" ? "not-allowed" : "pointer", fontSize: 13.5, fontWeight: 700, border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff", color: on ? "#2563eb" : "#64748b" }}>
+                    {d}초
+                  </button>
+                );
+              })}
+              <span style={{ marginLeft: "auto", fontSize: 12.5, color: "#475569" }}>내 최고 {readBest()}회</span>
+            </div>
+            {gPhase === "idle" || gPhase === "done" ? (
+              <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {dur}초 타임 어택 시작</button>
+            ) : (
+              <button onClick={stopGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#dc2626", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Square size={16} /> 그만두기</button>
+            )}
+            <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
+              3초 뒤 시작합니다. 제한 시간 안에 최대한 많이 반복하세요. 한 번 셀 때마다 소리가 납니다.
+              {" "}지금 시점은 <b>{viewNow === "front" ? "정면" : "측면"}</b>이라 보너스는 <b>{viewNow === "front" ? "좌우 균형(좌우 차이 5° 이내 유지 시간)" : "끝까지 내려간 횟수(가동 범위 85% 이상)"}</b>입니다.
+              {" "}기록은 이 기기에만 저장되고 서버로 보내지 않습니다.
+            </p>
+          </div>
+        )}
+
+        {gRes && mode === "count" && gOn && (
+          <div style={{ ...card, border: "2px solid #2563eb", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Trophy size={18} color="#2563eb" />
+              <b style={{ fontSize: 16 }}>{dur}초 결과</b>
+              {gRes.isBest && <span style={{ background: "#2563eb", color: "#fff", fontSize: 12, fontWeight: 800, borderRadius: 20, padding: "3px 10px" }}>신기록!</span>}
+              <span style={{ marginLeft: "auto", fontSize: 12.5, color: "#64748b" }}>{gRes.view === "front" ? "정면" : "측면"} · {basis ?? "기준 없음"}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
+              {[
+                { n: "횟수", v: `${gRes.reps}회` },
+                { n: "분당 환산", v: `${Math.round((gRes.reps * 60) / dur)}회` },
+                gRes.view === "side"
+                  ? { n: "끝까지 내려간 횟수", v: `${gRes.full}회` }
+                  : { n: "좌우 균형", v: gRes.balance === null ? "—" : `${gRes.balance}%` },
+                { n: "내 최고", v: `${gRes.best}회` },
+              ].map((x) => (
+                <div key={x.n} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 11.5, color: "#64748b", margin: "0 0 2px" }}>{x.n}</p>
+                  <b style={{ fontSize: 19, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{x.v}</b>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 11.5, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
+              {gRes.view === "side"
+                ? "측면이라 깊이를 봤습니다. 한 번에 쓴 각도가 그 세트에서 쓴 최대 범위의 85% 이상이면 '끝까지'로 셉니다."
+                : gRes.balance === null
+                  ? "좌우 균형은 좌우가 모두 보이고 좌우 구분이 있는 관절에서만 계산합니다."
+                  : "정면이라 좌우 균형을 봤습니다. 측정 시간 중 좌우 차이가 5° 이내였던 비율입니다."}
+            </p>
+            <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 13, borderRadius: 10, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", fontSize: 14, fontWeight: 700, cursor: "pointer" }}><RotateCcw size={15} /> 한 번 더</button>
+          </div>
+        )}
+
+        {status === "ready" && mode === "count" && !gOn && (
           <div style={{ display: "flex", gap: 8 }}>
             {!recording ? (
               <button onClick={startRec} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> 측정 시작</button>
