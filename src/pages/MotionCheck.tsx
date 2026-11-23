@@ -23,7 +23,8 @@ function angle(a: Pt, b: Pt, c: Pt): number {
   const d = (v1.x * v2.x + v1.y * v2.y) / (Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y) || 1);
   return (Math.acos(Math.max(-1, Math.min(1, d))) * 180) / Math.PI;
 }
-const vis = (f: Frame, i: number) => (f[i]?.visibility ?? 1) > 0.5;
+const vis = (f: Frame, i: number) => (f[i]?.visibility ?? 1) > 0.5;   // 그리기·사람 감지용
+const visA = (f: Frame, i: number) => (f[i]?.visibility ?? 1) > 0.35; // 각도 계산용 (팔 끝이 가장자리로 갈 때 대비)
 
 interface Joint { key: string; name: string; side: "L" | "R"; idx: [number, number, number] }
 const JOINTS: Joint[] = [
@@ -48,12 +49,12 @@ const mid = (f: Frame, a: number, b: number): Pt => ({ x: (f[a].x + f[b].x) / 2,
 /** 관절 각도. 목은 코 - 어깨 중앙 - 골반 중앙으로 계산합니다. */
 export function jointAngle(f: Frame, key: string): number | null {
   if (key === "neck") {
-    if (!vis(f, NOSE) || !vis(f, L.shoulder) || !vis(f, R.shoulder) || !vis(f, L.hip) || !vis(f, R.hip)) return null;
+    if (!visA(f, NOSE) || !visA(f, L.shoulder) || !visA(f, R.shoulder) || !visA(f, L.hip) || !visA(f, R.hip)) return null;
     return angle(f[NOSE], mid(f, L.shoulder, R.shoulder), mid(f, L.hip, R.hip));
   }
   const j = JMAP[key]; if (!j) return null;
   const [a, b, c] = j.idx;
-  return vis(f, a) && vis(f, b) && vis(f, c) ? angle(f[a], f[b], f[c]) : null;
+  return visA(f, a) && visA(f, b) && visA(f, c) ? angle(f[a], f[b], f[c]) : null;
 }
 
 /* ── 정면·측면 판별 ──
