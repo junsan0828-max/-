@@ -39,6 +39,58 @@ const PAIRS: [string, string, string][] = [
   ["팔꿈치", "lelbow", "relbow"], ["어깨", "lsh", "rsh"],
 ];
 
+/* ── 횟수 체크: 종목을 고르지 않고 '가장 크게 움직이는 관절'을 찾아서 셉니다 ── */
+type SigKey = "knee" | "hip" | "elbow" | "shoulder";
+type CountPart = "auto" | "upper" | "lower";
+const SIGNALS: { key: SigKey; name: string; group: "upper" | "lower"; l: string; r: string; ex: string }[] = [
+  { key: "knee", name: "무릎", group: "lower", l: "lknee", r: "rknee", ex: "스쿼트·런지" },
+  { key: "hip", name: "고관절", group: "lower", l: "lhip", r: "rhip", ex: "데드리프트·힙힌지" },
+  { key: "elbow", name: "팔꿈치", group: "upper", l: "lelbow", r: "relbow", ex: "숄더프레스·컬" },
+  { key: "shoulder", name: "어깨", group: "upper", l: "lsh", r: "rsh", ex: "레터럴 레이즈" },
+];
+const JMAP: Record<string, Joint> = Object.fromEntries(JOINTS.map((j) => [j.key, j]));
+const COUNT_PARTS: { key: CountPart; name: string; desc: string }[] = [
+  { key: "auto", name: "전신", desc: "상·하체 모두에서 자동으로 찾기" },
+  { key: "upper", name: "상체", desc: "어깨·팔꿈치 움직임만 세기" },
+  { key: "lower", name: "하체", desc: "고관절·무릎 움직임만 세기" },
+];
+type Sig = { v: number; l: number; r: number; min: number; max: number; up: boolean; seen: boolean };
+const newSigs = (): Record<SigKey, Sig> =>
+  Object.fromEntries(SIGNALS.map((s) => [s.key, { v: 0, l: 0, r: 0, min: 999, max: -999, up: false, seen: false }])) as Record<SigKey, Sig>;
+export const DECAY = 0.06;     // 범위를 천천히 좁혀 운동이 바뀌어도 따라감 (약 3.6°/초)
+const MIN_ROM = 22;      // 이보다 작게 움직이면 반복으로 보지 않음
+const MIN_GAP = 420;     // 같은 횟수를 두 번 세지 않도록 최소 간격(ms)
+
+/** 한 관절의 각도를 넣어 현재 값과 최근 범위를 갱신 */
+export function feedSig(s: Sig, lv: number | null, rv: number | null): void {
+  const vals = [lv, rv].filter((x): x is number => x !== null);
+  if (!vals.length) return;
+  const v = vals.reduce((a, b) => a + b, 0) / vals.length;
+  s.v = v; s.l = lv ?? v; s.r = rv ?? v; s.seen = true;
+  if (s.max < -900) { s.min = v; s.max = v; }
+  else { s.min = Math.min(v, s.min + DECAY); s.max = Math.max(v, s.max - DECAY); }
+}
+export const rangeOf = (s?: Sig) => (s && s.seen && s.max > -900 ? s.max - s.min : 0);
+
+/** 후보 중 가장 크게 움직이는 관절. 바꿀 땐 1.3배 이상 차이날 때만 (기준이 흔들리지 않도록) */
+export function chooseDriver(sigs: Record<SigKey, Sig>, keys: SigKey[], cur: SigKey | null): SigKey | null {
+  const top = [...keys].sort((a, b) => rangeOf(sigs[b]) - rangeOf(sigs[a]))[0];
+  if (!top || rangeOf(sigs[top]) < MIN_ROM) return cur && keys.includes(cur) ? cur : null;
+  if (!cur || !keys.includes(cur)) return top;
+  if (top !== cur && rangeOf(sigs[top]) > rangeOf(sigs[cur]) * 1.3) return top;
+  return cur;
+}
+
+/** 기준 관절이 한 번 왕복하면 true (굽혔다 펴든, 폈다 굽히든 같게 셉니다) */
+export function repTick(s: Sig, now: number, lastRep: number): boolean {
+  const r = rangeOf(s);
+  if (r < MIN_ROM) return false;
+  const lo = s.min + r * 0.3, hi = s.min + r * 0.7;
+  if (!s.up && s.v > hi) { s.up = true; return now - lastRep > MIN_GAP; }
+  if (s.up && s.v < lo) s.up = false;
+  return false;
+}
+
 type Stats = Record<string, { min: number; max: number; last: number }>;
 const newStats = (): Stats => Object.fromEntries(JOINTS.map((j) => [j.key, { min: 999, max: -999, last: 0 }]));
 
@@ -79,6 +131,10 @@ export default function MotionCheck() {
   const statsRef = useRef<Stats>(newStats());
   const recRef = useRef(false);
   const repRef = useRef<{ down: boolean; count: number; depth: number }>({ down: false, count: 0, depth: 999 });
+  const sigRef = useRef<Record<SigKey, Sig>>(newSigs());
+  const driverRef = useRef<SigKey | null>(null);
+  const lastRepRef = useRef(0);
+  const cPartRef = useRef<CountPart>("auto");
   const trackRef = useRef<Pt | null>(null);   // 지금 따라가는 사람의 위치
   const tapRef = useRef<Pt | null>(null);     // 화면을 눌러 고른 위치 (다음 프레임에 반영)
   const missRef = useRef(0);                  // 놓친 프레임 수
@@ -87,7 +143,9 @@ export default function MotionCheck() {
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [errMsg, setErrMsg] = useState("");
   const [recording, setRecording] = useState(false);
-  const [live, setLive] = useState<{ lknee: number; rknee: number; diff: number } | null>(null);
+  const [live, setLive] = useState<{ name: string; l: number; r: number; diff: number; rom: number } | null>(null);
+  const [cPart, setCPart] = useState<CountPart>("auto");
+  const [basis, setBasis] = useState<string | null>(null);
   const [reps, setReps] = useState(0);
   const [result, setResult] = useState<Stats | null>(null);
   const [personIn, setPersonIn] = useState(false);
@@ -197,10 +255,15 @@ export default function MotionCheck() {
     ctx.fillStyle = "#86efac";
     DOTS.forEach((i) => { if (!vis(f, i)) return; const p = px(f[i]); ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(5, w / 110), 0, Math.PI * 2); ctx.fill(); });
     ctx.shadowBlur = 0;
-    // 무릎 각도 숫자
+    // 기준 관절 각도 숫자
+    const dk = driverRef.current;
+    const dSig = dk ? SIGNALS.find((s) => s.key === dk) : null;
+    const annot: [number, number, number][] = dSig
+      ? [JMAP[dSig.l].idx, JMAP[dSig.r].idx]
+      : [[L.hip, L.knee, L.ankle], [R.hip, R.knee, R.ankle]];
     ctx.font = `700 ${Math.max(16, Math.round(w / 26))}px 'Noto Sans KR', sans-serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ([[L.hip, L.knee, L.ankle], [R.hip, R.knee, R.ankle]] as const).forEach(([a, b, c]) => {
+    annot.forEach(([a, b, c]) => {
       if (!vis(f, a) || !vis(f, b) || !vis(f, c)) return;
       const p = px(f[b]); const deg = Math.round(angle(f[a], f[b], f[c]));
       const t = `${deg}°`; const tw = ctx.measureText(t).width;
@@ -249,12 +312,32 @@ export default function MotionCheck() {
 
     const f: Frame | null = pick?.p ?? null;
     draw(f, cands.filter((x) => x.p !== f).map((x) => x.p), v.videoWidth || 640, v.videoHeight || 480);
-    const ok = !!f && vis(f, L.knee) && vis(f, R.knee) && vis(f, L.hip) && vis(f, R.hip);
+    const part = cPartRef.current;
+    const sPool = SIGNALS.filter((s) => part === "auto" || s.group === part);
+
+    const ok = !!f && (part === "upper"
+      ? vis(f, L.shoulder) && vis(f, R.shoulder) && vis(f, L.elbow) && vis(f, R.elbow)
+      : part === "lower"
+        ? vis(f, L.hip) && vis(f, R.hip) && vis(f, L.knee) && vis(f, R.knee)
+        : vis(f, L.shoulder) && vis(f, R.shoulder) && vis(f, L.hip) && vis(f, R.hip));
     setPersonIn(ok);
+
     if (f && ok) {
-      const lk = angle(f[L.hip], f[L.knee], f[L.ankle]);
-      const rk = angle(f[R.hip], f[R.knee], f[R.ankle]);
-      setLive({ lknee: Math.round(lk), rknee: Math.round(rk), diff: Math.round(Math.abs(lk - rk)) });
+      // 1) 관절별 각도 갱신 (좌우 평균 — 양팔/양다리 운동을 두 번 세지 않도록)
+      const read = (k: string) => {
+        const [a, b, c] = JMAP[k].idx;
+        return vis(f!, a) && vis(f!, b) && vis(f!, c) ? angle(f![a], f![b], f![c]) : null;
+      };
+      sPool.forEach((sg) => feedSig(sigRef.current[sg.key], read(sg.l), read(sg.r)));
+
+      // 2) 기준이 될 관절 고르기
+      driverRef.current = chooseDriver(sigRef.current, sPool.map((s) => s.key), driverRef.current);
+      const dk = driverRef.current;
+      const dSig = dk ? SIGNALS.find((s) => s.key === dk)! : null;
+      const d = dk ? sigRef.current[dk] : null;
+      setLive(d && dSig ? { name: dSig.name, l: Math.round(d.l), r: Math.round(d.r), diff: Math.round(Math.abs(d.l - d.r)), rom: Math.round(rangeOf(d)) } : null);
+
+      // 3) 기준 관절이 한 번 왕복하면 1회 (굽혔다 펴든, 폈다 굽히든 동일)
       if (recRef.current) {
         JOINTS.forEach((j) => {
           const [a, b, c] = j.idx;
@@ -263,12 +346,10 @@ export default function MotionCheck() {
           const s = statsRef.current[j.key];
           s.min = Math.min(s.min, deg); s.max = Math.max(s.max, deg); s.last = deg;
         });
-        // 반복 세기: 양 무릎 평균이 150도 아래로 내려갔다가 160도 위로 돌아오면 1회
-        const knee = (lk + rk) / 2;
-        const r = repRef.current;
-        if (!r.down && knee < 150) { r.down = true; r.depth = knee; }
-        if (r.down) r.depth = Math.min(r.depth, knee);
-        if (r.down && knee > 160) { r.down = false; r.count += 1; r.depth = 999; setReps(r.count); }
+        if (d && repTick(d, performance.now(), lastRepRef.current)) {
+          lastRepRef.current = performance.now();
+          repRef.current.count += 1; setReps(repRef.current.count);
+        }
       }
     } else setLive(null);
     rafRef.current = requestAnimationFrame(loop);
@@ -301,14 +382,21 @@ export default function MotionCheck() {
   function startRec() {
     statsRef.current = newStats();
     repRef.current = { down: false, count: 0, depth: 999 };
-    setReps(0); setResult(null); setRecording(true); recRef.current = true;
+    lastRepRef.current = 0;
+    setReps(0); setResult(null); setBasis(null); setRecording(true); recRef.current = true;
   }
   function stopRec() {
     recRef.current = false; setRecording(false);
     setResult(statsRef.current);
+    const dk = driverRef.current;
+    setBasis(dk ? SIGNALS.find((s) => s.key === dk)!.name : null);
     track("mc", "u");
   }
-  function resetAll() { setResult(null); setReps(0); statsRef.current = newStats(); repRef.current = { down: false, count: 0, depth: 999 }; }
+  function resetAll() {
+    setResult(null); setReps(0); setBasis(null);
+    statsRef.current = newStats(); repRef.current = { down: false, count: 0, depth: 999 };
+    sigRef.current = newSigs(); driverRef.current = null; lastRepRef.current = 0;
+  }
 
   const rom = (k: string) => { const s = result?.[k]; return s && s.max > -999 ? Math.round(s.max - s.min) : 0; };
   const moved = result ? JOINTS.map((j) => ({ ...j, rom: rom(j.key) })).sort((a, b) => b.rom - a.rom) : [];
@@ -318,7 +406,8 @@ export default function MotionCheck() {
     const lines = [
       "[모션 메카닉 · 횟수 체크]",
       `측정일: ${new Date().toLocaleString("ko-KR")}`,
-      `반복 횟수: ${reps}회`,
+      `부위: ${COUNT_PARTS.find((p) => p.key === cPart)?.name}`,
+      `반복 횟수: ${reps}회${basis ? ` (기준 관절: ${basis})` : ""}`,
       "",
       "관절별 움직임 범위",
       ...moved.map((m) => `${m.name}: ${m.rom}°`),
@@ -358,6 +447,20 @@ export default function MotionCheck() {
             );
           })}
         </div>
+
+        {mode === "count" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+            {COUNT_PARTS.map((pt) => {
+              const on = cPart === pt.key;
+              return (
+                <button key={pt.key} onClick={() => { setCPart(pt.key); cPartRef.current = pt.key; sigRef.current = newSigs(); driverRef.current = null; }} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff" }}>
+                  <b style={{ display: "block", fontSize: 14, color: on ? "#2563eb" : "#0f172a" }}>{pt.name}</b>
+                  <span style={{ fontSize: 11.5, color: "#64748b" }}>{pt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {mode === "analyze" && (
           <>
@@ -415,6 +518,7 @@ export default function MotionCheck() {
             <>
               <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", left: 10, right: 124, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
                 {mode === "analyze" && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{PARTS.find((x) => x.key === part)?.name} 보기</span>}
+                {mode === "count" && live && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>기준 {live.name} · 범위 {live.rom}°</span>}
                 {recording && <span style={{ background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>● 측정 중</span>}
                 {recording && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 20, padding: "4px 12px" }}>{reps}회</span>}
                 {people > 1 && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{people}명 인식 · {locked ? "지정한 사람 측정" : "가까운 사람 측정"}</span>}
@@ -441,7 +545,7 @@ export default function MotionCheck() {
 
               {live && (
                 <div style={{ position: "absolute", bottom: full ? "calc(86px + env(safe-area-inset-bottom, 0px))" : 10, left: 10, right: 10, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                  {[["왼 무릎", live.lknee], ["오른 무릎", live.rknee], ["좌우 차이", live.diff]].map(([n, v], i) => (
+                  {[[`왼 ${live.name}`, live.l], [`오른 ${live.name}`, live.r], ["좌우 차이", live.diff]].map(([n, v], i) => (
                     <span key={n as string} style={{ background: i === 2 && (v as number) >= 10 ? "rgba(234,88,12,.92)" : "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, borderRadius: 10, padding: "6px 12px", fontVariantNumeric: "tabular-nums" }}>
                       {n} <b>{v}°</b>
                     </span>
@@ -476,8 +580,15 @@ export default function MotionCheck() {
             </label>
             <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
               여러 명이 보이면 <b>가장 크게(가까이) 보이는 사람</b>을 자동으로 고릅니다. 다른 사람을 재려면 <b>화면에서 그 사람을 한 번 누르세요</b> — 지정하면 계속 그 사람만 따라갑니다.
-              {" "}지금은 <b>스쿼트</b> 기준으로, 무릎이 굽혔다 펴지면 1회입니다.
             </p>
+            <div style={{ borderTop: "1px solid #eef2f7", paddingTop: 10 }}>
+              <b style={{ fontSize: 13.5, display: "block", marginBottom: 4 }}>세는 방식</b>
+              <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
+                운동 종목을 고르지 않습니다. 선택한 부위에서 <b>가장 크게 움직이는 관절</b>을 자동으로 잡고, 그 관절이 한 번 왕복하면 1회입니다.
+                {" "}스쿼트·런지는 무릎, 데드리프트는 고관절, 숄더프레스·컬은 팔꿈치, 레터럴 레이즈는 어깨가 기준으로 잡힙니다.
+                {" "}운동을 바꾸면 몇 회 안에 기준 관절도 따라 바뀝니다. 움직임이 {MIN_ROM}° 미만이면 반복으로 세지 않습니다.
+              </p>
+            </div>
           </div>
         )}
 
@@ -485,7 +596,10 @@ export default function MotionCheck() {
           <div style={{ ...card, display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <b style={{ fontSize: 16 }}>측정 결과</b>
-              <span style={{ fontSize: 14, color: "#475569" }}>반복 <b style={{ color: "#2563eb", fontSize: 20 }}>{reps}</b>회</span>
+              <span style={{ fontSize: 14, color: "#475569" }}>
+                {basis && <span style={{ fontSize: 12.5, color: "#64748b", marginRight: 8 }}>기준 {basis}</span>}
+                반복 <b style={{ color: "#2563eb", fontSize: 20 }}>{reps}</b>회
+              </span>
             </div>
 
             <div>
