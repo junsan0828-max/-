@@ -94,9 +94,9 @@ export const SIGNALS: { key: SigKey; name: string; group: "upper" | "lower"; l: 
 ];
 const JMAP: Record<string, Joint> = Object.fromEntries(JOINTS.map((j) => [j.key, j]));
 const COUNT_PARTS: { key: CountPart; name: string; desc: string }[] = [
-  { key: "auto", name: "전신", desc: "목·어깨·팔꿈치·고관절·무릎·발목 모두" },
-  { key: "upper", name: "상체", desc: "목·어깨·팔꿈치만" },
-  { key: "lower", name: "하체", desc: "고관절·무릎·발목만" },
+  { key: "auto", name: "전신", desc: "모든 관절" },
+  { key: "upper", name: "상체", desc: "팔꿈치·어깨·목" },
+  { key: "lower", name: "하체", desc: "무릎·고관절·발목" },
 ];
 type Sig = { v: number; l: number; r: number; min: number; max: number; up: boolean; seen: boolean };
 const newSigs = (): Record<SigKey, Sig> =>
@@ -218,6 +218,12 @@ export default function MotionCheck() {
   const [part, setPart] = useState<AnalyzePart>("full");
   const stageRef = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
+  // 박수 감지
+  const micRef = useRef<{ stream: MediaStream; source: MediaStreamAudioSourceNode; analyser: AnalyserNode } | null>(null);
+  const clapTimesRef = useRef<number[]>([]);
+  const clapIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [micOk, setMicOk] = useState<boolean | null>(null);
+  const [clapTrigger, setClapTrigger] = useState(0);
 
   useEffect(() => {
     document.title = "모션 메카닉 · FIT STEP";
@@ -471,6 +477,44 @@ export default function MotionCheck() {
       o.stop(ac.currentTime + ms / 1000);
     } catch { /* 소리를 막은 기기에서는 조용히 넘어갑니다 */ }
   }
+  async function startMic() {
+    if (micRef.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ac = acRef.current ?? (acRef.current = new AC());
+      if (ac.state === "suspended") ac.resume();
+      const source = ac.createMediaStreamSource(stream);
+      const analyser = ac.createAnalyser();
+      analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.1;
+      source.connect(analyser);
+      micRef.current = { stream, source, analyser };
+      setMicOk(true);
+      const data = new Uint8Array(analyser.fftSize);
+      let prevRms = 0;
+      clapIntervalRef.current = setInterval(() => {
+        if (!micRef.current) return;
+        analyser.getByteTimeDomainData(data);
+        const rms = Math.sqrt(data.reduce((s, v) => s + (v - 128) ** 2, 0) / data.length);
+        if (rms > 22 && prevRms < 7) {
+          const now = Date.now();
+          const recent = clapTimesRef.current.filter((t) => now - t < 900);
+          if (!recent.length || now - recent[recent.length - 1] > 150) {
+            recent.push(now); clapTimesRef.current = recent;
+            if (recent.length >= 2) { clapTimesRef.current = []; setClapTrigger((c) => c + 1); }
+          }
+        }
+        prevRms = rms;
+      }, 50);
+    } catch { setMicOk(false); }
+  }
+  function stopMic() {
+    if (clapIntervalRef.current) { clearInterval(clapIntervalRef.current); clapIntervalRef.current = null; }
+    micRef.current?.stream.getTracks().forEach((t) => t.stop());
+    micRef.current?.source.disconnect();
+    micRef.current = null;
+  }
+
   const bestKey = () => `mc_best_${cPartRef.current}_${viewRef.current}_${dur}`;
   const readBest = () => { try { return Number(localStorage.getItem(bestKey()) || 0); } catch { return 0; } };
 
@@ -541,6 +585,9 @@ export default function MotionCheck() {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gPhase, dur]);
+
+  useEffect(() => { if (gOn) startMic(); else stopMic(); return stopMic; }, [gOn]);
+  useEffect(() => { if (clapTrigger > 0 && (gPhase === "idle" || gPhase === "done")) startGame(); }, [clapTrigger]);
 
   function resetAll() {
     setResult(null); setReps(0); setBasis(null); setViewUsed(null);
@@ -613,13 +660,13 @@ export default function MotionCheck() {
         )}
 
         {mode === "count" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
             {COUNT_PARTS.map((pt) => {
               const on = cPart === pt.key;
               return (
-                <button key={pt.key} onClick={() => { setCPart(pt.key); cPartRef.current = pt.key; sigRef.current = newSigs(); driverRef.current = null; }} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff" }}>
-                  <b style={{ display: "block", fontSize: 14, color: on ? "#2563eb" : "#0f172a" }}>{pt.name}</b>
-                  <span style={{ fontSize: 11.5, color: "#64748b" }}>{pt.desc}</span>
+                <button key={pt.key} onClick={() => { setCPart(pt.key); cPartRef.current = pt.key; sigRef.current = newSigs(); driverRef.current = null; }} style={{ textAlign: "center", padding: "12px 8px", borderRadius: 12, cursor: "pointer", border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff" }}>
+                  <b style={{ display: "block", fontSize: 15, color: on ? "#2563eb" : "#0f172a" }}>{pt.name}</b>
+                  <span style={{ fontSize: 11, color: "#64748b" }}>{pt.desc}</span>
                 </button>
               );
             })}
@@ -705,7 +752,7 @@ export default function MotionCheck() {
 
           {status === "ready" && (
             <>
-              <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", left: 10, right: 124, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", left: 10, right: 10, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
                 {mode === "analyze" && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{PARTS.find((x) => x.key === part)?.name} 보기</span>}
                 {mode === "count" && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{viewNow === "front" ? "정면" : "측면"}{viewSel === "auto" ? " 자동" : " 고정"}</span>}
                 {mode === "count" && live && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>기준 {live.name} · 범위 {live.rom}°</span>}
@@ -715,14 +762,6 @@ export default function MotionCheck() {
                 {locked && <button onClick={autoSelect} style={{ background: "rgba(37,99,235,.92)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px", cursor: "pointer" }}>자동 선택으로</button>}
                 {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>측정 구역 안에 {cPart === "upper" ? "상체" : cPart === "lower" ? "하체" : "전신"}가 보이게 서 주세요</span>}
               </div>
-              <button
-                onClick={toggleFull}
-                aria-label={full ? "전체화면 끄기" : "전체화면"}
-                style={{ position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 6, background: "rgba(15,23,42,.8)", border: "none", borderRadius: 10, padding: "9px 12px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-              >
-                {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />} {full ? "작게" : "전체화면"}
-              </button>
-
               {mode === "count" && gOn && (gPhase === "ready" || gPhase === "run") && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                   {gPhase === "ready" ? (
@@ -769,6 +808,18 @@ export default function MotionCheck() {
           )}
         </div>
 
+        {status === "ready" && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={toggleFull}
+              aria-label={full ? "전체화면 끄기" : "전체화면"}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: "#0f172a", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+            >
+              {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />} {full ? "화면 작게" : "전체화면"}
+            </button>
+          </div>
+        )}
+
         {status === "ready" && mode === "count" && gOn && (
           <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -785,7 +836,12 @@ export default function MotionCheck() {
               <span style={{ marginLeft: "auto", fontSize: 12.5, color: "#475569" }}>내 최고 {readBest()}회</span>
             </div>
             {gPhase === "idle" || gPhase === "done" ? (
-              <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {dur}초 타임 어택 시작</button>
+              <>
+                <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {dur}초 타임 어택 시작</button>
+                <p style={{ fontSize: 12, color: "#64748b", textAlign: "center", margin: 0 }}>
+                  {micOk === true ? "👏 박수 2번으로도 시작할 수 있습니다" : micOk === false ? "마이크를 허용하면 박수로 시작할 수 있습니다" : "마이크 허용 시 박수 2번으로 시작할 수 있습니다"}
+                </p>
+              </>
             ) : (
               <button onClick={stopGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#dc2626", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Square size={16} /> 그만두기</button>
             )}
