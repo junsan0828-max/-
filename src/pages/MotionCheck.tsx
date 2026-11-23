@@ -56,6 +56,30 @@ export function jointAngle(f: Frame, key: string): number | null {
   return vis(f, a) && vis(f, b) && vis(f, c) ? angle(f[a], f[b], f[c]) : null;
 }
 
+/* ── 정면·측면 판별 ──
+   어깨·골반 너비를 몸통 길이로 나눈 값. 정면에서는 넓고(0.35 이상), 측면에서는 좁습니다(0.24 이하). */
+export type View = "front" | "side";
+export function viewRatio(f: Frame, aspect = 1): number | null {
+  if (!vis(f, L.shoulder) || !vis(f, R.shoulder) || !vis(f, L.hip) || !vis(f, R.hip)) return null;
+  const w = (a: number, b: number) => Math.hypot((f[a].x - f[b].x) * aspect, f[a].y - f[b].y);
+  const sm = mid(f, L.shoulder, R.shoulder), hm = mid(f, L.hip, R.hip);
+  const torso = Math.hypot((sm.x - hm.x) * aspect, sm.y - hm.y);
+  if (torso < 0.02) return null;
+  return (w(L.shoulder, R.shoulder) + w(L.hip, R.hip)) / 2 / torso;
+}
+/** 애매한 구간에서는 직전 판정을 유지합니다 (화면이 깜빡이지 않도록) */
+export function viewFrom(ratio: number | null, cur: View): View {
+  if (ratio === null) return cur;
+  if (ratio >= 0.35) return "front";
+  if (ratio <= 0.24) return "side";
+  return cur;
+}
+/** 측면일 때 카메라에 가까운(잘 보이는) 쪽 관절 */
+export function nearerSide(f: Frame, lKey: string, rKey: string): string {
+  const score = (k: string) => (JMAP[k]?.idx ?? []).reduce((a, i) => a + (f[i]?.visibility ?? 1), 0);
+  return score(rKey) > score(lKey) ? rKey : lKey;
+}
+
 /* ── 횟수 체크: 종목을 고르지 않고 '가장 크게 움직이는 관절'을 찾아서 셉니다 ── */
 type SigKey = "knee" | "hip" | "ankle" | "elbow" | "shoulder" | "neck";
 type CountPart = "auto" | "upper" | "lower";
@@ -168,7 +192,12 @@ export default function MotionCheck() {
   const [recording, setRecording] = useState(false);
   const [live, setLive] = useState<{ name: string; l: number; r: number; diff: number; rom: number; single: boolean } | null>(null);
   const [cPart, setCPart] = useState<CountPart>("auto");
+  const [viewSel, setViewSel] = useState<"auto" | View>("auto");
+  const viewSelRef = useRef<"auto" | View>("auto");
+  const viewRef = useRef<View>("front");
+  const [viewNow, setViewNow] = useState<View>("front");
   const [basis, setBasis] = useState<string | null>(null);
+  const [viewUsed, setViewUsed] = useState<View | null>(null);
   const [reps, setReps] = useState(0);
   const [result, setResult] = useState<Stats | null>(null);
   const [personIn, setPersonIn] = useState(false);
@@ -344,14 +373,28 @@ export default function MotionCheck() {
 
     if (f && ok) {
       // 1) 관절별 각도 갱신 (좌우 평균 — 양팔/양다리 운동을 두 번 세지 않도록)
-      sPool.forEach((sg) => feedSig(sigRef.current[sg.key], jointAngle(f!, sg.l), sg.r === sg.l ? null : jointAngle(f!, sg.r), decayOf(sg.min)));
+      // 1-1) 정면인지 측면인지 판별 (자동일 때만)
+      const asp = (v.videoWidth || 640) / (v.videoHeight || 480);
+      const vw = viewSelRef.current === "auto" ? viewFrom(viewRatio(f, asp), viewRef.current) : viewSelRef.current;
+      if (vw !== viewRef.current) { viewRef.current = vw; setViewNow(vw); }
+
+      sPool.forEach((sg) => {
+        const sig = sigRef.current[sg.key];
+        if (sg.l === sg.r) { feedSig(sig, jointAngle(f!, sg.l), null, decayOf(sg.min)); return; }
+        if (vw === "side") {
+          // 측면에서는 반대쪽이 가려지므로 카메라에 가까운 쪽만 씁니다
+          feedSig(sig, jointAngle(f!, nearerSide(f!, sg.l, sg.r)), null, decayOf(sg.min));
+        } else {
+          feedSig(sig, jointAngle(f!, sg.l), jointAngle(f!, sg.r), decayOf(sg.min));
+        }
+      });
 
       // 2) 기준이 될 관절 고르기
       driverRef.current = chooseDriver(sigRef.current, sPool.map((s) => s.key), driverRef.current);
       const dk = driverRef.current;
       const dSig = dk ? SIGNALS.find((s) => s.key === dk)! : null;
       const d = dk ? sigRef.current[dk] : null;
-      setLive(d && dSig ? { name: dSig.name, l: Math.round(d.l), r: Math.round(d.r), diff: Math.round(Math.abs(d.l - d.r)), rom: Math.round(rangeOf(d)), single: dSig.l === dSig.r } : null);
+      setLive(d && dSig ? { name: dSig.name, l: Math.round(d.l), r: Math.round(d.r), diff: Math.round(Math.abs(d.l - d.r)), rom: Math.round(rangeOf(d)), single: dSig.l === dSig.r || viewRef.current === "side" } : null);
 
       // 3) 기준 관절이 한 번 왕복하면 1회 (굽혔다 펴든, 폈다 굽히든 동일)
       if (recRef.current) {
@@ -398,17 +441,18 @@ export default function MotionCheck() {
     statsRef.current = newStats();
     repRef.current = { down: false, count: 0, depth: 999 };
     lastRepRef.current = 0;
-    setReps(0); setResult(null); setBasis(null); setRecording(true); recRef.current = true;
+    setReps(0); setResult(null); setBasis(null); setViewUsed(null); setRecording(true); recRef.current = true;
   }
   function stopRec() {
     recRef.current = false; setRecording(false);
     setResult(statsRef.current);
     const dk = driverRef.current;
     setBasis(dk ? SIGNALS.find((s) => s.key === dk)!.name : null);
+    setViewUsed(viewRef.current);
     track("mc", "u");
   }
   function resetAll() {
-    setResult(null); setReps(0); setBasis(null);
+    setResult(null); setReps(0); setBasis(null); setViewUsed(null);
     statsRef.current = newStats(); repRef.current = { down: false, count: 0, depth: 999 };
     sigRef.current = newSigs(); driverRef.current = null; lastRepRef.current = 0;
   }
@@ -421,14 +465,15 @@ export default function MotionCheck() {
     const lines = [
       "[모션 메카닉 · 횟수 체크]",
       `측정일: ${new Date().toLocaleString("ko-KR")}`,
-      `부위: ${COUNT_PARTS.find((p) => p.key === cPart)?.name}`,
+      `부위: ${COUNT_PARTS.find((p) => p.key === cPart)?.name} · 시점: ${viewUsed === "side" ? "측면" : "정면"}`,
       `반복 횟수: ${reps}회${basis ? ` (기준 관절: ${basis})` : ""}`,
       "",
       "관절별 움직임 범위",
       ...moved.map((m) => `${m.name}: ${m.rom}°`),
       "",
-      "좌우 차이",
-      ...PAIRS.map(([n, l, r]) => `${n}: ${Math.abs(rom(l) - rom(r))}° (왼 ${rom(l)}° / 오른 ${rom(r)}°)`),
+      ...(viewUsed === "side"
+        ? ["좌우 차이: 측면 측정이라 비교하지 않았습니다 (각도는 카메라에 가까운 쪽 기준)"]
+        : ["좌우 차이", ...PAIRS.map(([n, l, r]) => `${n}: ${Math.abs(rom(l) - rom(r))}° (왼 ${rom(l)}° / 오른 ${rom(r)}°)`)]),
       "",
       "※ 카메라 추정값으로 몇 도 오차가 있으며, 의학적 진단이 아닙니다.",
     ].join("\n");
@@ -474,6 +519,31 @@ export default function MotionCheck() {
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {mode === "count" && (
+          <div style={{ ...card, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <b style={{ fontSize: 13.5 }}>촬영 시점</b>
+            <div style={{ display: "flex", gap: 6 }}>
+              {([["auto", "자동"], ["front", "정면"], ["side", "측면"]] as const).map(([k, label]) => {
+                const on = viewSel === k;
+                return (
+                  <button key={k} onClick={() => { setViewSel(k); viewSelRef.current = k; if (k !== "auto") { viewRef.current = k; setViewNow(k); } }}
+                    style={{ padding: "7px 14px", borderRadius: 9, cursor: "pointer", fontSize: 13, fontWeight: 700, border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff", color: on ? "#2563eb" : "#64748b" }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <span style={{ fontSize: 12.5, color: "#475569", marginLeft: "auto" }}>
+              {viewSel === "auto" ? `지금 ${viewNow === "front" ? "정면" : "측면"}으로 인식 중` : `${viewNow === "front" ? "정면" : "측면"}으로 고정`}
+            </span>
+            <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0, width: "100%" }}>
+              {viewNow === "front"
+                ? "정면: 좌우 차이를 볼 수 있습니다. 대신 앞뒤로 굽히는 깊이(스쿼트 깊이·힙힌지)는 납작하게 보여 각도가 실제보다 작게 나옵니다."
+                : "측면: 굽히는 깊이가 정확합니다. 대신 반대쪽 팔다리가 가려져 좌우 비교는 할 수 없어, 카메라에 가까운 쪽만 측정합니다."}
+            </p>
           </div>
         )}
 
@@ -533,6 +603,7 @@ export default function MotionCheck() {
             <>
               <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", left: 10, right: 124, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
                 {mode === "analyze" && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{PARTS.find((x) => x.key === part)?.name} 보기</span>}
+                {mode === "count" && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{viewNow === "front" ? "정면" : "측면"}{viewSel === "auto" ? " 자동" : " 고정"}</span>}
                 {mode === "count" && live && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>기준 {live.name} · 범위 {live.rom}°</span>}
                 {recording && <span style={{ background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>● 측정 중</span>}
                 {recording && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 20, padding: "4px 12px" }}>{reps}회</span>}
@@ -633,6 +704,15 @@ export default function MotionCheck() {
               <p style={{ fontSize: 11, color: "#64748b", marginTop: 8 }}>움직임 범위 = 측정 중 가장 펴진 각도와 가장 굽힌 각도의 차이입니다.</p>
             </div>
 
+            {viewUsed === "side" ? (
+              <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 14px" }}>
+                <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>좌우 차이 — 측면에서는 측정하지 않습니다</p>
+                <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
+                  측면에서는 반대쪽 팔다리가 몸에 가려져 좌우를 비교할 수 없습니다. 좌우 차이를 보려면 <b>정면</b>에서 한 세트 더 측정해 주세요.
+                  {" "}위 각도는 카메라에 가까운 쪽 기준입니다.
+                </p>
+              </div>
+            ) : (
             <div>
               <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>좌우 차이</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -648,8 +728,9 @@ export default function MotionCheck() {
                   );
                 })}
               </div>
-              <p style={{ fontSize: 11, color: "#64748b", marginTop: 8 }}>좌우 차이가 10° 이상이면 주황색으로 표시합니다.</p>
+              <p style={{ fontSize: 11, color: "#64748b", marginTop: 8 }}>좌우 차이가 10° 이상이면 주황색으로 표시합니다. 정면에서는 앞뒤로 굽히는 깊이가 실제보다 작게 나오니, 깊이는 측면에서 다시 재 주세요.</p>
             </div>
+            )}
 
             <button onClick={saveResult} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 13, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#2563eb", fontSize: 14, fontWeight: 700, cursor: "pointer" }}><Download size={15} /> 결과 저장 (텍스트)</button>
           </div>
