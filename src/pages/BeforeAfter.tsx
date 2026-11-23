@@ -263,6 +263,7 @@ export default function BeforeAfter() {
   const [consent, setConsent] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState<"before" | "after" | null>(null);
@@ -276,6 +277,17 @@ export default function BeforeAfter() {
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
+
+  /** 사진·결과만 비우고 문구(센터명·제목·본문)는 그대로 둡니다 */
+  function resetPhotos() {
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    setResultUrl(null);
+    setBefore({ img: null, zoom: 1, x: 0, y: 0 });
+    setAfter({ img: null, zoom: 1, x: 0, y: 0 });
+    setConsent(false);
+    setMsg("새 사진을 올리면 바로 다시 만들 수 있습니다.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   useEffect(() => {
     document.title = "비포·애프터 메이커 · FIT STEP";
@@ -364,8 +376,10 @@ export default function BeforeAfter() {
     return new Promise((res) => canvasRef.current!.toBlob((b) => res(b), "image/png"));
   }
   async function save() {
-    if (!canExport) return;
-    const blob = await toBlob(); if (!blob) return;
+    if (!canExport || busy) return;
+    setBusy(true); setMsg("이미지를 만드는 중입니다…");
+    const blob = await toBlob().finally(() => setBusy(false));
+    if (!blob) { setMsg("이미지를 만들지 못했습니다. 다시 시도해 주세요."); return; }
     const url = URL.createObjectURL(blob);
     try {
       const a = document.createElement("a");
@@ -378,6 +392,7 @@ export default function BeforeAfter() {
     } catch { /* 인앱 브라우저 등에서 실패해도 아래 패널로 저장 가능 */ }
     if (resultUrl) URL.revokeObjectURL(resultUrl);
     setResultUrl(url);
+    setMsg("이미지가 만들어졌습니다. 저장이 안 되면 아래 이미지를 길게 눌러 저장하세요.");
     track("ba", "u");
   }
   async function share() {
@@ -518,12 +533,17 @@ export default function BeforeAfter() {
               </p>
               <img src={resultUrl} alt="완성된 비포·애프터 이미지" style={{ width: "100%", height: "auto", borderRadius: 8, border: "1px solid #e2e8f0" }} />
               <a href={resultUrl} download={`before-after-${new Date().toISOString().slice(0, 10)}.png`} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", borderRadius: 10, background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 700, textDecoration: "none" }}><Download size={15} /> 다시 저장하기</a>
+              <button onClick={resetPhotos} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", borderRadius: 10, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", fontSize: 14, fontWeight: 700, cursor: "pointer" }}><RotateCcw size={15} /> 새 사진으로 다시 만들기</button>
+              <p style={{ fontSize: 11.5, color: "#64748b", margin: 0, lineHeight: 1.6 }}>사진만 비우고 센터명·제목·본문 문구는 그대로 둡니다.</p>
             </div>
           )}
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={save} disabled={!canExport} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px", borderRadius: 12, border: "none", background: canExport ? "#2563eb" : "#cbd5e1", color: "#fff", fontSize: 15, fontWeight: 700, cursor: canExport ? "pointer" : "not-allowed" }}><Download size={16} /> 이미지 저장</button>
+            <button onClick={save} disabled={!canExport || busy} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px", borderRadius: 12, border: "none", background: canExport && !busy ? "#2563eb" : "#cbd5e1", color: "#fff", fontSize: 15, fontWeight: 700, cursor: canExport ? "pointer" : "not-allowed" }}><Download size={16} /> {busy ? "만드는 중…" : "이미지 저장"}</button>
             <button onClick={share} disabled={!canExport} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: canExport ? "#2563eb" : "#94a3b8", fontSize: 15, fontWeight: 700, cursor: canExport ? "pointer" : "not-allowed" }}><Share2 size={16} /> 공유</button>
           </div>
+          {(before.img || after.img) && (
+            <button onClick={resetPhotos} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 700, cursor: "pointer" }}><RotateCcw size={15} /> 새 사진으로 다시 만들기</button>
+          )}
           <p style={{ fontSize: 12, color: msg ? "#16a34a" : "#64748b", margin: 0, minHeight: 18 }}>
             {msg || (!ready ? "비포·애프터 사진을 모두 올리면 저장할 수 있습니다." : needConsent && !consent ? "사진 사용 동의를 체크하면 저장할 수 있습니다." : "정렬선을 켜면 저장 이미지에도 함께 들어갑니다. 결과는 운동 경과 자료이며 의학적 진단이 아닙니다.")}
           </p>
