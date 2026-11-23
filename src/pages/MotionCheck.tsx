@@ -422,12 +422,12 @@ export default function MotionCheck() {
       if ((lw?.visibility ?? 0) > 0.5 && (rw?.visibility ?? 0) > 0.5) {
         const dist = Math.hypot(lw.x - rw.x, lw.y - rw.y);
         const vc = visualClapRef.current;
-        if (vc.apart && dist < 0.12) {
+        if (vc.apart && dist < 0.18) {
           vc.apart = false;
           const now = Date.now();
-          vc.times = [...vc.times.filter((t) => now - t < 1500), now];
+          vc.times = [...vc.times.filter((t) => now - t < 2000), now];
           if (vc.times.length >= 2) { vc.times = []; setClapTrigger((c) => c + 1); }
-        } else if (!vc.apart && dist > 0.25) {
+        } else if (!vc.apart && dist > 0.20) {
           vc.apart = true;
         }
       }
