@@ -35,6 +35,12 @@ const routes = [
     description: "비포·애프터 사진 2장과 문구를 넣으면 센터 홍보용 체형 변화 이미지를 만들어 줍니다.",
     url: "https://noble-unity-production-8100.up.railway.app/before-after",
   },
+  {
+    dir: "motion",
+    title: "FIT STEP 움직임 체크",
+    description: "카메라로 관절 움직임을 실시간으로 확인합니다. 스쿼트 반복 횟수와 관절별 움직임 범위, 좌우 차이를 보여줍니다.",
+    url: "https://noble-unity-production-8100.up.railway.app/motion",
+  },
 ];
 
 for (const { dir, title, description, url } of routes) {
@@ -79,6 +85,7 @@ const serveConfig = {
     { source: "/contract", destination: "/contract/index.html" },
     { source: "/sequence", destination: "/sequence/index.html" },
     { source: "/before-after", destination: "/before-after/index.html" },
+    { source: "/motion", destination: "/motion/index.html" },
     { source: "/**",       destination: "/index.html" },
   ],
 };
