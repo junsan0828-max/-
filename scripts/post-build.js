@@ -38,8 +38,14 @@ const routes = [
   {
     dir: "motion",
     title: "FIT STEP 모션 메카닉",
-    description: "카메라로 관절 움직임을 실시간으로 확인합니다. 횟수 체크와 자세 분석(상체·하체·전신·보행)을 지원합니다.",
+    description: "카메라로 운동 횟수를 자동으로 셉니다. 타임 어택 게임과 센터 월간 랭킹을 지원합니다.",
     url: "https://noble-unity-production-8100.up.railway.app/motion",
+  },
+  {
+    dir: "motion-pro",
+    title: "FIT STEP 모션 메카닉 전문가용",
+    description: "트레이너용 측정 도구입니다. 관절별 가동범위·좌우 차이 측정과 자세 분석(상체·하체·전신·보행)을 지원합니다.",
+    url: "https://noble-unity-production-8100.up.railway.app/motion-pro",
   },
 ];
 
@@ -77,17 +83,24 @@ const DEFAULT_SHEET_URL = "https://script.google.com/macros/s/AKfycbzj_BXjn1g0in
   console.log("✓ dist/academy/page.htm");
 }
 
-// serve.json: 라우트별 HTML 매핑 (SPA 모드 대신 명시적 rewrite)
+// serve.json
+//
+// 라우트별 rewrite를 두지 않습니다. serve가 /motion 요청에 dist/motion/index.html을
+// 알아서 찾아 주므로, 위에서 만든 라우트별 HTML(제목·공유 미리보기 포함)이 그대로 쓰입니다.
+//
+// 예전에는 라우트별 rewrite와 함께 "/**" → "/index.html" 전체 매칭을 뒀는데,
+// serve는 rewrite를 재귀로 적용해서 /motion → /motion/index.html → (다시 "/**"에 걸려)
+// → /index.html 로 덮어써졌습니다. 그래서 모든 라우트가 기본 HTML을 받아
+// 공유 미리보기 제목·설명이 전부 "FIT STEP 트레이닝 도구"로 나왔습니다.
+//
+// /academy만 예외입니다. dist/academy 에는 index.html 없이 page.htm만 있고,
+// main.tsx가 그 파일을 받아서 그려야 하므로 기본 HTML로 넘겨 줍니다.
 const serveConfig = {
   rewrites: [
-    { source: "/posture",  destination: "/posture/index.html" },
-    { source: "/admin",    destination: "/admin/index.html" },
-    { source: "/contract", destination: "/contract/index.html" },
-    { source: "/sequence", destination: "/sequence/index.html" },
-    { source: "/before-after", destination: "/before-after/index.html" },
-    { source: "/motion", destination: "/motion/index.html" },
-    { source: "/**",       destination: "/index.html" },
+    { source: "/academy",  destination: "/index.html" },
+    { source: "/academy/", destination: "/index.html" },
   ],
+  directoryListing: false,
 };
 fs.writeFileSync(path.join(distDir, "serve.json"), JSON.stringify(serveConfig, null, 2));
 console.log("✓ dist/serve.json");

@@ -75,7 +75,8 @@ const SERVICES: ServiceDef[] = [
   { id: "contract", prefix: "ct", name: "전자 회원 계약서", desc: "계약서 작성 · 서명 · 출력", usage: "계약서 생성", link: "/contract" },
   { id: "sequence", prefix: "sq", name: "시퀀스 랩", desc: "수업 시퀀스 작성 · 공유", usage: "시퀀스 저장", link: "/sequence" },
   { id: "before-after", prefix: "ba", name: "비포·애프터 메이커", desc: "체형 변화 비포·애프터 이미지 제작", usage: "이미지 저장", link: "/before-after" },
-  { id: "motion", prefix: "mc", name: "모션 메카닉", desc: "횟수 체크 · 자세 분석(카메라 관절 인식)", usage: "측정 완료", link: "/motion" },
+  { id: "motion", prefix: "mc", name: "모션 메카닉 (회원용)", desc: "횟수 체크 · 타임 어택 게임 · 센터 월간 랭킹", usage: "측정 완료", link: "/motion" },
+  { id: "motion-pro", prefix: "mc", name: "모션 메카닉 (전문가용)", desc: "트레이너용 — 가동범위 측정 · 자세 분석", usage: "측정 완료", link: "/motion-pro" },
   { id: "consult", prefix: "cs", name: "1:1 퍼스널 컨설팅", desc: "랜딩페이지 상단 무료 컨설팅 신청", visit: "컨설팅 신청 버튼 클릭", usage: "시트 자동 접수 또는 문자 신청", share: "신청 내용 복사", labels: { v: "버튼 클릭", u: "신청 접수", s: "내용 복사" }, link: "/academy#consult" },
   { id: "academy", prefix: "lp", name: "1블록 랜딩페이지", desc: "아카데미 1블록 교육 모집 페이지", usage: "신청 버튼 클릭", share: "번호·계좌 복사", link: "/academy" },
 ];

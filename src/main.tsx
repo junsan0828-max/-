@@ -25,17 +25,18 @@ function renderApp() {
   const params = new URLSearchParams(window.location.search);
   const isContractView = path.startsWith("/contract") && (params.has("name") || params.has("contractDate") || params.has("program"));
 
-  const App = path.startsWith("/admin")    ? AdminPage
-             : path.startsWith("/posture") ? PostureAnalysis
-             : path.startsWith("/sequence") ? SequenceMaker
-             : path.startsWith("/before-after") ? BeforeAfter
-             : path.startsWith("/motion") ? MotionCheck
-             : path.startsWith("/contract") ? (isContractView ? ContractPrint : ContractForm)
-             : DietPlanner;
+  // /motion = 회원용(횟수 체크·게임), /motion-pro = 트레이너용(+ 자세 분석)
+  const page = path.startsWith("/admin")    ? <AdminPage />
+             : path.startsWith("/posture") ? <PostureAnalysis />
+             : path.startsWith("/sequence") ? <SequenceMaker />
+             : path.startsWith("/before-after") ? <BeforeAfter />
+             : path.startsWith("/motion") ? <MotionCheck pro={path.startsWith("/motion-pro")} />
+             : path.startsWith("/contract") ? (isContractView ? <ContractPrint /> : <ContractForm />)
+             : <DietPlanner />;
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <App />
+      {page}
     </StrictMode>
   );
 }

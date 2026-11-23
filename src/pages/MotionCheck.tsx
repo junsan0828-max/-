@@ -211,7 +211,7 @@ function sizeOf(f: Frame): number {
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
 }
-export default function MotionCheck() {
+export default function MotionCheck({ pro = false }: { pro?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<{ detectForVideo: (v: HTMLVideoElement, t: number) => { landmarks?: Frame[] }; close?: () => void } | null>(null);
@@ -240,7 +240,7 @@ export default function MotionCheck() {
   const [basis, setBasis] = useState<string | null>(null);
   const [viewUsed, setViewUsed] = useState<View | null>(null);
   // 게임(타임 어택)
-  const [gOn, setGOn] = useState(false);
+  const [gOn, setGOn] = useState(!pro);   // 회원용은 게임이 먼저, 트레이너용은 측정이 먼저
   const [dur, setDur] = useState(30);
   const [gPhase, setGPhase] = useState<"idle" | "ready" | "run" | "done">("idle");
   const gPhaseRef = useRef<"idle" | "ready" | "run" | "done">("idle");
@@ -276,7 +276,7 @@ export default function MotionCheck() {
   const gOnRef = useRef(false);
 
   useEffect(() => {
-    document.title = "모션 메카닉 · FIT STEP";
+    document.title = pro ? "모션 메카닉 전문가용 · FIT STEP" : "모션 메카닉 · FIT STEP";
     if (!sessionStorage.getItem("mc-visited")) { sessionStorage.setItem("mc-visited", "1"); track("mc", "v"); }
     return () => { cancelAnimationFrame(rafRef.current); landmarkerRef.current?.close?.(); };
   }, []);
@@ -708,21 +708,26 @@ export default function MotionCheck() {
         <div style={{ width: 46, height: 46, background: "#1e3a5f", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Activity size={24} color="#86efac" /></div>
         <div>
           <p style={{ color: "#2563eb", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
-          <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>모션 메카닉</h1>
+          <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 7 }}>
+            모션 메카닉
+            {pro && <span style={{ background: "#1e3a5f", color: "#86efac", fontSize: 10.5, fontWeight: 800, borderRadius: 20, padding: "3px 9px", letterSpacing: "0.02em" }}>전문가용</span>}
+          </h1>
         </div>
       </header>
 
       <main style={{ maxWidth: 980, margin: "0 auto", padding: "0 16px 120px", display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {([["count", "횟수 체크", Repeat], ["analyze", "자세 분석", ScanLine]] as const).map(([k, label, Icon]) => {
-            const on = mode === k;
-            return (
-              <button key={k} onClick={() => setMode(k)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "13px 10px", borderRadius: 12, cursor: "pointer", fontSize: 15, fontWeight: 700, border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff", color: on ? "#2563eb" : "#64748b" }}>
-                <Icon size={16} /> {label}
-              </button>
-            );
-          })}
-        </div>
+        {pro && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {([["count", "횟수 체크", Repeat], ["analyze", "자세 분석", ScanLine]] as const).map(([k, label, Icon]) => {
+              const on = mode === k;
+              return (
+                <button key={k} onClick={() => setMode(k)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "13px 10px", borderRadius: 12, cursor: "pointer", fontSize: 15, fontWeight: 700, border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff", color: on ? "#2563eb" : "#64748b" }}>
+                  <Icon size={16} /> {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {mode === "count" && (
           <div style={{ display: "flex", gap: 8 }}>
