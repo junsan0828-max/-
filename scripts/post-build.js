@@ -37,8 +37,8 @@ const routes = [
   },
   {
     dir: "motion",
-    title: "FIT STEP 움직임 체크",
-    description: "카메라로 관절 움직임을 실시간으로 확인합니다. 스쿼트 반복 횟수와 관절별 움직임 범위, 좌우 차이를 보여줍니다.",
+    title: "FIT STEP 모션 메카닉",
+    description: "카메라로 관절 움직임을 실시간으로 확인합니다. 횟수 체크와 자세 분석(상체·하체·전신·보행)을 지원합니다.",
     url: "https://noble-unity-production-8100.up.railway.app/motion",
   },
 ];

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Activity, Play, Square, RotateCcw, Camera, Download, AlertTriangle, Maximize2, Minimize2 } from "lucide-react";
+import { Activity, Play, Square, RotateCcw, Camera, Download, AlertTriangle, Maximize2, Minimize2, Repeat, ScanLine, Wrench } from "lucide-react";
 import { track } from "../lib/counter";
 
 /* ── 관절 인덱스 (MediaPipe Pose 33점) ── */
@@ -42,6 +42,15 @@ const PAIRS: [string, string, string][] = [
 type Stats = Record<string, { min: number; max: number; last: number }>;
 const newStats = (): Stats => Object.fromEntries(JOINTS.map((j) => [j.key, { min: 999, max: -999, last: 0 }]));
 
+type Mode = "count" | "analyze";
+type AnalyzePart = "upper" | "lower" | "full" | "gait";
+const PARTS: { key: AnalyzePart; name: string; desc: string }[] = [
+  { key: "upper", name: "상체", desc: "어깨·팔꿈치 정렬과 좌우 균형" },
+  { key: "lower", name: "하체", desc: "고관절·무릎·발목 정렬" },
+  { key: "full", name: "전신", desc: "머리부터 발까지 전체 정렬" },
+  { key: "gait", name: "보행", desc: "걸을 때의 움직임 패턴" },
+];
+
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 };
 
 export default function MotionCheck() {
@@ -60,11 +69,13 @@ export default function MotionCheck() {
   const [reps, setReps] = useState(0);
   const [result, setResult] = useState<Stats | null>(null);
   const [personIn, setPersonIn] = useState(false);
+  const [mode, setMode] = useState<Mode>("count");
+  const [part, setPart] = useState<AnalyzePart>("full");
   const stageRef = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
 
   useEffect(() => {
-    document.title = "움직임 체크 (스쿼트) · FIT STEP";
+    document.title = "모션 메카닉 · FIT STEP";
     if (!sessionStorage.getItem("mc-visited")) { sessionStorage.setItem("mc-visited", "1"); track("mc", "v"); }
     return () => { cancelAnimationFrame(rafRef.current); landmarkerRef.current?.close?.(); };
   }, []);
@@ -192,7 +203,7 @@ export default function MotionCheck() {
   function saveResult() {
     if (!result) return;
     const lines = [
-      "[움직임 체크 · 스쿼트]",
+      "[모션 메카닉 · 횟수 체크]",
       `측정일: ${new Date().toLocaleString("ko-KR")}`,
       `반복 횟수: ${reps}회`,
       "",
@@ -219,11 +230,47 @@ export default function MotionCheck() {
         <div style={{ width: 46, height: 46, background: "#1e3a5f", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Activity size={24} color="#86efac" /></div>
         <div>
           <p style={{ color: "#2563eb", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
-          <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>움직임 체크 · 스쿼트</h1>
+          <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>모션 메카닉</h1>
         </div>
       </header>
 
       <main style={{ maxWidth: 980, margin: "0 auto", padding: "0 16px 120px", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          {([["count", "횟수 체크", Repeat], ["analyze", "자세 분석", ScanLine]] as const).map(([k, label, Icon]) => {
+            const on = mode === k;
+            return (
+              <button key={k} onClick={() => setMode(k)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "13px 10px", borderRadius: 12, cursor: "pointer", fontSize: 15, fontWeight: 700, border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff", color: on ? "#2563eb" : "#64748b" }}>
+                <Icon size={16} /> {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {mode === "analyze" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+              {PARTS.map((pt) => {
+                const on = part === pt.key;
+                return (
+                  <button key={pt.key} onClick={() => setPart(pt.key)} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff" }}>
+                    <b style={{ display: "block", fontSize: 14, color: on ? "#2563eb" : "#0f172a" }}>{pt.name}</b>
+                    <span style={{ fontSize: 11.5, color: "#64748b" }}>{pt.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ ...card, display: "flex", gap: 12, alignItems: "flex-start", background: "#f8fafc", borderStyle: "dashed" }}>
+              <Wrench size={18} color="#64748b" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <b style={{ fontSize: 14, display: "block", marginBottom: 4 }}>{PARTS.find((x) => x.key === part)?.name} 분석 — 준비 중</b>
+                <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
+                  어떤 항목을 어떤 기준으로 볼지 함께 정한 뒤 추가합니다. 아래 카메라로 관절 위치는 지금도 확인할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
         <div
           ref={stageRef}
           style={full
@@ -253,6 +300,7 @@ export default function MotionCheck() {
           {status === "ready" && (
             <>
               <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", left: 10, right: 124, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+                {mode === "analyze" && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{PARTS.find((x) => x.key === part)?.name} 보기</span>}
                 {recording && <span style={{ background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>● 측정 중</span>}
                 {recording && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 20, padding: "4px 12px" }}>{reps}회</span>}
                 {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>전신이 보이게 서 주세요</span>}
@@ -265,7 +313,7 @@ export default function MotionCheck() {
                 {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />} {full ? "작게" : "전체화면"}
               </button>
 
-              {full && (
+              {full && mode === "count" && (
                 <div style={{ position: "absolute", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: 16, right: 16, display: "flex", gap: 8, justifyContent: "center" }}>
                   {!recording ? (
                     <button onClick={startRec} style={{ flex: 1, maxWidth: 260, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> 측정 시작</button>
@@ -288,7 +336,7 @@ export default function MotionCheck() {
           )}
         </div>
 
-        {status === "ready" && (
+        {status === "ready" && mode === "count" && (
           <div style={{ display: "flex", gap: 8 }}>
             {!recording ? (
               <button onClick={startRec} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> 측정 시작</button>
@@ -299,7 +347,13 @@ export default function MotionCheck() {
           </div>
         )}
 
-        {result && (
+        {mode === "count" && status === "ready" && !recording && !result && (
+          <p style={{ fontSize: 12.5, color: "#64748b", margin: "-4px 2px 0", lineHeight: 1.7 }}>
+            지금은 <b>스쿼트</b> 기준으로 횟수를 셉니다. 무릎이 굽혔다 펴지면 1회입니다. 레터럴 레이즈·숄더 프레스는 이어서 추가할 수 있습니다.
+          </p>
+        )}
+
+        {mode === "count" && result && (
           <div style={{ ...card, display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <b style={{ fontSize: 16 }}>측정 결과</b>
