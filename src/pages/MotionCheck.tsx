@@ -139,6 +139,45 @@ export function repTick(s: Sig, now: number, lastRep: number, minRom: number): b
   return false;
 }
 
+/* ── 랭킹 종목 (게임 모드 전용) ──
+   랭킹은 같은 단위로 비교해야 하므로 기준 관절을 자동 선택하지 않고 종목별로 고정합니다.
+   minRom = 이 종목으로 인정하는 최소 가동범위. 이보다 작게 움직이면 한 번도 세지 않습니다. */
+export type ExKey = "squat" | "lunge" | "press" | "row";
+export const EXERCISES: { key: ExKey; name: string; group: "upper" | "lower"; sig: SigKey; minRom: number; view: View; tip: string }[] = [
+  { key: "squat", name: "스쿼트", group: "lower", sig: "knee", minRom: 50, view: "side", tip: "측면에서 무릎 접히는 깊이를 봅니다" },
+  { key: "lunge", name: "런지", group: "lower", sig: "knee", minRom: 45, view: "side", tip: "측면에서 앞뒤 다리가 모두 보이게" },
+  { key: "press", name: "숄더 프레스", group: "upper", sig: "elbow", minRom: 55, view: "front", tip: "정면에서 팔꿈치 펴지는 정도를 봅니다" },
+  { key: "row", name: "벤트오버로우", group: "upper", sig: "elbow", minRom: 45, view: "side", tip: "측면에서 숙인 상체와 팔이 보이게" },
+];
+export const EX_OF = (k: ExKey) => EXERCISES.find((e) => e.key === k)!;
+
+/* ── 센터 랭킹 (이 기기에만 저장. 서버로 보내지 않습니다) ── */
+export type Rank = { name: string; reps: number; at: number };
+const RANK_MAX = 3;
+const rankKey = (ex: ExKey, dur: number) => `mc_rank_${ex}_${dur}`;
+export function readRanks(ex: ExKey, dur: number): Rank[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(rankKey(ex, dur)) || "[]");
+    return Array.isArray(v) ? v.filter((r) => r && typeof r.reps === "number").slice(0, RANK_MAX) : [];
+  } catch { return []; }
+}
+function writeRanks(ex: ExKey, dur: number, list: Rank[]): void {
+  try { localStorage.setItem(rankKey(ex, dur), JSON.stringify(list.slice(0, RANK_MAX))); } catch { /* 저장을 막은 기기에서는 넘어갑니다 */ }
+}
+/** 몇 위로 들어가는지. 0=1위, -1이면 순위 밖 */
+export function rankPos(list: Rank[], reps: number): number {
+  if (reps <= 0) return -1;
+  const i = list.findIndex((r) => reps > r.reps);
+  if (i >= 0) return i;
+  return list.length < RANK_MAX ? list.length : -1;
+}
+/** 순위표에 끼워 넣고 상위 3개만 남김 */
+export function insertRank(list: Rank[], at: number, entry: Rank): Rank[] {
+  const next = [...list];
+  next.splice(at, 0, entry);
+  return next.slice(0, RANK_MAX);
+}
+
 type Stats = Record<string, { min: number; max: number; last: number }>;
 const newStats = (): Stats => Object.fromEntries(JOINTS.map((j) => [j.key, { min: 999, max: -999, last: 0 }]));
 
@@ -212,6 +251,15 @@ export default function MotionCheck() {
   const [part, setPart] = useState<AnalyzePart>("full");
   const stageRef = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
+  // 랭킹 종목 (게임 모드에서 기준 관절을 고정)
+  const [ex, setEx] = useState<ExKey>("squat");
+  const exRef = useRef<ExKey>("squat");
+  const rankingRef = useRef(false);   // 게임 모드일 때만 종목 고정이 적용됩니다
+  const [ranks, setRanks] = useState<Rank[]>([]);
+  const [nickOpen, setNickOpen] = useState(false);
+  const [nickPos, setNickPos] = useState(0);
+  const [nickReps, setNickReps] = useState(0);
+  const [nick, setNick] = useState("");
   // 양손 머리 위 감지 → 1초 유지하면 게임 시작
   const handsUpRef = useRef<number>(0); // hands-up 시작 timestamp (0 = 아님)
   const [clapTrigger, setClapTrigger] = useState(0);
@@ -372,8 +420,12 @@ export default function MotionCheck() {
 
     const f: Frame | null = pick?.p ?? null;
     draw(f, cands.filter((x) => x.p !== f).map((x) => x.p), v.videoWidth || 640, v.videoHeight || 480);
+    // 게임(랭킹) 모드에서는 종목이 정한 관절만 봅니다. 측정 모드에서는 부위 안에서 자동으로 고릅니다.
+    const fx = rankingRef.current ? EX_OF(exRef.current) : null;
     const part = cPartRef.current;
-    const sPool = SIGNALS.filter((s) => part === "auto" || s.group === part);
+    const sPool = fx
+      ? SIGNALS.filter((s) => s.key === fx.sig)
+      : SIGNALS.filter((s) => part === "auto" || s.group === part);
 
     // 그 부위의 관절이 하나라도 보이면 측정합니다 (상체만/하체만 나와도 동작)
     const ok = !!f && sPool.some((sg) => jointAngle(f!, sg.l) !== null || jointAngle(f!, sg.r) !== null);
@@ -397,8 +449,8 @@ export default function MotionCheck() {
         }
       });
 
-      // 2) 기준이 될 관절 고르기
-      driverRef.current = chooseDriver(sigRef.current, sPool.map((s) => s.key), driverRef.current);
+      // 2) 기준이 될 관절 — 랭킹 모드는 종목이 정한 관절로 고정
+      driverRef.current = fx ? fx.sig : chooseDriver(sigRef.current, sPool.map((s) => s.key), driverRef.current);
       const dk = driverRef.current;
       const dSig = dk ? SIGNALS.find((s) => s.key === dk)! : null;
       const d = dk ? sigRef.current[dk] : null;
@@ -419,13 +471,16 @@ export default function MotionCheck() {
             g.balAll += 1; if (Math.abs(d.l - d.r) <= 5) g.balOk += 1;   // 좌우 차이 5° 이내로 유지한 시간
           }
         }
-        if (d && dk && repTick(d, performance.now(), lastRepRef.current, MIN_OF(dk))) {
+        if (d && dk && repTick(d, performance.now(), lastRepRef.current, fx ? fx.minRom : MIN_OF(dk))) {
           lastRepRef.current = performance.now();
-          repRef.current.count += 1; setReps(repRef.current.count);
-          if (playing) {
-            // 이번 한 번에 쓴 범위가 그동안 쓴 범위의 85% 이상이면 '끝까지' 1회
-            if (g.cmax - g.cmin >= rangeOf(d) * 0.85) { g.full += 1; beep(1320, 90); } else beep(880, 70);
-            g.cmin = d.v; g.cmax = d.v;
+          // 이번 한 번에 쓴 범위가 그동안 쓴 범위의 85% 이상이면 '끝까지' 1회
+          const deep = g.cmax - g.cmin >= rangeOf(d) * 0.85;
+          if (playing) { if (deep) g.full += 1; g.cmin = d.v; g.cmax = d.v; }
+          // 랭킹 모드는 끝까지 한 횟수만 셉니다 (반만 굽혀 빨리 하는 쪽이 이기지 않도록)
+          if (fx && playing && !deep) beep(440, 70);
+          else {
+            repRef.current.count += 1; setReps(repRef.current.count);
+            if (playing) beep(deep ? 1320 : 880, deep ? 90 : 70);
           }
         }
       }
@@ -492,8 +547,9 @@ export default function MotionCheck() {
       o.stop(ac.currentTime + ms / 1000);
     } catch { /* 소리를 막은 기기에서는 조용히 넘어갑니다 */ }
   }
-  const bestKey = () => `mc_best_${cPartRef.current}_${viewRef.current}_${dur}`;
-  const readBest = () => { try { return Number(localStorage.getItem(bestKey()) || 0); } catch { return 0; } };
+  // 랭킹 모드는 게임 탭에서만. 종목·시간별로 순위표가 따로 쌓입니다.
+  useEffect(() => { rankingRef.current = gOn; }, [gOn]);
+  useEffect(() => { setRanks(readRanks(ex, dur)); }, [ex, dur]);
 
   function startGame() {
     if (status !== "ready") return;
@@ -502,6 +558,7 @@ export default function MotionCheck() {
     lastRepRef.current = 0;
     gRef.current = { startAt: performance.now() + 3000, endAt: 0, full: 0, balOk: 0, balAll: 0, cmin: 999, cmax: -999 };
     setReps(0); setResult(null); setBasis(null); setViewUsed(null); setGRes(null);
+    setNickOpen(false);
     setLeft(3); setGPhase("ready"); gPhaseRef.current = "ready";
     beep(660, 120);
   }
@@ -509,19 +566,33 @@ export default function MotionCheck() {
     recRef.current = false;
     gPhaseRef.current = "done"; setGPhase("done");
     const g = gRef.current, n = repRef.current.count;
-    const prev = readBest(), isBest = n > prev;
-    if (isBest) { try { localStorage.setItem(bestKey(), String(n)); } catch { /* ignore */ } }
+    const list = readRanks(exRef.current, dur);
+    const pos = rankPos(list, n);
+    setRanks(list);
     setGRes({
       reps: n, full: g.full,
       balance: viewRef.current === "front" && g.balAll > 30 ? Math.round((g.balOk / g.balAll) * 100) : null,
-      best: Math.max(prev, n), isBest, view: viewRef.current,
+      best: list[0]?.reps ?? 0, isBest: pos === 0, view: viewRef.current,
     });
     const dk = driverRef.current;
     setResult(statsRef.current);
     setBasis(dk ? SIGNALS.find((x) => x.key === dk)!.name : null);
     setViewUsed(viewRef.current);
     track("mc", "u");
-    beep(880, 160); setTimeout(() => beep(1100, 220), 180);
+    if (pos >= 0) {
+      setNickPos(pos); setNickReps(n); setNick(""); setNickOpen(true);
+      beep(880, 160); setTimeout(() => beep(1100, 160), 170); setTimeout(() => beep(1320, 260), 340);
+    } else {
+      beep(880, 160); setTimeout(() => beep(1100, 220), 180);
+    }
+  }
+  /** 순위표에 이름 올리기 */
+  function saveNick() {
+    const name = (nick.trim() || "익명").slice(0, 8);
+    const next = insertRank(readRanks(exRef.current, dur), nickPos, { name, reps: nickReps, at: Date.now() });
+    writeRanks(exRef.current, dur, next);
+    setRanks(next); setNickOpen(false);
+    track("mc", "s");
   }
   function stopGame() {
     recRef.current = false;
@@ -640,7 +711,37 @@ export default function MotionCheck() {
           </div>
         )}
 
-        {mode === "count" && (
+        {mode === "count" && gOn && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+            {EXERCISES.map((e) => {
+              const on = ex === e.key;
+              return (
+                <button key={e.key} disabled={gPhase === "ready" || gPhase === "run"}
+                  onClick={() => {
+                    setEx(e.key); exRef.current = e.key;
+                    sigRef.current = newSigs(); driverRef.current = null;
+                    setViewSel(e.view); viewSelRef.current = e.view; viewRef.current = e.view; setViewNow(e.view);
+                    setGRes(null);
+                  }}
+                  style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12, cursor: gPhase === "run" ? "not-allowed" : "pointer", border: `1px solid ${on ? "#2563eb" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff" }}>
+                  <b style={{ display: "block", fontSize: 14.5, color: on ? "#2563eb" : "#0f172a" }}>{e.name}</b>
+                  <span style={{ fontSize: 11, color: "#64748b" }}>{e.group === "lower" ? "하체" : "상체"} · {e.view === "side" ? "측면" : "정면"}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {mode === "count" && gOn && (
+          <div style={{ ...card, padding: "11px 14px", display: "flex", gap: 8, alignItems: "flex-start", background: "#f8fafc" }}>
+            <ScanLine size={15} color="#64748b" style={{ flexShrink: 0, marginTop: 2 }} />
+            <p style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.7, margin: 0 }}>
+              <b>{EX_OF(ex).name}</b> — {EX_OF(ex).tip}. 기준 관절은 <b>{SIGNALS.find((s) => s.key === EX_OF(ex).sig)!.name}</b>으로 고정됩니다.
+            </p>
+          </div>
+        )}
+
+        {mode === "count" && !gOn && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
             {COUNT_PARTS.map((pt) => {
               const on = cPart === pt.key;
@@ -843,11 +944,33 @@ export default function MotionCheck() {
                   </button>
                 );
               })}
-              <span style={{ marginLeft: "auto", fontSize: 12.5, color: "#475569" }}>내 최고 {readBest()}회</span>
             </div>
+
+            {/* 종목별·시간별 순위표 */}
+            <div style={{ borderTop: "1px solid #eef2f7", paddingTop: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Trophy size={15} color="#2563eb" />
+                <b style={{ fontSize: 13.5 }}>{EX_OF(ex).name} {dur}초 순위</b>
+              </div>
+              {ranks.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "#64748b", margin: 0 }}>아직 기록이 없습니다. 첫 번째 기록을 만들어 보세요.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {ranks.map((r, i) => (
+                    <div key={`${r.at}-${i}`} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, background: i === 0 ? "#eff6ff" : "#f8fafc", borderRadius: 8, padding: "9px 12px" }}>
+                      <span style={{ fontSize: 15 }}>{["🥇", "🥈", "🥉"][i]}</span>
+                      <b style={{ color: i === 0 ? "#2563eb" : "#0f172a" }}>{r.name}</b>
+                      <b style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>{r.reps}회</b>
+                      <span style={{ fontSize: 11.5, color: "#94a3b8" }}>{new Date(r.at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {gPhase === "idle" || gPhase === "done" ? (
               <>
-                <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {dur}초 타임 어택 시작</button>
+                <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {EX_OF(ex).name} {dur}초 시작</button>
                 <p style={{ fontSize: 12, color: "#64748b", textAlign: "center", margin: 0 }}>
                   🙌 양손을 머리 위로 들고 1초 유지하면 자동으로 시작됩니다
                 </p>
@@ -856,9 +979,8 @@ export default function MotionCheck() {
               <button onClick={stopGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#dc2626", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Square size={16} /> 그만두기</button>
             )}
             <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
-              3초 뒤 시작합니다. 제한 시간 안에 최대한 많이 반복하세요. 한 번 셀 때마다 소리가 납니다.
-              {" "}지금 시점은 <b>{viewNow === "front" ? "정면" : "측면"}</b>이라 보너스는 <b>{viewNow === "front" ? "좌우 균형(좌우 차이 5° 이내 유지 시간)" : "끝까지 내려간 횟수(가동 범위 85% 이상)"}</b>입니다.
-              {" "}기록은 이 기기에만 저장되고 서버로 보내지 않습니다.
+              3초 뒤 시작합니다. 랭킹은 <b>끝까지 한 횟수만</b> 셉니다 — 반만 굽히면 낮은 소리가 나고 카운트되지 않습니다.
+              {" "}3위 안에 들면 이름을 적을 수 있습니다. 기록은 이 기기에만 저장되고 서버로 보내지 않습니다.
             </p>
           </div>
         )}
@@ -867,18 +989,18 @@ export default function MotionCheck() {
           <div style={{ ...card, border: "2px solid #2563eb", display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Trophy size={18} color="#2563eb" />
-              <b style={{ fontSize: 16 }}>{dur}초 결과</b>
-              {gRes.isBest && <span style={{ background: "#2563eb", color: "#fff", fontSize: 12, fontWeight: 800, borderRadius: 20, padding: "3px 10px" }}>신기록!</span>}
+              <b style={{ fontSize: 16 }}>{EX_OF(ex).name} {dur}초 결과</b>
+              {gRes.isBest && <span style={{ background: "#2563eb", color: "#fff", fontSize: 12, fontWeight: 800, borderRadius: 20, padding: "3px 10px" }}>1위!</span>}
               <span style={{ marginLeft: "auto", fontSize: 12.5, color: "#64748b" }}>{gRes.view === "front" ? "정면" : "측면"} · {basis ?? "기준 없음"}</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
               {[
-                { n: "횟수", v: `${gRes.reps}회` },
+                { n: "끝까지 한 횟수", v: `${gRes.reps}회` },
                 { n: "분당 환산", v: `${Math.round((gRes.reps * 60) / dur)}회` },
-                gRes.view === "side"
-                  ? { n: "끝까지 내려간 횟수", v: `${gRes.full}회` }
-                  : { n: "좌우 균형", v: gRes.balance === null ? "—" : `${gRes.balance}%` },
-                { n: "내 최고", v: `${gRes.best}회` },
+                gRes.view === "front"
+                  ? { n: "좌우 균형", v: gRes.balance === null ? "—" : `${gRes.balance}%` }
+                  : { n: "기준 관절", v: basis ?? "—" },
+                { n: "1위 기록", v: `${gRes.best}회` },
               ].map((x) => (
                 <div key={x.n} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px" }}>
                   <p style={{ fontSize: 11.5, color: "#64748b", margin: "0 0 2px" }}>{x.n}</p>
@@ -894,6 +1016,37 @@ export default function MotionCheck() {
                   : "정면이라 좌우 균형을 봤습니다. 측정 시간 중 좌우 차이가 5° 이내였던 비율입니다."}
             </p>
             <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 13, borderRadius: 10, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", fontSize: 14, fontWeight: 700, cursor: "pointer" }}><RotateCcw size={15} /> 한 번 더</button>
+          </div>
+        )}
+
+        {/* 3위 안에 들었을 때 이름 적는 창 */}
+        {nickOpen && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(15,23,42,.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ ...card, width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 44, lineHeight: 1.1 }}>{["🥇", "🥈", "🥉"][nickPos]}</div>
+                <b style={{ fontSize: 20, display: "block", marginTop: 6 }}>{nickPos + 1}위 기록!</b>
+                <p style={{ fontSize: 13.5, color: "#475569", margin: "6px 0 0" }}>
+                  {EX_OF(ex).name} {dur}초 · <b style={{ color: "#2563eb", fontSize: 16 }}>{nickReps}회</b>
+                </p>
+              </div>
+              <div>
+                <label htmlFor="mc-nick" style={{ fontSize: 12.5, color: "#475569", display: "block", marginBottom: 6 }}>순위표에 올릴 이름 (최대 8자)</label>
+                <input
+                  id="mc-nick" value={nick} onChange={(e) => setNick(e.target.value.slice(0, 8))}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveNick(); }}
+                  placeholder="예: 민지, 회원님 별명" maxLength={8} autoFocus
+                  style={{ width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 16, fontFamily: "inherit" }}
+                />
+                <p style={{ fontSize: 11.5, color: "#94a3b8", margin: "7px 0 0", lineHeight: 1.6 }}>
+                  이 기기에만 저장되고 서버로 보내지 않습니다. 실명 대신 별명을 쓰셔도 됩니다.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setNickOpen(false)} style={{ flex: 1, padding: 14, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>건너뛰기</button>
+                <button onClick={saveNick} style={{ flex: 2, padding: 14, borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>순위표에 올리기</button>
+              </div>
+            </div>
           </div>
         )}
 
