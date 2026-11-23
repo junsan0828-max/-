@@ -53,6 +53,24 @@ const PARTS: { key: AnalyzePart; name: string; desc: string }[] = [
 
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 };
 
+/* ── 측정 구역 (화면 가운데. 이 안에 있는 사람만 측정 대상으로 봅니다) ── */
+const ZONE = { x0: 0.17, x1: 0.83, y0: 0.02, y1: 0.98 };
+
+/** 사람의 기준점: 골반 중앙(없으면 어깨 중앙) */
+function centerOf(f: Frame): Pt | null {
+  if (vis(f, L.hip) && vis(f, R.hip)) return { x: (f[L.hip].x + f[R.hip].x) / 2, y: (f[L.hip].y + f[R.hip].y) / 2 };
+  if (vis(f, L.shoulder) && vis(f, R.shoulder)) return { x: (f[L.shoulder].x + f[R.shoulder].x) / 2, y: (f[L.shoulder].y + f[R.shoulder].y) / 2 };
+  return null;
+}
+/** 화면에 보이는 크기 = 가까이 있을수록 큼 */
+function sizeOf(f: Frame): number {
+  const pts = DOTS.filter((i) => vis(f, i)).map((i) => f[i]);
+  if (pts.length < 4) return 0;
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+}
+const inZone = (c: Pt) => c.x >= ZONE.x0 && c.x <= ZONE.x1 && c.y >= ZONE.y0 && c.y <= ZONE.y1;
+
 export default function MotionCheck() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,6 +79,10 @@ export default function MotionCheck() {
   const statsRef = useRef<Stats>(newStats());
   const recRef = useRef(false);
   const repRef = useRef<{ down: boolean; count: number; depth: number }>({ down: false, count: 0, depth: 999 });
+  const trackRef = useRef<Pt | null>(null);   // 지금 따라가는 사람의 위치
+  const tapRef = useRef<Pt | null>(null);     // 화면을 눌러 고른 위치 (다음 프레임에 반영)
+  const missRef = useRef(0);                  // 놓친 프레임 수
+  const lockRef = useRef(false);              // 직접 고른 상태인지
 
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [errMsg, setErrMsg] = useState("");
@@ -69,6 +91,10 @@ export default function MotionCheck() {
   const [reps, setReps] = useState(0);
   const [result, setResult] = useState<Stats | null>(null);
   const [personIn, setPersonIn] = useState(false);
+  const [people, setPeople] = useState(0);
+  const [locked, setLocked] = useState(false);
+  const [zoneOn, setZoneOn] = useState(true);
+  const zoneRef = useRef(true);
   const [mode, setMode] = useState<Mode>("count");
   const [part, setPart] = useState<AnalyzePart>("full");
   const stageRef = useRef<HTMLDivElement>(null);
@@ -100,13 +126,67 @@ export default function MotionCheck() {
     } catch { setFull((v) => !v); }
   }
 
-  const draw = useCallback((f: Frame | null, w: number, h: number) => {
+  /** 화면을 누른 지점 → 영상 좌표(거울 보정) */
+  function onStageTap(e: React.PointerEvent) {
+    if (status !== "ready") return;
+    if ((e.target as HTMLElement).closest("button")) return;
+    const cv = canvasRef.current; if (!cv || !cv.width) return;
+    const r = cv.getBoundingClientRect();
+    const sc = full ? Math.min(r.width / cv.width, r.height / cv.height) : Math.max(r.width / cv.width, r.height / cv.height);
+    const dw = cv.width * sc, dh = cv.height * sc;
+    const x = (e.clientX - r.left - (r.width - dw) / 2) / dw;
+    const y = (e.clientY - r.top - (r.height - dh) / 2) / dh;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    tapRef.current = { x: 1 - x, y };
+  }
+  function autoSelect() {
+    tapRef.current = null; trackRef.current = null; missRef.current = 0;
+    lockRef.current = false; setLocked(false);
+  }
+
+  const draw = useCallback((f: Frame | null, others: Frame[], w: number, h: number) => {
     const cv = canvasRef.current; if (!cv) return;
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     const ctx = cv.getContext("2d")!;
     ctx.clearRect(0, 0, w, h);
-    if (!f) return;
     const px = (p: Pt) => ({ x: (1 - p.x) * w, y: p.y * h }); // 거울 보기
+
+    // 측정 구역 안내선
+    if (zoneRef.current) {
+      const x = (1 - ZONE.x1) * w, y = ZONE.y0 * h;
+      const bw = (ZONE.x1 - ZONE.x0) * w, bh = (ZONE.y1 - ZONE.y0) * h;
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.34)";
+      ctx.fillRect(0, 0, x, h); ctx.fillRect(x + bw, 0, w - x - bw, h);
+      ctx.setLineDash([10, 8]); ctx.lineWidth = Math.max(2, w / 420); ctx.strokeStyle = "rgba(255,255,255,.65)";
+      ctx.strokeRect(x, y, bw, bh);
+      ctx.restore();
+    }
+
+    // 측정 대상이 아닌 사람 — 흐리게
+    ctx.save();
+    ctx.strokeStyle = "rgba(148,163,184,.55)"; ctx.lineWidth = Math.max(2, w / 420);
+    others.forEach((o) => {
+      BONES.forEach(([a, b]) => {
+        if (!vis(o, a) || !vis(o, b)) return;
+        const p1 = px(o[a]), p2 = px(o[b]);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      });
+    });
+    ctx.restore();
+
+    if (!f) return;
+
+    // 측정 대상 표시
+    const c = centerOf(f);
+    if (c) {
+      const p = px(c);
+      ctx.save();
+      ctx.strokeStyle = "#4ade80"; ctx.lineWidth = Math.max(2, w / 400); ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(20, w / 22), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.lineWidth = Math.max(3, w / 220);
     ctx.strokeStyle = "#4ade80"; ctx.shadowColor = "#4ade80"; ctx.shadowBlur = 8;
     BONES.forEach(([a, b]) => {
@@ -133,9 +213,42 @@ export default function MotionCheck() {
   const loop = useCallback(() => {
     const v = videoRef.current, lm = landmarkerRef.current;
     if (!v || !lm || v.readyState < 2) { rafRef.current = requestAnimationFrame(loop); return; }
-    let f: Frame | null = null;
-    try { f = lm.detectForVideo(v, performance.now()).landmarks?.[0] ?? null; } catch { f = null; }
-    draw(f, v.videoWidth || 640, v.videoHeight || 480);
+    let poses: Frame[] = [];
+    try { poses = lm.detectForVideo(v, performance.now()).landmarks ?? []; } catch { poses = []; }
+
+    // ── 측정할 사람 고르기 ──
+    const cands = poses
+      .map((p) => ({ p, c: centerOf(p), size: sizeOf(p) }))
+      .filter((x): x is { p: Frame; c: Pt; size: number } => !!x.c && x.size > 0.08);
+    setPeople(cands.length);
+    let pool = zoneRef.current ? cands.filter((x) => inZone(x.c)) : cands;
+    if (!pool.length && !zoneRef.current) pool = cands;
+
+    let pick: { p: Frame; c: Pt; size: number } | null = null;
+    const tap = tapRef.current;
+    if (tap && cands.length) {
+      // 누른 지점에서 가장 가까운 사람을 지정 (구역 밖이어도 허용)
+      pick = cands.reduce((a, b) => (Math.hypot(b.c.x - tap.x, b.c.y - tap.y) < Math.hypot(a.c.x - tap.x, a.c.y - tap.y) ? b : a));
+      tapRef.current = null; lockRef.current = true; setLocked(true);
+    } else if (trackRef.current && pool.length) {
+      // 직전 위치에서 가장 가까운 사람을 계속 따라감
+      const t = trackRef.current;
+      const near = pool.reduce((a, b) => (Math.hypot(b.c.x - t.x, b.c.y - t.y) < Math.hypot(a.c.x - t.x, a.c.y - t.y) ? b : a));
+      if (Math.hypot(near.c.x - t.x, near.c.y - t.y) < 0.22) pick = near;
+    }
+    if (!pick && pool.length) {
+      if (lockRef.current) {
+        // 지정한 사람을 잠깐 놓친 경우: 약 1초간 기다렸다가 자동 선택으로 돌아감
+        missRef.current += 1;
+        if (missRef.current > 30) { lockRef.current = false; setLocked(false); trackRef.current = null; }
+      }
+      if (!lockRef.current) pick = pool.reduce((a, b) => (b.size > a.size ? b : a)); // 가장 크게(가까이) 보이는 사람
+    }
+    if (pick) { trackRef.current = pick.c; missRef.current = 0; }
+    else if (!pool.length) { missRef.current += 1; if (missRef.current > 30) { trackRef.current = null; if (lockRef.current) { lockRef.current = false; setLocked(false); } } }
+
+    const f: Frame | null = pick?.p ?? null;
+    draw(f, cands.filter((x) => x.p !== f).map((x) => x.p), v.videoWidth || 640, v.videoHeight || 480);
     const ok = !!f && vis(f, L.knee) && vis(f, R.knee) && vis(f, L.hip) && vis(f, R.hip);
     setPersonIn(ok);
     if (f && ok) {
@@ -172,7 +285,7 @@ export default function MotionCheck() {
       const files = await vision.FilesetResolver.forVisionTasks("/pose");
       landmarkerRef.current = await vision.PoseLandmarker.createFromOptions(files, {
         baseOptions: { modelAssetPath: "/pose/pose_landmarker_lite.task", delegate: "GPU" },
-        runningMode: "VIDEO", numPoses: 1,
+        runningMode: "VIDEO", numPoses: 4,
       }) as unknown as typeof landmarkerRef.current;
       setStatus("ready");
       rafRef.current = requestAnimationFrame(loop);
@@ -273,6 +386,7 @@ export default function MotionCheck() {
 
         <div
           ref={stageRef}
+          onPointerDown={onStageTap}
           style={full
             ? { position: "fixed", inset: 0, zIndex: 50, background: "#000", borderRadius: 0, overflow: "hidden" }
             : { position: "relative", background: "#0f172a", borderRadius: 16, overflow: "hidden", aspectRatio: "4 / 3" }}
@@ -303,7 +417,9 @@ export default function MotionCheck() {
                 {mode === "analyze" && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{PARTS.find((x) => x.key === part)?.name} 보기</span>}
                 {recording && <span style={{ background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>● 측정 중</span>}
                 {recording && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 20, padding: "4px 12px" }}>{reps}회</span>}
-                {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>전신이 보이게 서 주세요</span>}
+                {people > 1 && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{people}명 인식 · {locked ? "지정한 사람 측정" : "가까운 사람 측정"}</span>}
+                {locked && <button onClick={autoSelect} style={{ background: "rgba(37,99,235,.92)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px", cursor: "pointer" }}>자동 선택으로</button>}
+                {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>측정 구역 안에 전신이 보이게 서 주세요</span>}
               </div>
               <button
                 onClick={toggleFull}
@@ -347,10 +463,22 @@ export default function MotionCheck() {
           </div>
         )}
 
-        {mode === "count" && status === "ready" && !recording && !result && (
-          <p style={{ fontSize: 12.5, color: "#64748b", margin: "-4px 2px 0", lineHeight: 1.7 }}>
-            지금은 <b>스쿼트</b> 기준으로 횟수를 셉니다. 무릎이 굽혔다 펴지면 1회입니다. 레터럴 레이즈·숄더 프레스는 이어서 추가할 수 있습니다.
-          </p>
+        {mode === "count" && status === "ready" && (
+          <div style={{ ...card, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <b style={{ fontSize: 13.5 }}>측정할 사람</b>
+              <span style={{ fontSize: 12.5, color: "#475569" }}>{people === 0 ? "아직 인식된 사람이 없습니다" : locked ? `${people}명 중 직접 지정한 사람을 측정 중` : `${people}명 인식 · 가장 가까운 사람 자동 선택`}</span>
+              {locked && <button onClick={autoSelect} style={{ marginLeft: "auto", padding: "7px 12px", borderRadius: 9, border: "1px solid #e2e8f0", background: "#fff", color: "#2563eb", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>자동 선택으로</button>}
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#475569", cursor: "pointer" }}>
+              <input type="checkbox" checked={zoneOn} onChange={(e) => { setZoneOn(e.target.checked); zoneRef.current = e.target.checked; autoSelect(); }} />
+              측정 구역만 보기 — 구역 밖(뒤로 지나가거나 옆에 선 사람)은 세지 않습니다
+            </label>
+            <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
+              여러 명이 보이면 <b>가장 크게(가까이) 보이는 사람</b>을 자동으로 고릅니다. 다른 사람을 재려면 <b>화면에서 그 사람을 한 번 누르세요</b> — 지정하면 계속 그 사람만 따라갑니다.
+              {" "}지금은 <b>스쿼트</b> 기준으로, 무릎이 굽혔다 펴지면 1회입니다.
+            </p>
+          </div>
         )}
 
         {mode === "count" && result && (
