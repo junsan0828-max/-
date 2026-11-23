@@ -719,6 +719,16 @@ export default function MotionCheck() {
                 {locked && <button onClick={autoSelect} style={{ background: "rgba(37,99,235,.92)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px", cursor: "pointer" }}>자동 선택으로</button>}
                 {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>화면 안에 {cPart === "upper" ? "상체" : cPart === "lower" ? "하체" : "전신"}가 보이게 서 주세요</span>}
               </div>
+              {full && (
+                <button
+                  onClick={toggleFull}
+                  aria-label="화면 작게"
+                  style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", right: 10, display: "flex", alignItems: "center", gap: 5, background: "rgba(15,23,42,.85)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 10, padding: "9px 14px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  <Minimize2 size={15} /> 작게
+                </button>
+              )}
+
               {mode === "count" && gOn && (gPhase === "ready" || gPhase === "run") && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                   {gPhase === "ready" ? (
