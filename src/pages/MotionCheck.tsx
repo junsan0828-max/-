@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Activity, Play, Square, RotateCcw, Camera, Download, AlertTriangle, Maximize2, Minimize2, Repeat, ScanLine, Wrench, Timer, Trophy } from "lucide-react";
 import { track } from "../lib/counter";
+import { fetchTop, addRank, type Rank } from "../lib/rank";
+
+export type { Rank };
 
 /* ── 관절 인덱스 (MediaPipe Pose 33점) ── */
 const NOSE = 0;
@@ -151,17 +154,20 @@ export const EXERCISES: { key: ExKey; name: string; group: "upper" | "lower"; si
 ];
 export const EX_OF = (k: ExKey) => EXERCISES.find((e) => e.key === k)!;
 
-/* ── 센터 랭킹 (이 기기에만 저장. 서버로 보내지 않습니다) ── */
-export type Rank = { name: string; reps: number; at: number };
+/* ── 센터 랭킹 ──
+   서버(Supabase)에 월별로 쌓고, 서버를 못 쓰면 이 기기 저장으로 대체합니다.
+   기기 저장은 서버가 살아 있을 때도 캐시로 함께 갱신해 둡니다. */
 const RANK_MAX = 3;
-const rankKey = (ex: ExKey, dur: number) => `mc_rank_${ex}_${dur}`;
+/** 한국시간 기준 'YYYY-MM'. 서버 쿼리와 같은 기준으로 월을 나눕니다 */
+export const ymNow = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7);
+const rankKey = (ex: ExKey, dur: number) => `mc_rank_${ymNow()}_${ex}_${dur}`;
 export function readRanks(ex: ExKey, dur: number): Rank[] {
   try {
     const v = JSON.parse(localStorage.getItem(rankKey(ex, dur)) || "[]");
     return Array.isArray(v) ? v.filter((r) => r && typeof r.reps === "number").slice(0, RANK_MAX) : [];
   } catch { return []; }
 }
-function writeRanks(ex: ExKey, dur: number, list: Rank[]): void {
+export function writeRanks(ex: ExKey, dur: number, list: Rank[]): void {
   try { localStorage.setItem(rankKey(ex, dur), JSON.stringify(list.slice(0, RANK_MAX))); } catch { /* 저장을 막은 기기에서는 넘어갑니다 */ }
 }
 /** 몇 위로 들어가는지. 0=1위, -1이면 순위 밖 */
@@ -256,6 +262,9 @@ export default function MotionCheck() {
   const exRef = useRef<ExKey>("squat");
   const rankingRef = useRef(false);   // 게임 모드일 때만 종목 고정이 적용됩니다
   const [ranks, setRanks] = useState<Rank[]>([]);
+  const ranksRef = useRef<Rank[]>([]);
+  const [rankSrc, setRankSrc] = useState<"server" | "local">("local");
+  const [nickBusy, setNickBusy] = useState(false);
   const [nickOpen, setNickOpen] = useState(false);
   const [nickPos, setNickPos] = useState(0);
   const [nickReps, setNickReps] = useState(0);
@@ -549,7 +558,18 @@ export default function MotionCheck() {
   }
   // 랭킹 모드는 게임 탭에서만. 종목·시간별로 순위표가 따로 쌓입니다.
   useEffect(() => { rankingRef.current = gOn; }, [gOn]);
-  useEffect(() => { setRanks(readRanks(ex, dur)); }, [ex, dur]);
+  useEffect(() => { ranksRef.current = ranks; }, [ranks]);
+
+  /** 순위표 새로 읽기. 서버가 되면 서버 기준, 안 되면 이 기기 저장 기준 */
+  const loadRanks = useCallback(async (exKey: ExKey, d: number) => {
+    const local = readRanks(exKey, d);
+    setRanks(local); setRankSrc("local");
+    const server = await fetchTop(exKey, d);
+    if (!server) return;
+    setRanks(server); setRankSrc("server");
+    writeRanks(exKey, d, server);   // 서버가 끊겼을 때 보여줄 캐시
+  }, []);
+  useEffect(() => { void loadRanks(ex, dur); }, [ex, dur, loadRanks]);
 
   function startGame() {
     if (status !== "ready") return;
@@ -566,9 +586,8 @@ export default function MotionCheck() {
     recRef.current = false;
     gPhaseRef.current = "done"; setGPhase("done");
     const g = gRef.current, n = repRef.current.count;
-    const list = readRanks(exRef.current, dur);
+    const list = ranksRef.current;
     const pos = rankPos(list, n);
-    setRanks(list);
     setGRes({
       reps: n, full: g.full,
       balance: viewRef.current === "front" && g.balAll > 30 ? Math.round((g.balOk / g.balAll) * 100) : null,
@@ -586,12 +605,19 @@ export default function MotionCheck() {
       beep(880, 160); setTimeout(() => beep(1100, 220), 180);
     }
   }
-  /** 순위표에 이름 올리기 */
-  function saveNick() {
+  /** 순위표에 이름 올리기. 서버에 올리고 다시 읽어옵니다 */
+  async function saveNick() {
+    if (nickBusy) return;
     const name = (nick.trim() || "익명").slice(0, 8);
-    const next = insertRank(readRanks(exRef.current, dur), nickPos, { name, reps: nickReps, at: Date.now() });
-    writeRanks(exRef.current, dur, next);
-    setRanks(next); setNickOpen(false);
+    const exKey = exRef.current;
+    setNickBusy(true);
+    // 서버가 안 되더라도 이 기기에는 남도록 먼저 기록
+    const local = insertRank(readRanks(exKey, dur), nickPos, { name, reps: nickReps, at: Date.now() });
+    writeRanks(exKey, dur, local);
+    setRanks(local);
+    const ok = await addRank(exKey, dur, name, nickReps);
+    if (ok) await loadRanks(exKey, dur);   // 다른 기기 기록까지 반영된 순위로 갱신
+    setNickBusy(false); setNickOpen(false);
     track("mc", "s");
   }
   function stopGame() {
@@ -950,7 +976,10 @@ export default function MotionCheck() {
             <div style={{ borderTop: "1px solid #eef2f7", paddingTop: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <Trophy size={15} color="#2563eb" />
-                <b style={{ fontSize: 13.5 }}>{EX_OF(ex).name} {dur}초 순위</b>
+                <b style={{ fontSize: 13.5 }}>{EX_OF(ex).name} {dur}초 · {Number(ymNow().slice(5))}월 순위</b>
+                <span style={{ marginLeft: "auto", fontSize: 11, color: rankSrc === "server" ? "#16a34a" : "#94a3b8" }}>
+                  {rankSrc === "server" ? "센터 전체" : "이 기기"}
+                </span>
               </div>
               {ranks.length === 0 ? (
                 <p style={{ fontSize: 12.5, color: "#64748b", margin: 0 }}>아직 기록이 없습니다. 첫 번째 기록을 만들어 보세요.</p>
@@ -980,7 +1009,7 @@ export default function MotionCheck() {
             )}
             <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
               3초 뒤 시작합니다. 랭킹은 <b>끝까지 한 횟수만</b> 셉니다 — 반만 굽히면 낮은 소리가 나고 카운트되지 않습니다.
-              {" "}3위 안에 들면 이름을 적을 수 있습니다. 기록은 이 기기에만 저장되고 서버로 보내지 않습니다.
+              {" "}3위 안에 들면 이름을 적을 수 있습니다. 순위표는 <b>매월 1일에 새로 시작</b>합니다.
             </p>
           </div>
         )}
@@ -1039,12 +1068,12 @@ export default function MotionCheck() {
                   style={{ width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 16, fontFamily: "inherit" }}
                 />
                 <p style={{ fontSize: 11.5, color: "#94a3b8", margin: "7px 0 0", lineHeight: 1.6 }}>
-                  이 기기에만 저장되고 서버로 보내지 않습니다. 실명 대신 별명을 쓰셔도 됩니다.
+                  센터 순위표에 올라갑니다. 실명 대신 별명을 쓰셔도 됩니다. 이름과 횟수만 저장되고 영상은 저장되지 않습니다.
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setNickOpen(false)} style={{ flex: 1, padding: 14, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>건너뛰기</button>
-                <button onClick={saveNick} style={{ flex: 2, padding: 14, borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>순위표에 올리기</button>
+                <button onClick={() => setNickOpen(false)} disabled={nickBusy} style={{ flex: 1, padding: 14, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 700, cursor: nickBusy ? "not-allowed" : "pointer" }}>건너뛰기</button>
+                <button onClick={saveNick} disabled={nickBusy} style={{ flex: 2, padding: 14, borderRadius: 10, border: "none", background: nickBusy ? "#93b4f0" : "#2563eb", color: "#fff", fontSize: 15, fontWeight: 700, cursor: nickBusy ? "not-allowed" : "pointer" }}>{nickBusy ? "올리는 중…" : "순위표에 올리기"}</button>
               </div>
             </div>
           </div>
