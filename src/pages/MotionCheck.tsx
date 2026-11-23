@@ -244,6 +244,19 @@ export default function MotionCheck() {
     } catch { setFull((v) => !v); }
   }
 
+  /** 전체화면으로 들어가기. requestFullscreen은 탭 제스처 안에서 바로 호출해야 합니다 */
+  function enterFull() {
+    const el = stageRef.current;
+    if (document.fullscreenElement || full) return;
+    if (el?.requestFullscreen) el.requestFullscreen({ navigationUI: "hide" }).catch(() => setFull(true));
+    else setFull(true); // 전체화면을 막는 기기에서는 화면 꽉 채우기로 대체
+  }
+  /** 카메라 켜기 + 전체화면을 한 번에 (탭 한 번 줄이기) */
+  function startCameraFull() {
+    enterFull();
+    void startCamera();
+  }
+
   /** 화면을 누른 지점 → 영상 좌표(거울 보정) */
   function onStageTap(e: React.PointerEvent) {
     if (status !== "ready") return;
@@ -712,7 +725,8 @@ export default function MotionCheck() {
               ) : (
                 <>
                   <p style={{ fontSize: 14, lineHeight: 1.7 }}>정면에서 전신이 보이도록 카메라를 놓고 시작하세요.<br />영상은 이 기기 안에서만 처리되고 전송되지 않습니다.</p>
-                  <button onClick={startCamera} style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 10, padding: "14px 24px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>카메라 켜기</button>
+                  <button onClick={startCameraFull} style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 10, padding: "14px 24px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>카메라 켜기</button>
+                  <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>바로 전체화면으로 열립니다. 설정을 바꾸려면 오른쪽 위 ‘작게’를 누르세요.</p>
                 </>
               )}
             </div>
