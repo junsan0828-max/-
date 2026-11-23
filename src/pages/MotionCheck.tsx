@@ -211,9 +211,10 @@ export default function MotionCheck() {
   const [part, setPart] = useState<AnalyzePart>("full");
   const stageRef = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
-  // 시각 박수 감지 (양손 모으기)
-  const visualClapRef = useRef<{ apart: boolean; times: number[] }>({ apart: true, times: [] });
+  // 양손 머리 위 감지 → 1초 유지하면 게임 시작
+  const handsUpRef = useRef<number>(0); // hands-up 시작 timestamp (0 = 아님)
   const [clapTrigger, setClapTrigger] = useState(0);
+  const [handsUpPct, setHandsUpPct] = useState(0); // 0~100
   const gOnRef = useRef(false);
 
   useEffect(() => {
@@ -416,20 +417,25 @@ export default function MotionCheck() {
       }
     } else setLive(null);
 
-    // 시각 박수 감지: 양손 손목이 가까워지면(< 0.12) 1번, 1.5초 안에 2번 → 게임 시작
-    if (f && gOnRef.current && (gPhaseRef.current === "idle" || gPhaseRef.current === "done")) {
-      const lw = f[L.wrist], rw = f[R.wrist];
-      if ((lw?.visibility ?? 0) > 0.5 && (rw?.visibility ?? 0) > 0.5) {
-        const dist = Math.hypot(lw.x - rw.x, lw.y - rw.y);
-        const vc = visualClapRef.current;
-        if (vc.apart && dist < 0.18) {
-          vc.apart = false;
-          const now = Date.now();
-          vc.times = [...vc.times.filter((t) => now - t < 2000), now];
-          if (vc.times.length >= 2) { vc.times = []; setClapTrigger((c) => c + 1); }
-        } else if (!vc.apart && dist > 0.20) {
-          vc.apart = true;
+    // 양손 머리 위 감지: 양쪽 손목이 코보다 위에 있으면 카운트, 1초 유지 → 게임 시작
+    if (gOnRef.current && (gPhaseRef.current === "idle" || gPhaseRef.current === "done")) {
+      const pose = f ?? cands[0]?.p ?? null;
+      const HOLD_MS = 1000;
+      if (pose) {
+        const lw = pose[L.wrist], rw = pose[R.wrist], ns = pose[NOSE];
+        const handsUp = ns && vis(pose, NOSE)
+          && (lw?.visibility ?? 0) > 0.35 && (rw?.visibility ?? 0) > 0.35
+          && lw.y < ns.y - 0.08 && rw.y < ns.y - 0.08;
+        if (handsUp) {
+          if (!handsUpRef.current) handsUpRef.current = Date.now();
+          const pct = Math.min(100, Math.round(((Date.now() - handsUpRef.current) / HOLD_MS) * 100));
+          setHandsUpPct(pct);
+          if (pct >= 100) { handsUpRef.current = 0; setHandsUpPct(0); setClapTrigger((c) => c + 1); }
+        } else {
+          if (handsUpRef.current) { handsUpRef.current = 0; setHandsUpPct(0); }
         }
+      } else {
+        if (handsUpRef.current) { handsUpRef.current = 0; setHandsUpPct(0); }
       }
     }
     rafRef.current = requestAnimationFrame(loop);
@@ -729,6 +735,16 @@ export default function MotionCheck() {
                 </button>
               )}
 
+              {mode === "count" && gOn && (gPhase === "idle" || gPhase === "done") && handsUpPct > 0 && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", gap: 12 }}>
+                  <div style={{ fontSize: "min(14vw, 64px)" }}>🙌</div>
+                  <div style={{ width: "min(40vw, 160px)", height: 8, background: "rgba(255,255,255,.3)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${handsUpPct}%`, background: "#4ade80", borderRadius: 4, transition: "width 0.1s" }} />
+                  </div>
+                  <span style={{ color: "#fff", fontSize: 14, fontWeight: 700, textShadow: "0 2px 8px rgba(0,0,0,.7)" }}>손 유지 중…</span>
+                </div>
+              )}
+
               {mode === "count" && gOn && (gPhase === "ready" || gPhase === "run") && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                   {gPhase === "ready" ? (
@@ -806,7 +822,7 @@ export default function MotionCheck() {
               <>
                 <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {dur}초 타임 어택 시작</button>
                 <p style={{ fontSize: 12, color: "#64748b", textAlign: "center", margin: 0 }}>
-                  👏 양손을 모았다 펴기 2번으로도 시작할 수 있습니다
+                  🙌 양손을 머리 위로 들고 1초 유지하면 자동으로 시작됩니다
                 </p>
               </>
             ) : (
