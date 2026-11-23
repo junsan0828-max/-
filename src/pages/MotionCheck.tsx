@@ -147,7 +147,9 @@ export function repTick(s: Sig, now: number, lastRep: number, minRom: number): b
    minRom = 이 종목으로 인정하는 최소 가동범위. 이보다 작게 움직이면 한 번도 세지 않습니다. */
 export type ExKey = "squat" | "lunge" | "press" | "row";
 export const EXERCISES: { key: ExKey; name: string; group: "upper" | "lower"; sig: SigKey; minRom: number; view: View; tip: string }[] = [
-  { key: "squat", name: "스쿼트", group: "lower", sig: "knee", minRom: 50, view: "side", tip: "측면에서 무릎 접히는 깊이를 봅니다" },
+  // 정면에서는 무릎이 카메라 쪽으로 나와 각도가 실제보다 작게 보입니다.
+  // 그래서 측면 종목보다 기준을 낮게 잡았습니다 (실측 후 조정 필요).
+  { key: "squat", name: "스쿼트", group: "lower", sig: "knee", minRom: 30, view: "front", tip: "정면에서 양 무릎이 보이게 서세요" },
   { key: "lunge", name: "런지", group: "lower", sig: "knee", minRom: 45, view: "side", tip: "측면에서 앞뒤 다리가 모두 보이게" },
   { key: "press", name: "숄더 프레스", group: "upper", sig: "elbow", minRom: 55, view: "front", tip: "정면에서 팔꿈치 펴지는 정도를 봅니다" },
   { key: "row", name: "벤트오버로우", group: "upper", sig: "elbow", minRom: 45, view: "side", tip: "측면에서 숙인 상체와 팔이 보이게" },
@@ -245,7 +247,7 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
   const [gPhase, setGPhase] = useState<"idle" | "ready" | "run" | "done">("idle");
   const gPhaseRef = useRef<"idle" | "ready" | "run" | "done">("idle");
   const [left, setLeft] = useState(0);
-  const [gRes, setGRes] = useState<{ reps: number; full: number; balance: number | null; best: number; isBest: boolean; view: View } | null>(null);
+  const [gRes, setGRes] = useState<{ reps: number; full: number; balance: number | null; best: number; isBest: boolean; view: View; rom: number; minRom: number } | null>(null);
   const gRef = useRef({ startAt: 0, endAt: 0, full: 0, balOk: 0, balAll: 0, cmin: 999, cmax: -999 });
   const acRef = useRef<AudioContext | null>(null);
   const [reps, setReps] = useState(0);
@@ -588,10 +590,13 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
     const g = gRef.current, n = repRef.current.count;
     const list = ranksRef.current;
     const pos = rankPos(list, n);
+    const dkNow = driverRef.current;
     setGRes({
       reps: n, full: g.full,
       balance: viewRef.current === "front" && g.balAll > 30 ? Math.round((g.balOk / g.balAll) * 100) : null,
       best: list[0]?.reps ?? 0, isBest: pos === 0, view: viewRef.current,
+      rom: dkNow ? Math.round(rangeOf(sigRef.current[dkNow])) : 0,
+      minRom: EX_OF(exRef.current).minRom,
     });
     const dk = driverRef.current;
     setResult(statsRef.current);
@@ -1034,7 +1039,7 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
                 gRes.view === "front"
                   ? { n: "좌우 균형", v: gRes.balance === null ? "—" : `${gRes.balance}%` }
                   : { n: "기준 관절", v: basis ?? "—" },
-                { n: "1위 기록", v: `${gRes.best}회` },
+                { n: "쓴 가동범위", v: `${gRes.rom}° / 기준 ${gRes.minRom}°` },
               ].map((x) => (
                 <div key={x.n} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px" }}>
                   <p style={{ fontSize: 11.5, color: "#64748b", margin: "0 0 2px" }}>{x.n}</p>
