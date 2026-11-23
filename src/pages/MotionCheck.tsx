@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Activity, Play, Square, RotateCcw, Camera, Download, AlertTriangle } from "lucide-react";
+import { Activity, Play, Square, RotateCcw, Camera, Download, AlertTriangle, Maximize2, Minimize2 } from "lucide-react";
 import { track } from "../lib/counter";
 
 /* ── 관절 인덱스 (MediaPipe Pose 33점) ── */
@@ -60,12 +60,34 @@ export default function MotionCheck() {
   const [reps, setReps] = useState(0);
   const [result, setResult] = useState<Stats | null>(null);
   const [personIn, setPersonIn] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
 
   useEffect(() => {
     document.title = "움직임 체크 (스쿼트) · FIT STEP";
     if (!sessionStorage.getItem("mc-visited")) { sessionStorage.setItem("mc-visited", "1"); track("mc", "v"); }
     return () => { cancelAnimationFrame(rafRef.current); landmarkerRef.current?.close?.(); };
   }, []);
+
+  useEffect(() => {
+    const on = () => setFull(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", on);
+    document.addEventListener("webkitfullscreenchange", on);
+    return () => {
+      document.removeEventListener("fullscreenchange", on);
+      document.removeEventListener("webkitfullscreenchange", on);
+    };
+  }, []);
+
+  async function toggleFull() {
+    const el = stageRef.current; if (!el) return;
+    try {
+      if (document.fullscreenElement) { await document.exitFullscreen(); setFull(false); }
+      else if (full) setFull(false);
+      else if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: "hide" });
+      else setFull((v) => !v); // 전체화면을 막는 기기에서는 화면 꽉 채우기로 대체
+    } catch { setFull((v) => !v); }
+  }
 
   const draw = useCallback((f: Frame | null, w: number, h: number) => {
     const cv = canvasRef.current; if (!cv) return;
@@ -202,9 +224,14 @@ export default function MotionCheck() {
       </header>
 
       <main style={{ maxWidth: 980, margin: "0 auto", padding: "0 16px 120px", display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ position: "relative", background: "#0f172a", borderRadius: 16, overflow: "hidden", aspectRatio: "4 / 3" }}>
-          <video ref={videoRef} playsInline muted style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
-          <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        <div
+          ref={stageRef}
+          style={full
+            ? { position: "fixed", inset: 0, zIndex: 50, background: "#000", borderRadius: 0, overflow: "hidden" }
+            : { position: "relative", background: "#0f172a", borderRadius: 16, overflow: "hidden", aspectRatio: "4 / 3" }}
+        >
+          <video ref={videoRef} playsInline muted style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: full ? "contain" : "cover", transform: "scaleX(-1)" }} />
+          <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: full ? "contain" : "cover" }} />
 
           {status !== "ready" && (
             <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 20, textAlign: "center", color: "#e2e8f0" }}>
@@ -225,13 +252,31 @@ export default function MotionCheck() {
 
           {status === "ready" && (
             <>
-              <div style={{ position: "absolute", top: 10, left: 10, right: 10, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", left: 10, right: 124, display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
                 {recording && <span style={{ background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>● 측정 중</span>}
                 {recording && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 20, padding: "4px 12px" }}>{reps}회</span>}
                 {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>전신이 보이게 서 주세요</span>}
               </div>
+              <button
+                onClick={toggleFull}
+                aria-label={full ? "전체화면 끄기" : "전체화면"}
+                style={{ position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 6, background: "rgba(15,23,42,.8)", border: "none", borderRadius: 10, padding: "9px 12px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              >
+                {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />} {full ? "작게" : "전체화면"}
+              </button>
+
+              {full && (
+                <div style={{ position: "absolute", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: 16, right: 16, display: "flex", gap: 8, justifyContent: "center" }}>
+                  {!recording ? (
+                    <button onClick={startRec} style={{ flex: 1, maxWidth: 260, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> 측정 시작</button>
+                  ) : (
+                    <button onClick={stopRec} style={{ flex: 1, maxWidth: 260, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#dc2626", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Square size={16} /> 측정 끝</button>
+                  )}
+                </div>
+              )}
+
               {live && (
-                <div style={{ position: "absolute", bottom: 10, left: 10, right: 10, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                <div style={{ position: "absolute", bottom: full ? "calc(86px + env(safe-area-inset-bottom, 0px))" : 10, left: 10, right: 10, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
                   {[["왼 무릎", live.lknee], ["오른 무릎", live.rknee], ["좌우 차이", live.diff]].map(([n, v], i) => (
                     <span key={n as string} style={{ background: i === 2 && (v as number) >= 10 ? "rgba(234,88,12,.92)" : "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, borderRadius: 10, padding: "6px 12px", fontVariantNumeric: "tabular-nums" }}>
                       {n} <b>{v}°</b>
