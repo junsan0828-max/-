@@ -152,9 +152,6 @@ const PARTS: { key: AnalyzePart; name: string; desc: string }[] = [
 
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 16 };
 
-/* ── 측정 구역 (화면 가운데. 이 안에 있는 사람만 측정 대상으로 봅니다) ── */
-const ZONE = { x0: 0.17, x1: 0.83, y0: 0.02, y1: 0.98 };
-
 /** 사람의 기준점: 골반 중앙(없으면 어깨 중앙) */
 function centerOf(f: Frame): Pt | null {
   if (vis(f, L.hip) && vis(f, R.hip)) return { x: (f[L.hip].x + f[R.hip].x) / 2, y: (f[L.hip].y + f[R.hip].y) / 2 };
@@ -168,8 +165,6 @@ function sizeOf(f: Frame): number {
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
 }
-const inZone = (c: Pt) => c.x >= ZONE.x0 && c.x <= ZONE.x1 && c.y >= ZONE.y0 && c.y <= ZONE.y1;
-
 export default function MotionCheck() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -212,18 +207,14 @@ export default function MotionCheck() {
   const [personIn, setPersonIn] = useState(false);
   const [people, setPeople] = useState(0);
   const [locked, setLocked] = useState(false);
-  const [zoneOn, setZoneOn] = useState(true);
-  const zoneRef = useRef(true);
   const [mode, setMode] = useState<Mode>("count");
   const [part, setPart] = useState<AnalyzePart>("full");
   const stageRef = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
-  // 박수 감지
-  const micRef = useRef<{ stream: MediaStream; source: MediaStreamAudioSourceNode; analyser: AnalyserNode } | null>(null);
-  const clapTimesRef = useRef<number[]>([]);
-  const clapIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [micOk, setMicOk] = useState<boolean | null>(null);
+  // 시각 박수 감지 (양손 모으기)
+  const visualClapRef = useRef<{ apart: boolean; times: number[] }>({ apart: true, times: [] });
   const [clapTrigger, setClapTrigger] = useState(0);
+  const gOnRef = useRef(false);
 
   useEffect(() => {
     document.title = "모션 메카닉 · FIT STEP";
@@ -275,18 +266,6 @@ export default function MotionCheck() {
     const ctx = cv.getContext("2d")!;
     ctx.clearRect(0, 0, w, h);
     const px = (p: Pt) => ({ x: (1 - p.x) * w, y: p.y * h }); // 거울 보기
-
-    // 측정 구역 안내선
-    if (zoneRef.current) {
-      const x = (1 - ZONE.x1) * w, y = ZONE.y0 * h;
-      const bw = (ZONE.x1 - ZONE.x0) * w, bh = (ZONE.y1 - ZONE.y0) * h;
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,.34)";
-      ctx.fillRect(0, 0, x, h); ctx.fillRect(x + bw, 0, w - x - bw, h);
-      ctx.setLineDash([10, 8]); ctx.lineWidth = Math.max(2, w / 420); ctx.strokeStyle = "rgba(255,255,255,.65)";
-      ctx.strokeRect(x, y, bw, bh);
-      ctx.restore();
-    }
 
     // 측정 대상이 아닌 사람 — 흐리게
     ctx.save();
@@ -351,8 +330,7 @@ export default function MotionCheck() {
       .map((p) => ({ p, c: centerOf(p), size: sizeOf(p) }))
       .filter((x): x is { p: Frame; c: Pt; size: number } => !!x.c && x.size > 0.08);
     setPeople(cands.length);
-    let pool = zoneRef.current ? cands.filter((x) => inZone(x.c)) : cands;
-    if (!pool.length && !zoneRef.current) pool = cands;
+    const pool = cands;
 
     let pick: { p: Frame; c: Pt; size: number } | null = null;
     const tap = tapRef.current;
@@ -437,6 +415,23 @@ export default function MotionCheck() {
         }
       }
     } else setLive(null);
+
+    // 시각 박수 감지: 양손 손목이 가까워지면(< 0.12) 1번, 1.5초 안에 2번 → 게임 시작
+    if (f && gOnRef.current && (gPhaseRef.current === "idle" || gPhaseRef.current === "done")) {
+      const lw = f[L.wrist], rw = f[R.wrist];
+      if ((lw?.visibility ?? 0) > 0.5 && (rw?.visibility ?? 0) > 0.5) {
+        const dist = Math.hypot(lw.x - rw.x, lw.y - rw.y);
+        const vc = visualClapRef.current;
+        if (vc.apart && dist < 0.12) {
+          vc.apart = false;
+          const now = Date.now();
+          vc.times = [...vc.times.filter((t) => now - t < 1500), now];
+          if (vc.times.length >= 2) { vc.times = []; setClapTrigger((c) => c + 1); }
+        } else if (!vc.apart && dist > 0.25) {
+          vc.apart = true;
+        }
+      }
+    }
     rafRef.current = requestAnimationFrame(loop);
   }, [draw]);
 
@@ -477,44 +472,6 @@ export default function MotionCheck() {
       o.stop(ac.currentTime + ms / 1000);
     } catch { /* 소리를 막은 기기에서는 조용히 넘어갑니다 */ }
   }
-  async function startMic() {
-    if (micRef.current) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ac = acRef.current ?? (acRef.current = new AC());
-      if (ac.state === "suspended") ac.resume();
-      const source = ac.createMediaStreamSource(stream);
-      const analyser = ac.createAnalyser();
-      analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.1;
-      source.connect(analyser);
-      micRef.current = { stream, source, analyser };
-      setMicOk(true);
-      const data = new Uint8Array(analyser.fftSize);
-      let prevRms = 0;
-      clapIntervalRef.current = setInterval(() => {
-        if (!micRef.current) return;
-        analyser.getByteTimeDomainData(data);
-        const rms = Math.sqrt(data.reduce((s, v) => s + (v - 128) ** 2, 0) / data.length);
-        if (rms > 22 && prevRms < 7) {
-          const now = Date.now();
-          const recent = clapTimesRef.current.filter((t) => now - t < 900);
-          if (!recent.length || now - recent[recent.length - 1] > 150) {
-            recent.push(now); clapTimesRef.current = recent;
-            if (recent.length >= 2) { clapTimesRef.current = []; setClapTrigger((c) => c + 1); }
-          }
-        }
-        prevRms = rms;
-      }, 50);
-    } catch { setMicOk(false); }
-  }
-  function stopMic() {
-    if (clapIntervalRef.current) { clearInterval(clapIntervalRef.current); clapIntervalRef.current = null; }
-    micRef.current?.stream.getTracks().forEach((t) => t.stop());
-    micRef.current?.source.disconnect();
-    micRef.current = null;
-  }
-
   const bestKey = () => `mc_best_${cPartRef.current}_${viewRef.current}_${dur}`;
   const readBest = () => { try { return Number(localStorage.getItem(bestKey()) || 0); } catch { return 0; } };
 
@@ -586,7 +543,7 @@ export default function MotionCheck() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gPhase, dur]);
 
-  useEffect(() => { if (gOn) startMic(); else stopMic(); return stopMic; }, [gOn]);
+  useEffect(() => { gOnRef.current = gOn; }, [gOn]);
   useEffect(() => { if (clapTrigger > 0 && (gPhase === "idle" || gPhase === "done")) startGame(); }, [clapTrigger]);
 
   function resetAll() {
@@ -760,7 +717,7 @@ export default function MotionCheck() {
                 {recording && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 20, padding: "4px 12px" }}>{reps}회</span>}
                 {people > 1 && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{people}명 인식 · {locked ? "지정한 사람 측정" : "가까운 사람 측정"}</span>}
                 {locked && <button onClick={autoSelect} style={{ background: "rgba(37,99,235,.92)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px", cursor: "pointer" }}>자동 선택으로</button>}
-                {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>측정 구역 안에 {cPart === "upper" ? "상체" : cPart === "lower" ? "하체" : "전신"}가 보이게 서 주세요</span>}
+                {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>화면 안에 {cPart === "upper" ? "상체" : cPart === "lower" ? "하체" : "전신"}가 보이게 서 주세요</span>}
               </div>
               {mode === "count" && gOn && (gPhase === "ready" || gPhase === "run") && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
@@ -839,7 +796,7 @@ export default function MotionCheck() {
               <>
                 <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 12, border: "none", background: "#2563eb", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}><Play size={17} /> {dur}초 타임 어택 시작</button>
                 <p style={{ fontSize: 12, color: "#64748b", textAlign: "center", margin: 0 }}>
-                  {micOk === true ? "👏 박수 2번으로도 시작할 수 있습니다" : micOk === false ? "마이크를 허용하면 박수로 시작할 수 있습니다" : "마이크 허용 시 박수 2번으로 시작할 수 있습니다"}
+                  👏 양손을 모았다 펴기 2번으로도 시작할 수 있습니다
                 </p>
               </>
             ) : (
@@ -905,10 +862,6 @@ export default function MotionCheck() {
               <span style={{ fontSize: 12.5, color: "#475569" }}>{people === 0 ? "아직 인식된 사람이 없습니다" : locked ? `${people}명 중 직접 지정한 사람을 측정 중` : `${people}명 인식 · 가장 가까운 사람 자동 선택`}</span>
               {locked && <button onClick={autoSelect} style={{ marginLeft: "auto", padding: "7px 12px", borderRadius: 9, border: "1px solid #e2e8f0", background: "#fff", color: "#2563eb", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>자동 선택으로</button>}
             </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#475569", cursor: "pointer" }}>
-              <input type="checkbox" checked={zoneOn} onChange={(e) => { setZoneOn(e.target.checked); zoneRef.current = e.target.checked; autoSelect(); }} />
-              측정 구역만 보기 — 구역 밖(뒤로 지나가거나 옆에 선 사람)은 세지 않습니다
-            </label>
             <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
               여러 명이 보이면 <b>가장 크게(가까이) 보이는 사람</b>을 자동으로 고릅니다. 다른 사람을 재려면 <b>화면에서 그 사람을 한 번 누르세요</b> — 지정하면 계속 그 사람만 따라갑니다.
             </p>
