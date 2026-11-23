@@ -725,7 +725,6 @@ export default function MotionCheck() {
                 {mode === "count" && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{viewNow === "front" ? "정면" : "측면"}{viewSel === "auto" ? " 자동" : " 고정"}</span>}
                 {mode === "count" && live && <span style={{ background: "rgba(37,99,235,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>기준 {live.name} · 범위 {live.rom}°</span>}
                 {recording && <span style={{ background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>● 측정 중</span>}
-                {recording && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 20, padding: "4px 12px" }}>{reps}회</span>}
                 {people > 1 && <span style={{ background: "rgba(15,23,42,.8)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>{people}명 인식 · {locked ? "지정한 사람 측정" : "가까운 사람 측정"}</span>}
                 {locked && <button onClick={autoSelect} style={{ background: "rgba(37,99,235,.92)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px", cursor: "pointer" }}>자동 선택으로</button>}
                 {!personIn && <span style={{ background: "rgba(234,88,12,.9)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>화면 안에 {cPart === "upper" ? "상체" : cPart === "lower" ? "하체" : "전신"}가 보이게 서 주세요</span>}
@@ -738,6 +737,15 @@ export default function MotionCheck() {
                 >
                   <Minimize2 size={15} /> 작게
                 </button>
+              )}
+
+              {mode === "count" && !gOn && recording && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+                  <div style={{ position: "absolute", top: "24%", textAlign: "center", color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,.7)" }}>
+                    <div style={{ fontSize: "min(24vw, 150px)", fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{reps}</div>
+                    <div style={{ fontSize: "min(6vw, 28px)", fontWeight: 700, opacity: 0.92 }}>회</div>
+                  </div>
+                </div>
               )}
 
               {mode === "count" && gOn && (gPhase === "idle" || gPhase === "done") && handsUpPct > 0 && (
