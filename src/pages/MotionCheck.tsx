@@ -519,6 +519,8 @@ export default function MotionCheck() {
     statsRef.current = newStats();
     repRef.current = { down: false, count: 0, depth: 999 };
     lastRepRef.current = 0;
+    // 버튼을 누르기 전 움직임이 가동 범위를 부풀려 놓으므로 여기서 다시 잡습니다
+    sigRef.current = newSigs(); driverRef.current = null;
     setReps(0); setResult(null); setBasis(null); setViewUsed(null); setRecording(true); recRef.current = true;
   }
   function stopRec() {
@@ -538,6 +540,8 @@ export default function MotionCheck() {
         const sLeft = Math.ceil((g.startAt - now) / 1000);
         if (sLeft <= 0) {
           g.endAt = now + dur * 1000; g.cmin = 999; g.cmax = -999;
+          // 시작 직전 동작(머리 위로 손 들기 등)이 가동 범위를 부풀려 놓으므로 여기서 다시 잡습니다
+          sigRef.current = newSigs(); driverRef.current = null; lastRepRef.current = 0;
           recRef.current = true; gPhaseRef.current = "run"; setGPhase("run"); setLeft(dur); beep(1000, 220);
         } else if (sLeft !== shown) { shown = sLeft; setLeft(sLeft); beep(660, 110); }
       } else {
