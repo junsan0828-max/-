@@ -146,13 +146,16 @@ export function repTick(s: Sig, now: number, lastRep: number, minRom: number): b
    랭킹은 같은 단위로 비교해야 하므로 기준 관절을 자동 선택하지 않고 종목별로 고정합니다.
    minRom = 이 종목으로 인정하는 최소 가동범위. 이보다 작게 움직이면 한 번도 세지 않습니다. */
 export type ExKey = "squat" | "lunge" | "press" | "row";
-export const EXERCISES: { key: ExKey; name: string; group: "upper" | "lower"; sig: SigKey; minRom: number; view: View; tip: string }[] = [
+// balance=false : 좌우가 다른 게 정상인 종목 (런지). 좌우 균형 점수를 매기지 않습니다.
+export const EXERCISES: { key: ExKey; name: string; group: "upper" | "lower"; sig: SigKey; minRom: number; view: View; balance: boolean; tip: string }[] = [
   // 실측: 정면에서 제대로 한 스쿼트의 무릎 가동범위가 80°였습니다.
   // 반쪽 스쿼트(약 40°)를 걸러내도록 기준을 45°로 잡았습니다.
-  { key: "squat", name: "스쿼트", group: "lower", sig: "knee", minRom: 45, view: "front", tip: "정면에서 양 무릎이 보이게 서세요" },
-  { key: "lunge", name: "런지", group: "lower", sig: "knee", minRom: 45, view: "side", tip: "측면에서 앞뒤 다리가 모두 보이게" },
-  { key: "press", name: "숄더 프레스", group: "upper", sig: "elbow", minRom: 55, view: "front", tip: "정면에서 팔꿈치 펴지는 정도를 봅니다" },
-  { key: "row", name: "벤트오버로우", group: "upper", sig: "elbow", minRom: 45, view: "side", tip: "측면에서 숙인 상체와 팔이 보이게" },
+  { key: "squat", name: "스쿼트", group: "lower", sig: "knee", minRom: 45, view: "front", balance: true, tip: "정면에서 양 무릎이 보이게 서세요" },
+  // 아래 두 종목은 측면 → 정면으로 바꾼 직후라 기준이 아직 실측 전입니다.
+  // 안 세어지는 일이 없도록 낮게 잡아 두고, 결과의 '쓴 가동범위'를 보고 올립니다.
+  { key: "lunge", name: "런지", group: "lower", sig: "knee", minRom: 30, view: "front", balance: false, tip: "정면에서 한 발 앞으로, 양 무릎이 보이게" },
+  { key: "press", name: "숄더 프레스", group: "upper", sig: "elbow", minRom: 55, view: "front", balance: true, tip: "정면에서 팔꿈치 펴지는 정도를 봅니다" },
+  { key: "row", name: "벤트오버로우", group: "upper", sig: "elbow", minRom: 26, view: "front", balance: true, tip: "정면에서 상체를 숙이고 양 팔꿈치가 보이게" },
 ];
 export const EX_OF = (k: ExKey) => EXERCISES.find((e) => e.key === k)!;
 
@@ -478,7 +481,8 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
         const g = gRef.current, playing = gPhaseRef.current === "run";
         if (d && playing) {
           g.cmin = Math.min(g.cmin, d.v); g.cmax = Math.max(g.cmax, d.v);
-          if (viewRef.current === "front" && !(dSig && dSig.l === dSig.r)) {
+          // 런지처럼 좌우가 다른 게 정상인 종목은 균형 점수를 매기지 않습니다
+          if (viewRef.current === "front" && !(dSig && dSig.l === dSig.r) && (!fx || fx.balance)) {
             g.balAll += 1; if (Math.abs(d.l - d.r) <= 5) g.balOk += 1;   // 좌우 차이 5° 이내로 유지한 시간
           }
         }
@@ -1041,7 +1045,7 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
               {[
                 { n: "끝까지 한 횟수", v: `${gRes.reps}회` },
                 { n: "분당 환산", v: `${Math.round((gRes.reps * 60) / dur)}회` },
-                gRes.view === "front"
+                gRes.view === "front" && EX_OF(ex).balance
                   ? { n: "좌우 균형", v: gRes.balance === null ? "—" : `${gRes.balance}%` }
                   : { n: "기준 관절", v: basis ?? "—" },
                 { n: "쓴 가동범위", v: `${gRes.rom}° / 기준 ${gRes.minRom}°` },
@@ -1053,11 +1057,13 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
               ))}
             </div>
             <p style={{ fontSize: 11.5, color: "#64748b", lineHeight: 1.7, margin: 0 }}>
-              {gRes.view === "side"
-                ? "측면이라 깊이를 봤습니다. 한 번에 쓴 각도가 그 세트에서 쓴 최대 범위의 85% 이상이면 '끝까지'로 셉니다."
-                : gRes.balance === null
-                  ? "좌우 균형은 좌우가 모두 보이고 좌우 구분이 있는 관절에서만 계산합니다."
-                  : "정면이라 좌우 균형을 봤습니다. 측정 시간 중 좌우 차이가 5° 이내였던 비율입니다."}
+              {!EX_OF(ex).balance
+                ? "런지는 앞뒤 다리가 달라서 좌우 균형은 재지 않습니다. 한 번에 쓴 각도가 그 세트 최대 범위의 85% 이상일 때만 1회로 셉니다."
+                : gRes.view === "side"
+                  ? "측면이라 깊이를 봤습니다. 한 번에 쓴 각도가 그 세트에서 쓴 최대 범위의 85% 이상이면 '끝까지'로 셉니다."
+                  : gRes.balance === null
+                    ? "좌우 균형은 양쪽이 모두 보일 때 계산됩니다. 전신이 화면에 들어오게 서 주세요."
+                    : "정면이라 좌우 균형을 봤습니다. 측정 시간 중 좌우 차이가 5° 이내였던 비율입니다."}
             </p>
             <button onClick={startGame} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 13, borderRadius: 10, border: "1px solid #2563eb", background: "#fff", color: "#2563eb", fontSize: 14, fontWeight: 700, cursor: "pointer" }}><RotateCcw size={15} /> 한 번 더</button>
           </div>
