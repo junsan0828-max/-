@@ -147,9 +147,9 @@ export function repTick(s: Sig, now: number, lastRep: number, minRom: number): b
    minRom = 이 종목으로 인정하는 최소 가동범위. 이보다 작게 움직이면 한 번도 세지 않습니다. */
 export type ExKey = "squat" | "lunge" | "press" | "row";
 export const EXERCISES: { key: ExKey; name: string; group: "upper" | "lower"; sig: SigKey; minRom: number; view: View; tip: string }[] = [
-  // 정면에서는 무릎이 카메라 쪽으로 나와 각도가 실제보다 작게 보입니다.
-  // 그래서 측면 종목보다 기준을 낮게 잡았습니다 (실측 후 조정 필요).
-  { key: "squat", name: "스쿼트", group: "lower", sig: "knee", minRom: 30, view: "front", tip: "정면에서 양 무릎이 보이게 서세요" },
+  // 실측: 정면에서 제대로 한 스쿼트의 무릎 가동범위가 80°였습니다.
+  // 반쪽 스쿼트(약 40°)를 걸러내도록 기준을 45°로 잡았습니다.
+  { key: "squat", name: "스쿼트", group: "lower", sig: "knee", minRom: 45, view: "front", tip: "정면에서 양 무릎이 보이게 서세요" },
   { key: "lunge", name: "런지", group: "lower", sig: "knee", minRom: 45, view: "side", tip: "측면에서 앞뒤 다리가 모두 보이게" },
   { key: "press", name: "숄더 프레스", group: "upper", sig: "elbow", minRom: 55, view: "front", tip: "정면에서 팔꿈치 펴지는 정도를 봅니다" },
   { key: "row", name: "벤트오버로우", group: "upper", sig: "elbow", minRom: 45, view: "side", tip: "측면에서 숙인 상체와 팔이 보이게" },
@@ -991,6 +991,11 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
                   {rankSrc === "server" ? "센터 전체" : "이 기기"}
                 </span>
               </div>
+              {rankSrc === "local" && (
+                <p style={{ fontSize: 11.5, color: "#c2410c", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 8, padding: "8px 10px", margin: "0 0 8px", lineHeight: 1.6 }}>
+                  센터 순위표에 연결되지 않아 <b>이 브라우저에만</b> 저장됩니다. 창을 닫거나 다른 기기로 열면 기록이 사라집니다.
+                </p>
+              )}
               {ranks.length === 0 ? (
                 <p style={{ fontSize: 12.5, color: "#64748b", margin: 0 }}>아직 기록이 없습니다. 첫 번째 기록을 만들어 보세요.</p>
               ) : (
