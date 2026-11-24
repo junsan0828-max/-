@@ -844,10 +844,13 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
     { enabled: !!memberId }
   );
 
+  // PT 일정은 잔여 PT가 있는 회원만 (헬스 회원을 고르면 차감이 안 됨). 담당 트레이너 회원을 먼저.
   const suggestions = memberInput.trim().length >= 1
     ? (memberList ?? []).filter((m: any) =>
-        m.name.includes(memberInput.trim()) || m.name.replace(/\s/g, "").includes(memberInput.trim().replace(/\s/g, ""))
-      ).slice(0, 6)
+        (eventType !== "pt" || (m.ptRemaining ?? 0) > 0) &&
+        (m.name.includes(memberInput.trim()) || m.name.replace(/\s/g, "").includes(memberInput.trim().replace(/\s/g, "")))
+      ).sort((a: any, b: any) => Number(b.trainerId === effTrainerId) - Number(a.trainerId === effTrainerId))
+      .slice(0, 6)
     : [];
 
   const handleMemberInput = (val: string) => {
@@ -1302,8 +1305,13 @@ function SlotEditor({ cell, date, hour, viewingAll, trainerId, trainerOptions = 
                   onMouseDown={() => selectSuggestion(m)}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
                 >
-                  <span>{m.name}</span>
-                  <span className="text-xs text-muted-foreground">{m.status === "active" ? "활성" : "종료"}</span>
+                  <span>
+                    {m.name}
+                    {m.phone && <span className="ml-1.5 text-xs text-muted-foreground">…{String(m.phone).replace(/\D/g, "").slice(-4)}</span>}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {[m.trainerName, (m.ptRemaining ?? 0) > 0 ? `PT 잔여 ${m.ptRemaining}회` : null, m.status === "active" ? null : "종료"].filter(Boolean).join(" · ") || (m.status === "active" ? "활성" : "종료")}
+                  </span>
                 </button>
               ))}
             </div>

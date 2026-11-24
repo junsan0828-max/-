@@ -285,14 +285,24 @@ const membersRouter = t.router({
     const whereClause = undefined; // 트레이너·컨설턴트 모두 전체 회원 공유
 
     // 회원 + 서비스 데이터를 병렬 조회해 통합 반환
-    const [memberRows, lockerRows, serviceRevs] = await Promise.all([
+    const [memberRows, lockerRows, serviceRevs, ptRemainRows, trainerRows] = await Promise.all([
       db.select().from(members).where(whereClause).orderBy(desc(members.createdAt)),
       db.select({ memberId: lockers.memberId, lockerNumber: lockers.lockerNumber })
         .from(lockers).where(sql`${lockers.memberId} IS NOT NULL`),
       db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail, serviceItems: revenueEntries.serviceItems })
         .from(revenueEntries).where(sql`${revenueEntries.memberId} IS NOT NULL`),
+      // 스케줄 PT 회원 검색용: 차감 가능한 잔여 PT (pickActivePackage와 같은 대상: active·expired, 정지 포함)
+      db.select({
+        memberId: ptPackages.memberId,
+        remaining: sql<number>`SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions})::int`,
+      }).from(ptPackages)
+        .where(sql`${ptPackages.status} IN ('active', 'expired', 'paused') AND ${ptPackages.usedSessions} < ${ptPackages.totalSessions}`)
+        .groupBy(ptPackages.memberId),
+      db.select({ id: trainers.id, trainerName: trainers.trainerName }).from(trainers),
     ]);
 
+    const ptRemainMap = new Map<number, number>(ptRemainRows.map(r => [r.memberId, Number(r.remaining)]));
+    const trainerNameMap = new Map<number, string>(trainerRows.map(t => [t.id, t.trainerName]));
     const lockerMap = new Map<number, string>();
     for (const l of lockerRows) {
       if (l.memberId) lockerMap.set(l.memberId, l.lockerNumber ?? "");
@@ -315,6 +325,8 @@ const membersRouter = t.router({
       ...m,
       lockerNumber: lockerMap.get(m.id) ?? null,
       hasUniform: uniformSet.has(m.id),
+      ptRemaining: ptRemainMap.get(m.id) ?? 0,
+      trainerName: m.trainerId ? trainerNameMap.get(m.trainerId) ?? null : null,
     }));
   }),
 
