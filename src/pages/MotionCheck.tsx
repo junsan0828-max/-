@@ -918,10 +918,17 @@ export default function MotionCheck({ pro = false }: { pro?: boolean }) {
                   {gPhase === "ready" ? (
                     <div style={{ fontSize: "min(28vw, 180px)", fontWeight: 800, color: "#fff", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}>{left}</div>
                   ) : (
-                    <div style={{ position: "absolute", top: "26%", textAlign: "center", color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,.65)" }}>
-                      <div style={{ fontSize: "min(22vw, 140px)", fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{reps}</div>
-                      <div style={{ fontSize: "min(7vw, 34px)", fontWeight: 800, color: left <= 5 ? "#fca5a5" : "#fff", fontVariantNumeric: "tabular-nums" }}>{left}초</div>
-                    </div>
+                    <>
+                      {/* 횟수: 화면 중앙 */}
+                      <div style={{ position: "absolute", top: "26%", textAlign: "center", color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,.65)" }}>
+                        <div style={{ fontSize: "min(22vw, 140px)", fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{reps}</div>
+                      </div>
+                      {/* 잔여 시간: 우측 상단, 멀리서도 보이도록 크게 */}
+                      <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top, 0px))", right: 14, textAlign: "right", color: left <= 5 ? "#fca5a5" : "#fff", textShadow: "0 3px 18px rgba(0,0,0,.8)", lineHeight: 1 }}>
+                        <div style={{ fontSize: "min(16vw, 96px)", fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>{left}</div>
+                        <div style={{ fontSize: "min(5vw, 24px)", fontWeight: 700, marginTop: -4 }}>초</div>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
