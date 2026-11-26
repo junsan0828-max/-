@@ -152,6 +152,7 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
+  const [showTransfer, setShowTransfer] = useState<Locker | null>(null);
   const [editPeriod, setEditPeriod] = useState<Locker | null>(null);
   const [editPeriodForm, setEditPeriodForm] = useState({ startDate: "", endDate: "" });
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -227,6 +228,10 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
   });
   const setLockerCategory = trpc.access.setLockerCategory.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); setMovingLockerId(null); },
+  });
+  const transferLocker = trpc.access.transferLocker.useMutation({
+    onSuccess: () => { utils.access.getLockers.invalidate(); setShowTransfer(null); toast.success("락커 이전 완료"); },
+    onError: (e) => toast.error(e.message || "락커 이전 실패"),
   });
   const createBanner = trpc.access.createBanner.useMutation({
     onSuccess: () => { utils.access.getAllBanners.invalidate(); setShowBannerForm(false); resetBannerForm(); toast.success("배너 추가 완료"); },
@@ -748,6 +753,7 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
                       categories={categories}
                       movingLockerId={movingLockerId}
                       onAssign={() => setShowAssign(locker)}
+                      onTransfer={() => setShowTransfer(locker)}
                       onEditPeriod={() => { setEditPeriodForm({ startDate: locker.startDate ?? "", endDate: locker.endDate ?? "" }); setEditPeriod(locker); }}
                       onRelease={() => {
                         if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
@@ -1338,6 +1344,17 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
         />
       )}
 
+      {/* 락커 번호 이전 모달 */}
+      {showTransfer && (
+        <TransferLockerModal
+          locker={showTransfer}
+          emptyLockers={(lockersQuery.data ?? []).filter((l: Locker) => !l.isOccupied)}
+          isPending={transferLocker.isPending}
+          onClose={() => setShowTransfer(null)}
+          onTransfer={(toLockerId) => transferLocker.mutate({ fromLockerId: showTransfer.id, toLockerId })}
+        />
+      )}
+
       {/* 락커 기간 수정 모달 */}
       {editPeriod && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={() => setEditPeriod(null)}>
@@ -1408,6 +1425,7 @@ function LockerCard({
   categories,
   movingLockerId,
   onAssign,
+  onTransfer,
   onEditPeriod,
   onRelease,
   onDelete,
@@ -1418,6 +1436,7 @@ function LockerCard({
   categories: LockerCategory[];
   movingLockerId: number | null;
   onAssign: () => void;
+  onTransfer: () => void;
   onEditPeriod: () => void;
   onRelease: () => void;
   onDelete: () => void;
@@ -1499,6 +1518,7 @@ function LockerCard({
           )}
           <div className="flex gap-1 mt-1">
             <button onClick={onEditPeriod} className="flex-1 text-xs py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors">기간 수정</button>
+            <button onClick={onTransfer} className="flex-1 text-xs py-1 rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">이전</button>
             <button onClick={onRelease} className="flex-1 text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">반납</button>
           </div>
         </>
@@ -1516,6 +1536,76 @@ function LockerCard({
           </button>
         </>
       )}
+    </div>
+  );
+}
+
+function TransferLockerModal({
+  locker,
+  emptyLockers,
+  isPending,
+  onClose,
+  onTransfer,
+}: {
+  locker: Locker;
+  emptyLockers: Locker[];
+  isPending: boolean;
+  onClose: () => void;
+  onTransfer: (toLockerId: number) => void;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const filtered = emptyLockers.filter(l =>
+    !search || l.lockerNumber.includes(search)
+  ).sort((a, b) => {
+    const na = parseInt(a.lockerNumber) || 0;
+    const nb = parseInt(b.lockerNumber) || 0;
+    return na - nb || a.lockerNumber.localeCompare(b.lockerNumber);
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div>
+          <p className="text-base font-bold text-foreground">{locker.lockerNumber}번 락커 이전</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{locker.memberName} → 새 락커 선택</p>
+        </div>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="락커 번호 검색"
+          className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm"
+        />
+        {filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">빈 락커가 없습니다</p>
+        ) : (
+          <div className="max-h-52 overflow-y-auto grid grid-cols-4 gap-1.5">
+            {filtered.map(l => (
+              <button
+                key={l.id}
+                onClick={() => setSelected(l.id)}
+                className={`text-sm py-2 rounded-lg border transition-colors ${
+                  selected === l.id
+                    ? "bg-blue-500/20 border-blue-500/60 text-blue-400 font-semibold"
+                    : "border-border text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                {l.lockerNumber}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground">취소</button>
+          <button
+            onClick={() => selected && onTransfer(selected)}
+            disabled={!selected || isPending}
+            className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium disabled:opacity-40"
+          >
+            {isPending ? "이전 중..." : "이전"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

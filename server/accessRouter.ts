@@ -633,6 +633,37 @@ export const accessRouter = t.router({
       return updated;
     }),
 
+  // 락커 번호 이전 (회원 정보를 다른 락커로 원자적으로 이동)
+  transferLocker: protectedProcedure
+    .input(z.object({ fromLockerId: z.number(), toLockerId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [src] = await db.select().from(lockers).where(eq(lockers.id, input.fromLockerId)).limit(1);
+      if (!src || !src.isOccupied) throw new TRPCError({ code: "BAD_REQUEST", message: "이전할 락커가 비어있습니다." });
+      const [dst] = await db.select().from(lockers).where(eq(lockers.id, input.toLockerId)).limit(1);
+      if (!dst || dst.isOccupied) throw new TRPCError({ code: "BAD_REQUEST", message: "대상 락커가 이미 사용 중입니다." });
+      await db.transaction(async (tx) => {
+        await tx.update(lockers).set({
+          memberId: src.memberId,
+          memberName: src.memberName,
+          memberPhone: src.memberPhone,
+          isOccupied: 1,
+          startDate: src.startDate,
+          endDate: src.endDate,
+          rentalType: src.rentalType,
+          memo: src.memo,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(lockers.id, input.toLockerId));
+        await tx.update(lockers).set({
+          memberId: null, memberName: null, memberPhone: null,
+          isOccupied: 0, startDate: null, endDate: null,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(lockers.id, input.fromLockerId));
+      });
+      return { ok: true };
+    }),
+
   // 락커 삭제
   deleteLocker: adminProcedure
     .input(z.object({ lockerId: z.number() }))
