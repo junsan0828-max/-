@@ -2135,8 +2135,10 @@ export default function RegistrationManagement() {
           <div className="space-y-3">
             {/* 요약 + 버튼 */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                사용 중 <span className="text-foreground font-semibold">{activeCount}</span>개 / 전체 {allCombined.length}개
+              <span className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                <span>착용 중 <span className="text-foreground font-semibold">{activeCount}</span>명</span>
+                <span className="text-green-400 font-medium">💳 유료 {allCombined.filter((u: any) => u.rentalType !== "service").length}명</span>
+                <span className="text-purple-400 font-medium">🎁 서비스 {allCombined.filter((u: any) => u.rentalType === "service").length}명</span>
               </span>
               <button
                 onClick={() => { setEditingUniform(null); resetUniformForm(); setShowUniformForm(true); }}
@@ -2165,70 +2167,92 @@ export default function RegistrationManagement() {
             {/* 목록 */}
             {filteredUniforms.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground text-sm">운동복 이용자가 없습니다</div>
-            ) : (
-              <div className="space-y-2">
-                {filteredUniforms.map((u: any) => {
+            ) : (() => {
+              const paid = filteredUniforms.filter((u: any) => u.rentalType !== "service");
+              const service = filteredUniforms.filter((u: any) => u.rentalType === "service");
+              const renderItem = (u: any) => {
                   const isActive = u.isActive === 1;
-                  const daysLeft = u.endDate ? Math.ceil((new Date(u.endDate).getTime() - Date.now()) / 86400000) : null;
-                  const isExpired = daysLeft !== null && daysLeft < 0;
-                  return (
-                    <div key={u.id} className={`bg-card border rounded-xl p-3 ${isExpired ? "border-red-500/40" : isActive ? "border-border" : "border-border/40 opacity-60"}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-0.5 flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm text-foreground">{u.memberName || "—"}</span>
-                            {u.size && <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium">{u.size}</span>}
-                            {u.quantity > 1 && <span className="text-xs text-muted-foreground">×{u.quantity}</span>}
-                            {u.memberType === "new" && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">신규</span>}
-                            {u.memberType === "existing" && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 font-medium">기존</span>}
-                            {u.rentalType === "service" ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-medium">서비스</span>
-                            ) : u.isPaid === 1 ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-medium">결제완료</span>
-                            ) : (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 font-medium">미결제</span>
-                            )}
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${isActive ? (isExpired ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400") : "bg-muted text-muted-foreground"}`}>
-                              {isActive ? (isExpired ? "기간 만료" : "착용 중") : "반납"}
-                            </span>
-                          </div>
-                          {u.memberPhone && <div className="text-xs text-muted-foreground">{u.memberPhone}</div>}
-                          <div className="text-xs text-muted-foreground">
-                            {u.startDate && <span>{u.startDate}</span>}
-                            {u.endDate && <span> ~ {u.endDate}</span>}
-                            {daysLeft !== null && isActive && !isExpired && <span className="ml-1 text-amber-400">{daysLeft}일 남음</span>}
-                            {isExpired && <span className="ml-1 text-red-400">{Math.abs(daysLeft!)}일 초과</span>}
-                          </div>
-                          {u.memo && <div className="text-xs text-muted-foreground mt-0.5">{u.memo}</div>}
-                        </div>
-                        <div className="flex flex-col gap-1 shrink-0">
-                          {isActive && (
-                            <button
-                              onClick={() => { if (confirm("반납 처리하시겠습니까?")) returnUniform.mutate({ id: u.id, isActive: 0 }); }}
-                              className="text-xs px-2 py-1 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 font-medium"
-                            >
-                              반납
-                            </button>
+                const daysLeft = u.endDate ? Math.ceil((new Date(u.endDate).getTime() - Date.now()) / 86400000) : null;
+                const isExpired = daysLeft !== null && daysLeft < 0;
+                return (
+                  <div key={u.id} className={`bg-card border rounded-xl p-3 ${isExpired ? "border-red-500/40" : isActive ? "border-border" : "border-border/40 opacity-60"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm text-foreground">{u.memberName || "—"}</span>
+                          {u.size && <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium">{u.size}</span>}
+                          {u.quantity > 1 && <span className="text-xs text-muted-foreground">×{u.quantity}</span>}
+                          {u.memberType === "new" && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">신규</span>}
+                          {u.memberType === "existing" && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 font-medium">기존</span>}
+                          {u.isPaid !== 1 && u.rentalType !== "service" && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 font-medium">미결제</span>
                           )}
-                          <button
-                            onClick={() => openEditUniform(u)}
-                            className="text-xs px-2 py-1 rounded-lg bg-accent text-foreground hover:bg-accent/80"
-                          >
-                            수정
-                          </button>
-                          <button
-                            onClick={() => { if (confirm("삭제하시겠습니까?")) deleteUniform.mutate({ id: u.id }); }}
-                            className="text-xs px-2 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                          >
-                            삭제
-                          </button>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${isActive ? (isExpired ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400") : "bg-muted text-muted-foreground"}`}>
+                            {isActive ? (isExpired ? "기간 만료" : "착용 중") : "반납"}
+                          </span>
                         </div>
+                        {u.memberPhone && <div className="text-xs text-muted-foreground">{u.memberPhone}</div>}
+                        <div className="text-xs text-muted-foreground">
+                          {u.startDate && <span>{u.startDate}</span>}
+                          {u.endDate && <span> ~ {u.endDate}</span>}
+                          {daysLeft !== null && isActive && !isExpired && <span className="ml-1 text-amber-400">{daysLeft}일 남음</span>}
+                          {isExpired && <span className="ml-1 text-red-400">{Math.abs(daysLeft!)}일 초과</span>}
+                        </div>
+                        {u.memo && u.memo !== "서비스 내역 기반" && <div className="text-xs text-muted-foreground mt-0.5">{u.memo}</div>}
+                      </div>
+                      <div className="flex flex-col gap-1 shrink-0">
+                        {isActive && (
+                          <button
+                            onClick={() => { if (confirm("반납 처리하시겠습니까?")) returnUniform.mutate({ id: u.id, isActive: 0 }); }}
+                            className="text-xs px-2 py-1 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 font-medium"
+                          >
+                            반납
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openEditUniform(u)}
+                          className="text-xs px-2 py-1 rounded-lg bg-accent text-foreground hover:bg-accent/80"
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() => { if (confirm("삭제하시겠습니까?")) deleteUniform.mutate({ id: u.id }); }}
+                          className="text-xs px-2 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                        >
+                          삭제
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              };
+              return (
+                <div className="space-y-4">
+                  {/* 유료 구매 그룹 */}
+                  {paid.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-green-400">💳 유료 구매</span>
+                        <span className="text-xs text-muted-foreground">{paid.filter((u: any) => u.isActive === 1).length}명 착용 중 / 전체 {paid.length}명</span>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                      {paid.map((u: any) => { const isActive = u.isActive === 1; return renderItem(u); })}
+                    </div>
+                  )}
+                  {/* 무료 서비스 그룹 */}
+                  {service.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-purple-400">🎁 무료 서비스</span>
+                        <span className="text-xs text-muted-foreground">{service.filter((u: any) => u.isActive === 1).length}명 착용 중 / 전체 {service.length}명</span>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                      {service.map((u: any) => { const isActive = u.isActive === 1; return renderItem(u); })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 추가/수정 폼 모달 */}
             {showUniformForm && (
