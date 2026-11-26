@@ -196,6 +196,175 @@ function RefundModal({ entry, onClose, onDone }: { entry: any; onClose: () => vo
   );
 }
 
+// ── 1호점 최상단·최하단 번호 ──────────────────────────────────────
+const TOP_B1_REG = new Set([
+  "361","368","375","382","389","396","403",
+  "417","424","431","438","445","452","459","466",
+  "525","532","39","43","67","73","79","85",
+]);
+const BOTTOM_B1_REG = new Set(
+  [...TOP_B1_REG].map(n => String(Number(n) + 6)).filter(n => !TOP_B1_REG.has(n))
+);
+function lockerPositionReg(locker: { lockerNumber: string; branchId: number | null }): "top" | "bottom" | null {
+  if (locker.branchId !== 1) return null;
+  if (TOP_B1_REG.has(locker.lockerNumber)) return "top";
+  if (BOTTOM_B1_REG.has(locker.lockerNumber)) return "bottom";
+  return null;
+}
+
+// ── 1호점 물리적 락커 배치도 ──────────────────────────────────────
+const LOCKER_LAYOUT_B1_REG = [
+  { label: "두자릿수 (43~54)", cols: [[43,44,45,46,47,48,49],[50,51,52,53,54]] },
+  { label: "두자릿수 (67~90)", cols: [[67,68,69,70,71,72],[73,74,75,76,77,78],[79,80,81,82,83,84],[85,86,87,88,89,90]] },
+  { label: "세자릿수 A (361~416)", cols: [
+    [361,362,363,364,365,366,367],[368,369,370,371,372,373,374],
+    [375,376,377,378,379,380,381],[382,383,384,385,386,387,388],
+    [389,390,391,392,393,394,395],[396,397,398,399,400,401,402],
+    [403,404,405,406,407,408,409],[410,411,412,413,414,415,416],
+  ]},
+  { label: "세자릿수 B (417~472)", cols: [
+    [417,418,419,420,421,422,423],[424,425,426,427,428,429,430],
+    [431,432,433,434,435,436,437],[438,439,440,441,442,443,444],
+    [445,446,447,448,449,450,451],[452,453,454,455,456,457,458],
+    [459,460,461,462,463,464,465],[466,467,468,469,470,471,472],
+  ]},
+  { label: "세자릿수 C (525~538)", cols: [[525,526,527,528,529,530,531],[532,533,534,535,536,537,538]] },
+];
+
+function LockerMapReg({ lockers, onAssign, onTransfer, onEditPeriod, onRelease }: {
+  lockers: Locker[];
+  onAssign: (l: Locker) => void;
+  onTransfer: (l: Locker) => void;
+  onEditPeriod: (l: Locker) => void;
+  onRelease: (l: Locker) => void;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const lMap = new Map(lockers.map(l => [l.lockerNumber, l]));
+
+  function cellStyle(num: number) {
+    const l = lMap.get(String(num));
+    if (!l || !l.isOccupied) return { bg: "bg-transparent hover:bg-muted/20", border: "border-border/60", text: "text-muted-foreground/30" };
+    return { bg: "bg-indigo-600 hover:bg-indigo-500", border: "border-indigo-400", text: "text-white" };
+  }
+
+  const selLocker = selected ? lMap.get(selected) : null;
+
+  return (
+    <div className="border border-border rounded-xl p-3 bg-card/50 space-y-2">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-semibold text-muted-foreground">1호점 배치도</span>
+        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <span className="inline-block w-3 h-3 rounded-sm bg-indigo-600 border border-indigo-400" />사용중
+          <span className="inline-block w-3 h-3 rounded-sm border border-border/60 ml-1" />빈자리
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="flex gap-4 pb-1">
+          {LOCKER_LAYOUT_B1_REG.map((section) => (
+            <div key={section.label} className="shrink-0">
+              <div className="text-[9px] text-muted-foreground/60 mb-1">{section.label}</div>
+              <div className="flex gap-0.5">
+                {section.cols.map((col, ci) => (
+                  <div key={ci} className="flex flex-col gap-0.5">
+                    {col.map((num) => {
+                      const st = cellStyle(num);
+                      const isSelected = selected === String(num);
+                      return (
+                        <button
+                          key={num}
+                          onClick={() => setSelected(prev => prev === String(num) ? null : String(num))}
+                          className={`w-9 h-[18px] text-[9px] font-mono rounded-sm border transition-all ${st.bg} ${st.border} ${st.text} ${isSelected ? "ring-1 ring-primary" : ""}`}
+                        >
+                          {num}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {selected && (
+        <div className="flex items-center gap-2 pt-1 border-t border-border flex-wrap text-sm">
+          <span className="font-bold">{selected}번</span>
+          {selLocker?.isOccupied ? (
+            <>
+              <span className="text-muted-foreground text-xs">{selLocker.memberName}</span>
+              {selLocker.endDate && <span className="text-xs text-muted-foreground">~{selLocker.endDate}</span>}
+              <div className="flex gap-1 ml-auto">
+                <button onClick={() => { onEditPeriod(selLocker); setSelected(null); }} className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20">기간수정</button>
+                <button onClick={() => { onTransfer(selLocker); setSelected(null); }} className="text-xs px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">이전</button>
+                <button onClick={() => { onRelease(selLocker); setSelected(null); }} className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20">반납</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground">비어있음</span>
+              {selLocker && (
+                <button onClick={() => { onAssign(selLocker); setSelected(null); }} className="ml-auto text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20">배정</button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TransferLockerModalReg({ from, allLockers, onConfirm, onClose }: {
+  from: Locker;
+  allLockers: Locker[];
+  onConfirm: (toLockerId: number) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const empties = allLockers.filter(l => !l.isOccupied && l.id !== from.id);
+  const filtered = search ? empties.filter(l => l.lockerNumber.includes(search)) : empties;
+
+  return (
+    <Portal>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-5 space-y-3">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold">락커 이전 — {from.lockerNumber}번</h3>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+          </div>
+          <p className="text-xs text-muted-foreground">{from.memberName}님을 이전할 빈 락커를 선택하세요.</p>
+          <input
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+            placeholder="번호 검색..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <div className="grid grid-cols-4 gap-1.5 max-h-52 overflow-y-auto">
+            {filtered.map(l => (
+              <button
+                key={l.id}
+                onClick={() => setSelectedId(l.id)}
+                className={`text-xs py-1.5 rounded-lg border transition-all ${selectedId === l.id ? "border-primary bg-primary/10 text-primary font-bold" : "border-border hover:bg-muted/50"}`}
+              >
+                {l.lockerNumber}
+              </button>
+            ))}
+            {filtered.length === 0 && <span className="col-span-4 text-xs text-muted-foreground text-center py-4">빈 락커 없음</span>}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted/50">취소</button>
+            <button
+              disabled={!selectedId}
+              onClick={() => selectedId && onConfirm(selectedId)}
+              className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40"
+            >이전 확인</button>
+          </div>
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
 export default function RegistrationManagement() {
   const [, setLocation] = useLocation();
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -236,6 +405,7 @@ export default function RegistrationManagement() {
 
   const quickSubmittingRef = useRef(false); // 간편등록 더블 제출 방지
   // 락커 관리 state
+  const [showTransfer, setShowTransfer] = useState<Locker | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
   const [editPeriod, setEditPeriod] = useState<Locker | null>(null);
@@ -328,6 +498,10 @@ export default function RegistrationManagement() {
   const occupiedCount = lockers.filter((l) => l.isOccupied).length;
 
   // 락커 mutations
+  const transferLocker = trpc.access.transferLocker.useMutation({
+    onSuccess: () => { utils.access.getLockers.invalidate(); setShowTransfer(null); toast.success("락커 이전 완료"); },
+    onError: (e) => toast.error(e.message || "락커 이전 실패"),
+  });
   const releaseLocker = trpc.access.releaseLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 반납 완료"); },
   });
@@ -1695,6 +1869,16 @@ export default function RegistrationManagement() {
       {/* 탭 2: 락커 관리 */}
       {tab === "lockers" && (
         <div className="space-y-3">
+          {/* 1호점 배치도 맵 */}
+          {(selectedBranch === null || selectedBranch === 1) && (
+            <LockerMapReg
+              lockers={(lockersQuery.data ?? []).filter((l: Locker) => l.branchId === 1)}
+              onAssign={(l) => setShowAssign(l)}
+              onTransfer={(l) => setShowTransfer(l)}
+              onEditPeriod={(l) => { setEditPeriodForm({ startDate: l.startDate ?? "", endDate: l.endDate ?? "" }); setEditPeriod(l); }}
+              onRelease={(l) => releaseLocker.mutate({ lockerId: l.id })}
+            />
+          )}
           {/* 카테고리 관리 바 */}
           <div className="flex items-center gap-2 flex-wrap border border-border rounded-xl p-3 bg-card/50">
             <span className="text-xs text-muted-foreground font-medium shrink-0">카테고리</span>
@@ -1886,6 +2070,7 @@ export default function RegistrationManagement() {
                       movingLockerId={movingLockerId}
                       onAssign={() => setShowAssign(locker)}
                       onEditPeriod={() => { setEditPeriodForm({ startDate: locker.startDate ?? "", endDate: locker.endDate ?? "" }); setEditPeriod(locker); }}
+                      onTransfer={() => setShowTransfer(locker)}
                       onRelease={() => {
                         if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
                           releaseLocker.mutate({ lockerId: locker.id });
@@ -2275,6 +2460,16 @@ export default function RegistrationManagement() {
         />
       )}
 
+      {/* 락커 이전 모달 */}
+      {showTransfer && (
+        <TransferLockerModalReg
+          from={showTransfer}
+          allLockers={allLockers}
+          onClose={() => setShowTransfer(null)}
+          onConfirm={(toLockerId) => transferLocker.mutate({ fromLockerId: showTransfer.id, toLockerId })}
+        />
+      )}
+
       {/* 락커 배정 모달 */}
       {showAssign && (
         <AssignLockerModal
@@ -2335,6 +2530,7 @@ function LockerCard({
   onAssign,
   onEditPeriod,
   onRelease,
+  onTransfer,
   onDelete,
   onMoveCategory,
   onToggleMove,
@@ -2345,6 +2541,7 @@ function LockerCard({
   onAssign: () => void;
   onEditPeriod: () => void;
   onRelease: () => void;
+  onTransfer: () => void;
   onDelete: () => void;
   onMoveCategory: (catId: number | null) => void;
   onToggleMove: () => void;
@@ -2352,6 +2549,7 @@ function LockerCard({
   const isOccupied = locker.isOccupied === 1;
   const isMoving = movingLockerId === locker.id;
   const currentCat = categories.find((c) => c.id === locker.categoryId);
+  const position = lockerPositionReg(locker);
 
   const expiryInfo = (() => {
     if (!locker.endDate) return null;
@@ -2372,7 +2570,11 @@ function LockerCard({
         : "border-border bg-card"
     }`}>
       <div className="flex justify-between items-center">
-        <span className="font-bold text-lg">{locker.lockerNumber}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-lg">{locker.lockerNumber}</span>
+          {position === "top" && <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/20 text-sky-400 font-semibold">최상단</span>}
+          {position === "bottom" && <span className="text-[9px] px-1 py-0.5 rounded bg-orange-500/20 text-orange-400 font-semibold">최하단</span>}
+        </div>
         <div className="flex items-center gap-1">
           {currentCat && (
             <span className="w-2 h-2 rounded-full" style={{ background: currentCat.color }} title={currentCat.name} />
@@ -2424,6 +2626,7 @@ function LockerCard({
           )}
           <div className="flex gap-1 mt-1">
             <button onClick={onEditPeriod} className="flex-1 text-xs py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors">기간 수정</button>
+            <button onClick={onTransfer} className="flex-1 text-xs py-1 rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">이전</button>
             <button onClick={onRelease} className="flex-1 text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">반납</button>
           </div>
         </>
