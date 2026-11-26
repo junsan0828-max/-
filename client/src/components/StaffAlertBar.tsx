@@ -41,6 +41,7 @@ function safeSet(k: string, v: string) { try { localStorage.setItem(k, v); } cat
 export default function StaffAlertBar() {
   const { data: me } = trpc.auth.me.useQuery();
   const isStaff = !!me && STAFF_ROLES.includes(me.role);
+  const isAdmin = me?.role === "admin";
   const utils = trpc.useUtils();
 
   const { data: calls } = trpc.staffAlerts.pendingCalls.useQuery(undefined, {
@@ -152,7 +153,8 @@ export default function StaffAlertBar() {
   const dismiss = () => { safeSet(DISMISS_KEY, String(Date.now())); setDismissed(true); };
   // 알림 대상 직원은 이 기기에서 알림 켜기가 필수 (대표 결정 2026-11-05). 켜기 전에는 화면을 쓸 수 없다.
   // 받는 시간은 관리자가 정한 근무시간으로 서버가 자동 판단한다.
-  const mustEnable = !!myStatus?.required && (pushState === "none" || pushState === "denied");
+  // 관리자 계정은 알림 강제 차단 면제 (외부 도구·대표 계정 접근 허용)
+  const mustEnable = !isAdmin && !!myStatus?.required && (pushState === "none" || pushState === "denied");
   const showPrompt = !mustEnable && !dismissed && pushState === "ios-install";
 
   return (
