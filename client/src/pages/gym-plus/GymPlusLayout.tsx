@@ -431,8 +431,9 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
       {/* 사이드바 오버레이 */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm cursor-pointer"
           onClick={() => setSidebarOpen(false)}
+          style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
         />
       )}
 

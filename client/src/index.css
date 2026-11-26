@@ -25,6 +25,22 @@
   }
 }
 
+/* ── iOS Safari 클릭 버그 전역 수정 ──────────────────────────────────── */
+/* iOS는 div/span 등 비인터랙티브 요소에 cursor:pointer 없으면 click 이벤트 미발생 */
+.gymplus-light button,
+.gymplus-light a,
+.gymplus-light [role="button"] {
+  touch-action: manipulation; /* 300ms 지연 제거 */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS 모멘텀 스크롤 */
+.gymplus-light .overflow-y-auto,
+.gymplus-light .overflow-y-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ── 짐플러스 라이트 테마 ──────────────────────────────────────────────── */
 .gymplus-light {
   --background: 0 0% 100%;
