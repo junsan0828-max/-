@@ -82,6 +82,24 @@ type KioskBanner = {
   createdAt: string;
 };
 
+// 1호점 개인락커 위치 정보 (최상단 번호 기준, 열당 7개 → 최하단 = 최상단+6)
+const TOP_B1 = new Set([
+  "361","368","375","382","389","396","403",
+  "417","424","431","438","445","452","459","466",
+  "525","532",
+  "39","43","67","73","79","85",
+]);
+const BOTTOM_B1 = new Set(
+  [...TOP_B1].map(n => String(Number(n) + 6)).filter(n => !TOP_B1.has(n))
+);
+
+function lockerPosition(locker: { lockerNumber: string; branchId: number | null }): "top" | "bottom" | null {
+  if (locker.branchId !== 1) return null;
+  if (TOP_B1.has(locker.lockerNumber)) return "top";
+  if (BOTTOM_B1.has(locker.lockerNumber)) return "bottom";
+  return null;
+}
+
 function resultLabel(r: string) {
   switch (r) {
     case "allowed": return { label: "입장", color: "text-green-400", icon: CheckCircle2 };
@@ -752,6 +770,7 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
                       locker={locker}
                       categories={categories}
                       movingLockerId={movingLockerId}
+                      position={lockerPosition(locker)}
                       onAssign={() => setShowAssign(locker)}
                       onTransfer={() => setShowTransfer(locker)}
                       onEditPeriod={() => { setEditPeriodForm({ startDate: locker.startDate ?? "", endDate: locker.endDate ?? "" }); setEditPeriod(locker); }}
@@ -1424,6 +1443,7 @@ function LockerCard({
   locker,
   categories,
   movingLockerId,
+  position,
   onAssign,
   onTransfer,
   onEditPeriod,
@@ -1435,6 +1455,7 @@ function LockerCard({
   locker: Locker;
   categories: LockerCategory[];
   movingLockerId: number | null;
+  position: "top" | "bottom" | null;
   onAssign: () => void;
   onTransfer: () => void;
   onEditPeriod: () => void;
@@ -1466,7 +1487,15 @@ function LockerCard({
         : "border-border bg-card"
     }`}>
       <div className="flex justify-between items-center">
-        <span className="font-bold text-lg">{locker.lockerNumber}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-lg">{locker.lockerNumber}</span>
+          {position === "top" && (
+            <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-sky-500/20 text-sky-400 leading-none">최상단</span>
+          )}
+          {position === "bottom" && (
+            <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 leading-none">최하단</span>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           {currentCat && (
             <span className="w-2 h-2 rounded-full" style={{ background: currentCat.color }} title={currentCat.name} />
