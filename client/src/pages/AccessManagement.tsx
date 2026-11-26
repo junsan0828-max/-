@@ -1647,11 +1647,8 @@ function LockerMap({
 
   function cellStyle(num: number): { bg: string; border: string; text: string } {
     const l = lockerMap.get(String(num));
-    if (!l || !l.isOccupied) return { bg: "bg-transparent hover:bg-muted/30", border: "border-border", text: "text-muted-foreground/40" };
-    if (!l.endDate) return { bg: "bg-blue-500/60 hover:bg-blue-500/80", border: "border-blue-400/70", text: "text-white" };
-    const end = new Date(l.endDate); end.setHours(0, 0, 0, 0);
-    if (end < today) return { bg: "bg-red-500/70 hover:bg-red-500/90", border: "border-red-400/80", text: "text-white" };
-    return { bg: "bg-green-600/60 hover:bg-green-600/80", border: "border-green-500/70", text: "text-white" };
+    if (!l || !l.isOccupied) return { bg: "bg-transparent hover:bg-muted/20", border: "border-border/60", text: "text-muted-foreground/30" };
+    return { bg: "bg-indigo-600 hover:bg-indigo-500", border: "border-indigo-400", text: "text-white" };
   }
 
   const selLocker = selected ? lockerMap.get(selected) : null;
@@ -1661,10 +1658,8 @@ function LockerMap({
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-muted-foreground">락커 배치도 — 1호점</span>
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-600/60 border border-green-500/70 inline-block" />사용중</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500/70 border border-red-400/80 inline-block" />만료</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500/60 border border-blue-400/70 inline-block" />기간없음</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-transparent border border-border inline-block" />빈칸</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-indigo-600 border border-indigo-400 inline-block" />사용중</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-transparent border border-border/60 inline-block" />빈칸</span>
         </div>
       </div>
 
@@ -1711,11 +1706,7 @@ function LockerMap({
             <>
               <span className="text-sm">{selLocker.memberName}</span>
               {selLocker.endDate && (
-                <span className="text-xs text-muted-foreground">
-                  {new Date(selLocker.endDate) < today
-                    ? <span className="text-red-400">{selLocker.endDate} 만료</span>
-                    : `~${selLocker.endDate}`}
-                </span>
+                <span className="text-xs text-muted-foreground">~{selLocker.endDate}</span>
               )}
               <div className="ml-auto flex gap-1">
                 <button onClick={() => { onEditPeriod(selLocker); setSelected(null); }} className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20">기간 수정</button>
