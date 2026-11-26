@@ -415,6 +415,55 @@ export default function ConsultKiosk() {
           : <p className="text-amber-600 text-xs mt-2">지점 미설정 · 주소 끝에 ?branch=1 또는 ?branch=2</p>}
       </div>}
 
+      {/* ── 메인 히어로 배너 ── */}
+      {stage === "main_select" && (
+        <button
+          onClick={() => setShowConsultModal(true)}
+          className="w-full max-w-sm mb-5 rounded-3xl overflow-hidden text-left active:scale-[0.98] transition-transform"
+          style={{ touchAction: "manipulation" }}
+        >
+          <div
+            className="relative px-6 py-7"
+            style={{
+              background: "linear-gradient(135deg, #0B1D3A 0%, #1D4ED8 60%, #2563EB 100%)",
+            }}
+          >
+            {/* 배경 장식 원 */}
+            <div className="absolute right-4 top-4 w-24 h-24 rounded-full opacity-10"
+              style={{ background: "radial-gradient(circle, white 0%, transparent 70%)" }} />
+            <div className="absolute right-10 bottom-3 w-16 h-16 rounded-full opacity-[0.07]"
+              style={{ background: "white" }} />
+
+            {/* 뱃지 */}
+            <div className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm rounded-full px-3 py-1 mb-4">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-white/90 text-xs font-semibold">지금 바로 상담 가능</span>
+            </div>
+
+            {/* 메인 카피 */}
+            <p className="text-white text-3xl font-black leading-tight mb-1">처음이신가요?</p>
+            <p className="text-blue-200 text-xl font-bold leading-tight mb-5">상담이 필요하신가요?</p>
+
+            {/* CTA 버튼 */}
+            <div className="flex items-center justify-between">
+              <div
+                className="flex items-center gap-2 bg-white text-[#0B1D3A] rounded-2xl px-5 py-2.5 font-black text-sm shadow-lg"
+                style={{ boxShadow: "0 0 0 3px rgba(255,255,255,0.3), 0 4px 16px rgba(0,0,0,0.3)" }}
+              >
+                <span>여기를 터치하세요</span>
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </div>
+              <div className="text-right">
+                <p className="text-white/60 text-xs">신규 · 재등록</p>
+                <p className="text-white/60 text-xs">PT 상담</p>
+              </div>
+            </div>
+          </div>
+        </button>
+      )}
+
       {/* ── 메인 선택 ── */}
       {stage === "main_select" && (
         <div className="w-full max-w-sm space-y-3">
