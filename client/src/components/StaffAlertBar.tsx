@@ -41,7 +41,7 @@ function safeSet(k: string, v: string) { try { localStorage.setItem(k, v); } cat
 export default function StaffAlertBar() {
   const { data: me } = trpc.auth.me.useQuery();
   const isStaff = !!me && STAFF_ROLES.includes(me.role);
-  const isAdmin = me?.role === "admin";
+  const isAdmin = me?.role === "admin" || me?.role === "consultant";
   const utils = trpc.useUtils();
 
   const { data: calls } = trpc.staffAlerts.pendingCalls.useQuery(undefined, {
