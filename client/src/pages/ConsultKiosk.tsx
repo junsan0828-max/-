@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 type MainType = "consult" | "payment" | "info";
 type ConsultType = "new" | "renew" | "pt";
 type Stage =
+  | "splash"
   | "main_select"
   | "consult_type"
   | "consult_check"
@@ -213,7 +214,7 @@ function readBranchNo(): number | undefined {
 
 export default function ConsultKiosk() {
   const [branchNo] = useState(readBranchNo);
-  const [stage, setStage] = useState<Stage>("main_select");
+  const [stage, setStage] = useState<Stage>("splash");
   const [consultType, setConsultType] = useState<ConsultType>("new");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -272,7 +273,7 @@ export default function ConsultKiosk() {
         }
       }
       const { stage: s, showConsultModal: modal } = idleOnHomeRef.current;
-      if (updateReady && s === "main_select" && !modal && Date.now() - lastTouch > 30_000) window.location.reload();
+      if (updateReady && (s === "splash" || s === "main_select") && !modal && Date.now() - lastTouch > 30_000) window.location.reload();
     };
     const timer = setInterval(check, UPDATE_CHECK_MS);
     return () => {
@@ -329,7 +330,7 @@ export default function ConsultKiosk() {
   });
 
   const doReset = useCallback(() => {
-    setStage("main_select");
+    setStage("splash");
     setShowConsultModal(false);
     setWaitType("wait");
     setSelectedEvent(null); setRegPeriod("");
@@ -339,7 +340,7 @@ export default function ConsultKiosk() {
 
   // 홈이 아닌 화면에서 1분간 터치·입력이 없으면 입력값을 지우고 홈으로 (다음 손님에게 개인정보 노출 방지)
   useEffect(() => {
-    if (stage === "main_select" && !showConsultModal) return;
+    if ((stage === "splash" || stage === "main_select") && !showConsultModal) return;
     let timer = setTimeout(doReset, IDLE_RESET_MS);
     const bump = () => { clearTimeout(timer); timer = setTimeout(doReset, IDLE_RESET_MS); };
     const events = ["pointerdown", "keydown", "input", "wheel"];
@@ -401,6 +402,75 @@ export default function ConsultKiosk() {
     setStage("staff_input");
   };
 
+  // ── 전체화면 스플래시 ──
+  if (stage === "splash") {
+    return (
+      <div
+        className="min-h-screen select-none flex items-center justify-center cursor-pointer"
+        style={{
+          background: "linear-gradient(145deg, #0B1D3A 0%, #1a3a7a 55%, #2563EB 100%)",
+          touchAction: "manipulation",
+        }}
+        onClick={() => setStage("main_select")}
+      >
+        {/* 배경 장식 */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 65%)" }} />
+          <div className="absolute -bottom-24 -left-24 w-80 h-80 rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(37,99,235,0.3) 0%, transparent 65%)" }} />
+          <div className="absolute top-1/3 left-1/4 w-48 h-48 rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 65%)" }} />
+        </div>
+
+        <div className="relative text-center px-8 flex flex-col items-center">
+          {/* 로고 */}
+          <p className="text-white/60 text-sm font-semibold tracking-[0.3em] uppercase mb-8">
+            맞춤운동센터
+          </p>
+          <p className="text-white font-black tracking-[0.15em] mb-10"
+            style={{ fontSize: "clamp(2rem, 8vw, 3.5rem)", fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.15em" }}>
+            ZIANTGYM
+          </p>
+
+          {/* 메인 카피 */}
+          <div className="mb-10 space-y-2">
+            <p className="text-white font-black leading-tight"
+              style={{ fontSize: "clamp(2rem, 7vw, 3rem)" }}>
+              처음이신가요?
+            </p>
+            <p className="font-bold leading-tight"
+              style={{ fontSize: "clamp(1.5rem, 5.5vw, 2.2rem)", color: "#93c5fd" }}>
+              상담이 필요하신가요?
+            </p>
+          </div>
+
+          {/* CTA */}
+          <div className="flex flex-col items-center gap-3">
+            <div
+              className="flex items-center gap-3 bg-white text-[#0B1D3A] rounded-2xl font-black"
+              style={{
+                padding: "14px 32px",
+                fontSize: "clamp(1rem, 3.5vw, 1.25rem)",
+                boxShadow: "0 0 0 4px rgba(255,255,255,0.2), 0 8px 32px rgba(0,0,0,0.3)",
+              }}
+            >
+              <span>화면을 터치하세요</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </div>
+            {/* 펄스 인디케이터 */}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-white/50 text-xs font-medium">지금 바로 상담 가능</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F9FB] text-slate-900 flex flex-col items-center justify-center px-6 py-8 select-none">
       {/* 헤더 (메인 화면에서만 — 입력 화면이 한 화면에 들어오도록) */}
@@ -414,55 +484,6 @@ export default function ConsultKiosk() {
           ? <p className="text-slate-400 text-xs mt-2">{BRANCH_LABEL[branchNo]}</p>
           : <p className="text-amber-600 text-xs mt-2">지점 미설정 · 주소 끝에 ?branch=1 또는 ?branch=2</p>}
       </div>}
-
-      {/* ── 메인 히어로 배너 ── */}
-      {stage === "main_select" && (
-        <button
-          onClick={() => setShowConsultModal(true)}
-          className="w-full max-w-sm mb-5 rounded-3xl overflow-hidden text-left active:scale-[0.98] transition-transform"
-          style={{ touchAction: "manipulation" }}
-        >
-          <div
-            className="relative px-6 py-7"
-            style={{
-              background: "linear-gradient(135deg, #0B1D3A 0%, #1D4ED8 60%, #2563EB 100%)",
-            }}
-          >
-            {/* 배경 장식 원 */}
-            <div className="absolute right-4 top-4 w-24 h-24 rounded-full opacity-10"
-              style={{ background: "radial-gradient(circle, white 0%, transparent 70%)" }} />
-            <div className="absolute right-10 bottom-3 w-16 h-16 rounded-full opacity-[0.07]"
-              style={{ background: "white" }} />
-
-            {/* 뱃지 */}
-            <div className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm rounded-full px-3 py-1 mb-4">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-white/90 text-xs font-semibold">지금 바로 상담 가능</span>
-            </div>
-
-            {/* 메인 카피 */}
-            <p className="text-white text-3xl font-black leading-tight mb-1">처음이신가요?</p>
-            <p className="text-blue-200 text-xl font-bold leading-tight mb-5">상담이 필요하신가요?</p>
-
-            {/* CTA 버튼 */}
-            <div className="flex items-center justify-between">
-              <div
-                className="flex items-center gap-2 bg-white text-[#0B1D3A] rounded-2xl px-5 py-2.5 font-black text-sm shadow-lg"
-                style={{ boxShadow: "0 0 0 3px rgba(255,255,255,0.3), 0 4px 16px rgba(0,0,0,0.3)" }}
-              >
-                <span>여기를 터치하세요</span>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-              </div>
-              <div className="text-right">
-                <p className="text-white/60 text-xs">신규 · 재등록</p>
-                <p className="text-white/60 text-xs">PT 상담</p>
-              </div>
-            </div>
-          </div>
-        </button>
-      )}
 
       {/* ── 메인 선택 ── */}
       {stage === "main_select" && (
