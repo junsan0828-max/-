@@ -581,6 +581,17 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
       {/* 락커 관리 */}
       {tab === "lockers" && (
         <div className="space-y-3">
+          {/* 1호점 배치도 맵 */}
+          {(selectedBranch === null || selectedBranch === 1) && (
+            <LockerMap
+              lockers={(lockersQuery.data ?? []).filter((l: Locker) => l.branchId === 1)}
+              onAssign={(l) => setShowAssign(l)}
+              onTransfer={(l) => setShowTransfer(l)}
+              onEditPeriod={(l) => { setEditPeriodForm({ startDate: l.startDate ?? "", endDate: l.endDate ?? "" }); setEditPeriod(l); }}
+              onRelease={(l) => releaseLocker.mutate({ lockerId: l.id })}
+            />
+          )}
+
           {/* 카테고리 관리 바 */}
           <div className="flex items-center gap-2 flex-wrap border border-border rounded-xl p-3 bg-card/50">
             <span className="text-xs text-muted-foreground font-medium shrink-0">카테고리</span>
@@ -1564,6 +1575,163 @@ function LockerCard({
             <Trash2 className="h-3 w-3 inline" /> 삭제
           </button>
         </>
+      )}
+    </div>
+  );
+}
+
+// 1호점 물리적 락커 배치 (열 단위, 위→아래 순서)
+const LOCKER_LAYOUT_B1 = [
+  {
+    label: "두자릿수 (43~54)", cols: [
+      [43, 44, 45, 46, 47, 48, 49],
+      [50, 51, 52, 53, 54],
+    ],
+  },
+  {
+    label: "두자릿수 (67~90)", cols: [
+      [67, 68, 69, 70, 71, 72],
+      [73, 74, 75, 76, 77, 78],
+      [79, 80, 81, 82, 83, 84],
+      [85, 86, 87, 88, 89, 90],
+    ],
+  },
+  {
+    label: "세자릿수 A (361~416)", cols: [
+      [361, 362, 363, 364, 365, 366, 367],
+      [368, 369, 370, 371, 372, 373, 374],
+      [375, 376, 377, 378, 379, 380, 381],
+      [382, 383, 384, 385, 386, 387, 388],
+      [389, 390, 391, 392, 393, 394, 395],
+      [396, 397, 398, 399, 400, 401, 402],
+      [403, 404, 405, 406, 407, 408, 409],
+      [410, 411, 412, 413, 414, 415, 416],
+    ],
+  },
+  {
+    label: "세자릿수 B (417~472)", cols: [
+      [417, 418, 419, 420, 421, 422, 423],
+      [424, 425, 426, 427, 428, 429, 430],
+      [431, 432, 433, 434, 435, 436, 437],
+      [438, 439, 440, 441, 442, 443, 444],
+      [445, 446, 447, 448, 449, 450, 451],
+      [452, 453, 454, 455, 456, 457, 458],
+      [459, 460, 461, 462, 463, 464, 465],
+      [466, 467, 468, 469, 470, 471, 472],
+    ],
+  },
+  {
+    label: "세자릿수 C (525~538)", cols: [
+      [525, 526, 527, 528, 529, 530, 531],
+      [532, 533, 534, 535, 536, 537, 538],
+    ],
+  },
+];
+
+function LockerMap({
+  lockers,
+  onAssign,
+  onTransfer,
+  onEditPeriod,
+  onRelease,
+}: {
+  lockers: Locker[];
+  onAssign: (l: Locker) => void;
+  onTransfer: (l: Locker) => void;
+  onEditPeriod: (l: Locker) => void;
+  onRelease: (l: Locker) => void;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const lockerMap = new Map(lockers.map(l => [l.lockerNumber, l]));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  function cellStyle(num: number): { bg: string; border: string; text: string } {
+    const l = lockerMap.get(String(num));
+    if (!l || !l.isOccupied) return { bg: "bg-transparent hover:bg-muted/30", border: "border-border", text: "text-muted-foreground/40" };
+    if (!l.endDate) return { bg: "bg-blue-500/60 hover:bg-blue-500/80", border: "border-blue-400/70", text: "text-white" };
+    const end = new Date(l.endDate); end.setHours(0, 0, 0, 0);
+    if (end < today) return { bg: "bg-red-500/70 hover:bg-red-500/90", border: "border-red-400/80", text: "text-white" };
+    return { bg: "bg-green-600/60 hover:bg-green-600/80", border: "border-green-500/70", text: "text-white" };
+  }
+
+  const selLocker = selected ? lockerMap.get(selected) : null;
+
+  return (
+    <div className="border border-border rounded-xl bg-card/50 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">락커 배치도 — 1호점</span>
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-600/60 border border-green-500/70 inline-block" />사용중</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500/70 border border-red-400/80 inline-block" />만료</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500/60 border border-blue-400/70 inline-block" />기간없음</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-transparent border border-border inline-block" />빈칸</span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto pb-1">
+        <div className="flex gap-4 min-w-max">
+          {LOCKER_LAYOUT_B1.map((section, si) => (
+            <div key={si} className="flex flex-col gap-1">
+              <span className="text-[9px] text-muted-foreground/60 font-medium">{section.label}</span>
+              <div className="flex gap-0.5">
+                {section.cols.map((col, ci) => (
+                  <div key={ci} className="flex flex-col gap-0.5">
+                    {col.map((num) => {
+                      const isTop = TOP_B1.has(String(num));
+                      const isBot = BOTTOM_B1.has(String(num));
+                      const { bg, border, text } = cellStyle(num);
+                      const isSel = selected === String(num);
+                      const l = lockerMap.get(String(num));
+                      return (
+                        <button
+                          key={num}
+                          onClick={() => setSelected(isSel ? null : String(num))}
+                          title={l?.isOccupied ? `${num}: ${l.memberName}` : `${num}: 비어있음`}
+                          className={`relative w-9 h-[18px] rounded-[3px] border text-[7px] font-bold transition-all flex items-center justify-center ${bg} ${border} ${text} ${isSel ? "ring-2 ring-primary ring-offset-1 ring-offset-background scale-110 z-10" : ""}`}
+                        >
+                          {num}
+                          {isTop && <span className="absolute top-0 right-0 w-1 h-1 rounded-bl-sm bg-sky-400" />}
+                          {isBot && <span className="absolute bottom-0 right-0 w-1 h-1 rounded-tl-sm bg-amber-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 선택된 락커 액션 패널 */}
+      {selected && (
+        <div className="flex items-center gap-3 pt-1 border-t border-border flex-wrap">
+          <span className="font-bold text-sm">{selected}번</span>
+          {selLocker?.isOccupied ? (
+            <>
+              <span className="text-sm">{selLocker.memberName}</span>
+              {selLocker.endDate && (
+                <span className="text-xs text-muted-foreground">
+                  {new Date(selLocker.endDate) < today
+                    ? <span className="text-red-400">{selLocker.endDate} 만료</span>
+                    : `~${selLocker.endDate}`}
+                </span>
+              )}
+              <div className="ml-auto flex gap-1">
+                <button onClick={() => { onEditPeriod(selLocker); setSelected(null); }} className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20">기간 수정</button>
+                <button onClick={() => { onTransfer(selLocker); setSelected(null); }} className="text-xs px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">이전</button>
+                <button onClick={() => { if (confirm(`${selected}번 반납?`)) { onRelease(selLocker); setSelected(null); } }} className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20">반납</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground">비어있음</span>
+              {selLocker && (
+                <button onClick={() => { onAssign(selLocker); setSelected(null); }} className="ml-auto text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20">배정</button>
+              )}
+            </>
+          )}
+        </div>
       )}
     </div>
   );
