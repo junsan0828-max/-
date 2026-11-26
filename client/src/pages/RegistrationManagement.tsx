@@ -2134,7 +2134,7 @@ export default function RegistrationManagement() {
         return (
           <div className="space-y-3">
             {/* 요약 + 버튼 */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                 <span>착용 중 <span className="text-foreground font-semibold">{activeCount}</span>명</span>
                 <span className="text-green-400 font-medium">💳 유료 {allCombined.filter((u: any) => u.rentalType !== "service").length}명</span>
@@ -2142,7 +2142,7 @@ export default function RegistrationManagement() {
               </span>
               <button
                 onClick={() => { setEditingUniform(null); resetUniformForm(); setShowUniformForm(true); }}
-                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+                className="flex items-center justify-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4" /> 운동복 추가
               </button>
