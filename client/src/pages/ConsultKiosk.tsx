@@ -425,45 +425,43 @@ export default function ConsultKiosk() {
 
         <div className="relative text-center px-8 flex flex-col items-center">
           {/* 로고 */}
-          <p className="text-white/60 text-sm font-semibold tracking-[0.3em] uppercase mb-8">
-            맞춤운동센터
-          </p>
-          <p className="text-white font-black tracking-[0.15em] mb-10"
-            style={{ fontSize: "clamp(2rem, 8vw, 3.5rem)", fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.15em" }}>
-            ZIANTGYM
+          <p className="text-white font-black mb-10"
+            style={{ fontSize: "clamp(2rem, 9vw, 4rem)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+            맞춤운동센터<br />
+            <span style={{ color: "#93c5fd" }}>자이언트짐</span>
           </p>
 
           {/* 메인 카피 */}
-          <div className="mb-10 space-y-2">
+          <div className="mb-12 space-y-3">
             <p className="text-white font-black leading-tight"
-              style={{ fontSize: "clamp(2rem, 7vw, 3rem)" }}>
+              style={{ fontSize: "clamp(2.4rem, 9vw, 3.8rem)" }}>
               처음이신가요?
             </p>
             <p className="font-bold leading-tight"
-              style={{ fontSize: "clamp(1.5rem, 5.5vw, 2.2rem)", color: "#93c5fd" }}>
+              style={{ fontSize: "clamp(1.8rem, 7vw, 2.8rem)", color: "#93c5fd" }}>
               상담이 필요하신가요?
             </p>
           </div>
 
           {/* CTA */}
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-4">
             <div
               className="flex items-center gap-3 bg-white text-[#0B1D3A] rounded-2xl font-black"
               style={{
-                padding: "14px 32px",
-                fontSize: "clamp(1rem, 3.5vw, 1.25rem)",
+                padding: "18px 40px",
+                fontSize: "clamp(1.2rem, 4.5vw, 1.6rem)",
                 boxShadow: "0 0 0 4px rgba(255,255,255,0.2), 0 8px 32px rgba(0,0,0,0.3)",
               }}
             >
               <span>화면을 터치하세요</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-5 h-5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
               </svg>
             </div>
             {/* 펄스 인디케이터 */}
             <div className="flex items-center gap-2 mt-1">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-white/50 text-xs font-medium">지금 바로 상담 가능</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-white/50 font-medium" style={{ fontSize: "clamp(0.9rem, 3vw, 1.1rem)" }}>지금 바로 상담 가능</span>
             </div>
           </div>
         </div>
