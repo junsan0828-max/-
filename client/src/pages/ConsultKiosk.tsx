@@ -432,13 +432,13 @@ export default function ConsultKiosk() {
           </p>
 
           {/* 메인 카피 */}
-          <div className="mb-12 space-y-3">
+          <div className="mb-14 space-y-4">
             <p className="text-white font-black leading-tight"
-              style={{ fontSize: "clamp(2.4rem, 9vw, 3.8rem)" }}>
+              style={{ fontSize: "clamp(3.2rem, 13vw, 5.5rem)", letterSpacing: "-0.02em" }}>
               처음이신가요?
             </p>
-            <p className="font-bold leading-tight"
-              style={{ fontSize: "clamp(1.8rem, 7vw, 2.8rem)", color: "#93c5fd" }}>
+            <p className="font-black leading-tight"
+              style={{ fontSize: "clamp(2.4rem, 10vw, 4.2rem)", color: "#93c5fd", letterSpacing: "-0.01em" }}>
               상담이 필요하신가요?
             </p>
           </div>
@@ -446,22 +446,22 @@ export default function ConsultKiosk() {
           {/* CTA */}
           <div className="flex flex-col items-center gap-4">
             <div
-              className="flex items-center gap-3 bg-white text-[#0B1D3A] rounded-2xl font-black"
+              className="flex items-center gap-4 bg-white text-[#0B1D3A] rounded-2xl font-black"
               style={{
-                padding: "18px 40px",
-                fontSize: "clamp(1.2rem, 4.5vw, 1.6rem)",
-                boxShadow: "0 0 0 4px rgba(255,255,255,0.2), 0 8px 32px rgba(0,0,0,0.3)",
+                padding: "22px 48px",
+                fontSize: "clamp(1.5rem, 5.5vw, 2rem)",
+                boxShadow: "0 0 0 5px rgba(255,255,255,0.25), 0 10px 40px rgba(0,0,0,0.35)",
               }}
             >
               <span>화면을 터치하세요</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-6 h-6">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ width: "1.4em", height: "1.4em" }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
               </svg>
             </div>
             {/* 펄스 인디케이터 */}
             <div className="flex items-center gap-2 mt-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-white/50 font-medium" style={{ fontSize: "clamp(0.9rem, 3vw, 1.1rem)" }}>지금 바로 상담 가능</span>
+              <span className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-white/50 font-semibold" style={{ fontSize: "clamp(1rem, 3.5vw, 1.3rem)" }}>지금 바로 상담 가능</span>
             </div>
           </div>
         </div>
