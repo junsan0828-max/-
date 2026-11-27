@@ -433,12 +433,12 @@ export default function ConsultKiosk() {
 
           {/* 메인 카피 */}
           <div className="mb-14 space-y-4">
-            <p className="text-white font-black leading-tight"
-              style={{ fontSize: "clamp(3.2rem, 13vw, 5.5rem)", letterSpacing: "-0.02em" }}>
+            <p className="text-white font-black leading-tight whitespace-nowrap"
+              style={{ fontSize: "clamp(2.8rem, 11vw, 5rem)", letterSpacing: "-0.02em" }}>
               처음이신가요?
             </p>
-            <p className="font-black leading-tight"
-              style={{ fontSize: "clamp(2.4rem, 10vw, 4.2rem)", color: "#93c5fd", letterSpacing: "-0.01em" }}>
+            <p className="font-black leading-tight whitespace-nowrap"
+              style={{ fontSize: "clamp(1.8rem, 7.5vw, 3.4rem)", color: "#93c5fd", letterSpacing: "-0.01em" }}>
               상담이 필요하신가요?
             </p>
           </div>
